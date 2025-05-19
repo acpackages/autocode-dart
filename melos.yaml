@@ -1,0 +1,7 @@
+name: autocode-dart
+packages:
+  - packages/**
+scripts:
+  analyze: dart analyze .
+  format: dart format .
+  test: dart test

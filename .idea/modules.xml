@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode/melos_autocode.iml" filepath="$PROJECT_DIR$/packages/autocode/melos_autocode.iml" />
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode-data-dictionary/melos_autocode_data_dictionary.iml" filepath="$PROJECT_DIR$/packages/autocode-data-dictionary/melos_autocode_data_dictionary.iml" />
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode-documentation/melos_autocode_documentation.iml" filepath="$PROJECT_DIR$/packages/autocode-documentation/melos_autocode_documentation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode-extensions/melos_autocode_extensions.iml" filepath="$PROJECT_DIR$/packages/autocode-extensions/melos_autocode_extensions.iml" />
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode-sql/melos_autocode_sql.iml" filepath="$PROJECT_DIR$/packages/autocode-sql/melos_autocode_sql.iml" />
+      <module fileurl="file://$PROJECT_DIR$/packages/autocode-web/melos_autocode_web.iml" filepath="$PROJECT_DIR$/packages/autocode-web/melos_autocode_web.iml" />
+      <module fileurl="file://$PROJECT_DIR$/melos_autocode-dart.iml" filepath="$PROJECT_DIR$/melos_autocode-dart.iml" />
+    </modules>
+  </component>
+</project>

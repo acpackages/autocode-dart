@@ -1,0 +1,3 @@
+class AcWebRepository {
+  const AcWebRepository();
+}

@@ -1,0 +1,3 @@
+class AcWebService {
+  const AcWebService();
+}
