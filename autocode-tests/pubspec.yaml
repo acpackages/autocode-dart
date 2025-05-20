@@ -1,0 +1,30 @@
+name: autocode_tests
+description: A starting point for Dart libraries or applications.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.7.0
+
+# Add regular dependencies here.
+dependencies:
+  autocode:
+    path: './../packages/autocode'
+  autocode_data_dictionary:
+    path: './../packages/autocode-data-dictionary'
+  autocode_extensions:
+    path: './../packages/autocode-extensions'
+  autocode_sql:
+    path: './../packages/autocode-sql'
+  autocode_web:
+    path: './../packages/autocode-web'
+  autocode_web_on_jaguar:
+    path: './../packages/autocode-web-on-jaguar'
+  # path: ^1.8.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0
+
+dependency_overrides:
+  mime: ^2.0.0

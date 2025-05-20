@@ -4,14 +4,14 @@ import 'package:autocode/autocode.dart';
 import 'package:autocode_web/autocode_web.dart';
 class AcWebResponse {
   static const String KEY_COOKIES = 'cookies';
-  static const String KEY_DATA = 'data';
+  static const String KEY_CONTENT = 'content';
   static const String KEY_HEADERS = 'headers';
   static const String KEY_RESPONSE_CODE = 'response_code';
   static const String KEY_RESPONSE_TYPE = 'response_type';
   static const String KEY_SESSION = 'session';
 
   Map<String, dynamic> cookies = {};
-  dynamic data;
+  dynamic content;
   Map<String, dynamic> headers = {};
 
   @AcBindJsonProperty(key: AcWebResponse.KEY_RESPONSE_CODE)
@@ -26,24 +26,40 @@ class AcWebResponse {
     final response = AcWebResponse();
     response.responseCode = responseCode;
     response.responseType = AcEnumWebResponseType.JSON;
-    response.data = data;
+    response.content = data;
     response.headers['Content-Type'] = 'application/json';
-
-    // In a Dart web server environment, you'd return or send the response differently
-    print(jsonEncode(data)); // simulate sending response
     return response;
   }
 
-  static AcWebResponse view(String template, [Map<String, dynamic> vars = const {}]) {
-    // In Dart, view rendering depends on your backend server implementation
-    // This is a placeholder for view rendering logic.
-    print("Render view: $template with $vars");
-    return AcWebResponse();
+  static AcWebResponse notFound() {
+    final response = AcWebResponse();
+    response.responseCode = AcEnumHttpResponseCode.NOT_FOUND;
+    return response;
   }
 
-  static AcWebResponse redirect(String url, [int responseCode = AcEnumHttpResponseCode.TEMPORARY_REDIRECT]) {
-    // In a real web server, you'd set a redirect header
-    print("Redirect to: $url");
+  static AcWebResponse raw({required dynamic content, int responseCode = AcEnumHttpResponseCode.OK,Map<String,dynamic> headers = const {}}) {
+    final response = AcWebResponse();
+    response.responseCode = responseCode;
+    response.responseType = AcEnumWebResponseType.RAW;
+    response.content = content;
+    for(var key in headers.keys){
+      response.headers[key] = headers.keys;
+    }
+    return response;
+  }
+
+  static AcWebResponse redirect({required String url, int responseCode = AcEnumHttpResponseCode.TEMPORARY_REDIRECT}) {
+    final response = AcWebResponse();
+    response.responseCode = responseCode;
+    response.responseType = AcEnumWebResponseType.REDIRECT;
+    response.content = url;
+    return response;
+  }
+
+  static AcWebResponse view({required String template, int responseCode = AcEnumHttpResponseCode.OK}) {
+    // In Dart, view rendering depends on your backend server implementation
+    // This is a placeholder for view rendering logic.
+    // print("Render view: $template with $vars");
     return AcWebResponse();
   }
 
@@ -60,4 +76,6 @@ class AcWebResponse {
   String toString() {
     return const JsonEncoder.withIndent('  ').convert(toJson());
   }
+
+
 }

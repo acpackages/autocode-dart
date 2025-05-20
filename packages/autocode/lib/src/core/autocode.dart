@@ -1,11 +1,21 @@
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
-
 import 'ac_logger.dart';
 
 class Autocode {
+  static final Map<String,dynamic > _consoleColors = {
+    "Black":'\x1B[30m',
+    "Red":'\x1B[31m',
+    "Green":'\x1B[32m',
+    "Yellow":'\x1B[33m',
+    "Blue":'\x1B[34m',
+    "Magenta":'\x1B[35m',
+    "Cyan":'\x1B[36m',
+    "White":'\x1B[37m',
+    "Reset":'\x1B[0m'
+  };
   static final Map<String, Set<String>> _uniqueIds = {};
+
   static final String _characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   static final Random _random = Random.secure();
   static AcLogger logger =  AcLogger();
@@ -46,6 +56,14 @@ class Autocode {
     return instance.runtimeType.toString();
   }
 
+  static String getExceptionMessage({dynamic exception,dynamic stackTrace}) {
+    if(stackTrace!=null){
+      print(_consoleColors["Red"]+stackTrace.toString()+_consoleColors["Reset"]);
+    }
+    print(_consoleColors["Red"]+exception.toString()+_consoleColors["Reset"]);
+    return exception.toString();
+  }
+
   static bool validPrimaryKey(dynamic value) {
     if (value != null && value != '') {
       if (value is String && value != "0") return true;
@@ -63,8 +81,6 @@ class Autocode {
     String id = uuid.v4();
     return id;
   }
-
-
 
   static String _generateRandomHex(int length) {
     final List<int> values = List.generate(length ~/ 2, (_) => _random.nextInt(256));

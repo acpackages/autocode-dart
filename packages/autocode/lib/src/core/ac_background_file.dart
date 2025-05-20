@@ -38,6 +38,12 @@ class AcBackgroundFile {
         String content = message[1];
         bool close = message[2];
         File file = File(filePath);
+        if(!file.existsSync()){
+          if(!file.parent.existsSync()){
+            file.parent.createSync(recursive: true);
+          }
+          file.createSync(recursive: true);
+        }
         if (content.isNotEmpty) {
           await file.writeAsString(content, mode: FileMode.append);
         }

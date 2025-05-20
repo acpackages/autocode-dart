@@ -46,6 +46,7 @@ export './src/api-docs/models/ac_api_doc_security_scheme.dart';
 export './src/api-docs/models/ac_api_doc_server.dart';
 export './src/api-docs/models/ac_api_doc_tag.dart';
 export './src/api-docs/swagger/ac_api_swagger.dart';
+export './src/api-docs/swagger/ac_swagger_resources.dart';
 export './src/api-docs/utils/ac_api_doc_utils.dart';
 
 export './src/core/ac_web.dart';

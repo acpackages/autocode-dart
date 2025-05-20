@@ -97,16 +97,14 @@ class AcLogger {
     return this;
   }
 
-  AcLogger _consoleMessage(String message, String type) {
+  AcLogger _consoleMessage({required String message, required String type}) {
     String label = prefix.isNotEmpty ? "$prefix : " : "";
     print("$label$message");
     return this;
   }
 
-  AcLogger _printMessage(String message, String type) {
-    String color = messageColors[type] ?? "Black";
-    String label = prefix.isNotEmpty ? "$prefix : " : "";
-    print('<p style="color:$color;">$label$message</p>');
+  AcLogger _printMessage({required String message,required  String type}) {
+    _consoleMessage(message: message,type: type);
     return this;
   }
 
@@ -115,52 +113,55 @@ class AcLogger {
       if (args is List) {
         for (var message in args) {
           if (logType != AcEnumLogType.CONSOLE && logType != AcEnumLogType.PRINT) {
-            _writeToFile(message.toString(), type);
+            _writeToFile(message: message.toString(), type:type);
           } else if (logType == AcEnumLogType.PRINT) {
-            _printMessage(message.toString(), type);
+            _printMessage(message: message.toString(), type:type);
           } else {
-            _consoleMessage(message.toString(), type);
+            _consoleMessage(message:message.toString(), type:type);
           }
         }
       }
       else{
         if (logType != AcEnumLogType.CONSOLE && logType != AcEnumLogType.PRINT) {
-          _writeToFile(args.toString(), type);
+          _writeToFile(message: args.toString(), type:type);
         } else if (logType == AcEnumLogType.PRINT) {
-          _printMessage(args.toString(), type);
+          _printMessage(message: args.toString(), type:type);
         } else {
-          _consoleMessage(args.toString(), type);
+          _consoleMessage(message: args.toString(), type:type);
         }
       }
     }
     return this;
   }
 
-  AcLogger _writeToFile(String message, String type) {
+  AcLogger _writeToFile({required String message,required String type}) {
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
       if (!logFileCreated) {
         createLogFile();
       }
       String timestamp = DateTime.now().toString();
       if (logType == AcEnumLogType.HTML) {
-        _writeHtml(timestamp, message, type);
+        _writeHtml(timestamp:timestamp, message:message, type:type);
       } else {
-        _writeText(timestamp, message, type);
+        _writeText(timestamp:timestamp, message:message, type:type);
       }
     } else {
-      _consoleMessage(message, type);
+      _consoleMessage(message: message,type: type);
     }
     return this;
   }
 
-  AcLogger _writeHtml(String timestamp, String message, String type) {
-    if (logFile != null) {
-      logFile!.writeAsString("\n\t<tr><td>$timestamp</td><td>$message</td></tr>");
+  AcLogger _writeHtml({required String timestamp, required String message, required String type}) {
+    if(message.isNotEmpty){
+      logFile!.writeAsString("\n\t\t\t<tr ac-logger-message logger-message-type=\"$type\"><td logger-message-data=\"timestamp\">$timestamp</td><td logger-message-data=\"message\">$message</td></tr>");
+    }
+    else{
+      logFile!.writeAsString("\n\t\t\t<tr><td colspan=\"1000\">&nbsp;</td></tr>");
     }
     return this;
   }
 
-  AcLogger _writeText(String timestamp, String message, String type) {
+  AcLogger _writeText({required String timestamp, required String message, required String type}) {
     if (logFile != null) {
       logFile!.writeAsString("\n$timestamp => $message");
     }

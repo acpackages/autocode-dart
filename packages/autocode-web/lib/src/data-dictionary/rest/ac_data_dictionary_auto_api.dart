@@ -1,3 +1,4 @@
+import 'package:autocode/autocode.dart';
 import 'package:autocode_data_dictionary/autocode_data_dictionary.dart';
 import 'package:autocode_web/autocode_web.dart';
 
@@ -14,19 +15,13 @@ class AcDataDictionaryAutoApi {
   String pathForUpdate = 'update';
   String urlPrefix = '';
   late AcDataDictionary acDataDictionary;
+  AcLogger logger = AcLogger(logType: AcEnumLogType.CONSOLE);
 
-  AcDataDictionaryAutoApi(this.acWeb, {this.dataDictionaryName = 'default'}) {
+  AcDataDictionaryAutoApi({required this.acWeb, this.dataDictionaryName = 'default'}) {
     acDataDictionary = AcDataDictionary.getInstance(dataDictionaryName: dataDictionaryName);
   }
 
-  AcDataDictionaryAutoApi excludeTable({required String tableName,
-        bool? delete,
-        bool? insert,
-        bool? save,
-        bool? select,
-        bool? selectDistinct,
-        bool? update,
-      }) {
+  AcDataDictionaryAutoApi excludeTable({required String tableName,bool? delete,bool? insert,bool? save,bool? select,bool? selectDistinct,bool? update}) {
     if (delete == null && insert == null && save == null && select == null && selectDistinct == null && update == null) {
       delete = true;
       insert = true;
@@ -53,15 +48,7 @@ class AcDataDictionaryAutoApi {
     return this;
   }
 
-  AcDataDictionaryAutoApi includeTable(
-      String tableName, {
-        bool? delete,
-        bool? insert,
-        bool? save,
-        bool? select,
-        bool? selectDistinct,
-        bool? update,
-      }) {
+  AcDataDictionaryAutoApi includeTable({required String tableName,bool? delete,bool? insert,bool? save,bool? select,bool? selectDistinct,bool? update}) {
     if (delete == null && insert == null && save == null && select == null && selectDistinct == null && update == null) {
       delete = true;
       insert = true;
@@ -89,7 +76,9 @@ class AcDataDictionaryAutoApi {
   }
 
   AcDataDictionaryAutoApi generate() {
+    logger.log("Generating apis for tables in data dictionary $dataDictionaryName...");
     for (final acDDTable in AcDataDictionary.getTables(dataDictionaryName: dataDictionaryName).values) {
+
       bool continueOperation = false;
       bool delete = true;
       bool insert = true;
@@ -123,37 +112,52 @@ class AcDataDictionaryAutoApi {
       }
 
       if (continueOperation) {
+        logger.log("Generating apis for table ${acDDTable.tableName}...");
         bool apiAdded = false;
 
         if (delete) {
+          logger.log("Generating delete api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoDelete(acDDTable: acDDTable, acDataDictionaryAutoApi: this);
           apiAdded = true;
+          logger.log("Generated delete api for table ${acDDTable.tableName}!");
         }
         if (insert) {
+          logger.log("Generating insert api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoInsert(acDDTable: acDDTable, acDataDictionaryAutoApi: this);
           apiAdded = true;
+          logger.log("Generated insert api for table ${acDDTable.tableName}!");
         }
         if (save) {
+          logger.log("Generating save api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoSave(acDDTable: acDDTable, acDataDictionaryAutoApi: this);
           apiAdded = true;
+          logger.log("Generated save api for table ${acDDTable.tableName}!");
         }
         if (select) {
+          logger.log("Generating select api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoSelect(acDDTable: acDDTable, acDataDictionaryAutoApi: this);
           apiAdded = true;
+          logger.log("Generated select api for table ${acDDTable.tableName}!");
         }
         if (selectDistinct) {
+          logger.log("Generating select distinct apis for fields ins table ${acDDTable.tableName}...");
           for (final distinctColumn in acDDTable.getSelectDistinctColumns()) {
+            logger.log("Generating select distinct api for field ${distinctColumn.columnName} in table ${acDDTable.tableName}...");
             AcDataDictionaryAutoSelectDistinct(
               acDDTable: acDDTable,
               acDDTableColumn: distinctColumn,
               acDataDictionaryAutoApi: this,
             );
             apiAdded = true;
+            logger.log("Generated select distinct apis for field ${distinctColumn.columnName} in table ${acDDTable.tableName}!");
           }
+          logger.log("Generated select distinct apis for table ${acDDTable.tableName}!");
         }
         if (update) {
+          logger.log("Generating update api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoUpdate(acDDTable: acDDTable, acDataDictionaryAutoApi: this);
           apiAdded = true;
+          logger.log("Generated update api for table ${acDDTable.tableName}!");
         }
 
         if (apiAdded) {
@@ -164,7 +168,7 @@ class AcDataDictionaryAutoApi {
         }
       }
     }
-
+    logger.log("Generated apis for tables in data dictionary $dataDictionaryName!");
     return this;
   }
 }

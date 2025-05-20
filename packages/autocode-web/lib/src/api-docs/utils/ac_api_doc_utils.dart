@@ -1,4 +1,5 @@
 import 'dart:mirrors';
+
 import 'package:autocode/autocode.dart';
 import 'package:autocode_data_dictionary/autocode_data_dictionary.dart';
 import 'package:autocode_web/autocode_web.dart';
@@ -64,8 +65,11 @@ class AcApiDocUtils {
     };
   }
 
-  static Map<String, dynamic> getApiModelRefFromClass({required String className,required AcApiDoc acApiDoc}) {
-    final classMirror = reflectClass(TypeMirror.fromName(className));
+  static Map<String, dynamic> getApiModelRefFromClass({
+    required Type type,
+    required AcApiDoc acApiDoc,
+  }) {
+    final classMirror = reflectClass(type);
     final schemaName = MirrorSystem.getName(classMirror.simpleName);
 
     if (acApiDoc.models.containsKey(schemaName)) {
@@ -75,20 +79,16 @@ class AcApiDocUtils {
     final acApiDocModel = AcApiDocModel();
     acApiDocModel.name = schemaName;
 
-    // Get class declarations and defaults (Dart doesn't support default property values reflection, workaround needed)
     final classDeclarations = classMirror.declarations;
 
     classDeclarations.forEach((symbol, declaration) {
-      if (declaration is VariableMirror && !declaration.isStatic && declaration.isPublic) {
+      if (declaration is VariableMirror && !declaration.isStatic && !declaration.isPrivate) {
         final propName = MirrorSystem.getName(symbol);
         final propTypeMirror = declaration.type;
         final propSchema = <String, dynamic>{};
-        bool allowsNull = false;
-        String? typeName;
 
-        // Dart's TypeMirror is less rich than PHP Reflection; you'll likely need some manual mapping here:
         if (propTypeMirror is ClassMirror) {
-          typeName = MirrorSystem.getName(propTypeMirror.simpleName);
+          final typeName = MirrorSystem.getName(propTypeMirror.simpleName);
           switch (typeName) {
             case 'int':
             case 'Integer':
@@ -108,27 +108,31 @@ class AcApiDocUtils {
               propSchema['items'] = {'type': 'object'};
               break;
             case 'String':
-            default:
               propSchema['type'] = 'string';
+              break;
+            default:
+            // Fallback for nested models or enums
+              propSchema['\$ref'] = "#/components/schemas/$typeName";
               break;
           }
         } else {
-          // Handle enums or nested models here if needed.
-          propSchema['type'] = 'string'; // fallback
+          // Fallback for unhandled types
+          propSchema['type'] = 'string';
         }
 
-        if (allowsNull) {
-          propSchema['nullable'] = true;
-        }
+        // if (allowsNull) {
+        //   propSchema['nullable'] = true;
+        // }
 
         acApiDocModel.properties[propName] = propSchema;
       }
     });
 
-    acApiDoc.addModel(model:acApiDocModel);
+    acApiDoc.addModel(model: acApiDocModel);
 
     return {r'$ref': "#/components/schemas/$schemaName"};
   }
+
 
   static List<AcApiDocResponse> getApiDocRouteResponsesForOperation({required String operation,required AcDDTable acDDTable,required AcApiDoc acApiDoc}) {
     final schema = getApiModelRefFromAcDDTable(acDDTable:acDDTable, acApiDoc:acApiDoc);
@@ -158,7 +162,7 @@ class AcApiDocUtils {
     final acApiDocResponse = AcApiDocResponse();
     acApiDocResponse.code = AcEnumHttpResponseCode.OK;
     acApiDocResponse.description = "Successful operation";
-    acApiDocResponse.addContent(contentItem: jsonContent);
+    acApiDocResponse.addContent(content: jsonContent);
     responses.add(acApiDocResponse);
 
     return responses;
