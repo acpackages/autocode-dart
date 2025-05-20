@@ -55,7 +55,7 @@ class AcDDSelectStatement {
   @AcBindJsonProperty(key: AcDDSelectStatement.KEY_TABLE_NAME)
   String tableName = "";
 
-  AcDDSelectStatement({tableName = "", dataDictionaryName = "default"}) {
+  AcDDSelectStatement({this.tableName = "", this.dataDictionaryName = "default"}) {
     conditionGroup = AcDDConditionGroup();
     conditionGroup.operator = AcEnumDDLogicalOperator.AND;
     groupStack.add(conditionGroup);

@@ -383,7 +383,7 @@ class AcFileUtils{
   static String getMimeTypeFromExt(String extension) {
     String result = '';
     if (values.containsKey(extension)) {
-      result = values[extension]?values[extension]['mime_type'] : '';
+      result = values[extension]['mime_type'];
     }
     return result;
   }

@@ -42,9 +42,7 @@ class AcWebResponse {
     response.responseCode = responseCode;
     response.responseType = AcEnumWebResponseType.RAW;
     response.content = content;
-    for(var key in headers.keys){
-      response.headers[key] = headers.keys;
-    }
+    response.headers = headers;
     return response;
   }
 

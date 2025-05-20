@@ -13,15 +13,13 @@ class AcWeb {
 
   AcWeb({List<String> paths = const []}) : acApiDoc = AcApiDoc() {
     AcHooks.execute(hookName:AcEnumWebHook.AC_WEB_CREATED,args: [this]);
-    get(url:'swagger/swagger.json', handler:(AcWebRequest req) {
+    get(url:'/swagger/swagger.json', handler:(AcWebRequest req) {
       var acApiSwagger = AcApiSwagger();
       acApiDoc.paths.clear();
-
       final paths = <String, AcApiDocPath>{};
-
       for (var routeDefinition in routeDefinitions.values) {
         var url = routeDefinition.url;
-        if (url != '/swagger/swagger.json') {
+        if (!url.startsWith("/swagger/")) {
           paths.putIfAbsent(url, () {
             var pathObj = AcApiDocPath();
             pathObj.url = url;
@@ -62,14 +60,16 @@ class AcWeb {
         }
       }
 
-      // acApiDoc.paths = paths;
+      acApiDoc.paths = paths.values.toList();
       acApiSwagger.acApiDoc = acApiDoc;
       return AcWebResponse.json(data:acApiSwagger.generateJson());
     });
     for(var swaggerFileName in AcSwaggerResources.files.keys){
       get(url:'/swagger$swaggerFileName', handler:(AcWebRequest req) {
+        logger.log("Handling Swagger File : $swaggerFileName");
         var fileContent =  AcSwaggerResources.files[swaggerFileName];
         String mimeType = AcFileUtils.getMimeTypeFromPath(swaggerFileName);
+        logger.log("Handling Swagger File Mime : $mimeType");
         return AcWebResponse.raw(content: fileContent,headers: {'Content-Type':mimeType});
       });
     }
@@ -176,52 +176,47 @@ class AcWeb {
     AcWebResponse webResponse = AcWebResponse.notFound();
     ClosureMirror? method;
     final args = <dynamic>[];
-
     request.pathParameters = _extractPathParams(routeDefinition.url, request.url);
-
-    final reflectee = routeDefinition.controller != null ? reflect(routeDefinition.controller) : reflect(routeDefinition.handler);
-    final funcMirror = reflectee.type is ClosureMirror ? reflectee.type as ClosureMirror : null;
-
-    if (funcMirror != null) {
-      for (final parameter in funcMirror.function.parameters) {
-        var valueSet = false;
-        final paramName = MirrorSystem.getName(parameter.simpleName);
-        if (parameter.type.reflectedType == AcWebRequest) {
-          args.add(request);
-          valueSet = true;
-        } else {
-          for (var meta in parameter.metadata) {
-            final instance = meta.reflectee;
-            final key = paramName;
-            if (instance is AcWebValueFromPath && request.pathParameters.containsKey(key)) {
-              args.add(request.pathParameters[key]);
-              valueSet = true;
-            } else if (instance is AcWebValueFromQuery && request.get.containsKey(key)) {
-              args.add(request.get[key]);
-              valueSet = true;
-            } else if (instance is AcWebValueFromForm && request.post.containsKey(key)) {
-              args.add(request.post[key]);
-              valueSet = true;
-            } else if (instance is AcWebValueFromHeader && request.headers.containsKey(key)) {
-              args.add(request.headers[key]);
-              valueSet = true;
-            } else if (instance is AcWebValueFromCookie && request.cookies.containsKey(key)) {
-              args.add(request.cookies[key]);
-              valueSet = true;
-            } else if (instance is AcWebValueFromBody) {
-              final paramType = parameter.type.reflectedType;
-              final object = reflectClass(paramType).newInstance(Symbol(''), []);
-              AcJsonUtils.setInstancePropertiesFromJsonData(
-                  instance: object, jsonData: request.body);
-              args.add(object);
-              valueSet = true;
-            }
+    ClosureMirror closureMirror = reflect(routeDefinition.handler) as ClosureMirror;
+    MethodMirror functionMirror = closureMirror.function;
+    for (final parameter in functionMirror.parameters) {
+      var valueSet = false;
+      final paramName = MirrorSystem.getName(parameter.simpleName);
+      if (parameter.type.reflectedType == AcWebRequest) {
+        args.add(request);
+        valueSet = true;
+      } else {
+        for (var meta in parameter.metadata) {
+          final instance = meta.reflectee;
+          final key = paramName;
+          if (instance is AcWebValueFromPath && request.pathParameters.containsKey(key)) {
+            args.add(request.pathParameters[key]);
+            valueSet = true;
+          } else if (instance is AcWebValueFromQuery && request.get.containsKey(key)) {
+            args.add(request.get[key]);
+            valueSet = true;
+          } else if (instance is AcWebValueFromForm && request.post.containsKey(key)) {
+            args.add(request.post[key]);
+            valueSet = true;
+          } else if (instance is AcWebValueFromHeader && request.headers.containsKey(key)) {
+            args.add(request.headers[key]);
+            valueSet = true;
+          } else if (instance is AcWebValueFromCookie && request.cookies.containsKey(key)) {
+            args.add(request.cookies[key]);
+            valueSet = true;
+          } else if (instance is AcWebValueFromBody) {
+            final paramType = parameter.type.reflectedType;
+            final object = reflectClass(paramType).newInstance(Symbol(''), []);
+            AcJsonUtils.setInstancePropertiesFromJsonData(
+                instance: object, jsonData: request.body);
+            args.add(object);
+            valueSet = true;
           }
         }
+      }
 
-        if (!valueSet) {
-          args.add(null); // Dart has no default value reflection
-        }
+      if (!valueSet) {
+        args.add(null); // Dart has no default value reflection
       }
     }
     if (routeDefinition.controller != null) {

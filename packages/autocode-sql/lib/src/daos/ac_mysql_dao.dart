@@ -92,8 +92,6 @@ class AcMysqlDao extends AcBaseSqlDao {
       );
       final updatedStatement = setParametersResult['statement'];
       final updatedParameterValues = setParametersResult['statementParametersMap'];
-      print(updatedStatement);
-      print(updatedParameterValues);
       await db.execute(statement);
       result.setSuccess(value:true, message: 'Database created');
     } catch (ex,stack) {
@@ -370,6 +368,8 @@ class AcMysqlDao extends AcBaseSqlDao {
       );
       updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValues = setParametersResult['statementParametersMap'];
+      print(updatedStatement);
+      print(updatedParameterValues);
       final results = await db.execute(updatedStatement, updatedParameterValues);
       result.rows = results.rows.map((row) => formatRow(row:row.typedAssoc(), columnFormats: columnFormats)).toList();
       result.setSuccess();

@@ -11,8 +11,7 @@ class AcDataDictionaryAutoDelete {
     required this.acDDTable,
     required this.acDataDictionaryAutoApi,
   }) {
-    final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
+    final apiUrl = '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
     acDataDictionaryAutoApi.acWeb.delete(
       url: apiUrl,
       handler: getHandler(),

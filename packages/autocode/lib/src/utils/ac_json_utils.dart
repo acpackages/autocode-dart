@@ -131,7 +131,6 @@ class AcJsonUtils {
       final fieldType = field.type;
       if (fieldType is ClassMirror) {
         if(value is List){
-          print(value.runtimeType);
         }
         if (arrayType != null && value is List) {
 

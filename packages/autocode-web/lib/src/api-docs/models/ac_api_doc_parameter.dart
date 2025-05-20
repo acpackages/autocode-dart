@@ -10,6 +10,7 @@ class AcApiDocParameter {
   static const String KEY_SCHEMA = "schema";
 
   String? description;
+  @AcBindJsonProperty(key: KEY_IN)
   String? inValue;
   String? name;
   bool required = false;

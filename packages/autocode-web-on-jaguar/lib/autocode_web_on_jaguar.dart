@@ -139,7 +139,7 @@ class AcWebOnJaguar extends AcWeb{
           response = Response.json(acWebResponse.content);
         }
         else if(acWebResponse.responseType == AcEnumWebResponseType.RAW){
-          response = Response(body: acWebResponse.content, headers: acWebResponse.headers);
+          response = Response(body: acWebResponse.content, headers: acWebResponse.headers,mimeType: AcFileUtils.getMimeTypeFromPath(context.path));
         }
       }
       else{
