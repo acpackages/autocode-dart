@@ -77,6 +77,9 @@ class AcDataDictionaryAutoApi {
 
   AcDataDictionaryAutoApi generate() {
     logger.log("Generating apis for tables in data dictionary $dataDictionaryName...");
+    if (includeTables.isEmpty && excludeTables.isEmpty) {
+      logger.log("No include & exclude tables specified!");
+    }
     for (final acDDTable in AcDataDictionary.getTables(dataDictionaryName: dataDictionaryName).values) {
 
       bool continueOperation = false;
@@ -87,18 +90,25 @@ class AcDataDictionaryAutoApi {
       bool selectDistinct = true;
       bool update = true;
 
-      if (includeTables.isNotEmpty && excludeTables.isNotEmpty) {
+      if (includeTables.isEmpty && excludeTables.isEmpty) {
         continueOperation = true;
-      } else if (includeTables.isNotEmpty && includeTables.containsKey(acDDTable.tableName)) {
-        continueOperation = true;
-        final options = includeTables[acDDTable.tableName]!;
-        delete = options['delete']!;
-        insert = options['insert']!;
-        save = options['save']!;
-        select = options['select']!;
-        selectDistinct = options['select_distinct']!;
-        update = options['update']!;
+      } else if (includeTables.isNotEmpty ) {
+        if(includeTables.containsKey(acDDTable.tableName)){
+          continueOperation = true;
+          logger.log("Include tables list contains table ${acDDTable.tableName}");
+          final options = includeTables[acDDTable.tableName]!;
+          delete = options['delete']!;
+          insert = options['insert']!;
+          save = options['save']!;
+          select = options['select']!;
+          selectDistinct = options['select_distinct']!;
+          update = options['update']!;
+        }
+        else{
+          logger.log("Include tables list does not contains table ${acDDTable.tableName}");
+        }
       } else if (!excludeTables.containsKey(acDDTable.tableName)) {
+        logger.log("Exclude tables list does not contain table ${acDDTable.tableName}");
         continueOperation = true;
       } else if (excludeTables.containsKey(acDDTable.tableName)) {
         continueOperation = true;

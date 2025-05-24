@@ -202,12 +202,80 @@ class AcDDSelectStatement {
           condition += " AND $parameterName";
         }
         break;
+      case AcEnumDDConditionOperator.CONTAINS:
+        setSqlLikeStringCondition(acDDCondition:acDDCondition);
+        break;
+      case AcEnumDDConditionOperator.ENDS_WITH:
+        setSqlLikeStringCondition(acDDCondition:acDDCondition,includeInBetween: false, includeStart: false);
+        break;
       case AcEnumDDConditionOperator.EQUAL_TO:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
         condition += "${acDDCondition.columnName} = $parameterName";
         break;
-      // Add more operators as necessary...
+      case AcEnumDDConditionOperator.GREATER_THAN:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} > $parameterName";
+        break;
+      case AcEnumDDConditionOperator.GREATER_THAN_EQUAL_TO:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} >= $parameterName";
+        break;
+      case AcEnumDDConditionOperator.IN:
+        parameterName = "@parameter${parameters.length}";
+        if(acDDCondition.value is String){
+          parameters[parameterName] = acDDCondition.value.toString().split(",");
+        }
+        else if(acDDCondition.value is List){
+          parameters[parameterName] = acDDCondition.value;
+        }        
+        condition += "${acDDCondition.columnName} IN ($parameterName)";
+        break;
+      case AcEnumDDConditionOperator.IS_EMPTY:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} = ''";
+        break;
+      case AcEnumDDConditionOperator.IS_NOT_NULL:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} IS NOT NULL";
+        break;
+      case AcEnumDDConditionOperator.IS_NULL:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} IS NULL";
+        break;
+      case AcEnumDDConditionOperator.LESS_THAN:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} < $parameterName";
+        break;
+      case AcEnumDDConditionOperator.LESS_THAN_EQUAL_TO:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} <= $parameterName";
+        break;
+      case AcEnumDDConditionOperator.NOT_EQUAL_TO:
+        parameterName = "@parameter${parameters.length}";
+        parameters[parameterName] = acDDCondition.value;
+        condition += "${acDDCondition.columnName} != $parameterName";
+        break;
+      case AcEnumDDConditionOperator.NOT_IN:
+        parameterName = "@parameter${parameters.length}";
+        if(acDDCondition.value is String){
+          parameters[parameterName] = acDDCondition.value.toString().split(",");
+        }
+        else if(acDDCondition.value is List){
+          parameters[parameterName] = acDDCondition.value;
+        }
+        condition += "${acDDCondition.columnName} NOT IN ($parameterName)";
+        break;
+      case AcEnumDDConditionOperator.STARTS_WITH:
+        setSqlLikeStringCondition(acDDCondition:acDDCondition,includeInBetween: false, includeEnd: false);
+        break;
       default:
         break;
     }
@@ -241,6 +309,58 @@ class AcDDSelectStatement {
     }
     return this;
   }
+
+  AcDDSelectStatement setSqlLikeStringCondition({required AcDDCondition acDDCondition,bool includeEnd = true,bool includeInBetween = true,bool includeStart = true}) {
+    AcDDTableColumn acDDTableColumn = AcDataDictionary.getTableColumn(
+      tableName: tableName,
+      columnName: acDDCondition.columnName,
+      dataDictionaryName: dataDictionaryName,
+    )!;
+
+    String columnCheck = 'LOWER(${acDDCondition.columnName})';
+    String likeValue = acDDCondition.value.toLowerCase();
+    String jsonColumn = "value";
+    List<String> conditionParts = List.empty(growable: true);
+    if (acDDTableColumn.columnType == AcEnumDDColumnType.JSON) {
+      if(includeStart) {
+        String parameter1 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter1");
+        parameters[parameter1] = '%"$jsonColumn":"$likeValue%"%';
+      }
+      if(includeInBetween) {
+        String parameter2 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter2");
+        parameters[parameter2] = '%"$jsonColumn":"%$likeValue%"%';
+      }
+      if(includeEnd) {
+        String parameter3 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter3");
+        parameters[parameter3] = '%"$jsonColumn":"%$likeValue"%';
+      }
+
+    } else {
+      if(includeStart) {
+        String parameter1 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter1");
+        parameters[parameter1] = '$likeValue%';
+      }
+      if(includeInBetween) {
+        String parameter2 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter2");
+        parameters[parameter2] = '%$likeValue%';
+      }
+      if(includeEnd) {
+        String parameter3 = "@parameter${parameters.length}";
+        conditionParts.add("$columnCheck LIKE $parameter3");
+        parameters[parameter3] = '$likeValue%';
+      }
+    }
+    if(conditionParts.isNotEmpty){
+      condition += '(${conditionParts.join((" OR "))})';
+    }
+    return this;
+  }
+
 
   AcDDSelectStatement startGroup({String operator = 'AND'}) {
     var group = AcDDConditionGroup();

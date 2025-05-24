@@ -28,9 +28,10 @@ class AcApiSwagger {
     }
 
     if (docsJson.containsKey(AcApiDoc.KEY_MODELS)) {
-      final models = docsJson[AcApiDoc.KEY_MODELS];
-      if (models is List && models.isNotEmpty) {
-        for (var model in models) {
+      Map<String,dynamic> models = Map.from(docsJson[AcApiDoc.KEY_MODELS]);
+      if (models.isNotEmpty) {
+        for (var model in models.values) {
+          print(model);
           result['components']['schemas'][model[AcApiDocModel.KEY_NAME]] = {
             'properties': model[AcApiDocModel.KEY_PROPERTIES]
           };
