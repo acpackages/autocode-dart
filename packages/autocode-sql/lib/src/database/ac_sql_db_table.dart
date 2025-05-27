@@ -69,8 +69,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> checkAndSetAutoNumberValues(
-      {required Map<String, dynamic> row}) async {
+  Future<AcResult> checkAndSetAutoNumberValues({required Map<String, dynamic> row}) async {
     final result = AcResult();
     try {
       List<String> checkColumns = [];
@@ -316,8 +315,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> formatValues(
-      {required Map<String, dynamic> row, bool insertMode = false}) async {
+  Future<AcResult> formatValues({required Map<String, dynamic> row, bool insertMode = false}) async {
     final result = AcResult();
     bool continueOperation = true;
     final rowEvent = AcSqlDbRowEvent(
@@ -419,10 +417,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  String getSelectStatement({
-    List<String> includeColumns = const [],
-    List<String> excludeColumns = const [],
-  }) {
+  String getSelectStatement({List<String> includeColumns = const [],List<String> excludeColumns = const []}) {
     String result = "SELECT * FROM $tableName";
     List<String> columns = [];
     if (includeColumns.isEmpty && excludeColumns.isEmpty) {
@@ -438,16 +433,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> getDistinctColumnValues({
-    required String columnName,
-    String condition = "",
-    String orderBy = "",
-    String mode = AcEnumDDSelectMode.LIST,
-    int pageNumber = -1,
-    int pageSize = -1,
-    Map<String, dynamic> parameters = const {},
-  }) async {
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
+  Future<AcSqlDaoResult> getDistinctColumnValues({required String columnName,String condition = "",String orderBy = "",String mode = AcEnumDDSelectMode.LIST,int pageNumber = -1,int pageSize = -1,Map<String, dynamic> parameters = const {},}) async {    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
     try {
       String actualOrderBy = orderBy.isNotEmpty ? orderBy : columnName;
 
@@ -614,15 +600,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> getRows({
-    String selectStatement = "",
-    String condition = "",
-    String orderBy = "",
-    String mode = AcEnumDDSelectMode.LIST,
-    int pageNumber = -1,
-    int pageSize = -1,
-    Map<String, dynamic> parameters = const {},
-  }) async {
+  Future<AcSqlDaoResult> getRows({String selectStatement = "",String condition = "",String orderBy = "",String mode = AcEnumDDSelectMode.LIST,int pageNumber = -1,int pageSize = -1,Map<String, dynamic> parameters = const {},}) async {
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
     try {
       String actualSelectStatement =
@@ -645,11 +623,29 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> insertRow(
-      {required Map<String, dynamic> row,
-        AcResult? validateResult,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> getRowsFromAcDDStatement({required AcDDSelectStatement acDDSelectStatement}) async {
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
+    try {
+      String sqlStatement = acDDSelectStatement.getSqlStatement();
+      Map<String,dynamic> sqlParameters = acDDSelectStatement.parameters;
+      result = await dao!.getRows(statement: sqlStatement,parameters: sqlParameters,columnFormats: getColumnFormats());
+      if(result.rows.isNotEmpty){
+        String countSqlStatement = acDDSelectStatement.getSqlStatement(skipLimit: true);
+        var countResult = await dao!.getRows(statement: countSqlStatement,parameters: sqlParameters);
+        if(countResult.isSuccess()){
+          result.totalRows = countResult.totalRows;
+        }
+      }
+      else{
+        result.totalRows = 0;
+      }
+    } on Exception catch (ex,stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger, logException: true);
+    }
+    return result;
+  }
+
+  Future<AcSqlDaoResult> insertRow({required Map<String, dynamic> row,AcResult? validateResult,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.INSERT);
     try {
       logger.log(["Inserting row with data : ", row]);
@@ -744,10 +740,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> insertRows(
-      {required List<Map<String, dynamic>> rows,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> insertRows({required List<Map<String, dynamic>> rows,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.INSERT);
     try {
       logger.log(["Inserting rows : ", rows]);
@@ -853,10 +846,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> saveRow(
-      {required Map<String, dynamic> row,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> saveRow({required Map<String, dynamic> row,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UNKNOWN);
     try {
       bool continueOperation = true;
@@ -971,10 +961,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> saveRows(
-      {required List<Map<String, dynamic>> rows,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> saveRows({required List<Map<String, dynamic>> rows,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UNKNOWN);
     try {
       bool continueOperation = true;
@@ -1160,13 +1147,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> updateRow(
-      {required Map<String, dynamic> row,
-        String condition = "",
-        Map<String, dynamic> parameters = const {},
-        AcResult? validateResult,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> updateRow({required Map<String, dynamic> row,String condition = "",Map<String, dynamic> parameters = const {},AcResult? validateResult,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     logger.log(["Updating row with data : ", row]);
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UPDATE);
     try {
@@ -1266,10 +1247,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcSqlDaoResult> updateRows(
-      {required List<Map<String, dynamic>> rows,
-        bool executeAfterEvent = true,
-        bool executeBeforeEvent = true}) async {
+  Future<AcSqlDaoResult> updateRows({required List<Map<String, dynamic>> rows,bool executeAfterEvent = true,bool executeBeforeEvent = true}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UPDATE);
     try {
       bool continueOperation = true;
@@ -1387,10 +1365,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  String updateValueLengthWithChars(
-      {required String value,
-        required String char,
-        required int length}) {
+  String updateValueLengthWithChars({required String value,required String char,required int length}) {
     String result = value;
     if (length > 0) {
       int currentLength = value.length;
@@ -1401,8 +1376,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> validateValues(
-      {required Map<String, dynamic> row, bool isInsert = false}) async {
+  Future<AcResult> validateValues({required Map<String, dynamic> row, bool isInsert = false}) async {
     final result = AcResult();
     try {
       bool continueOperation = true;
@@ -1459,7 +1433,6 @@ class AcSqlDbTable extends AcSqlDbBase {
     }
     return result;
   }
-
 
 }
 

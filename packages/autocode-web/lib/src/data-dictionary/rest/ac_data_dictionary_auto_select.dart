@@ -98,7 +98,7 @@ class AcDataDictionaryAutoSelect {
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
-            operator: AcEnumDDConditionOperator.LIKE,
+            operator: AcEnumDDConditionOperator.CONTAINS,
             value: acWebRequest.get["query"],
           );
         }
@@ -109,7 +109,7 @@ class AcDataDictionaryAutoSelect {
         if (acWebRequest.get.containsKey(col.columnName)) {
           acDDSelectStatement.addCondition(
             columnName: col.columnName,
-            operator: AcEnumDDConditionOperator.LIKE,
+            operator: AcEnumDDConditionOperator.CONTAINS,
             value: acWebRequest.get[col.columnName],
           );
         }
@@ -250,7 +250,7 @@ class AcDataDictionaryAutoSelect {
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
-            operator: AcEnumDDConditionOperator.LIKE,
+            operator: AcEnumDDConditionOperator.CONTAINS,
             value: acWebRequest.body["query"],
           );
         }

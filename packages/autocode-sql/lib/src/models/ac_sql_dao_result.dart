@@ -9,6 +9,8 @@ class AcSqlDaoResult extends AcResult {
   static const String KEY_OPERATION = 'operation';
   static const String KEY_PRIMARY_KEY_COLUMN = 'primary_key_column';
   static const String KEY_PRIMARY_KEY_VALUE = 'primary_key_value';
+  static const String KEY_TOTAL_ROWS = 'total_rows';
+
 
   List<Map<String,dynamic>> rows = [];
 
@@ -28,6 +30,9 @@ class AcSqlDaoResult extends AcResult {
 
   @AcBindJsonProperty(key: AcSqlDaoResult.KEY_PRIMARY_KEY_VALUE)
   dynamic primaryKeyValue;
+
+  @AcBindJsonProperty(key: AcSqlDaoResult.KEY_TOTAL_ROWS)
+  int totalRows = 0;
 
   AcSqlDaoResult({String? operation = AcEnumDDRowOperation.UNKNOWN}) {
     this.operation = operation!;

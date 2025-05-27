@@ -24,14 +24,12 @@ testWebOnJaguarAutoApi() async {
       AcSqlConnection.KEY_CONNECTION_PASSWORD:"",
       AcSqlConnection.KEY_CONNECTION_HOSTNAME:"localhost",
       AcSqlConnection.KEY_CONNECTION_PORT:3306,
-      AcSqlConnection.KEY_CONNECTION_DATABASE:"acsm_test_dart",
+      AcSqlConnection.KEY_CONNECTION_DATABASE:"unifi_tradeops",
     });
     acWeb.port = 8081;
     acWeb.start();
-    // print( acWeb.routeDefinitions);
-    // AcSqlDatabase.sqlConnection = sqlConnection;
-    // var schemaManager = AcSqlDbSchemaManager();
-    // var schemaInitResult = await schemaManager.initDatabase();
+    print( acWeb.acApiDoc);
+    AcSqlDatabase.sqlConnection = sqlConnection;
     // print("Schema init result : ");
     // print(schemaInitResult);
   }

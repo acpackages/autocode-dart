@@ -131,6 +131,7 @@ class AcDDSelectStatement {
   String getSqlStatement({
     bool skipCondition = false,
     bool skipSelectStatement = false,
+    bool skipLimit = false
   }) {
     if (!skipSelectStatement) {
       var acDDTable = AcDataDictionary.getTable(
@@ -162,14 +163,24 @@ class AcDDSelectStatement {
       );
     }
 
-    sqlStatement = AcDDSelectStatement.generateSqlStatement(
-      selectStatement: selectStatement,
-      condition: condition,
-      orderBy: orderBy,
-      pageNumber: pageNumber,
-      pageSize: pageSize,
-      databaseType: databaseType,
-    );
+    if(skipLimit){
+      sqlStatement = AcDDSelectStatement.generateSqlStatement(
+        selectStatement: selectStatement,
+        condition: condition,
+        orderBy: orderBy,
+        databaseType: databaseType,
+      );
+    }
+    else{
+      sqlStatement = AcDDSelectStatement.generateSqlStatement(
+        selectStatement: selectStatement,
+        condition: condition,
+        orderBy: orderBy,
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+        databaseType: databaseType,
+      );
+    }
     return sqlStatement;
   }
 

@@ -358,6 +358,9 @@ class AcMysqlDao extends AcBaseSqlDao {
     MySQLConnection? db;
     try {
       db = await _getConnection();
+      if (mode == AcEnumDDSelectMode.COUNT) {
+        statement = "SELECT COUNT(*) AS records_count FROM ($statement) AS records_list";
+      }
       String updatedStatement = statement;
       if (condition.isNotEmpty) {
         updatedStatement += " WHERE $condition";
@@ -368,10 +371,14 @@ class AcMysqlDao extends AcBaseSqlDao {
       );
       updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValues = setParametersResult['statementParametersMap'];
-      print(updatedStatement);
-      print(updatedParameterValues);
       final results = await db.execute(updatedStatement, updatedParameterValues);
-      result.rows = results.rows.map((row) => formatRow(row:row.typedAssoc(), columnFormats: columnFormats)).toList();
+      if (mode == AcEnumDDSelectMode.COUNT) {
+        Map<String,dynamic> row = results.rows.first.assoc();
+        result.totalRows = row['records_count'];
+      }
+      else{
+        result.rows = results.rows.map((row) => formatRow(row:row.typedAssoc(), columnFormats: columnFormats)).toList();
+      }
       result.setSuccess();
     } catch (ex,stack) {
       result.setException(exception:ex,stackTrace: stack);
