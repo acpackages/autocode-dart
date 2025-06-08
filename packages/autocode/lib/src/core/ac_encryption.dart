@@ -7,15 +7,15 @@ class AcEncryption {
   static String encryptionKey = "###RandomEncryptionKey###";
   static final IV iv = IV.fromUtf8(List.generate(16, (i) => i).map((e) => String.fromCharCode(e)).join());
 
-  static String encrypt({required String plainText, String? customKey}) {
-    final key = _deriveKey(customKey ?? encryptionKey);
+  static String encrypt({required String plainText, String? encryptionKey}) {
+    final key = _deriveKey(encryptionKey ?? AcEncryption.encryptionKey);
     final encrypter = Encrypter(AES(key, mode: AESMode.cbc, padding: 'PKCS7'));
     final encrypted = encrypter.encrypt(plainText, iv: iv);
     return encrypted.base64;
   }
 
-  static String decrypt({required String encryptedText, String? customKey}) {
-    final key = _deriveKey(customKey ?? encryptionKey);
+  static String decrypt({required String encryptedText, String? encryptionKey}) {
+    final key = _deriveKey(encryptionKey ?? AcEncryption.encryptionKey);
     final encrypter = Encrypter(AES(key, mode: AESMode.cbc, padding: 'PKCS7'));
     final encrypted = Encrypted.from64(encryptedText);
     return encrypter.decrypt(encrypted, iv: iv);

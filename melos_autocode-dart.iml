@@ -7,6 +7,12 @@
       <excludeFolder url="file://$MODULE_DIR$/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/build" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode-tests/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode-tests/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode-tests/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web-on-jaguar/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web-on-jaguar/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web-on-jaguar/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

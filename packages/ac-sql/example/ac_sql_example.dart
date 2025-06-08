@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:autocode/autocode.dart';
-import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
+import 'package:ac_sql/ac_sql.dart';
+
+void main() async {
+  await testSchemaManager();
+}
 
 testSchemaManager() async {
-  var dataDictionaryFile = File('assets/data_dictionary.json');
+  var dataDictionaryFile = File('../../tests/data_dictionary.json');
   if (dataDictionaryFile.existsSync()) {
     var dataDictionaryJson = jsonDecode(dataDictionaryFile.readAsStringSync());
     AcDataDictionary.registerDataDictionary(jsonData: dataDictionaryJson);
@@ -16,7 +20,7 @@ testSchemaManager() async {
         AcSqlConnection.KEY_CONNECTION_PASSWORD: "",
         AcSqlConnection.KEY_CONNECTION_HOSTNAME: "localhost",
         AcSqlConnection.KEY_CONNECTION_PORT: 3306,
-        AcSqlConnection.KEY_CONNECTION_DATABASE: "acsm_test_dart",
+        AcSqlConnection.KEY_CONNECTION_DATABASE: "dart_db_schema_test",
       },
     );
     AcSqlDatabase.sqlConnection = sqlConnection;

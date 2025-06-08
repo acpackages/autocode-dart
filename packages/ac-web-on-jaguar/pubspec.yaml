@@ -1,4 +1,4 @@
-name: autocode_tests
+name: ac_web_on_jaguar
 description: A starting point for Dart libraries or applications.
 version: 1.0.0
 # repository: https://github.com/my_org/my_repo
@@ -9,17 +9,17 @@ environment:
 # Add regular dependencies here.
 dependencies:
   autocode:
-    path: './../packages/autocode'
+    path: './../autocode'
   ac_data_dictionary:
-    path: './../packages/ac-data-dictionary'
+    path: './../ac-data-dictionary'
   ac_extensions:
-    path: './../packages/ac-extensions'
+    path: './../ac-extensions'
   ac_sql:
-    path: './../packages/ac-sql'
+    path: './../ac-sql'
   ac_web:
-    path: './../packages/ac_web'
-  ac_web_on_jaguar:
-    path: './../packages/ac_web-on-jaguar'
+    path: './../ac_web'
+  jaguar: ^3.1.4
+  jaguar_cors: ^3.0.2
   # path: ^1.8.0
 
 dev_dependencies:
