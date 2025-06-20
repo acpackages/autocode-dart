@@ -1,5 +1,6 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-
+@AcReflectable()
 class AcCronJob {
   static const String KEY_CALLBACK = "callback";
   static const String KEY_DURATION = "duration";

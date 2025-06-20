@@ -1,0 +1,13 @@
+targets:
+  $default:
+    builders:
+      ac_mirrors|ac_mirrors_builder:
+        enabled: true
+
+builders:
+  ac_mirrors_builder:
+    import: "package:ac_mirrors/builder.dart"
+    builder_factories: ["acMirrorsBuilder"]
+    build_extensions: { r'$lib$': ["ac_generated_mirrors.dart"] }
+    auto_apply: root_package
+    build_to: source

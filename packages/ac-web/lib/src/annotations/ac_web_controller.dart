@@ -1,3 +1,0 @@
-class AcWebController {
-  const AcWebController();
-}

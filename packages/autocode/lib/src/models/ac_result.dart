@@ -1,5 +1,6 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-
+@AcReflectable()
 class AcResult {
   static const int CODE_NOTHING_EXECUTED = 0;
   static const int CODE_SUCCESS = 1;

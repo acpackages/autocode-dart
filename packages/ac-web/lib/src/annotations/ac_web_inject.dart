@@ -1,3 +1,0 @@
-class AcWebInject {
-  const AcWebInject();
-}

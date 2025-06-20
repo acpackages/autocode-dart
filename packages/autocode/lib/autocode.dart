@@ -20,6 +20,7 @@ export './src/enums/ac_enum_file_extension.dart';
 export './src/enums/ac_enum_http_method.dart';
 export './src/enums/ac_enum_http_response_code.dart';
 export './src/enums/ac_enum_log_type.dart';
+export './src/enums/ac_enum_string_case.dart';
 export './src/enums/ac_enum_sql_database_type.dart';
 
 export './src/models/ac_cron_job.dart';

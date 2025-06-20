@@ -1,0 +1,26 @@
+name: ac_mirrors
+description: "A reflection library that uses dart:mirrors on the VM and code generation for AOT/Flutter environments"
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  meta: ^1.9.1
+  glob: ^2.1.3
+  source_gen: ^1.5.0
+  build: ^2.4.1
+  build_runner: ^2.4.6
+  analyzer: ^6.4.1
+  path: ^1.8.3
+  ac_extensions:
+    path: './../../packages/ac_extensions'
+
+dev_dependencies:
+
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.

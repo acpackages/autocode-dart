@@ -1,0 +1,32 @@
+name: ac_web_on_jaguar
+description: A starting point for Dart libraries or applications.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.7.0
+
+# Add regular dependencies here.
+dependencies:
+  autocode:
+    path: './../autocode'
+  ac_data_dictionary:
+    path: './../ac_data_dictionary'
+  ac_extensions:
+    path: './../ac_extensions'
+  ac_mirrors:
+    path: './../ac_mirrors'
+  ac_sql:
+    path: './../ac_sql'
+  ac_web:
+    path: './../ac_web'
+  jaguar: ^3.1.4
+  jaguar_cors: ^3.0.2
+  # path: ^1.8.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0
+
+dependency_overrides:
+  mime: ^2.0.0

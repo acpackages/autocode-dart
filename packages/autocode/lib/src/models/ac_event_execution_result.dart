@@ -1,5 +1,6 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-
+@AcReflectable()
 class AcEventExecutionResult extends AcResult {
   static const String KEY_CONTINUE_OPERATION = "continue_operation";
   static const String KEY_HAS_RESULTS = "has_results";

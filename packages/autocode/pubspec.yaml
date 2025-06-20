@@ -12,6 +12,10 @@ dependencies:
   encrypt: ^5.0.3
   intl: ^0.20.2
   uuid: any
+  ac_extensions:
+    path: './../../packages/ac_extensions'
+  ac_mirrors:
+    path: './../../packages/ac_mirrors'
 
 dev_dependencies:
   lints: ^5.0.0

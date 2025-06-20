@@ -1,3 +1,0 @@
-class AcWebView {
-  const AcWebView();
-}

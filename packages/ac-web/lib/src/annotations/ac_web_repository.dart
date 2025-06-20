@@ -1,3 +1,0 @@
-class AcWebRepository {
-  const AcWebRepository();
-}

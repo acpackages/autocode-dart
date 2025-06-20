@@ -1,5 +1,6 @@
 name: autocode-dart
 packages:
+  - flutter-packages/**
   - packages/**
 scripts:
   analyze: dart analyze .
