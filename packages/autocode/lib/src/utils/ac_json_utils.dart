@@ -68,9 +68,7 @@ class AcJsonUtils {
   }) {
     final instanceMirror = acReflect(instance);
     final classMirror = instanceMirror.classMirror;
-    // Iterate over all instance members to find fields to populate.
     for (final member in classMirror.instanceMembers.values) {
-      print("Class Name : ${classMirror.simpleName} | Member Name : ${member.simpleName} | Is Variable Mirror : ${member is AcVariableMirror} | Is Static : ${member.isStatic} | Member Type : {${member.runtimeType}  " );
       if (member is AcVariableMirror && !member.isStatic) {
         setInstancePropertyValueFromJson(
           instanceMirror: instanceMirror,
@@ -189,12 +187,9 @@ class AcJsonUtilsTemp {
     final instanceMirror = acReflect(instance);
     AcClassMirror? classMirror = instanceMirror.classMirror;
     while (classMirror != null && classMirror.reflectedType != Object) {
-      print("Checking classmirror : ${classMirror.getName()})}");
       for (final field in classMirror.instanceMembers.values.whereType<AcVariableMirror>()) {
         final propertyName = field.simpleName;
         String jsonKey = field.getName();
-        print("jsonKey in  getJsonDataFromInstance is : $jsonKey");
-        // Skip static fields
         if (field.isStatic) continue;
 
         final bindJsonAttributes = _getAcBindJsonPropertyAttributes(field);
@@ -211,8 +206,6 @@ class AcJsonUtilsTemp {
         // Prevent overwriting keys from child class if already added
         if (!result.containsKey(jsonKey)) {
           var propertyValue = instanceMirror.getField(propertyName);
-          print("PropertyValue is : $propertyValue");
-          print(propertyValue);
           if (propertyValue != null) {
             propertyValue = _getJsonForPropertyValue(propertyValue);
             result[jsonKey] = propertyValue;
@@ -297,10 +290,7 @@ class AcJsonUtilsTemp {
     required AcVariableMirror field,
     required Map<String, dynamic> jsonData,
   }) {
-    // var propertyName = MirrorSystem.getName(field.simpleName);
     String propertyName = field.getName();
-    print("propertyName in  _setInstancePropertyValueFromJson is : $propertyName");
-    print(propertyName);
     final bindJsonAttributes = _getAcBindJsonPropertyAttributes(field);
     Type? arrayType;
     if (bindJsonAttributes.isNotEmpty) {
