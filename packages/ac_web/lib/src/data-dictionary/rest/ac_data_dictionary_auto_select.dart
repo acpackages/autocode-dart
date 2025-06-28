@@ -1,11 +1,28 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
+import 'package:autocode/autocode.dart';
 
+/* AcDoc({
+  "summary": "Automatically generates 'SELECT' (read) API routes for a specific table.",
+  "description": "This class is a route generator used by `AcDataDictionaryAutoApi`. Upon instantiation, it creates and registers three distinct `SELECT` endpoints with the `AcWeb` server:\n1. `GET /<table>/get`: A flexible endpoint to list records with filtering via query parameters.\n2. `GET /<table>/get/{id}`: An endpoint to fetch a single record by its primary key.\n3. `POST /<table>/get`: A powerful endpoint to perform complex queries using a JSON request body.",
+  "example": "// This class is not typically used directly. It's instantiated by `AcDataDictionaryAutoApi`.\n// AcDataDictionaryAutoApi will execute this internally for a table:\n// AcDataDictionaryAutoSelect(\n//   acDDTable: userTableDefinition,\n//   acDataDictionaryAutoApi: apiGenerator,\n// );"
+}) */
 class AcDataDictionaryAutoSelect {
+  /* AcDoc({"summary": "The data dictionary definition of the table for which the routes are being generated."}) */
   final AcDDTable acDDTable;
+
+  /* AcDoc({"summary": "The main auto-API generator instance, providing configuration and the `AcWeb` server."}) */
   final AcDataDictionaryAutoApi acDataDictionaryAutoApi;
 
+  /* AcDoc({
+    "summary": "Creates and registers the SELECT routes for a table.",
+    "description": "The constructor immediately builds and registers three distinct endpoints for querying the table: a general GET for lists, a specific GET for fetching by primary key, and a POST for advanced searches.",
+    "params": [
+      {"name": "acDDTable", "description": "The definition of the table."},
+      {"name": "acDataDictionaryAutoApi", "description": "The main API generator instance."}
+    ]
+  }) */
   AcDataDictionaryAutoSelect({
     required this.acDDTable,
     required this.acDataDictionaryAutoApi,
@@ -35,6 +52,12 @@ class AcDataDictionaryAutoSelect {
     );
   }
 
+  /* AcDoc({
+    "summary": "Builds the OpenAPI documentation for the general GET (list) route.",
+    "description": "This method creates an `AcApiDocRoute` object that describes the list endpoint, documenting all possible query parameters for searching, filtering, sorting, and pagination.",
+    "returns": "A configured `AcApiDocRoute` object for documentation.",
+    "returns_type": "AcApiDocRoute"
+  }) */
   AcApiDocRoute getAcApiDocRoute() {
     final acApiDocRoute = AcApiDocRoute();
     acApiDocRoute.addTag(tag: acDDTable.tableName);
@@ -49,7 +72,7 @@ class AcDataDictionaryAutoSelect {
       queryParameter.description =
           "Filter values using like condition for columns (${queryColumns.join(",")})";
       queryParameter.required = false;
-      queryParameter.inValue = "query";
+      queryParameter.in_ = "query";
       acApiDocRoute.addParameter(parameter: queryParameter);
     }
 
@@ -58,7 +81,7 @@ class AcDataDictionaryAutoSelect {
           ..name = "page_number"
           ..description = "Page number of rows"
           ..required = false
-          ..inValue = "query";
+          ..in_ = "query";
     acApiDocRoute.addParameter(parameter: pageParameter);
 
     final countParameter =
@@ -66,7 +89,7 @@ class AcDataDictionaryAutoSelect {
           ..name = "page_size"
           ..description = "Number of rows in each page"
           ..required = false
-          ..inValue = "query";
+          ..in_ = "query";
     acApiDocRoute.addParameter(parameter: countParameter);
 
     final orderParameter =
@@ -74,7 +97,7 @@ class AcDataDictionaryAutoSelect {
           ..name = "order_by"
           ..description = "Order by value for rows"
           ..required = false
-          ..inValue = "query";
+          ..in_ = "query";
     acApiDocRoute.addParameter(parameter: orderParameter);
 
     for (final column in acDDTable.tableColumns) {
@@ -83,12 +106,12 @@ class AcDataDictionaryAutoSelect {
             ..name = column.columnName
             ..description = "Filter values in column ${column.columnName}"
             ..required = false
-            ..inValue = "query";
+            ..in_ = "query";
       acApiDocRoute.addParameter(parameter: requestParameter);
     }
 
     final responses = AcApiDocUtils.getApiDocRouteResponsesForOperation(
-      operation: AcEnumDDRowOperation.SELECT,
+      operation: AcEnumDDRowOperation.select,
       acDDTable: acDDTable,
       acApiDoc: acDataDictionaryAutoApi.acWeb.acApiDoc,
     );
@@ -99,6 +122,12 @@ class AcDataDictionaryAutoSelect {
     return acApiDocRoute;
   }
 
+  /* AcDoc({
+    "summary": "Creates the request handler for the general GET (list) route.",
+    "description": "This method returns an asynchronous closure that processes the incoming `AcWebRequest`. The handler dynamically builds a SQL query using `AcDDSelectStatement` based on the provided query parameters and returns the result.",
+    "returns": "The request handler function.",
+    "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
+  }) */
   Function getHandler() {
     return (AcWebRequest acWebRequest) async {
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
@@ -108,11 +137,11 @@ class AcDataDictionaryAutoSelect {
 
       if (acWebRequest.get.containsKey("query")) {
         final queryColumns = acDDTable.getSearchQueryColumnNames();
-        acDDSelectStatement.startGroup(operator: AcEnumDDLogicalOperator.OR);
+        acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
-            operator: AcEnumDDConditionOperator.CONTAINS,
+            operator: AcEnumConditionOperator.contains,
             value: acWebRequest.get["query"],
           );
         }
@@ -123,7 +152,7 @@ class AcDataDictionaryAutoSelect {
         if (acWebRequest.get.containsKey(col.columnName)) {
           acDDSelectStatement.addCondition(
             columnName: col.columnName,
-            operator: AcEnumDDConditionOperator.CONTAINS,
+            operator: AcEnumConditionOperator.contains,
             value: acWebRequest.get[col.columnName],
           );
         }
@@ -153,6 +182,12 @@ class AcDataDictionaryAutoSelect {
     };
   }
 
+  /* AcDoc({
+    "summary": "Builds the OpenAPI documentation for the GET by ID route.",
+    "description": "This method creates an `AcApiDocRoute` object describing the endpoint for fetching a single record, including the required primary key as a path parameter.",
+    "returns": "A configured `AcApiDocRoute` object for documentation.",
+    "returns_type": "AcApiDocRoute"
+  }) */
   AcApiDocRoute getByIdAcApiDocRoute() {
     final acApiDocRoute = AcApiDocRoute();
     acApiDocRoute.addTag(tag: acDDTable.tableName);
@@ -166,12 +201,12 @@ class AcDataDictionaryAutoSelect {
           ..description =
               "${acDDTable.getPrimaryKeyColumnName()} value of row to get"
           ..required = true
-          ..inValue = "path";
+          ..in_ = "path";
 
     acApiDocRoute.addParameter(parameter: parameter);
 
     final responses = AcApiDocUtils.getApiDocRouteResponsesForOperation(
-      operation: AcEnumDDRowOperation.SELECT,
+      operation: AcEnumDDRowOperation.select,
       acDDTable: acDDTable,
       acApiDoc: acDataDictionaryAutoApi.acWeb.acApiDoc,
     );
@@ -183,6 +218,12 @@ class AcDataDictionaryAutoSelect {
     return acApiDocRoute;
   }
 
+  /* AcDoc({
+    "summary": "Creates the request handler for the GET by ID route.",
+    "description": "This method returns an asynchronous closure that processes the `AcWebRequest`. The handler extracts the primary key from the URL path and queries for that single record.",
+    "returns": "The request handler function.",
+    "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
+  }) */
   Function getByIdHandler() {
     return (AcWebRequest acWebRequest) async {
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
@@ -199,6 +240,12 @@ class AcDataDictionaryAutoSelect {
     };
   }
 
+  /* AcDoc({
+    "summary": "Builds the OpenAPI documentation for the POST (advanced search) route.",
+    "description": "This method creates an `AcApiDocRoute` object describing the endpoint for complex queries, detailing the JSON request body structure for filters, column selection, ordering, and pagination.",
+    "returns": "A configured `AcApiDocRoute` object for documentation.",
+    "returns_type": "AcApiDocRoute"
+  }) */
   AcApiDocRoute postAcApiDocRoute() {
     final acApiDocRoute = AcApiDocRoute();
     acApiDocRoute.addTag(tag: acDDTable.tableName);
@@ -209,18 +256,18 @@ class AcDataDictionaryAutoSelect {
     final queryColumns = acDDTable.getSearchQueryColumnNames();
 
     final properties = <String, dynamic>{
-      "query": {"type": AcEnumApiDataType.STRING},
-      "page_number": {"type": AcEnumApiDataType.INTEGER},
-      "page_size": {"type": AcEnumApiDataType.INTEGER},
-      "order_by": {"type": AcEnumApiDataType.STRING},
-      "filters": {"type": AcEnumApiDataType.OBJECT},
+      "query": {"type": AcEnumApiDataType.string},
+      "page_number": {"type": AcEnumApiDataType.integer},
+      "page_size": {"type": AcEnumApiDataType.integer},
+      "order_by": {"type": AcEnumApiDataType.string},
+      "filters": {"type": AcEnumApiDataType.object},
       "include_columns": {
-        "type": AcEnumApiDataType.ARRAY,
-        "items": {"type": AcEnumApiDataType.STRING},
+        "type": AcEnumApiDataType.array,
+        "items": {"type": AcEnumApiDataType.string},
       },
       "exclude_columns": {
-        "type": AcEnumApiDataType.ARRAY,
-        "items": {"type": AcEnumApiDataType.STRING},
+        "type": AcEnumApiDataType.array,
+        "items": {"type": AcEnumApiDataType.string},
       },
     };
 
@@ -232,7 +279,7 @@ class AcDataDictionaryAutoSelect {
         AcApiDocContent()
           ..encoding = "application/json"
           ..schema = {
-            "type": AcEnumApiDataType.OBJECT,
+            "type": AcEnumApiDataType.object,
             "properties": properties,
           };
 
@@ -242,7 +289,7 @@ class AcDataDictionaryAutoSelect {
     acApiDocRoute.requestBody = requestBody;
 
     final responses = AcApiDocUtils.getApiDocRouteResponsesForOperation(
-      operation: AcEnumDDRowOperation.SELECT,
+      operation: AcEnumDDRowOperation.select,
       acDDTable: acDDTable,
       acApiDoc: acDataDictionaryAutoApi.acWeb.acApiDoc,
     );
@@ -254,6 +301,12 @@ class AcDataDictionaryAutoSelect {
     return acApiDocRoute;
   }
 
+  /* AcDoc({
+    "summary": "Creates the request handler for the POST (advanced search) route.",
+    "description": "This method returns an asynchronous closure that processes the `AcWebRequest`. The handler parses the JSON request body, builds an `AcDDSelectStatement` from its properties, and executes the complex query.",
+    "returns": "The request handler function.",
+    "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
+  }) */
   Function postHandler() {
     return (AcWebRequest acWebRequest) async {
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
@@ -273,11 +326,11 @@ class AcDataDictionaryAutoSelect {
       }
       if (acWebRequest.body.containsKey("query")) {
         final queryColumns = acDDTable.getSearchQueryColumnNames();
-        acDDSelectStatement.startGroup(operator: AcEnumDDLogicalOperator.OR);
+        acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
-            operator: AcEnumDDConditionOperator.CONTAINS,
+            operator: AcEnumConditionOperator.contains,
             value: acWebRequest.body["query"],
           );
         }
@@ -290,7 +343,7 @@ class AcDataDictionaryAutoSelect {
           final value = entry.value;
           acDDSelectStatement.addCondition(
             columnName: columnName,
-            operator: AcEnumDDConditionOperator.EQUAL_TO,
+            operator: AcEnumConditionOperator.equalTo,
             value: value,
           );
         }

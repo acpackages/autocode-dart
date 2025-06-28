@@ -2,9 +2,9 @@ import 'package:ac_mirrors/annotations.dart';
 import 'package:autocode_tests/autocode_tests.dart';
 import 'package:flutter/material.dart';
 import 'package:autocode/autocode.dart';
-import '_ac_generated/ac_mirrors_generated_code.acg.dart';
+// import '_ac_generated/ac_mirrors_generated_code.acg.dart';
 void main() {
-  acMirrorsInitialize();
+  // acMirrorsInitialize();
   runApp(const MyApp());
 }
 class MyApp extends StatelessWidget {

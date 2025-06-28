@@ -1,22 +1,17 @@
 import 'dart:convert';
-import 'dart:core';
 import 'dart:math';
-import 'package:ac_extensions/src/ac_list_extensions.dart';
 
-extension AcMapExtensions on Map {
-
-  Map<K,V> castMap<K,V>(){
-    Map<K,V> result=<K,V>{};
-    forEach((key, value) {
-      result[key as K]= value as V;
-    });
-    return result;
+extension AcMapExtensions on Map<String, dynamic> {
+  Map<K, V> castMap<K, V>() {
+    return Map<K, V>.fromEntries(
+      entries.map((e) => MapEntry(e.key as K, e.value as V)),
+    );
   }
 
-  Map<String, Map<String, dynamic>> changes(Map newMap) {
+  Map<String, Map<String, dynamic>> changes(Map other) {
     final result = <String, Map<String, dynamic>>{};
 
-    newMap.forEach((key, newValue) {
+    other.forEach((key, newValue) {
       if (!containsKey(key)) {
         result[key] = {'old': null, 'new': newValue, 'change': 'add'};
       } else if (this[key] != newValue) {
@@ -25,7 +20,7 @@ extension AcMapExtensions on Map {
     });
 
     forEach((key, oldValue) {
-      if (!newMap.containsKey(key)) {
+      if (!other.containsKey(key)) {
         result[key] = {'old': oldValue, 'new': null, 'change': 'remove'};
       }
     });
@@ -33,175 +28,78 @@ extension AcMapExtensions on Map {
     return result;
   }
 
-  Map<String, dynamic> clone() {
-    return jsonDecode(jsonEncode(this)) as Map<String, dynamic>;
-  }
+  Map<String, dynamic> deepClone() =>
+      jsonDecode(jsonEncode(this)) as Map<String, dynamic>;
 
-  void copyFrom(Map source) {
-    source.forEach((key, value) {
-      this[key] = value;
-    });
-  }
+  void copyFrom(Map source) => source.forEach((k, v) => this[k] = v);
 
-  void copyTo(Map destination) {
-    forEach((key, value) {
-      destination[key] = value;
-    });
-  }
+  void copyTo(Map destination) => forEach((k, v) => destination[k] = v);
 
-  Map filter(bool Function(dynamic key, dynamic value) test) {
-    final result = {};
-    forEach((key, value) {
-      if (test(key, value)) {
-        result[key] = value;
-      }
+  Map<String, dynamic> filter(bool Function(dynamic key, dynamic value) test) {
+    final result = <String, dynamic>{};
+    forEach((k, v) {
+      if (test(k, v)) result[k] = v;
     });
     return result;
   }
 
-  dynamic get(dynamic key){
-    dynamic result;
-    if (containsKey(key)) {
-      result = this[key];
-    }
-    return result;
-  }
+  dynamic get(dynamic key) => containsKey(key) ? this[key] : null;
 
-  bool getBool(dynamic key){
-    bool result=false;
-    if (containsKey(key)) {
-      if(this[key]!=null) {
-        result = this[key] as bool;
-      }
-    }
-    return result;
-  }
+  bool getBool(dynamic key) =>
+      containsKey(key) && this[key] is bool ? this[key] as bool : false;
 
-  double getDouble(dynamic key, {int round=0}){
-    double result=0;
-    if (containsKey(key)) {
-      if(this[key]!=null) {
-        result = double.parse(this[key].toString());
-      }
+  double getDouble(dynamic key, {int round = 0}) {
+    double value = 0;
+    if (containsKey(key) && this[key] != null) {
+      value = double.tryParse(this[key].toString()) ?? 0;
     }
     if (round > 0) {
-      num mod = pow(10.0, round);
-      result = ((result * mod).round().toDouble() / mod);
+      final mod = pow(10.0, round);
+      value = ((value * mod).round().toDouble() / mod);
     }
-    return result;
+    return value;
   }
 
-  int getInt(dynamic key){
-    int result=0;
-    if (containsKey(key)) {
-      if(this[key]!=null) {
-        result = int.parse(this[key].toString());
+  int getInt(dynamic key) {
+    if (containsKey(key) && this[key] != null) {
+      return int.tryParse(this[key].toString()) ?? 0;
+    }
+    return 0;
+  }
+
+  List<T> getList<T>(dynamic key, {bool growable = true}) {
+    final raw = this[key];
+    if (raw is List) {
+      try {
+        return raw.cast<T>();
+      } catch (_) {
+        return <T>[...raw]; // fallback: shallow copy
       }
     }
-    return result;
+    return List.empty(growable: growable);
   }
 
-  List<T> getList<T>(dynamic key,{bool growable = true}){
-    List<T> result=List.empty(growable: growable);
-    if (containsKey(key)) {
-      if(this[key]!=null && this[key] is List) {
-        if (T == dynamic) {
-          result = (this[key] as List<dynamic>).cast<T>();
-        }
-        else if (T == Map<String,dynamic>) {
-          List<Map<String,dynamic>> response = List.empty(growable: true);
-          for(var value in (this[key] as List<dynamic>)){
-            response.add(Map.from(value));
-          }
-          result = response as List<T>;
-        } else {
-          List<T> response = List.empty(growable: true);
-          for(var value in (this[key] as List<dynamic>)){
-            response.add(value);
-          }
-          result = response;
-        }
-      }
+  Map<K, V> getMap<K, V>(dynamic key) {
+    final raw = this[key];
+    if (raw is Map) {
+      return raw.cast<K, V>();
     }
-    return result;
+    return {};
   }
 
-  Map<K,V> getMap<K,V>(dynamic key){
-    Map<K,V> result={};
-    if (containsKey(key)) {
-      if(this[key]!=null) {
-        result = this[key].cast<K,V>();
-      }
-    }
-    return result;
-  }
+  String getString(dynamic key) =>
+      containsKey(key) && this[key] != null ? this[key].toString() : '';
 
-  String getString(dynamic key){
-    String result="";
-    if (containsKey(key)) {
-      if(this[key]!=null) {
-        result = this[key].toString();
-      }
-    }
-    return result;
-  }
-
-  Map merge(Map contraMap){
-    contraMap.forEach((key, value) {
-      this[key]=value;
-    });
+  Map<String, dynamic> merge(Map<String, dynamic> other) {
+    other.forEach((k, v) => this[k] = v);
     return this;
   }
 
-  bool isSame(Map other) {
-    return jsonEncode(this) == jsonEncode(other);
-  }
+  bool isSame(Map other) => jsonEncode(this) == jsonEncode(other);
 
-  put(Object key,dynamic value){
-    this[key]=value;
-  }
+  void put(String key, dynamic value) => this[key] = value;
 
-  putNestedMapValue(String key,dynamic value){
-    if(key.indexOf("[")>0) {
-      key=key.replaceAll("]","");
-      List<String> keysList = key.split("[");
-      Map<int,Map> mapTree={};
-      for (int i = 0; i < keysList.length-1; i++) {
-        Map currentMap={};
-        if(i==0){
-          if(containsKey(keysList[i])){
-            currentMap=Map.from(getMap(keysList[i]));
-          }
-          else{
-            mapTree[i]={};
-          }
-        }
-        else if(i>0){
-          Map previousMap=Map.from(mapTree.getMap(i-1));
-          if(previousMap.containsKey(keysList[i])){
-            currentMap=previousMap.getMap(keysList[i]);
-          }
-        }
-        mapTree[i]=currentMap;
-      }
-      Map lastMap=mapTree[keysList.length-2]!;
-      lastMap[keysList.last]=value;
-      mapTree[keysList.length-2]!=lastMap;
-      for (int i = keysList.length-2; i > 0 ; i--) {
-        Map parentMap=mapTree.getMap(i-1);
-        Map childMap=mapTree.getMap(i);
-        parentMap[keysList[i]]=childMap;
-        mapTree[i-1]=parentMap;
-      }
-      this[keysList.first]=mapTree[0];
-    }
-  }
+  String toQueryString() => Uri(queryParameters: this).query;
 
-  String toQueryString() {
-    return Uri(queryParameters: cast<String, dynamic>()).query;
-  }
-
-  List<T> toValuesList<T>(){
-    return values.toList().castTo<T>();
-  }
+  List<T> toValuesList<T>() => values.map((e) => e as T).toList();
 }

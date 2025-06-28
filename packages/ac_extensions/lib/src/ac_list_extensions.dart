@@ -1,33 +1,27 @@
-import 'dart:core';
 extension AcListExtensions<T> on List<T> {
-
-  List<T> castTo<T>(){
-    List<T> result = List<T>.empty(growable: true);
-    forEach((element) {
-      result.add(element as T);
-    });
-    return result;
+  List<S> castElements<S>() {
+    return map((e) => e as S).toList();
   }
 
-  List difference<T>(List<T> list) {
+  List<T> difference(List<T> list) {
     return where((item) => !list.contains(item)).toList();
   }
 
-  List differenceSymmetrical<T>(List<T> list) {
+  List<T> symmetricDifference(List<T> list) {
     final diff1 = where((item) => !list.contains(item));
     final diff2 = list.where((item) => !contains(item));
     return [...diff1, ...diff2];
   }
 
-  List intersection<T>(List<T> list) {
+  List<T> intersection(List<T> list) {
     return where((item) => list.contains(item)).toList();
   }
 
-  Map getMap(int index){
-    return this[index] as Map;
+  Map<String, dynamic> asMapAt(int index) {
+    return this[index] as Map<String, dynamic>;
   }
 
-  String getString(int index){
+  String asStringAt(int index) {
     return this[index] as String;
   }
 
@@ -35,12 +29,13 @@ extension AcListExtensions<T> on List<T> {
     return [value, ...this];
   }
 
-  Map toMap(String key){
-    Map<String,dynamic> result={};
-    forEach((element) {
-      Map elementMap = element as Map;
-      result[elementMap[key]]=element;
-    });
+  Map<String, dynamic> mapByKey(String key) {
+    final result = <String, dynamic>{};
+    for (var element in this) {
+      if (element is Map && element.containsKey(key)) {
+        result[element[key].toString()] = element;
+      }
+    }
     return result;
   }
 
@@ -54,10 +49,10 @@ extension AcListExtensions<T> on List<T> {
     return result;
   }
 
-  List<T> uniqueValues(){
-    List<T> result= List<T>.empty(growable: true);
-    for(var item in this){
-      if(!result.contains(item)){
+  List<T> distinct() {
+    final result = <T>[];
+    for (var item in this) {
+      if (!result.contains(item)) {
         result.add(item);
       }
     }

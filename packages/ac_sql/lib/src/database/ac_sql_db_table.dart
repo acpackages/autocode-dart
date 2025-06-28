@@ -1,14 +1,29 @@
 import 'dart:convert';
-
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 
+/* AcDoc({
+  "summary": "A high-level database service handler focused on a single database table.",
+  "description": "This class extends `AcSqlDbBase` to provide a rich set of business logic and data manipulation methods for a specific table. It handles complex operations like validation, event firing (before/after operations), cascade deletes, auto-number generation, and provides a simplified interface for CRUD (Create, Read, Update, Delete) and 'upsert' (save) actions.",
+  "example": "// Prerequisite: Global AcSqlDatabase settings are configured.\n\n// 1. Create a service handler for the 'users' table.\nfinal userTableService = AcSqlDbTable(tableName: 'users');\n\n// 2. Save a row. This will either insert a new record or update an existing one.\nfinal result = await userTableService.saveRow(row: {\n  'id': 1,\n  'name': 'John Doe',\n  'email': 'john.doe@example.com'\n});\n\nif (result.isSuccess()) {\n  print('User saved successfully!');\n}"
+}) */
 class AcSqlDbTable extends AcSqlDbBase {
+  /* AcDoc({"summary": "The name of the table this service handler manages."}) */
   final String tableName;
+
+  /* AcDoc({"summary": "The loaded data dictionary definition for the table."}) */
   late AcDDTable acDDTable;
 
+  /* AcDoc({
+    "summary": "Creates a service handler for a specific database table.",
+    "description": "Initializes the base database service and loads the definition for the specified table from the data dictionary.",
+    "params": [
+      {"name": "tableName", "description": "The name of the table to manage."},
+      {"name": "dataDictionaryName", "description": "The data dictionary to use. Defaults to 'default'."}
+    ]
+  }) */
   AcSqlDbTable({required this.tableName, String dataDictionaryName = "default"})
     : super(dataDictionaryName: dataDictionaryName) {
     acDDTable = AcDDTable.getInstance(
@@ -17,6 +32,15 @@ class AcSqlDbTable extends AcSqlDbBase {
     );
   }
 
+  /* AcDoc({
+    "summary": "Performs cascade deletes for a given set of rows.",
+    "description": "Based on the relationships defined in the data dictionary where 'cascadeDelete' is true, this method deletes corresponding records in related tables.",
+    "params": [
+      {"name": "rows", "description": "A list of rows that have been (or are about to be) deleted."}
+    ],
+    "returns": "An `AcResult` indicating the outcome of the cascade delete operations.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> cascadeDeleteRows({
     required List<Map<String, dynamic>> rows,
   }) async {
@@ -96,6 +120,15 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Checks and generates values for auto-number columns in a row.",
+    "description": "For columns of type `autoNumber`, this method calculates the next sequential number based on existing records (e.g., finds the max 'INV-009' and generates 'INV-010') and populates the value in the provided row map.",
+    "params": [
+      {"name": "row", "description": "The row data map to be checked and modified in place."}
+    ],
+    "returns": "An `AcResult` with the modified row map as its `value` on success.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> checkAndSetAutoNumberValues({
     required Map<String, dynamic> row,
   }) async {
@@ -142,7 +175,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         List<String> getRowsStatements = [];
         for (final name in selectColumnsList) {
           String columnGetRows = "";
-          if (databaseType == AcEnumSqlDatabaseType.MYSQL) {
+          if (databaseType == AcEnumSqlDatabaseType.mysql) {
             columnGetRows =
                 "SELECT CONCAT('{\"$name\":',IF(MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED)) IS NULL,0,MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED))),'}') AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition";
           }
@@ -191,6 +224,15 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Checks for unique key violations before an insert or update.",
+    "description": "Validates that the data in the provided `row` does not violate any unique key constraints defined in the data dictionary by querying for existing records with the same values.",
+    "params": [
+      {"name": "row", "description": "The row data to validate."}
+    ],
+    "returns": "An `AcResult` that is successful if no violations are found, or fails with a message if a violation is detected.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> checkUniqueValues({
     required Map<String, dynamic> row,
   }) async {
@@ -237,10 +279,10 @@ class AcSqlDbTable extends AcSqlDbBase {
           final selectResponse = await getRows(
             condition: conditions.join(" AND "),
             parameters: parameters,
-            mode: "COUNT",
+            mode: AcEnumDDSelectMode.count,
           );
           if (selectResponse.isSuccess()) {
-            final rowsCount = selectResponse.rowsCount();
+            final rowsCount = selectResponse.rowsCount;
             if (rowsCount > 0) {
               result.setFailure(
                 value: {"unique_columns": uniqueColumns},
@@ -270,6 +312,19 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Deletes rows from the table, with full event and cascade handling.",
+    "description": "This is a high-level delete method that orchestrates the entire delete lifecycle:\n1. Fires a `beforeDelete` event.\n2. Sets related foreign keys in other tables to null if configured.\n3. Performs cascade deletes if configured.\n4. Executes the final `DELETE` statement.\n5. Fires an `afterDelete` event.",
+    "params": [
+      {"name": "condition", "description": "The WHERE clause to identify rows to delete."},
+      {"name": "primaryKeyValue", "description": "A primary key value to delete a single record. An alternative to using `condition`."},
+      {"name": "parameters", "description": "Parameters for the WHERE clause."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire the `beforeDelete` event."},
+      {"name": "executeAfterEvent", "description": "Whether to fire the `afterDelete` event."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the results of the operation, including the deleted rows.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> deleteRows({
     String condition = "",
     String primaryKeyValue = "",
@@ -280,7 +335,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     logger.log(
       "Deleting row with condition : $condition & primaryKeyValue $primaryKeyValue",
     );
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.DELETE);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.delete);
     try {
       bool continueOperation = true;
       final primaryKeyColumnName = acDDTable.getPrimaryKeyColumnName();
@@ -306,7 +361,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           );
           rowEvent.condition = condition;
           rowEvent.parameters = parameters;
-          rowEvent.eventType = AcEnumDDRowEvent.BEFORE_DELETE;
+          rowEvent.eventType = AcEnumDDRowEvent.beforeDelete;
           final eventResult = await rowEvent.execute();
           if (eventResult.isSuccess()) {
             condition = rowEvent.condition;
@@ -385,7 +440,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           tableName: tableName,
           dataDictionaryName: dataDictionaryName,
         );
-        rowEvent.eventType = AcEnumDDRowEvent.AFTER_DELETE;
+        rowEvent.eventType = AcEnumDDRowEvent.afterDelete;
         rowEvent.condition = condition;
         rowEvent.parameters = parameters;
         rowEvent.result = result;
@@ -407,6 +462,16 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Formats row values based on column definitions.",
+    "description": "Applies formatting such as trimming strings, encrypting passwords, and JSON encoding/decoding to a row's data before it is saved. Also handles default values for insert operations.",
+    "params": [
+      {"name": "row", "description": "The row data map to be formatted in place."},
+      {"name": "insertMode", "description": "If true, default values will be applied."}
+    ],
+    "returns": "An `AcResult` with the formatted row as its `value` on success.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> formatValues({
     required Map<String, dynamic> row,
     bool insertMode = false,
@@ -418,7 +483,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       dataDictionaryName: dataDictionaryName,
     );
     rowEvent.row = row;
-    rowEvent.eventType = AcEnumDDRowEvent.BEFORE_FORMAT;
+    rowEvent.eventType = AcEnumDDRowEvent.beforeFormat;
     final eventResult = await rowEvent.execute();
     if (eventResult.isSuccess()) {
       row = rowEvent.row;
@@ -431,7 +496,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (row.containsKey(column.columnName) || insertMode) {
           bool setColumnValue = row.containsKey(column.columnName);
           List<String> formats = column.getColumnFormats();
-          String type = column.columnType;
+          AcEnumDDColumnType type = column.columnType;
           dynamic value = row[column.columnName] ?? "";
           if (value == "" && column.getDefaultValue() != null && insertMode) {
             value = column.getDefaultValue();
@@ -439,33 +504,33 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
           if (setColumnValue) {
             if ([
-              AcEnumDDColumnType.DATE,
-              AcEnumDDColumnType.DATETIME,
-              AcEnumDDColumnType.STRING,
+              AcEnumDDColumnType.date,
+              AcEnumDDColumnType.datetime,
+              AcEnumDDColumnType.string,
             ].contains(type)) {
               value = value.toString().trim();
-              if (type == AcEnumDDColumnType.STRING) {
-                if (formats.contains(AcEnumDDColumnFormat.LOWERCASE)) {
+              if (type == AcEnumDDColumnType.string) {
+                if (formats.contains(AcEnumDDColumnFormat.lowercase.value)) {
                   value = value.toLowerCase();
                 }
-                if (formats.contains(AcEnumDDColumnFormat.UPPERCASE)) {
+                if (formats.contains(AcEnumDDColumnFormat.uppercase.value)) {
                   value = value.toUpperCase();
                 }
-                if (formats.contains(AcEnumDDColumnFormat.ENCRYPT)) {
+                if (formats.contains(AcEnumDDColumnFormat.encrypt.value)) {
                   value = AcEncryption.encrypt(plainText: value);
                 }
               } else if ([
-                    AcEnumDDColumnType.DATETIME,
-                    AcEnumDDColumnType.DATE,
+                    AcEnumDDColumnType.datetime,
+                    AcEnumDDColumnType.date,
                   ].contains(type) &&
                   value.isNotEmpty) {
                 try {
                   DateTime dateTimeValue = DateTime.parse(value);
                   String format =
-                      (type == AcEnumDDColumnType.DATETIME)
+                      (type == AcEnumDDColumnType.datetime)
                           ? 'yyyy-MM-dd HH:mm:ss'
                           : 'yyyy-MM-dd';
-                  value = dateTimeValue.format(format);
+                  value = dateTimeValue.fromFormatted(format);
                 } catch (e) {
                   logger.warn(
                     "Error while setting dateTimeValue for ${column.columnName} in table $tableName with value: $value",
@@ -473,11 +538,11 @@ class AcSqlDbTable extends AcSqlDbBase {
                 }
               }
             } else if ([
-              AcEnumDDColumnType.JSON,
-              AcEnumDDColumnType.MEDIA_JSON,
+              AcEnumDDColumnType.json,
+              AcEnumDDColumnType.mediaJson,
             ].contains(type)) {
               value = value is String ? value : json.encode(value);
-            } else if (type == AcEnumDDColumnType.PASSWORD) {
+            } else if (type == AcEnumDDColumnType.password) {
               value = AcEncryption.encrypt(plainText: value);
             }
             row[column.columnName] = value;
@@ -491,7 +556,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         dataDictionaryName: dataDictionaryName,
       );
       rowEvent.row = row;
-      rowEvent.eventType = AcEnumDDRowEvent.AFTER_FORMAT;
+      rowEvent.eventType = AcEnumDDRowEvent.afterFormat;
       final eventResult = await rowEvent.execute();
       if (eventResult.isSuccess()) {
         row = rowEvent.row;
@@ -506,22 +571,31 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Map<String, List<String>> getColumnFormats({
+  /* AcDoc({
+    "summary": "Gets a map of formatting rules for the table's columns.",
+    "description": "Builds a map where keys are column names and values are a list of `AcEnumDDColumnFormat` rules, derived from the column's data type (e.g., `json`, `password`). This is used by `getRows` to format results.",
+    "params": [
+      {"name": "getPasswordColumns", "description": "If false (default), password columns are marked for hiding."}
+    ],
+    "returns": "A map of column names to their formatting rules.",
+    "returns_type": "Map<String, List<AcEnumDDColumnFormat>>"
+  }) */
+  Map<String, List<AcEnumDDColumnFormat>> getColumnFormats({
     bool getPasswordColumns = false,
   }) {
-    Map<String, List<String>> result = {};
+    Map<String, List<AcEnumDDColumnFormat>> result = {};
     for (final acDDTableColumn in acDDTable.tableColumns) {
-      List<String> columnFormats = [];
-      if (acDDTableColumn.columnType == AcEnumDDColumnType.JSON ||
-          acDDTableColumn.columnType == AcEnumDDColumnType.MEDIA_JSON) {
-        columnFormats.add(AcEnumDDColumnFormat.JSON);
-      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.DATE) {
-        columnFormats.add(AcEnumDDColumnFormat.DATE);
-      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.PASSWORD &&
+      List<AcEnumDDColumnFormat> columnFormats = [];
+      if (acDDTableColumn.columnType == AcEnumDDColumnType.json ||
+          acDDTableColumn.columnType == AcEnumDDColumnType.mediaJson) {
+        columnFormats.add(AcEnumDDColumnFormat.json);
+      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.date) {
+        columnFormats.add(AcEnumDDColumnFormat.date);
+      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.password &&
           !getPasswordColumns) {
-        columnFormats.add(AcEnumDDColumnFormat.HIDE_COLUMN);
-      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.ENCRYPTED) {
-        columnFormats.add(AcEnumDDColumnFormat.ENCRYPT);
+        columnFormats.add(AcEnumDDColumnFormat.hideColumn);
+      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.encrypted) {
+        columnFormats.add(AcEnumDDColumnFormat.encrypt);
       }
       if (columnFormats.isNotEmpty) {
         result[acDDTableColumn.columnName] = columnFormats;
@@ -530,6 +604,16 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Generates a SELECT statement for this table.",
+    "description": "Constructs a `SELECT` statement, allowing for the inclusion or exclusion of specific columns. If no columns are specified, it defaults to `SELECT *`.",
+    "params": [
+      {"name": "includeColumns", "description": "A specific list of columns to include."},
+      {"name": "excludeColumns", "description": "A list of columns to exclude from a `SELECT *`."}
+    ],
+    "returns": "The generated SELECT statement string.",
+    "returns_type": "String"
+  }) */
   String getSelectStatement({
     List<String> includeColumns = const [],
     List<String> excludeColumns = const [],
@@ -549,16 +633,30 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Retrieves a list of distinct values for a specific column.",
+    "params": [
+      {"name": "columnName", "description": "The column to get distinct values from."},
+      {"name": "condition", "description": "An optional WHERE clause to filter the results."},
+      {"name": "orderBy", "description": "An optional ORDER BY clause."},
+      {"name": "mode", "description": "The selection mode (e.g., `list` or `count`)."},
+      {"name": "pageNumber", "description": "The page number for pagination."},
+      {"name": "pageSize", "description": "The number of records per page."},
+      {"name": "parameters", "description": "Parameters for the WHERE clause."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the list of distinct values.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> getDistinctColumnValues({
     required String columnName,
     String condition = "",
     String orderBy = "",
-    String mode = AcEnumDDSelectMode.LIST,
+    AcEnumDDSelectMode mode = AcEnumDDSelectMode.list,
     int pageNumber = -1,
     int pageSize = -1,
     Map<String, dynamic> parameters = const {},
   }) async {
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
       String actualOrderBy = orderBy.isNotEmpty ? orderBy : columnName;
 
@@ -599,156 +697,31 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  String getColumnDefinitionForStatement({required String columnName}) {
-    String result = "";
-    final acDDTableColumn = acDDTable.getColumn(columnName)!;
-    String columnType = acDDTableColumn.columnType;
-    dynamic defaultValue = acDDTableColumn.getDefaultValue();
-    int size = acDDTableColumn.getSize();
-    bool isAutoIncrementSet = false;
-    bool isPrimaryKeySet = false;
-    if (databaseType == AcEnumSqlDatabaseType.MYSQL) {
-      columnType = "TEXT";
-      switch (columnType) {
-        case AcEnumDDColumnType.AUTO_INCREMENT:
-          columnType = 'INT AUTO_INCREMENT PRIMARY KEY';
-          isAutoIncrementSet = true;
-          isPrimaryKeySet = true;
-          break;
-        case AcEnumDDColumnType.BLOB:
-          columnType = "LONGBLOB";
-          if (size > 0) {
-            if (size <= 255) {
-              columnType = "TINYBLOB";
-            }
-            if (size <= 65535) {
-              columnType = "BLOB";
-            } else if (size <= 16777215) {
-              columnType = "MEDIUMBLOB";
-            }
-          }
-          break;
-        case AcEnumDDColumnType.DATE:
-          columnType = 'DATE';
-          break;
-        case AcEnumDDColumnType.DATETIME:
-          columnType = 'DATETIME';
-          break;
-        case AcEnumDDColumnType.DOUBLE:
-          columnType = 'DOUBLE';
-          break;
-        case AcEnumDDColumnType.UUID:
-          columnType = 'CHAR(36)';
-          break;
-        case AcEnumDDColumnType.INTEGER:
-          columnType = 'INT';
-          if (size > 0) {
-            if (size <= 255) {
-              columnType = "TINYINT";
-            } else if (size <= 65535) {
-              columnType = "SMALLINT";
-            } else if (size <= 16777215) {
-              columnType = "MEDIUMINT";
-            }
-            // else if (size <= 18446744073709551615) {
-            //   columnType = "BIGINT";
-            // }
-          }
-          break;
-        case AcEnumDDColumnType.JSON:
-          columnType = 'LONGTEXT';
-          break;
-        case AcEnumDDColumnType.STRING:
-          if (size == 0) {
-            size = 255;
-          }
-          columnType = "VARCHAR($size)";
-          break;
-        case AcEnumDDColumnType.TEXT:
-          columnType = 'LONGTEXT';
-          if (size > 0) {
-            if (size <= 255) {
-              columnType = "TINYTEXT";
-            }
-            if (size <= 65535) {
-              columnType = "TEXT";
-            } else if (size <= 16777215) {
-              columnType = "MEDIUMTEXT";
-            }
-          }
-          break;
-        case AcEnumDDColumnType.TIME:
-          columnType = 'TIME';
-          break;
-        case AcEnumDDColumnType.TIMESTAMP:
-          columnType =
-              'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
-          break;
-      }
-      result = "$columnName $columnType";
-      if (acDDTableColumn.isAutoIncrement() && !isAutoIncrementSet) {
-        result += " AUTO_INCREMENT";
-      }
-      if (acDDTableColumn.isPrimaryKey() && !isPrimaryKeySet) {
-        result += " PRIMARY KEY";
-      }
-      if (acDDTableColumn.isUniqueKey()) {
-        result += " UNIQUE";
-      }
-      if (acDDTableColumn.isNotNull()) {
-        result += " NOT NULL";
-      }
-      if (defaultValue != null) {
-        // result.=" DEFAULT $defaultValue";
-      }
-    } else if (databaseType == AcEnumSqlDatabaseType.SQLITE) {
-      columnType = "TEXT";
-      switch (columnType) {
-        case AcEnumDDColumnType.AUTO_INCREMENT:
-          columnType = 'INTEGER PRIMARY KEY AUTOINCREMENT';
-          isAutoIncrementSet = true;
-          isPrimaryKeySet = true;
-          break;
-        case AcEnumDDColumnType.DOUBLE:
-          columnType = 'REAL';
-          break;
-        case AcEnumDDColumnType.BLOB:
-          columnType = 'BLOB';
-          break;
-        case AcEnumDDColumnType.INTEGER:
-          columnType = 'INTEGER';
-          break;
-      }
-      result = "$columnName $columnType";
-      if (acDDTableColumn.isAutoIncrement() && !isAutoIncrementSet) {
-        result += " AUTOINCREMENT";
-      }
-      if (acDDTableColumn.isPrimaryKey() && !isPrimaryKeySet) {
-        result += " PRIMARY KEY";
-      }
-      if (acDDTableColumn.isUniqueKey()) {
-        result += " UNIQUE ";
-      }
-      if (acDDTableColumn.isNotNull()) {
-        result += " NOT NULL";
-      }
-      if (defaultValue != null) {
-        // result.=" DEFAULT $defaultValue";
-      }
-    }
-    return result;
-  }
-
+  /* AcDoc({
+    "summary": "Retrieves rows from the table.",
+    "description": "The primary method for querying the table. It constructs and executes a SELECT statement with optional conditions, ordering, and pagination.",
+    "params": [
+      {"name": "selectStatement", "description": "An optional full SELECT statement to use instead of the default."},
+      {"name": "condition", "description": "A WHERE clause to filter rows."},
+      {"name": "orderBy", "description": "An ORDER BY clause."},
+      {"name": "mode", "description": "The selection mode (e.g., `list` or `count`)."},
+      {"name": "pageNumber", "description": "The page number for pagination."},
+      {"name": "pageSize", "description": "The number of records per page."},
+      {"name": "parameters", "description": "Parameters for the WHERE clause."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the fetched rows.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> getRows({
     String selectStatement = "",
     String condition = "",
     String orderBy = "",
-    String mode = AcEnumDDSelectMode.LIST,
+    AcEnumDDSelectMode mode = AcEnumDDSelectMode.list,
     int pageNumber = -1,
     int pageSize = -1,
     Map<String, dynamic> parameters = const {},
   }) async {
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
       String actualSelectStatement =
           selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
@@ -777,10 +750,19 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Executes a pre-configured `AcDDSelectStatement` against this table.",
+    "description": "A convenience method to run a complex query defined in an `AcDDSelectStatement` object. It also automatically fetches the total row count for pagination.",
+    "params": [
+      {"name": "acDDSelectStatement", "description": "The configured select statement object."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the fetched rows and total row count.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> getRowsFromAcDDStatement({
     required AcDDSelectStatement acDDSelectStatement,
   }) async {
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.SELECT);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
       String sqlStatement = acDDSelectStatement.getSqlStatement();
       Map<String, dynamic> sqlParameters = acDDSelectStatement.parameters;
@@ -814,13 +796,25 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Inserts a single row into the table, with full event handling.",
+    "description": "Orchestrates the insert lifecycle:\n1. Validates the row data.\n2. Generates UUIDs or auto-numbers.\n3. Fires a `beforeInsert` event.\n4. Executes the `INSERT` statement.\n5. Fires an `afterInsert` event.",
+    "params": [
+      {"name": "row", "description": "A map representing the row to insert."},
+      {"name": "validateResult", "description": "An optional, pre-computed validation result."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire the `beforeInsert` event."},
+      {"name": "executeAfterEvent", "description": "Whether to fire the `afterInsert` event."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the newly inserted row and its primary key.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> insertRow({
     required Map<String, dynamic> row,
     AcResult? validateResult,
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.INSERT);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
     try {
       logger.log(["Inserting row with data : ", row]);
       bool continueOperation = true;
@@ -828,8 +822,8 @@ class AcSqlDbTable extends AcSqlDbBase {
       logger.log(["Validation result : ", validateResult]);
       if (validateResult.isSuccess()) {
         for (final column in acDDTable.tableColumns) {
-          if ((column.columnType == AcEnumDDColumnType.UUID ||
-                  (column.columnType == AcEnumDDColumnType.STRING &&
+          if ((column.columnType == AcEnumDDColumnType.uuid ||
+                  (column.columnType == AcEnumDDColumnType.string &&
                       column.isPrimaryKey())) &&
               !row.containsKey(column.columnName)) {
             row[column.columnName] = Autocode.uuid(); // Use the uuid package
@@ -846,7 +840,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 dataDictionaryName: dataDictionaryName,
               );
               rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.BEFORE_INSERT;
+              rowEvent.eventType = AcEnumDDRowEvent.beforeInsert;
               final eventResult = await rowEvent.execute();
               logger.log(["Before insert result", eventResult]);
               if (eventResult.isSuccess()) {
@@ -899,7 +893,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                   tableName: tableName,
                   dataDictionaryName: dataDictionaryName,
                 );
-                rowEvent.eventType = AcEnumDDRowEvent.AFTER_INSERT;
+                rowEvent.eventType = AcEnumDDRowEvent.afterInsert;
                 rowEvent.result = result;
                 final eventResult = await rowEvent.execute();
                 if (eventResult.isSuccess()) {
@@ -929,12 +923,23 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Inserts multiple rows into the table in a batch, with event handling.",
+    "description": "Processes a list of rows, validates each one, fires `beforeInsert` events, and then executes the `INSERT` statements, typically within a transaction.",
+    "params": [
+      {"name": "rows", "description": "A list of maps, where each map is a row to insert."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire `beforeInsert` events for each row."},
+      {"name": "executeAfterEvent", "description": "Whether to fire `afterInsert` events for each row."}
+    ],
+    "returns": "An `AcSqlDaoResult` summarizing the bulk operation.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> insertRows({
     required List<Map<String, dynamic>> rows,
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.INSERT);
+    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
     try {
       logger.log(["Inserting rows : ", rows]);
       bool continueOperation = true;
@@ -946,8 +951,8 @@ class AcSqlDbTable extends AcSqlDbBase {
           final validateResult = await validateValues(row: row, isInsert: true);
           if (validateResult.isSuccess()) {
             for (final column in acDDTable.tableColumns) {
-              if ((column.columnType == AcEnumDDColumnType.UUID ||
-                      (column.columnType == AcEnumDDColumnType.STRING &&
+              if ((column.columnType == AcEnumDDColumnType.uuid ||
+                      (column.columnType == AcEnumDDColumnType.string &&
                           column.isPrimaryKey())) &&
                   !row.containsKey(column.columnName)) {
                 row[column.columnName] = Autocode.uuid(); // Use uuid package.
@@ -965,7 +970,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                     dataDictionaryName: dataDictionaryName,
                   );
                   rowEvent.row = row;
-                  rowEvent.eventType = AcEnumDDRowEvent.BEFORE_INSERT;
+                  rowEvent.eventType = AcEnumDDRowEvent.beforeInsert;
                   final eventResult = await rowEvent.execute();
                   logger.log(["Before insert result", eventResult]);
                   if (eventResult.isSuccess()) {
@@ -1022,7 +1027,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 tableName: tableName,
                 dataDictionaryName: dataDictionaryName,
               );
-              rowEvent.eventType = AcEnumDDRowEvent.AFTER_INSERT;
+              rowEvent.eventType = AcEnumDDRowEvent.afterInsert;
               rowEvent.result = result;
               rowEvent.row = row;
               final eventResult = await rowEvent.execute();
@@ -1053,15 +1058,26 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Saves a row, performing an 'upsert' (insert or update) operation.",
+    "description": "This method intelligently determines whether to insert a new row or update an existing one. It first tries to find an existing record based on the primary key or columns marked with `checkInSave`. If a record is found, it performs an update; otherwise, it performs an insert.",
+    "params": [
+      {"name": "row", "description": "The row data to save."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire `beforeSave` events."},
+      {"name": "executeAfterEvent", "description": "Whether to fire `afterSave` events."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the final state of the saved row.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> saveRow({
     required Map<String, dynamic> row,
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UNKNOWN);
+    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
     try {
       bool continueOperation = true;
-      var operation = AcEnumDDRowOperation.UNKNOWN;
+      var operation = AcEnumDDRowOperation.unknown;
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
       dynamic primaryKeyValue = row[primaryKeyColumn];
       String condition = "";
@@ -1110,24 +1126,24 @@ class AcSqlDbTable extends AcSqlDbBase {
             if (existingRecord.containsKey(primaryKeyColumn)) {
               primaryKeyValue = existingRecord[primaryKeyColumn];
               row[primaryKeyColumn] = primaryKeyValue;
-              operation = AcEnumDDRowOperation.UPDATE;
+              operation = AcEnumDDRowOperation.update;
             } else {
               continueOperation = false;
               result.message = "Row does not have primary key value";
             }
           } else {
-            operation = AcEnumDDRowOperation.INSERT;
+            operation = AcEnumDDRowOperation.insert;
           }
         } else {
           continueOperation = false;
           result.setFromResult(result: getResult);
         }
       } else {
-        operation = AcEnumDDRowOperation.INSERT;
+        operation = AcEnumDDRowOperation.insert;
       }
 
-      if (operation != AcEnumDDRowOperation.INSERT &&
-          operation != AcEnumDDRowOperation.UPDATE) {
+      if (operation != AcEnumDDRowOperation.insert &&
+          operation != AcEnumDDRowOperation.update) {
         result.message = "Invalid Operation";
         continueOperation = false;
       }
@@ -1140,7 +1156,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             dataDictionaryName: dataDictionaryName,
           );
           rowEvent.row = row;
-          rowEvent.eventType = AcEnumDDRowEvent.BEFORE_SAVE;
+          rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
           final eventResult = await rowEvent.execute();
           if (eventResult.isSuccess()) {
             row = rowEvent.row;
@@ -1153,9 +1169,9 @@ class AcSqlDbTable extends AcSqlDbBase {
             );
           }
         }
-        if (operation == AcEnumDDRowOperation.INSERT) {
+        if (operation == AcEnumDDRowOperation.insert) {
           result.setFromResult(result: await insertRow(row: row));
-        } else if (operation == AcEnumDDRowOperation.UPDATE) {
+        } else if (operation == AcEnumDDRowOperation.update) {
           result.setFromResult(result: await updateRow(row: row));
         } else {
           continueOperation = false; // Redundant, but good for clarity
@@ -1166,7 +1182,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             tableName: tableName,
             dataDictionaryName: dataDictionaryName,
           );
-          rowEvent.eventType = AcEnumDDRowEvent.AFTER_SAVE;
+          rowEvent.eventType = AcEnumDDRowEvent.afterSave;
           rowEvent.result = result;
           final eventResult = await rowEvent.execute();
           if (eventResult.isSuccess()) {
@@ -1187,12 +1203,23 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Saves a list of rows, performing 'upsert' operations for each.",
+    "description": "Processes a list of rows, determining for each one whether it needs to be inserted or updated. This is useful for synchronizing a batch of data with the database.",
+    "params": [
+      {"name": "rows", "description": "The list of row data maps to save."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire `beforeSave` events."},
+      {"name": "executeAfterEvent", "description": "Whether to fire `afterSave` events."}
+    ],
+    "returns": "An `AcSqlDaoResult` summarizing the batch save operation.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> saveRows({
     required List<Map<String, dynamic>> rows,
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UNKNOWN);
+    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
     try {
       bool continueOperation = true;
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
@@ -1276,7 +1303,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 dataDictionaryName: dataDictionaryName,
               );
               rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.BEFORE_SAVE;
+              rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
               final eventResult = await rowEvent.execute();
               if (eventResult.isSuccess()) {
                 row = rowEvent.row;
@@ -1297,7 +1324,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 dataDictionaryName: dataDictionaryName,
               );
               rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.BEFORE_SAVE;
+              rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
               final eventResult = await rowEvent.execute();
               if (eventResult.isSuccess()) {
                 row = rowEvent.row;
@@ -1350,6 +1377,16 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Sets related foreign key columns to null before a delete.",
+    "description": "As part of the delete process, this method finds tables that reference the records being deleted and, if configured via the `setNullBeforeDelete` property, updates their foreign key columns to NULL to prevent constraint violations.",
+    "params": [
+      {"name": "condition", "description": "The WHERE clause identifying the primary records being deleted."},
+      {"name": "parameters", "description": "Parameters for the WHERE clause."}
+    ],
+    "returns": "An `AcResult` indicating the outcome.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> setValuesNullBeforeDelete({
     required String condition,
     Map<String, dynamic> parameters = const {},
@@ -1404,6 +1441,20 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Updates a row in the table, with full event handling.",
+    "description": "Orchestrates the update lifecycle:\n1. Validates the row data.\n2. Formats values (e.g., encryption).\n3. Fires a `beforeUpdate` event.\n4. Executes the `UPDATE` statement.\n5. Fires an `afterUpdate` event.",
+    "params": [
+      {"name": "row", "description": "A map of column names to their new values."},
+      {"name": "condition", "description": "The WHERE clause to identify the row(s) to update. If empty, the primary key from the `row` data is used."},
+      {"name": "parameters", "description": "Parameters for the WHERE clause."},
+      {"name": "validateResult", "description": "An optional, pre-computed validation result."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire the `beforeUpdate` event."},
+      {"name": "executeAfterEvent", "description": "Whether to fire the `afterUpdate` event."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the final state of the updated row(s).",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> updateRow({
     required Map<String, dynamic> row,
     String condition = "",
@@ -1413,7 +1464,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeBeforeEvent = true,
   }) async {
     logger.log(["Updating row with data : ", row]);
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UPDATE);
+    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
       bool continueOperation = true;
       validateResult ??= await validateValues(row: row, isInsert: false);
@@ -1446,7 +1497,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 dataDictionaryName: dataDictionaryName,
               );
               rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.BEFORE_UPDATE;
+              rowEvent.eventType = AcEnumDDRowEvent.beforeUpdate;
               final eventResult = await rowEvent.execute();
               if (eventResult.isSuccess()) {
                 logger.log(["Before event result", eventResult]);
@@ -1496,7 +1547,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                   tableName: tableName,
                   dataDictionaryName: dataDictionaryName,
                 );
-                rowEvent.eventType = AcEnumDDRowEvent.AFTER_UPDATE;
+                rowEvent.eventType = AcEnumDDRowEvent.afterUpdate;
                 rowEvent.result = result;
                 final eventResult = await rowEvent.execute();
                 if (eventResult.isSuccess()) {
@@ -1530,12 +1581,23 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Updates multiple rows in the table in a batch, with event handling.",
+    "description": "Processes a list of rows, validates each one, fires `beforeUpdate` events, and then executes the `UPDATE` statements, typically within a transaction.",
+    "params": [
+      {"name": "rows", "description": "A list of maps, where each map is a row to update. Each row must contain a primary key to identify it."},
+      {"name": "executeBeforeEvent", "description": "Whether to fire `beforeUpdate` events for each row."},
+      {"name": "executeAfterEvent", "description": "Whether to fire `afterUpdate` events for each row."}
+    ],
+    "returns": "An `AcSqlDaoResult` summarizing the batch update.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> updateRows({
     required List<Map<String, dynamic>> rows,
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.UPDATE);
+    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
       bool continueOperation = true;
       List<Map<String, dynamic>> rowsWithConditions = [];
@@ -1590,7 +1652,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                 rowEvent.row = rowDetails["row"];
                 rowEvent.condition = rowDetails["condition"];
                 rowEvent.parameters = rowDetails["parameters"];
-                rowEvent.eventType = AcEnumDDRowEvent.BEFORE_UPDATE;
+                rowEvent.eventType = AcEnumDDRowEvent.beforeUpdate;
                 final eventResult = await rowEvent.execute();
                 if (eventResult.isSuccess()) {
                   logger.log(["Before event result", eventResult]);
@@ -1638,7 +1700,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                   tableName: tableName,
                   dataDictionaryName: dataDictionaryName,
                 );
-                rowEvent.eventType = AcEnumDDRowEvent.AFTER_UPDATE;
+                rowEvent.eventType = AcEnumDDRowEvent.afterUpdate;
                 rowEvent.result = result;
                 final eventResult = await rowEvent.execute();
                 if (eventResult.isSuccess()) {
@@ -1669,6 +1731,17 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "A string padding utility.",
+    "description": "Pads a string on the left with a given character to reach a specified total length.",
+    "params": [
+      {"name": "value", "description": "The original string value."},
+      {"name": "char", "description": "The character to use for padding."},
+      {"name": "length", "description": "The desired total length of the final string."}
+    ],
+    "returns": "The padded string.",
+    "returns_type": "String"
+  }) */
   String updateValueLengthWithChars({
     required String value,
     required String char,
@@ -1684,6 +1757,16 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  /* AcDoc({
+    "summary": "Validates a row of data against the table's column definitions.",
+    "description": "Checks for required fields, correct data types (for numerics and datetimes), and unique key constraints.",
+    "params": [
+      {"name": "row", "description": "The row data map to validate."},
+      {"name": "isInsert", "description": "If true, checks apply to an insert operation (e.g., all required fields must be present)."}
+    ],
+    "returns": "An `AcResult` that is successful if the validation passes, or fails with a message if it does not.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> validateValues({
     required Map<String, dynamic> row,
     bool isInsert = false,
@@ -1709,8 +1792,8 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
         }
         if (continueOperation) {
-          if (column.columnType == AcEnumDDColumnType.INTEGER ||
-              column.columnType == AcEnumDDColumnType.DOUBLE) {
+          if (column.columnType == AcEnumDDColumnType.integer ||
+              column.columnType == AcEnumDDColumnType.double_) {
             if (value != null && value is! num) {
               result.setFailure(
                 message:
@@ -1718,9 +1801,9 @@ class AcSqlDbTable extends AcSqlDbBase {
               );
               break;
             }
-          } else if (column.columnType == AcEnumDDColumnType.DATE ||
-              column.columnType == AcEnumDDColumnType.DATETIME ||
-              column.columnType == AcEnumDDColumnType.TIME) {
+          } else if (column.columnType == AcEnumDDColumnType.date ||
+              column.columnType == AcEnumDDColumnType.datetime ||
+              column.columnType == AcEnumDDColumnType.time) {
             if (value != null && value != "NOW") {
               try {
                 DateTime.parse(value);

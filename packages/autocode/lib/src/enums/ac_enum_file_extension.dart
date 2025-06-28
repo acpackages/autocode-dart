@@ -1,145 +1,179 @@
-class AcEnumFileExtension {
-  static const AAC = 'aac';
-  static const AAF = 'aaf';
-  static const ACA = 'aca';
-  static const ACCDB = 'accdb';
-  static const ACCDE = 'accde';
-  static const ACCDT = 'accdt';
-  static const ACX = 'acx';
-  static const ADT = 'adt';
-  static const ADTS = 'adts';
-  static const AFM = 'afm';
-  static const AI = 'ai';
-  static const AIF = 'aif';
-  static const AIFC = 'aifc';
-  static const AIFF = 'aiff';
-  static const APPLICATION = 'application';
-  static const ART = 'art';
-  static const ASD = 'asd';
-  static const ASF = 'asf';
-  static const ASI = 'asi';
-  static const ASM = 'asm';
-  static const ASR = 'asr';
-  static const ASX = 'asx';
-  static const ATOM = 'atom';
-  static const AU = 'au';
-  static const AVI = 'avi';
-  static const AXS = 'axs';
-  static const BAS = 'bas';
-  static const BCPIOS = 'bcpio';
-  static const BIN = 'bin';
-  static const BMP = 'bmp';
-  static const C = 'c';
-  static const CAB = 'cab';
-  static const CALX = 'calx';
-  static const CAT = 'cat';
-  static const CDF = 'cdf';
-  static const CHM = 'chm';
-  static const CLP = 'clp';
-  static const CMX = 'cmx';
-  static const CNF = 'cnf';
-  static const COD = 'cod';
-  static const CPIO = 'cpio';
-  static const CPP = 'cpp';
-  static const CRD = 'crd';
-  static const CRL = 'crl';
-  static const CRT = 'crt';
-  static const CSH = 'csh';
-  static const CSS = 'css';
-  static const CSV = 'csv';
-  static const CUR = 'cur';
-  static const DCR = 'dcr';
-  static const DEPLOY = 'deploy';
-  static const DER = 'der';
-  static const DIB = 'dib';
-  static const DIR = 'dir';
-  static const DISCO = 'disco';
-  static const DLL = 'dll';
-  static const DLLCONFIG = 'dllconfig';
-  static const DLM = 'dlm';
-  static const DOC = 'doc';
-  static const DOCM = 'docm';
-  static const DOCX = 'docx';
-  static const DOT = 'dot';
-  static const DOTM = 'dotm';
-  static const DOTX = 'dotx';
-  static const DSP = 'dsp';
-  static const DTD = 'dtd';
-  static const DVI = 'dvi';
-  static const DVR_MS = 'dvr_ms';
-  static const DWF = 'dwf';
-  static const DWP = 'dwp';
-  static const DXR = 'dxr';
-  static const EML = 'eml';
-  static const EMZ = 'emz';
-  static const EOT = 'eot';
-  static const EPS = 'eps';
-  static const ETX = 'etx';
-  static const EVY = 'evy';
-  static const EXE = 'exe';
-  static const EXECONFIG = 'execonfig';
-  static const F90 = 'f90';
-  static const FBX = 'fbx';
-  static const FDF = 'fdf';
-  static const FIF = 'fif';
-  static const FLA = 'fla';
-  static const FLAC = 'flac';
-  static const FLF = 'flf';
-  static const FLR = 'flr';
-  static const FLV = 'flv';
-  static const FOX = 'fox';
-  static const FPX = 'fpx';
-  static const FST = 'fst';
-  static const FTL = 'ftl';
-  static const FTN = 'ftn';
-  static const GBX = 'gbx';
-  static const GDB = 'gdb';
-  static const GDS = 'gds';
-  static const GIF = 'gif';
-  static const GIT = 'git';
-  static const GPX = 'gpx';
-  static const GSI = 'gsi';
-  static const GTAR = 'gtar';
-  static const GZ = 'gz';
-  static const H = 'h';
-  static const HAR = 'har';
-  static const HBM = 'hbm';
-  static const HDD = 'hdd';
-  static const HDF = 'hdf';
-  static const HTML = 'html';
-  static const ICO = 'ico';
-  static const ICS = 'ics';
-  static const IDML = 'idml';
-  static const IEF = 'ief';
-  static const INI = 'ini';
-  static const ISO = 'iso';
-  static const JAR = 'jar';
-  static const JAVA = 'java';
-  static const JPEG = 'jpeg';
-  static const JPG = 'jpg';
-  static const JS = 'js';
-  static const JSON = 'json';
-  static const JSX = 'jsx';
-  static const LOG = 'log';
-  static const LUA = 'lua';
-  static const MD = 'md';
-  static const MHT = 'mht';
-  static const MKV = 'mkv';
-  static const MP3 = 'mp3';
-  static const MP4 = 'mp4';
-  static const PDF = 'pdf';
-  static const PHP = 'php';
-  static const PNG = 'png';
-  static const PPTX = 'pptx';
-  static const RAR = 'rar';
-  static const SQL = 'sql';
-  static const SVG = 'svg';
-  static const TAR = 'tar';
-  static const TXT = 'txt';
-  static const XLSX = 'xlsx';
-  static const XML = 'xml';
-  static const ZIP = 'zip';
-  static const SEVEN_Z = '7z';
-  static const THREE_GP = '3gp';
+/* AcDoc({
+  "description": "Enumeration of common file extensions used across file types and formats.",
+  "author": "Sanket Patel",
+  "type": "development"
+}) */
+enum AcEnumFileExtension {
+  aac('aac'),
+  aaf('aaf'),
+  aca('aca'),
+  accdb('accdb'),
+  accde('accde'),
+  accdt('accdt'),
+  acx('acx'),
+  adt('adt'),
+  adts('adts'),
+  afm('afm'),
+  ai('ai'),
+  aif('aif'),
+  aifc('aifc'),
+  aiff('aiff'),
+  application('application'),
+  art('art'),
+  asd('asd'),
+  asf('asf'),
+  asi('asi'),
+  asm('asm'),
+  asr('asr'),
+  asx('asx'),
+  atom('atom'),
+  au('au'),
+  avi('avi'),
+  axs('axs'),
+  bas('bas'),
+  bcpios('bcpio'),
+  bin('bin'),
+  bmp('bmp'),
+  c('c'),
+  cab('cab'),
+  calx('calx'),
+  cat('cat'),
+  cdf('cdf'),
+  chm('chm'),
+  clp('clp'),
+  cmx('cmx'),
+  cnf('cnf'),
+  cod('cod'),
+  cpio('cpio'),
+  cpp('cpp'),
+  crd('crd'),
+  crl('crl'),
+  crt('crt'),
+  csh('csh'),
+  css('css'),
+  csv('csv'),
+  cur('cur'),
+  dcr('dcr'),
+  deploy('deploy'),
+  der('der'),
+  dib('dib'),
+  dir('dir'),
+  disco('disco'),
+  dll('dll'),
+  dllconfig('dllconfig'),
+  dlm('dlm'),
+  doc('doc'),
+  docm('docm'),
+  docx('docx'),
+  dot('dot'),
+  dotm('dotm'),
+  dotx('dotx'),
+  dsp('dsp'),
+  dtd('dtd'),
+  dvi('dvi'),
+  dvr_ms('dvr_ms'),
+  dwf('dwf'),
+  dwp('dwp'),
+  dxr('dxr'),
+  eml('eml'),
+  emz('emz'),
+  eot('eot'),
+  eps('eps'),
+  etx('etx'),
+  evy('evy'),
+  exe('exe'),
+  execonfig('execonfig'),
+  f90('f90'),
+  fbx('fbx'),
+  fdf('fdf'),
+  fif('fif'),
+  fla('fla'),
+  flac('flac'),
+  flf('flf'),
+  flr('flr'),
+  flv('flv'),
+  fox('fox'),
+  fpx('fpx'),
+  fst('fst'),
+  ftl('ftl'),
+  ftn('ftn'),
+  gbx('gbx'),
+  gdb('gdb'),
+  gds('gds'),
+  gif('gif'),
+  git('git'),
+  gpx('gpx'),
+  gsi('gsi'),
+  gtar('gtar'),
+  gz('gz'),
+  h('h'),
+  har('har'),
+  hbm('hbm'),
+  hdd('hdd'),
+  hdf('hdf'),
+  html('html'),
+  ico('ico'),
+  ics('ics'),
+  idml('idml'),
+  ief('ief'),
+  ini('ini'),
+  iso('iso'),
+  jar('jar'),
+  java('java'),
+  jpeg('jpeg'),
+  jpg('jpg'),
+  js('js'),
+  json('json'),
+  jsx('jsx'),
+  log('log'),
+  lua('lua'),
+  md('md'),
+  mht('mht'),
+  mkv('mkv'),
+  mp3('mp3'),
+  mp4('mp4'),
+  pdf('pdf'),
+  php('php'),
+  png('png'),
+  pptx('pptx'),
+  rar('rar'),
+  sql('sql'),
+  svg('svg'),
+  tar('tar'),
+  txt('txt'),
+  xlsx('xlsx'),
+  xml('xml'),
+  zip('zip'),
+  seven_z('7z'),
+  three_gp('3gp');
 
+  /* AcDoc({"description": "The string value of the file extension."}) */
+  final String value;
+
+  /* AcDoc({"description": "Constructor that sets the file extension string value."}) */
+  const AcEnumFileExtension(this.value);
+
+  /* AcDoc({
+    "description": "Returns the enum value matching the provided string.",
+    "params": [{"name": "value", "description": "The file extension as string."}],
+    "returns": "Corresponding enum instance or null if no match found."
+  }) */
+  static AcEnumFileExtension? fromValue(String value) {
+    try {
+      return AcEnumFileExtension.values.firstWhere((e) => e.value == value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* AcDoc({
+    "description": "Checks if the enum's string value matches another string.",
+    "params": [{"name": "other", "description": "The value to compare."}],
+    "returns": "true if values match, otherwise false."
+  }) */
+  bool equals(String other) => value == other;
+
+  /* AcDoc({"description": "Returns the file extension as a string."}) */
+  @override
+  String toString() => value;
 }

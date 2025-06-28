@@ -46,6 +46,9 @@
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-tests/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-tests/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-tests/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

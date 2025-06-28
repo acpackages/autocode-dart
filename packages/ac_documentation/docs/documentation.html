@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation</title>
+<style>
+body { font-family: Arial; padding: 2rem; background: #f9f9f9; }
+h2 { margin-top: 2rem; color: #333; }
+h3 { margin-top: 1.5rem; color: #555; }
+section { margin-bottom: 2rem; padding: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+pre { background: #eee; padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<h2>CLASS</h2>
+<section>
+<h3>AcDocHtmlGenerator </h3>
+<p><strong>Description:</strong> Generates HTML documentation from a list of AcDoc metadata objects.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>generateHtmlFile in AcDocHtmlGenerator</h3>
+<p><strong>Description:</strong> Writes HTML documentation to a file at the specified output path.</p>
+</section>
+<section>
+<h3>generateHtmlString in AcDocHtmlGenerator</h3>
+<p><strong>Description:</strong> Generates an HTML string representation of the given documentation metadata.</p>
+</section>
+<h2>CLASS</h2>
+<section>
+<h3>AcDeprecation </h3>
+<p><strong>Description:</strong> Contains metadata about a deprecated element such as version, reason, and planned removal details.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Short message about the deprecation.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Version since when the element is deprecated.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Planned version or milestone when the deprecated item will be removed.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Planned calendar date for removal of the deprecated element.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Suggested replacement for the deprecated element, if any.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Creates an empty deprecation model.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Creates and populates an instance of AcDeprecation from JSON.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Populates this instance from a given JSON map.</p>
+</section>
+<section>
+<h3>Unnamed in AcDeprecation</h3>
+<p><strong>Description:</strong> Converts this instance into a JSON-compatible map.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>status in AcDeprecation</h3>
+<p><strong>Description:</strong> Why this element is deprecated.</p>
+</section>
+<section>
+<h3>status in AcDeprecation</h3>
+<p><strong>Description:</strong> Current deprecation status (e.g., planned, active, obsolete).</p>
+</section>
+<section>
+<h3>toString in AcDeprecation</h3>
+<p><strong>Description:</strong> String representation of the instance using pretty-printed JSON.</p>
+</section>
+<h2>CLASS</h2>
+<section>
+<h3>AcDoc </h3>
+<p><strong>Description:</strong> Represents structured documentation metadata extracted from code comments in multiple programming languages.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> The type of documentation entry, e.g., 'usage', 'development'.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Short summary of the documented item.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Detailed description of the documented element.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Additional notes or remarks.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Version since the documented item exists.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Current version of the documented item.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Primary author of the documentation.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> List of all authors.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Owner or maintainer of the item.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Parameters for methods or constructors.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Textual description of return value.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Data type of the return value.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> List of exceptions or errors that might be thrown.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Examples demonstrating usage.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Tags for categorizing documentation.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Category name for grouping.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Group label for organizing related elements.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Feature this item belongs to.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Supported platforms for the item.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Visibility level, e.g., public, private.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Modifiers like static, final, etc.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> License information object.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Deprecation information object.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> To-do notes for future enhancements.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Annotations used in the source.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> List of relevant links.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Inline or external documentation content.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Original source code snippet or reference.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> List of known issues.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Security-related concerns or notes.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Compliance notes, e.g., GDPR, ISO.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Compatibility notes across platforms or versions.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates if the method is asynchronous.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates if the method is side-effect free.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates if the member is static.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Marks the item as a constructor.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Marks the item as deprecated.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Inherit documentation from parent or interface.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates if the parameter is required.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates if the parameter can be null.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Marks the field as read-only.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Default value of the parameter or property.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Indicates what this overrides from its superclass.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Interfaces that this element implements.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Fully qualified interfaces implemented.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Superclass this extends from.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> List of mixins applied to this item.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Generic type parameter mappings.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Path to the source file this doc came from.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Line number in the source file.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Unique anchor ID used in HTML generation.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Name of the method, class, or field documented.</p>
+</section>
+<section>
+<h3>Unnamed in AcDoc</h3>
+<p><strong>Description:</strong> Type of the target: method, class, or field.</p>
+</section>
+<h2>FIELD</h2>
+<section>
+<h3>instance in AcDoc</h3>
+<p><strong>Description:</strong> Name of the enclosing class, if any.</p>
+</section>
+<section>
+<h3>instance in AcDoc</h3>
+<p><strong>Description:</strong> Constructs a new AcDoc instance.</p>
+</section>
+<section>
+<h3>instance in AcDoc</h3>
+<p><strong>Description:</strong> Creates an instance of AcDoc from a JSON map.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>fromJson in AcDoc</h3>
+<p><strong>Description:</strong> Populates this instance with values from a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcDoc</h3>
+<p><strong>Description:</strong> Converts this instance to a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcDoc</h3>
+<p><strong>Description:</strong> Returns a pretty JSON string representation of the object.</p>
+</section>
+<h2>CLASS</h2>
+<section>
+<h3>AcLicense </h3>
+<p><strong>Description:</strong> Represents licensing metadata for a documented item.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Full name of the license, e.g., 'MIT License'.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Short identifier of the license, e.g., 'MIT', 'GPL-3.0'.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> URL to the full license text or documentation.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Path to a local license file if applicable.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Whether the license is compatible with SPDX standards.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Whether this license is approved for use in production.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Description of allowed or required modifications under this license.</p>
+</section>
+<section>
+<h3>Unnamed in AcLicense</h3>
+<p><strong>Description:</strong> Scope or limitation of this license, e.g., 'project', 'module'.</p>
+</section>
+<h2>FIELD</h2>
+<section>
+<h3>instance in AcLicense</h3>
+<p><strong>Description:</strong> Legal jurisdiction or region where this license is applicable.</p>
+</section>
+<section>
+<h3>instance in AcLicense</h3>
+<p><strong>Description:</strong> Constructs a new AcLicense instance.</p>
+</section>
+<section>
+<h3>instance in AcLicense</h3>
+<p><strong>Description:</strong> Creates an instance of AcLicense from JSON data.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>fromJson in AcLicense</h3>
+<p><strong>Description:</strong> Populates this instance from a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcLicense</h3>
+<p><strong>Description:</strong> Converts this instance into a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcLicense</h3>
+<p><strong>Description:</strong> Returns a pretty-printed JSON string of the license object.</p>
+</section>
+<h2>CLASS</h2>
+<section>
+<h3>AcParam </h3>
+<p><strong>Description:</strong> Represents metadata about a parameter used in functions or methods.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcParam</h3>
+<p><strong>Description:</strong> The name of the parameter.</p>
+</section>
+<section>
+<h3>Unnamed in AcParam</h3>
+<p><strong>Description:</strong> The description explaining the parameter's purpose.</p>
+</section>
+<h2>FIELD</h2>
+<section>
+<h3>instance in AcParam</h3>
+<p><strong>Description:</strong> The type of the parameter, if available (e.g., 'String', 'int').</p>
+</section>
+<section>
+<h3>instance in AcParam</h3>
+<p><strong>Description:</strong> Constructs a new AcParam instance.</p>
+</section>
+<section>
+<h3>instance in AcParam</h3>
+<p><strong>Description:</strong> Creates an AcParam instance from a JSON map.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>fromJson in AcParam</h3>
+<p><strong>Description:</strong> Populates this AcParam instance from a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcParam</h3>
+<p><strong>Description:</strong> Converts this AcParam instance to a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcParam</h3>
+<p><strong>Description:</strong> Returns a pretty-printed JSON string of this parameter.</p>
+</section>
+<h2>CLASS</h2>
+<section>
+<h3>AcThrows </h3>
+<p><strong>Description:</strong> Represents metadata about an exception or error that a method may throw.</p>
+<p><strong>Author:</strong> AcDocs System</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcThrows</h3>
+<p><strong>Description:</strong> The type of exception thrown, e.g., 'IOException'.</p>
+</section>
+<section>
+<h3>Unnamed in AcThrows</h3>
+<p><strong>Description:</strong> Brief description of why this exception is thrown.</p>
+</section>
+<h2>FIELD</h2>
+<section>
+<h3>instance in AcThrows</h3>
+<p><strong>Description:</strong> Optional detailed information or guidance on the exception.</p>
+</section>
+<section>
+<h3>instance in AcThrows</h3>
+<p><strong>Description:</strong> Constructs a new AcThrows instance.</p>
+</section>
+<section>
+<h3>instance in AcThrows</h3>
+<p><strong>Description:</strong> Creates an AcThrows instance from a JSON map.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>fromJson in AcThrows</h3>
+<p><strong>Description:</strong> Populates this AcThrows instance from a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcThrows</h3>
+<p><strong>Description:</strong> Converts this AcThrows instance to a JSON map.</p>
+</section>
+<section>
+<h3>toString in AcThrows</h3>
+<p><strong>Description:</strong> Returns a pretty-printed JSON string of this throw metadata.</p>
+</section>
+<h2>UNKNOWN</h2>
+<section>
+<h3>Unnamed in AcDocParser</h3>
+<p><strong>Description:</strong> Parses AcDoc blocks from a source file string and returns a list of AcDoc models with scope metadata.</p>
+</section>
+<section>
+<h3>Unnamed in AcDocParser</h3>
+<p><strong>Description:</strong> Computes line start offsets so a byte offset can be mapped to line number.</p>
+</section>
+<section>
+<h3>Unnamed in AcDocParser</h3>
+<p><strong>Description:</strong> Finds the closest enclosing class from lines above a documentation block.</p>
+</section>
+<section>
+<h3>Unnamed in AcDocParser</h3>
+<p><strong>Description:</strong> Analyzes upcoming lines to detect whether a class, method, or field follows the documentation block.</p>
+</section>
+<section>
+<h3>Unnamed in AcDocParser</h3>
+<p><strong>Description:</strong> Determines whether a line is a comment and should be ignored during context scanning.</p>
+</section>
+<h2>METHOD</h2>
+<section>
+<h3>number in AcDocParser</h3>
+<p><strong>Description:</strong> Returns the line number that contains a given character offset.</p>
+</section>
+</body>
+</html>

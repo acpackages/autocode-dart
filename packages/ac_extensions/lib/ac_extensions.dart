@@ -9,6 +9,5 @@ export 'src/ac_file_system_entity_extensions.dart';
 export 'src/ac_integer_extensions.dart';
 export 'src/ac_list_extensions.dart';
 export 'src/ac_map_extensions.dart';
-export 'src/ac_process_extensions.dart';
 export 'src/ac_string_extensions.dart';
 export 'src/ac_symbol_extensions.dart';

@@ -1,14 +1,42 @@
+/* AcDoc({
+  "description": "Manages the current runtime environment and configuration settings.",
+  "author": "Sanket Patel",
+  "type": "utility"
+}) */
 import 'package:autocode/autocode.dart';
 
 class AcEnvironment {
-  static String environment = AcEnumEnvironment.LOCAL;
+  /* AcDoc({
+    "description": "Defines the current application environment. Default is 'local'."
+  }) */
+  static AcEnumEnvironment environment = AcEnumEnvironment.local;
+
+  /* AcDoc({
+    "description": "Stores configuration values for the current environment."
+  }) */
   static Map<String, dynamic> config = {};
 
-  static bool isDevelopment() => environment == AcEnumEnvironment.DEVELOPMENT;
+  /* AcDoc({
+    "description": "Checks if the environment is 'development'.",
+    "returns": "True if environment is development, false otherwise."
+  }) */
+  static bool isDevelopment() => environment == AcEnumEnvironment.development;
 
-  static bool isLocal() => environment == AcEnumEnvironment.LOCAL;
+  /* AcDoc({
+    "description": "Checks if the environment is 'local'.",
+    "returns": "True if environment is local, false otherwise."
+  }) */
+  static bool isLocal() => environment == AcEnumEnvironment.local;
 
-  static bool isProduction() => environment == AcEnumEnvironment.PRODUCTION;
+  /* AcDoc({
+    "description": "Checks if the environment is 'production'.",
+    "returns": "True if environment is production, false otherwise."
+  }) */
+  static bool isProduction() => environment == AcEnumEnvironment.production;
 
-  static bool isStaging() => environment == AcEnumEnvironment.STAGING;
+  /* AcDoc({
+    "description": "Checks if the environment is 'staging'.",
+    "returns": "True if environment is staging, false otherwise."
+  }) */
+  static bool isStaging() => environment == AcEnumEnvironment.staging;
 }

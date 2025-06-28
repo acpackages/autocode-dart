@@ -14,14 +14,17 @@ export './src/core/ac_hooks.dart';
 export './src/core/ac_logger.dart';
 export './src/core/autocode.dart';
 
+export './src/enums/ac_enum_condition_operator.dart';
 export './src/enums/ac_enum_css_unit.dart';
 export './src/enums/ac_enum_environment.dart';
 export './src/enums/ac_enum_file_extension.dart';
 export './src/enums/ac_enum_http_method.dart';
 export './src/enums/ac_enum_http_response_code.dart';
 export './src/enums/ac_enum_log_type.dart';
+export './src/enums/ac_enum_logical_operator.dart';
 export './src/enums/ac_enum_string_case.dart';
 export './src/enums/ac_enum_sql_database_type.dart';
+export './src/enums/ac_enum_sql_entity.dart';
 
 export './src/models/ac_cron_job.dart';
 export './src/models/ac_event_execution_result.dart';

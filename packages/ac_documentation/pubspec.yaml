@@ -8,6 +8,10 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
+  autocode:
+    path: './../autocode'
+  ac_extensions:
+    path: './../ac_extensions'
   # path: ^1.8.0
 
 dev_dependencies:

@@ -7,12 +7,9 @@ export './src/enums/ac_enum_dd_column_format.dart';
 export './src/enums/ac_enum_dd_column_property.dart';
 export './src/enums/ac_enum_dd_column_relation_type.dart';
 export './src/enums/ac_enum_dd_column_type.dart';
-export './src/enums/ac_enum_dd_condition_operator.dart';
-export './src/enums/ac_enum_dd_logical_operator.dart';
 export './src/enums/ac_enum_dd_row_event.dart';
 export './src/enums/ac_enum_dd_row_operation.dart';
 export './src/enums/ac_enum_dd_select_mode.dart';
-export './src/enums/ac_enum_dd_sql_entity.dart';
 export './src/enums/ac_enum_dd_table_property.dart';
 
 export './src/models/ac_data_dictionary.dart';

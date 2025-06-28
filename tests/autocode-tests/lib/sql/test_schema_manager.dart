@@ -9,14 +9,14 @@ testSchemaManager() async {
   if (dataDictionaryFile.existsSync()) {
     var dataDictionaryJson = jsonDecode(dataDictionaryFile.readAsStringSync());
     AcDataDictionary.registerDataDictionary(jsonData: dataDictionaryJson);
-    AcSqlDatabase.databaseType = AcEnumSqlDatabaseType.MYSQL;
+    AcSqlDatabase.databaseType = AcEnumSqlDatabaseType.mysql;
     AcSqlConnection sqlConnection = AcSqlConnection.instanceFromJson(
       jsonData: {
-        AcSqlConnection.KEY_CONNECTION_USERNAME: "root",
-        AcSqlConnection.KEY_CONNECTION_PASSWORD: "",
-        AcSqlConnection.KEY_CONNECTION_HOSTNAME: "localhost",
-        AcSqlConnection.KEY_CONNECTION_PORT: 3306,
-        AcSqlConnection.KEY_CONNECTION_DATABASE: "acsm_test_dart",
+        AcSqlConnection.keyUsername: "root",
+        AcSqlConnection.keyPassword: "",
+        AcSqlConnection.keyHostname: "localhost",
+        AcSqlConnection.keyPort: 3306,
+        AcSqlConnection.keyDatabase: "acsm_test_dart",
       },
     );
     AcSqlDatabase.sqlConnection = sqlConnection;

@@ -1,21 +1,23 @@
 import 'dart:core';
 import 'dart:math';
 import 'package:intl/intl.dart';
-extension AcDoubleExtensions on double{
+extension AcDoubleExtensions on double {
+  bool get isEven => this % 1 == 0 && toInt().isEven;
+  bool get isOdd => this % 1 == 0 && toInt().isOdd;
 
-  bool get isEven => this % 2 == 0;
-  bool get isOdd => this % 2 != 0;
-
-  String format(String format){
-    if(format=="DISPLAY"){
-      format = "#,##0.00";
+  String formatWith(String pattern) {
+    if (pattern == AcDoubleFormat.display) {
+      pattern = "#,##0.00";
     }
-    var numberFormat = NumberFormat(format);
-    return numberFormat.format(this);
+    return NumberFormat(pattern).format(this);
   }
 
-  double round([int decimals = 2]) {
-    num mod = pow(10.0, decimals);
-    return ((this * mod).round().toDouble() / mod);
+  double roundToDecimals([int decimals = 2]) {
+    final mod = pow(10.0, decimals);
+    return (this * mod).round().toDouble() / mod;
   }
+}
+
+class AcDoubleFormat {
+  static const display = 'DISPLAY';
 }

@@ -4,23 +4,50 @@ import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:jaguar/jaguar.dart';
 import 'package:jaguar_cors/jaguar_cors.dart';
-
+/* AcDoc({
+  "summary": "A concrete web server implementation using the Jaguar framework.",
+  "description": "This class extends the abstract `AcWeb` server and provides a runnable implementation powered by the Jaguar web server package. It handles the lifecycle of the server (start, stop), translates Jaguar requests and responses to and from the framework's standard `AcWebRequest`/`AcWebResponse` objects, registers routes, and manages SSL.",
+  "example": "void main() async {\n  final server = AcWebOnJaguar();\n\n  // Configure server properties\n  server.port = 8080;\n  server.forceHttps = false;\n  \n  // Register a controller\n  server.registerController(controllerClass: MyController);\n\n  // Start the server\n  await server.start();\n  print('Server listening on port \${server.port}');\n}"
+}) */
 class AcWebOnJaguar extends AcWeb {
+  /* AcDoc({"summary": "A custom error handler for generating 404 and 500 responses."}) */
   final CustomErrorWriter _customErrorWriter = CustomErrorWriter();
+
+  /* AcDoc({"summary": "Configuration options for Cross-Origin Resource Sharing (CORS)."}) */
   CorsOptions corsOptions = const CorsOptions(
     allowAllOrigins: true,
     allowAllHeaders: true,
     allowAllMethods: true,
   );
+  /* AcDoc({"summary": "If true, all HTTP requests will be redirected to their HTTPS equivalent."}) */
   bool forceHttps = false;
+
+  /* AcDoc({"summary": "The underlying Jaguar server instance for HTTP."}) */
   Jaguar? jaguarInstance;
+
+  /* AcDoc({"summary": "The underlying Jaguar server instance for HTTPS/SSL."}) */
   Jaguar? jaguarSecureInstance;
+
+  /* AcDoc({"summary": "The port number for the HTTP server."}) */
   int port = 0;
+
+  /* AcDoc({"summary": "The port number for the HTTPS/SSL server."}) */
   int sslPort = 0;
+
+  /* AcDoc({"summary": "The file system path to the SSL certificate chain file (.pem)."}) */
   String sslCertificateChainPath = "";
+
+  /* AcDoc({"summary": "The file system path to the SSL private key file (.key)."}) */
   String sslPrivateKeyPath = "";
 
-  _addRoutesToJaguar() {
+  /* AcDoc({
+    "summary": "Initializes a new Jaguar-based web server instance.",
+    "description": "Passes the `paths` parameter to the parent `AcWeb` constructor."
+  }) */
+  AcWebOnJaguar({super.paths});
+
+  /* AcDoc({"summary": "Iterates through defined routes and registers them with the Jaguar instance."}) */
+  void _addRoutesToJaguar() {
     for (var routeKey in routeDefinitions.keys) {
       AcWebRouteDefinition routeDefinition = routeDefinitions[routeKey]!;
       logger.log(
@@ -47,6 +74,7 @@ class AcWebOnJaguar extends AcWeb {
     }
   }
 
+  /* AcDoc({"summary": "Translates a Jaguar `Context` object into the framework's standard `AcWebRequest`."}) */
   Future<AcWebRequest> _createAcWebRequestFromJaguarContext(
     Context context,
   ) async {
@@ -136,6 +164,7 @@ class AcWebOnJaguar extends AcWeb {
     return acWebRequest;
   }
 
+  /* AcDoc({"summary": "Translates the framework's `AcWebResponse` into a Jaguar `Response`."}) */
   Future<void> _createJaguarResponseFromAcWebResponse(
     AcWebResponse acWebResponse,
     Context context,
@@ -145,12 +174,12 @@ class AcWebOnJaguar extends AcWeb {
     try {
       response = context.response;
       String resultType = "html";
-      if (acWebResponse.responseCode == AcEnumHttpResponseCode.OK) {
-        if (acWebResponse.responseType == AcEnumWebResponseType.HTML) {
+      if (acWebResponse.responseCode == AcEnumHttpResponseCode.ok) {
+        if (acWebResponse.responseType == AcEnumWebResponseType.html) {
           response = Response.html(acWebResponse.content);
-        } else if (acWebResponse.responseType == AcEnumWebResponseType.JSON) {
+        } else if (acWebResponse.responseType == AcEnumWebResponseType.json) {
           response = Response.json(acWebResponse.content);
-        } else if (acWebResponse.responseType == AcEnumWebResponseType.RAW) {
+        } else if (acWebResponse.responseType == AcEnumWebResponseType.raw) {
           response = Response(
             body: acWebResponse.content,
             headers: acWebResponse.headers,
@@ -158,7 +187,7 @@ class AcWebOnJaguar extends AcWeb {
           );
         }
       } else {
-        if (acWebResponse.responseType == AcEnumWebResponseType.REDIRECT) {
+        if (acWebResponse.responseType == AcEnumWebResponseType.redirect) {
           response = Redirect(
             Uri.parse(acWebResponse.content),
             statusCode: acWebResponse.responseCode,
@@ -168,12 +197,18 @@ class AcWebOnJaguar extends AcWeb {
     } catch (ex, stack) {
       response = Response(
         body: Autocode.getExceptionMessage(exception: ex, stackTrace: stack),
-        statusCode: AcEnumHttpResponseCode.INTERNAL_SERVER_ERROR,
+        statusCode: AcEnumHttpResponseCode.internalServerError.value,
       );
     }
     context.response = response;
   }
 
+  /* AcDoc({
+    "summary": "Starts the Jaguar web server.",
+    "description": "Configures and launches the Jaguar server instance(s) on the specified ports. If `forceHttps` is true, the HTTP instance will only serve redirects to the HTTPS port. If SSL is configured, a secure server will also be started.",
+    "returns": "An `AcResult` indicating if the server started successfully.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> start() async {
     AcResult acResult = AcResult();
     try {
@@ -264,6 +299,10 @@ class AcWebOnJaguar extends AcWeb {
     return acResult;
   }
 
+  /* AcDoc({
+    "summary": "Stops the running Jaguar server instance(s).",
+    "description": "Gracefully shuts down both the HTTP and HTTPS Jaguar servers if they are running."
+  }) */
   stop() async {
     logger.log("Stopping jaguar server...");
     if (jaguarInstance != null) {
@@ -276,10 +315,23 @@ class AcWebOnJaguar extends AcWeb {
   }
 }
 
+/* AcDoc({
+  "summary": "A custom error handler for the Jaguar server.",
+  "description": "Implements Jaguar's `ErrorWriter` to provide custom HTML or JSON responses for 404 (Not Found) and 500 (Internal Server Error) statuses, intelligently choosing the response format based on the client's `Accept` header."
+}) */
 class CustomErrorWriter implements ErrorWriter {
+  /* AcDoc({"summary": "If set, 404 errors will redirect to this URL instead of showing an error page."}) */
   String redirectUrl404 = "";
+
+  /* AcDoc({"summary": "Path to a static asset file to serve for 404 errors (future use)."}) */
   String assetFile404 = "";
 
+  /* AcDoc({
+    "summary": "Builds a response for a 404 Not Found error.",
+    "description": "Checks the request's `Accept` header to return either a detailed HTML error page or a structured JSON error object.",
+    "returns": "A Jaguar `Response` object for the 404 error.",
+    "returns_type": "FutureOr<Response>"
+  }) */
   @override
   FutureOr<Response> make404(Context ctx) async {
     Response response = Response(
@@ -315,6 +367,12 @@ class CustomErrorWriter implements ErrorWriter {
     return response;
   }
 
+  /* AcDoc({
+    "summary": "Builds a response for a 500 Internal Server Error.",
+    "description": "Checks the request's `Accept` header to return either a detailed HTML error page with a stack trace or a structured JSON error object.",
+    "returns": "A Jaguar `Response` object for the 500 error.",
+    "returns_type": "FutureOr<Response>"
+  }) */
   @override
   FutureOr<Response> make500(Context ctx, Object error, [StackTrace? stack]) {
     final String accept = ctx.req.headers.value(HttpHeaders.acceptHeader) ?? '';
@@ -350,6 +408,7 @@ class CustomErrorWriter implements ErrorWriter {
     }
   }
 
+  /* AcDoc({"summary": "Generates the HTML content for a 404 Not Found page."}) */
   String _write404Html(Context ctx) => '''
 <!DOCTYPE>
 <html>
@@ -391,6 +450,7 @@ class CustomErrorWriter implements ErrorWriter {
 </html>
 ''';
 
+  /* AcDoc({"summary": "Generates the HTML content for a 500 Internal Server Error page."}) */
   String _write500Html(Context ctx, Object error, [StackTrace? stack]) {
     String stackInfo = "";
     if (stack != null) {

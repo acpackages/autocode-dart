@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:core';
 import 'dart:math';
 
 extension AcStringExtensions on String {
-
   List<String> words() {
     return trim()
-        .replaceAll(RegExp(r'[_\-\.\s]+'), ' ') // unify all separators as space
+        .replaceAll(RegExp(r'[_\-\.\s]+'), ' ')
         .split(' ')
         .expand((word) => RegExp(r'[A-Z]?[a-z]+|[0-9]+|[A-Z]+(?![a-z])')
         .allMatches(word)
@@ -14,34 +12,25 @@ extension AcStringExtensions on String {
         .toList();
   }
 
-  String charAt(int index){
-    return substring(index,index);
-  }
+  String charAt(int index) => substring(index, index + 1);
 
-  bool equalsIgnoreCase(String anotherString){
-    return anotherString.toLowerCase()==toLowerCase();
-  }
+  bool equalsIgnoreCase(String anotherString) =>
+      anotherString.toLowerCase() == toLowerCase();
 
-  void forEachChar(void Function(String element) f) {
-    for(int i=0;i<length;i++){
-      f(charAt(i));
+  void forEachChar(void Function(String char) action) {
+    for (int i = 0; i < length; i++) {
+      action(charAt(i));
     }
   }
 
-  String getExtension() {
-    if (!contains('.')) return '';
-    return split('.').last;
-  }
+  String getExtension() =>
+      contains('.') ? split('.').last : '';
 
-  bool isAlpha() {
-    RegExp numeric = RegExp(r'^[a-zA-Z]+$');
-    return numeric.hasMatch(this);
-  }
+  bool isAlpha() => RegExp(r'^[a-zA-Z]+$').hasMatch(this);
 
-  bool isAlphaNumeric() {
-    RegExp numeric = RegExp(r'^[a-zA-Z0-9]+$');
-    return numeric.hasMatch(this);
-  }
+  bool isAlphaNumeric() => RegExp(r'^[a-zA-Z0-9]+$').hasMatch(this);
+
+  bool isNumeric() => RegExp(r'^-?[0-9]+$').hasMatch(this);
 
   bool isJson() {
     try {
@@ -52,41 +41,29 @@ extension AcStringExtensions on String {
     }
   }
 
-  bool isNumeric() {
-    RegExp numeric = RegExp(r'^-?[0-9]+$');
-    return numeric.hasMatch(this);
-  }
+  int countOccurrencesOf(String match) =>
+      split(match).length - 1;
 
-  int matchesCount(String match){
-    int count=split(match).length - 1;
-    return count;
-  }
-
-  List<dynamic> parseJsonToList({bool growable = true}) {
-    List result = List.empty(growable: growable);
-    final decoded = jsonDecode(this);
-    if(decoded is Map){
-      result.addAll(decoded.values);
-    }
-    if(decoded is List){
-      result.addAll(decoded);
-    }
+  List<dynamic> toJsonList({bool growable = true}) {
+    final result = List.empty(growable: growable);
+    try {
+      final decoded = jsonDecode(this);
+      if (decoded is List) {
+        return List<dynamic>.from(decoded);
+      } else if (decoded is Map) {
+        return decoded.values.toList();
+      }
+    } catch (_) {}
     return result;
   }
 
-  Map<String, dynamic> parseJsonToMap() {
+  Map<String, dynamic> toJsonMap() {
     try {
       final decoded = jsonDecode(this);
       return decoded is Map<String, dynamic> ? decoded : {};
     } catch (_) {
       return {};
     }
-  }
-
-  static String random() {
-    final randomBytes = List<int>.generate(8, (_) => Random.secure().nextInt(256));
-    final hex = randomBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    return '$hex${DateTime.now().millisecondsSinceEpoch}';
   }
 
   bool regexMatch(String pattern, Map<String, String> matches) {
@@ -133,13 +110,11 @@ extension AcStringExtensions on String {
 
   String toKebabCase() => words().map((w) => w.toLowerCase()).join('-');
 
-  String toPascalCase() => words()
-      .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-      .join();
+  String toPascalCase() =>
+      words().map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join();
 
-  String toPascalSnakeCase() => words()
-      .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-      .join('_');
+  String toPascalSnakeCase() =>
+      words().map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('_');
 
   String toScreamingSnakeCase() => words().map((w) => w.toUpperCase()).join('_');
 
@@ -150,8 +125,6 @@ extension AcStringExtensions on String {
 
   String toSnakeCase() => words().map((w) => w.toLowerCase()).join('_');
 
-  String toTrainCase() => words()
-      .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-      .join('-');
-
+  String toTrainCase() =>
+      words().map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('-');
 }

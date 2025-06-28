@@ -1,7 +1,13 @@
 import 'dart:io';
 
-class AcFileUtils{
-
+/* AcDoc({
+  "description": "Utility class providing file-related operations and MIME type resolution.",
+  "author": "Sanket Patel"
+}) */
+class AcFileUtils {
+  /* AcDoc({
+    "description": "MIME type map based on file extensions."
+  }) */
   static const Map<String,dynamic> values = {
   "323" : {"mime_type" : "text/h323"},
   "3g2" : {"mime_type" : "video/3gpp2"},
@@ -374,27 +380,38 @@ class AcFileUtils{
   "z" : {"mime_type" : "application/x-compress"},
   "zip" : {"mime_type" : "application/x-zip-compressed"}
   };
-
-  static Future<void> copyFile({required String sourcePath,required String destinationPath}) async {
-    File sourceFile=File(sourcePath);
+  /* AcDoc({
+    "description": "Copies a file from the source path to the destination path."
+  }) */
+  static Future<void> copyFile({
+    required String sourcePath,
+    required String destinationPath,
+  }) async {
+    final sourceFile = File(sourcePath);
     await sourceFile.copy(destinationPath);
   }
-  
+
+  /* AcDoc({
+    "description": "Returns the MIME type for a given file extension."
+  }) */
   static String getMimeTypeFromExt(String extension) {
-    String result = '';
-    if (values.containsKey(extension)) {
-      result = values[extension]['mime_type'];
-    }
-    return result;
+    final lowerExt = extension.toLowerCase();
+    return values[lowerExt]?['mime_type'] ?? '';
   }
 
+  /* AcDoc({
+    "description": "Returns the MIME type for a given file name based on its extension."
+  }) */
   static String getMimeTypeFromName(String fileName) {
-    String extension = fileName.split('.').last;
-    return getMimeTypeFromExt(extension);
+    final parts = fileName.split('.');
+    return parts.length > 1 ? getMimeTypeFromExt(parts.last) : '';
   }
 
+  /* AcDoc({
+    "description": "Returns the MIME type for a full file path."
+  }) */
   static String getMimeTypeFromPath(String path) {
-    String fileName = path.split('/').last;
+    final fileName = path.split(Platform.pathSeparator).last;
     return getMimeTypeFromName(fileName);
   }
 }

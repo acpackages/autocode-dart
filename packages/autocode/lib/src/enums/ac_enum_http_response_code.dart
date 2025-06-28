@@ -1,65 +1,100 @@
-class AcEnumHttpResponseCode {
-  static const CONTINUE = 100;
-  static const SWITCHING_PROTOCOLS = 101;
-  static const PROCESSING = 102;
-  static const OK = 200;
-  static const CREATED = 201;
-  static const ACCEPTED = 202;
-  static const NON_AUTHORITIVE_INFORMATION = 203;
-  static const NO_CONTENT = 204;
-  static const RESET_CONTENT = 205;
-  static const PARTIAL_CONTENT = 206;
-  static const MULTI_STATUS = 207;
-  static const ALREADY_REPORTED = 208;
-  static const I_AM_USED = 226;
-  static const MULTIPLE_CHOICES = 300;
-  static const MOVED_PERMANENTLY = 301;
-  static const FOUND = 302;
-  static const MOVED_TEMPORARILY = 302;
-  static const SEE_OTHER = 303;
-  static const NOT_NOTIFIED = 304;
-  static const USE_PROXY = 305;
-  static const TEMPORARY_REDIRECT = 307;
-  static const PERMANENT_REDIRECT = 308;
-  static const BAD_REQUEST = 400;
-  static const UNAUTHORIZED = 401;
-  static const PAYMENT_REQUIRED = 402;
-  static const FORBIDDEN = 403;
-  static const NOT_FOUND = 404;
-  static const METHOD_NOT_ALLOWD = 405;
-  static const NOT_ACCEPTABLE = 406;
-  static const PROXY_AUTHENTICATION_REQUIRED = 407;
-  static const REQUEST_TIMEOUT = 408;
-  static const CONFLICT = 409;
-  static const GONE = 410;
-  static const LENGTH_REQUIRED = 411;
-  static const PRECONDITION_FAILED = 412;
-  static const REQUEST_ENTITY_TOO_LARGE = 413;
-  static const REQUEST_URI_TOO_LONG = 414;
-  static const UNSUPPORTED_MEDIA_TYPE = 415;
-  static const REQUEST_RANGE_NOT_SATISFIABLE = 416;
-  static const EXPECTATION_FAILED = 417;
-  static const MISDIRECT_REQUEST = 421;
-  static const UNPROCESSABLE_ENTITY = 422;
-  static const LOCKED = 423;
-  static const FAILED_DEPENDENCY = 424;
-  static const UPGRADE_REQUIRED = 426;
-  static const PRECONDITION_REQUIRED = 428;
-  static const TOO_MANY_REQUESTS = 429;
-  static const REQUEST_HEADER_FIELDS_TOO_LARGE = 431;
-  static const CONNECTION_CLOSED_WITHOUT_RESPONSE = 444;
-  static const UNAVAILABLE_FOR_LEGAL_REASONS = 451;
-  static const CLIENT_CLOSED_REQUEST = 499;
-  static const INTERNAL_SERVER_ERROR = 500;
-  static const NOT_IMPLEMENTED = 501;
-  static const BAD_GATEWAY = 502;
-  static const SERVICE_UNAVAILABLE = 503;
-  static const GATEWAY_TIMEOUT = 504;
-  static const HTTP_VERSION_NOT_SUPPORTED = 505;
-  static const VARIANT_ALSO_NEGOTIATES = 506;
-  static const INSUFFICIENT_STORAGE = 507;
-  static const LOOP_DETECTED = 508;
-  static const NOT_EXTENDED = 510;
-  static const NETWORK_AUTHENTICATION_REQUIRED = 511;
-  static const NETWORK_CONNECTION_TIMEOUT_ERROR = 599;
+/* AcDoc({
+  "description": "Enumeration of standard HTTP response status codes and their meanings.",
+  "author": "Sanket Patel",
+  "type": "development"
+}) */
+enum AcEnumHttpResponseCode {
+  continue_(100),
+  switchingProtocols(101),
+  processing(102),
+  ok(200),
+  created(201),
+  accepted(202),
+  nonAuthoritativeInformation(203),
+  noContent(204),
+  resetContent(205),
+  partialContent(206),
+  multiStatus(207),
+  alreadyReported(208),
+  iAmUsed(226),
+  multipleChoices(300),
+  movedPermanently(301),
+  found(302),
+  movedTemporarily(302), // Duplicate value
+  seeOther(303),
+  notNotified(304),
+  useProxy(305),
+  temporaryRedirect(307),
+  permanentRedirect(308),
+  badRequest(400),
+  unauthorized(401),
+  paymentRequired(402),
+  forbidden(403),
+  notFound(404),
+  methodNotAllowed(405),
+  notAcceptable(406),
+  proxyAuthenticationRequired(407),
+  requestTimeout(408),
+  conflict(409),
+  gone(410),
+  lengthRequired(411),
+  preconditionFailed(412),
+  requestEntityTooLarge(413),
+  requestUriTooLong(414),
+  unsupportedMediaType(415),
+  requestRangeNotSatisfiable(416),
+  expectationFailed(417),
+  misdirectRequest(421),
+  unprocessableEntity(422),
+  locked(423),
+  failedDependency(424),
+  upgradeRequired(426),
+  preconditionRequired(428),
+  tooManyRequests(429),
+  requestHeaderFieldsTooLarge(431),
+  connectionClosedWithoutResponse(444),
+  unavailableForLegalReasons(451),
+  clientClosedRequest(499),
+  internalServerError(500),
+  notImplemented(501),
+  badGateway(502),
+  serviceUnavailable(503),
+  gatewayTimeout(504),
+  httpVersionNotSupported(505),
+  variantAlsoNegotiates(506),
+  insufficientStorage(507),
+  loopDetected(508),
+  notExtended(510),
+  networkAuthenticationRequired(511),
+  networkConnectionTimeoutError(599);
+
+  /* AcDoc({"description": "The numeric HTTP response code."}) */
+  final int value;
+
+  /* AcDoc({"description": "Constructor that sets the HTTP response code."}) */
+  const AcEnumHttpResponseCode(this.value);
+
+  /* AcDoc({
+    "description": "Finds the response code enum matching the given code.",
+    "params": [{"name": "code", "description": "The numeric HTTP code to match."}],
+    "returns": "The matching enum or null if no match."
+  }) */
+  static AcEnumHttpResponseCode? fromValue(int value) {
+    try {
+      return AcEnumHttpResponseCode.values.firstWhere((e) => e.value == value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* AcDoc({
+    "description": "Checks if this enum's code equals another code.",
+    "params": [{"name": "otherCode", "description": "The code to compare."}],
+    "returns": "true if equal, false otherwise."
+  }) */
+  bool equals(int otherCode) => value == otherCode;
+
+  /* AcDoc({"description": "Returns a formatted string representation of the enum."}) */
+  @override
+  String toString() => '\$name (\$code)';
 }

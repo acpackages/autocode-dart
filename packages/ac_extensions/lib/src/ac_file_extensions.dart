@@ -1,28 +1,24 @@
-import 'dart:core';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
+
 extension AcFileExtensions on File {
+  String get extensionName => p.extension(path).replaceFirst('.', '');
 
-  String getExtension(){
-    return path.split(".").last;
-  }
-
-  String getName(){
-    String result= path.split('/').last;
-    result= result.split('\\').last;
-    return result;
-  }
+  String get fileName => p.basename(path);
 
   Future<Map<String, dynamic>> toBlobJson() async {
     if (!await exists()) {
-      throw Exception("File not found: $path");
+      throw FileSystemException("File not found", path);
     }
 
+    final statInfo = await stat();
+
     return {
-      'name': getName(),
-      'lastModified': (await stat()).modified.millisecondsSinceEpoch,
+      'name': fileName,
+      'lastModified': statInfo.modified.millisecondsSinceEpoch,
       'size': await length(),
       'type': lookupMimeType(path) ?? 'application/octet-stream',
       'blob': await readAsBytes(),
@@ -31,23 +27,23 @@ extension AcFileExtensions on File {
 
   Future<Map<String, dynamic>> toBytesJson() async {
     if (!await exists()) {
-      throw Exception("File not found: $path");
+      throw FileSystemException("File not found", path);
     }
 
+    final statInfo = await stat();
     final bytes = await readAsBytes();
 
     return {
-      'name': getName(),
-      'lastModified': (await stat()).modified.millisecondsSinceEpoch,
+      'name': fileName,
+      'lastModified': statInfo.modified.millisecondsSinceEpoch,
       'size': bytes.length,
       'type': lookupMimeType(path) ?? 'application/octet-stream',
       'bytes': bytes.toList(),
     };
   }
 
-  Future<void> writeByteData(ByteData data) async{
+  Future<void> writeByteData(ByteData data) async {
     final buffer = data.buffer;
     await writeAsBytes(buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
   }
-
 }

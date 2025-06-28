@@ -1,30 +1,52 @@
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
+/* AcDoc({
+  "description": "Provides utility functions for converting Dart objects to and from JSON using reflection via `ac_mirrors`. Supports nested objects, arrays, and field-level annotations such as `@AcBindJsonProperty`.",
+}) */
 
 class AcJsonUtils {
-  /// Converts an object instance to a `Map<String, dynamic>` using ac_mirrors.
+  /* AcDoc({
+    "description": "Converts an object to a JSON map. If the object defines a `toJson()` method, it will be used. Otherwise, falls back to field-by-field reflection using `ac_mirrors`.",
+    "parameters": {
+      "instance": {
+        "type": "Object",
+        "description": "The object to serialize into a JSON-compatible map."
+      }
+    },
+    "returns": {
+      "type": "Map<String, dynamic>",
+      "description": "The resulting map that represents the object's data in JSON-compatible format."
+    }
+  }) */
   static Map<String, dynamic> instanceToJson({required Object instance}) {
     final mirror = acReflect(instance);
 
-    // First, try to invoke a `toJson()` method if the class defines one.
     if (mirror.classMirror.instanceMembers.containsKey(const Symbol('toJson'))) {
       try {
         final result = mirror.invoke(const Symbol('toJson'), []);
-        // Ensure the result is of the correct type before returning.
         if (result is Map<String, dynamic>) {
           return result;
         }
-      } catch (_) {
-        // If invocation fails, fall back to field-by-field reflection.
-      }
+      } catch (_) {}
     }
 
-    // Fallback to reflecting on each field individually.
     return getJsonDataFromInstance(instance: instance);
   }
 
-  /// Reflects on an object's fields to build a JSON map.
+  /* AcDoc({
+    "description": "Reflects over all fields of the given object instance and converts them into key-value pairs for JSON serialization. Handles @AcBindJsonProperty annotations for custom key mapping or exclusions.",
+    "parameters": {
+      "instance": {
+        "type": "Object",
+        "description": "The object instance whose fields will be read and serialized."
+      }
+    },
+    "returns": {
+      "type": "Map<String, dynamic>",
+      "description": "A map containing all serializable fields of the object."
+    }
+  }) */
   static Map<String, dynamic> getJsonDataFromInstance({
     required Object instance,
   }) {
@@ -32,9 +54,7 @@ class AcJsonUtils {
     final instanceMirror = acReflect(instance);
     final classMirror = instanceMirror.classMirror;
 
-    // Iterate over all instance members provided by the AcClassMirror.
     for (final member in classMirror.instanceMembers.values) {
-      // We are only interested in fields, not methods.
       if (member is! AcVariableMirror || member.isStatic) {
         continue;
       }
@@ -61,7 +81,19 @@ class AcJsonUtils {
     return result;
   }
 
-  /// RESTORED: Updates an existing object's properties from a JSON map.
+  /* AcDoc({
+    "description": "Populates an existing object instance with values from a JSON map. Uses `ac_mirrors` to reflectively set field values, including support for nested objects and arrays.",
+    "parameters": {
+      "instance": {
+        "type": "Object",
+        "description": "The object instance to populate with data."
+      },
+      "jsonData": {
+        "type": "Map<String, dynamic>",
+        "description": "A JSON map containing data to assign to the instance's fields."
+      }
+    }
+  }) */
   static void setInstancePropertiesFromJsonData({
     required Object instance,
     required Map<String, dynamic> jsonData,
@@ -79,7 +111,23 @@ class AcJsonUtils {
     }
   }
 
-  /// RESTORED HELPER: Sets a single property on an instance from a JSON value.
+  /* AcDoc({
+    "description": "Sets a single property on an object instance from a JSON map using field metadata and type conversion.",
+    "parameters": {
+      "instanceMirror": {
+        "type": "AcInstanceMirror",
+        "description": "The mirror of the object instance being modified."
+      },
+      "fieldMirror": {
+        "type": "AcVariableMirror",
+        "description": "The mirror describing the field to update."
+      },
+      "jsonData": {
+        "type": "Map<String, dynamic>",
+        "description": "The JSON data containing the value to assign."
+      }
+    }
+  }) */
   static void setInstancePropertyValueFromJson({
     required AcInstanceMirror instanceMirror,
     required AcVariableMirror fieldMirror,
@@ -107,46 +155,71 @@ class AcJsonUtils {
 
       try {
         instanceMirror.setField(fieldSymbol, dartValue);
-      } catch(e) {
-        // This will often fail for final fields, which is expected.
-        // You could add logging here if needed.
-      }
+      } catch(e) {}
     }
   }
 
-  /// Converts a single JSON value to its corresponding Dart type.
+  /* AcDoc({
+    "description": "Converts a raw JSON value into its expected Dart type, including instantiating nested classes and arrays.",
+    "parameters": {
+      "jsonValue": {
+        "type": "dynamic",
+        "description": "The JSON value to convert."
+      },
+      "fieldType": {
+        "type": "Type",
+        "description": "The expected Dart type of the target field."
+      },
+      "arrayType": {
+        "type": "Type?",
+        "description": "If the field is a list, the type of the list elements."
+      }
+    },
+    "returns": {
+      "type": "dynamic",
+      "description": "A Dart-typed value converted from the input JSON."
+    }
+  }) */
   static dynamic convertJsonToDartValue(dynamic jsonValue, Type fieldType, Type? arrayType) {
     if (jsonValue == null) return null;
 
     if (arrayType != null && jsonValue is List) {
       return jsonValue.map((item) {
         if (item is Map<String, dynamic>) {
-          // Use ac_mirrors to create a new instance of the list's generic type
           final newObject = acReflectClass(arrayType).newInstance("", []);
           setInstancePropertiesFromJsonData(instance: newObject, jsonData: item);
           return newObject;
         }
-        return item; // It's a list of primitives
+        return item;
       }).toList();
     }
 
     if (jsonValue is Map<String, dynamic>) {
-      // For a nested object, create a new instance and populate it.
       try {
         final newObject = acReflectClass(fieldType).newInstance("", []);
         setInstancePropertiesFromJsonData(instance: newObject, jsonData: jsonValue);
         return newObject;
       } catch (e) {
-        return jsonValue; // return the raw map as a fallback
+        return jsonValue;
       }
     }
 
-    // It's a primitive type (String, int, bool, double)
     return jsonValue;
   }
 
-
-  /// Helper to recursively prepare a property's value for JSON encoding.
+  /* AcDoc({
+    "description": "Recursively processes any object and prepares it for JSON encoding. Supports primitives, lists, maps, and nested model objects.",
+    "parameters": {
+      "propertyValue": {
+        "type": "dynamic",
+        "description": "The object or value to serialize to JSON."
+      }
+    },
+    "returns": {
+      "type": "dynamic",
+      "description": "The JSON-safe representation of the input value."
+    }
+  }) */
   static dynamic getJsonForPropertyValue(dynamic propertyValue) {
     if (propertyValue == null || propertyValue is num || propertyValue is String || propertyValue is bool) {
       return propertyValue;
@@ -161,194 +234,42 @@ class AcJsonUtils {
       return propertyValue.toString();
     }
 
-    // For any other object, try to call instanceToJson on it recursively.
     return instanceToJson(instance: propertyValue);
   }
 
-
-  /// Encodes an object to a pretty-printed JSON string.
+  /* AcDoc({
+    "description": "Encodes any Dart object into a pretty-printed JSON string.",
+    "parameters": {
+      "object": {
+        "type": "dynamic",
+        "description": "The object to convert to a pretty JSON string."
+      }
+    },
+    "returns": {
+      "type": "String",
+      "description": "The pretty-printed JSON representation."
+    }
+  }) */
   static String prettyEncode(dynamic object) {
     const encoder = JsonEncoder.withIndent('  ');
     return encoder.convert(object);
   }
 
-  /// Helper to convert a Symbol like `Symbol("myField")` to the string "myField".
+  /* AcDoc({
+    "description": "Extracts the string name from a Dart Symbol like Symbol(\"field\") => \"field\".",
+    "parameters": {
+      "symbol": {
+        "type": "Symbol",
+        "description": "The symbol to convert to a string."
+      }
+    },
+    "returns": {
+      "type": "String",
+      "description": "The name represented by the symbol."
+    }
+  }) */
   static String symbolToName(Symbol symbol) {
     return symbol.toString().split('"')[1];
   }
 }
 
-class AcJsonUtilsTemp {
-
-  static Map<String, dynamic> getJsonDataFromInstance({
-    required Object instance,
-  }) {
-    final result = <String, dynamic>{};
-    final instanceMirror = acReflect(instance);
-    AcClassMirror? classMirror = instanceMirror.classMirror;
-    while (classMirror != null && classMirror.reflectedType != Object) {
-      for (final field in classMirror.instanceMembers.values.whereType<AcVariableMirror>()) {
-        final propertyName = field.simpleName;
-        String jsonKey = field.getName();
-        if (field.isStatic) continue;
-
-        final bindJsonAttributes = _getAcBindJsonPropertyAttributes(field);
-        if (bindJsonAttributes.isNotEmpty) {
-          final bindJsonAttribute = bindJsonAttributes[0];
-          if (bindJsonAttribute.key != null) {
-            jsonKey = bindJsonAttribute.key!;
-          }
-          if (bindJsonAttribute.skipInToJson == true) {
-            continue;
-          }
-        }
-
-        // Prevent overwriting keys from child class if already added
-        if (!result.containsKey(jsonKey)) {
-          var propertyValue = instanceMirror.getField(propertyName);
-          if (propertyValue != null) {
-            propertyValue = _getJsonForPropertyValue(propertyValue);
-            result[jsonKey] = propertyValue;
-          }
-        }
-      }
-
-      classMirror = classMirror.superclass;
-    }
-
-    return result;
-  }
-
-  static dynamic _getJsonForPropertyValue(dynamic propertyValue) {
-    if (propertyValue == null) return null;
-
-    if (propertyValue is num || propertyValue is String || propertyValue is bool) {
-      return propertyValue;
-    }
-
-    if (propertyValue is List) {
-      return propertyValue.map((e) => _getJsonForPropertyValue(e)).toList();
-    }
-
-    if (propertyValue is Map) {
-      return propertyValue.map((k, v) =>
-          MapEntry(k.toString(), _getJsonForPropertyValue(v)));
-    }
-
-    if (propertyValue is Exception || propertyValue is Error) {
-      return propertyValue.toString();
-    }
-
-    try {
-      final mirror = acReflect(propertyValue);
-      final typeMirror = mirror.classMirror;
-
-      // Use `toJson` if available
-      if (typeMirror.instanceMembers.containsKey(Symbol('toJson'))) {
-        return mirror.invoke(Symbol('toJson'), []).reflectee;
-      }
-
-      // Otherwise fallback to `toString`
-      return propertyValue.toString();
-    } catch (_) {
-      // In case of any unexpected reflection failure
-      return propertyValue.toString();
-    }
-  }
-
-
-  static Map<String, dynamic> instanceToJson({required Object instance}) {
-    final mirror = acReflect(instance);
-    if (mirror.classMirror.instanceMembers.containsKey(#toJson)) {
-      return mirror.invoke(#toJson, []).reflectee;
-    } else {
-      return getJsonDataFromInstance(instance: instance);
-    }
-  }
-
-  static String prettyEncode(dynamic object) {
-    const encoder = JsonEncoder.withIndent('  ');
-    return encoder.convert(object);
-  }
-
-  static void setInstancePropertiesFromJsonData({
-    required Object instance,
-    required Map<String, dynamic> jsonData,
-  }) {
-    final mirror = acReflect(instance);
-    for (final field in mirror.classMirror.instanceMembers.values.whereType<AcVariableMirror>()) {
-      _setInstancePropertyValueFromJson(
-        mirror: mirror,
-        field: field,
-        jsonData: jsonData,
-      );
-    }
-  }
-
-  static void _setInstancePropertyValueFromJson({
-    required AcInstanceMirror mirror,
-    required AcVariableMirror field,
-    required Map<String, dynamic> jsonData,
-  }) {
-    String propertyName = field.getName();
-    final bindJsonAttributes = _getAcBindJsonPropertyAttributes(field);
-    Type? arrayType;
-    if (bindJsonAttributes.isNotEmpty) {
-      final bindJsonAttribute = bindJsonAttributes[0];
-      if(bindJsonAttribute.key != null){
-        propertyName = bindJsonAttribute.key!;
-      }
-      if (bindJsonAttribute.skipInFromJson == true) {
-        return;
-      }
-      if (bindJsonAttribute.arrayType != null) {
-        arrayType = bindJsonAttribute.arrayType;
-      }
-    }
-    if (jsonData.containsKey(propertyName)) {
-
-      var value = jsonData[propertyName];
-      final fieldType = field.type;
-      if (fieldType is AcClassMirror) {
-        if(value is List){
-        }
-        if (arrayType != null && value is List) {
-
-          value = value.map((v) {
-            final objectMirror = acReflectClass(arrayType!)
-                .newInstance("", []);
-            final object = objectMirror.reflectee;
-
-            setInstancePropertiesFromJsonData(
-              instance: object,
-              jsonData: v as Map<String, dynamic>,
-            );
-
-            return object;
-          }).toList();
-        } else if (value is Map) {
-
-          final objectMirror = acReflectClass(fieldType.runtimeType).newInstance("", []);
-          final object = objectMirror.reflectee;
-
-          setInstancePropertiesFromJsonData(
-            instance: object,
-            jsonData: Map.from(value),
-          );
-
-        }
-      }
-      mirror.setField(field.simpleName, value);
-    }
-  }
-
-
-  static List<AcBindJsonProperty> _getAcBindJsonPropertyAttributes(
-      AcVariableMirror field,
-      ) {
-    return field.metadata
-        .where((m) => m is AcBindJsonProperty)
-        .map((m) => m as AcBindJsonProperty)
-        .toList();
-  }
-}

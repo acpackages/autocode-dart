@@ -1,19 +1,37 @@
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
-
+/* AcDoc({
+  "summary": "Manages database schema creation, updates, and validation against a data dictionary.",
+  "description": "This class orchestrates the entire process of initializing a database schema. It can create a database from scratch, apply updates from a new data dictionary version, and report differences between the live database and the current dictionary definition. It uses internal tables to track its own version and log operations.",
+  "example": "// Prerequisite: Global AcSqlDatabase settings are configured.\n\n// 1. Create a schema manager instance for your application's data dictionary.\nfinal schemaManager = AcSqlDbSchemaManager(dataDictionaryName: 'my_app_schema');\n\n// 2. Initialize the database. This will create or update the schema as needed.\nfinal result = await schemaManager.initDatabase();\n\nif (result.isSuccess()) {\n  print('Database initialization complete!');\n} else {\n  print('Database initialization failed: \${result.message}');\n}"
+}) */
 class AcSqlDbSchemaManager extends AcSqlDbBase {
+  /* AcDoc({"summary": "A pre-configured handler for the internal `_ac_schema_details` table."}) */
   AcSqlDbTable acSqlDDTableSchemaDetails = AcSqlDbTable(
-    tableName: AcSchemaManagerTables.SCHEMA_DETAILS,
-    dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
-  );
-  AcSqlDbTable acSqlDDTableSchemaLogs = AcSqlDbTable(
-    tableName: AcSchemaManagerTables.SCHEMA_LOGS,
-    dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
+    tableName: AcSchemaManagerTables.schemaDetails,
+    dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
   );
 
+  /* AcDoc({"summary": "A pre-configured handler for the internal `_ac_schema_logs` table."}) */
+  AcSqlDbTable acSqlDDTableSchemaLogs = AcSqlDbTable(
+    tableName: AcSchemaManagerTables.schemaLogs,
+    dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
+  );
+
+  /* AcDoc({
+    "summary": "Creates a new schema manager instance.",
+    "params": [
+      {"name": "dataDictionaryName", "description": "The name of the application's data dictionary to manage."}
+    ]
+  }) */
   AcSqlDbSchemaManager({super.dataDictionaryName});
 
+  /* AcDoc({
+    "summary": "Checks if the live database schema version is older than the current data dictionary version.",
+    "returns": "An `AcResult` with a boolean `value`: `true` if an update is available, `false` otherwise.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> checkSchemaUpdateAvailableFromVersion() async {
     final result = AcResult();
     try {
@@ -23,16 +41,16 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
 
       final versionResult = await dao!.getRows(
         statement: acSqlDDTableSchemaDetails.getSelectStatement(),
-        condition: "${TblSchemaDetails.AC_SCHEMA_DETAIL_KEY} = @key",
-        parameters: {"@key": SchemaDetails.KEY_DATA_DICTIONARY_VERSION},
-        mode: AcEnumDDSelectMode.FIRST, //important
+        condition: "${TblSchemaDetails.acSchemaDetailKey} = @key",
+        parameters: {"@key": SchemaDetails.keyDataDictionaryVersion},
+        mode: AcEnumDDSelectMode.first, //important
       );
 
       if (versionResult.isSuccess()) {
         if (versionResult.rows.isNotEmpty) {
           final databaseVersion =
               versionResult.rows.first[TblSchemaDetails
-                      .AC_SCHEMA_DETAIL_NUMERIC_VALUE]
+                      .acSchemaDetailNumericValue]
                   as int;
           if (acDataDictionary.version == databaseVersion) {
             logger.log(
@@ -67,7 +85,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database functions.
+  /* AcDoc({
+    "summary": "Creates or recreates all database functions defined in the data dictionary.",
+    "description": "This method iterates through all functions, drops each one if it exists, and then recreates it based on the current definition.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseFunctions() async {
     final result = AcResult();
     try {
@@ -85,7 +108,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         logger.log('Executing drop function statement: $dropStatement');
         final dropResult = await dao!.executeStatement(
           statement: dropStatement,
-          operation: AcEnumDDRowOperation.UNKNOWN,
+          operation: AcEnumDDRowOperation.unknown,
         );
         if (dropResult.isSuccess()) {
           logger.log('Drop statement executed successfully.');
@@ -97,19 +120,19 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.FUNCTION,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDFunction.functionName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'drop',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: dropResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: dropStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function,
+          TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
+          TblSchemaLogs.acSchemaOperation: 'drop',
+          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
 
         final createStatement = acDDFunction.getCreateFunctionStatement();
         logger.log('Creating function with statement: $createStatement');
         final createResult = await dao!.executeStatement(
           statement: createStatement,
-          operation: AcEnumDDRowOperation.UNKNOWN,
+          operation: AcEnumDDRowOperation.unknown,
         );
         if (createResult.isSuccess()) {
           logger.log('Function created successfully.');
@@ -121,12 +144,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.FUNCTION,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDFunction.functionName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function,
+          TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: createStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
       result.setSuccess(
@@ -139,18 +162,23 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database relationships.
+  /* AcDoc({
+    "summary": "Creates or recreates all database relationships defined in the data dictionary.",
+    "description": "For MySQL, this method first disables foreign key checks, drops all existing foreign key constraints, and then creates new ones based on the current data dictionary definitions.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseRelationships() async {
     final result = AcResult();
     try {
       logger.log('Creating database relationships...');
 
-      if (databaseType == AcEnumSqlDatabaseType.MYSQL) {
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
         const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
         logger.log('Executing disable check statement: $disableCheckStatement');
         final setCheckResult = await dao!.executeStatement(
           statement: disableCheckStatement,
-          operation: AcEnumDDRowOperation.UNKNOWN,
+          operation: AcEnumDDRowOperation.unknown,
         );
         if (setCheckResult.isFailure()) {
           return result.setFromResult(
@@ -179,7 +207,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
           final dropResponse = await dao!.executeStatement(
             statement: dropRelationshipStatement,
-            operation: AcEnumDDRowOperation.UNKNOWN,
+            operation: AcEnumDDRowOperation.unknown,
           ); // Added operation
           if (dropResponse.isFailure()) {
             return result.setFromResult(
@@ -191,13 +219,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             logger.log('Executed drop relation statement successfully.');
           }
           await saveSchemaLogEntry({
-            TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.RELATIONSHIP,
-            TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: constraintName,
-            TblSchemaLogs.AC_SCHEMA_OPERATION: 'drop',
-            TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: dropResponse.status,
-            TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT:
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship,
+            TblSchemaLogs.acSchemaEntityName: constraintName,
+            TblSchemaLogs.acSchemaOperation: 'drop',
+            TblSchemaLogs.acSchemaOperationResult: dropResponse.status,
+            TblSchemaLogs.acSchemaOperationStatement:
                 dropRelationshipStatement,
-            TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
           });
         }
       } else {
@@ -231,14 +259,14 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           logger.log('Relationship created successfully.');
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.RELATIONSHIP,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME:
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship,
+          TblSchemaLogs.acSchemaEntityName:
               '${acDDRelationship.sourceTable}.${acDDRelationship.sourceColumn}>${acDDRelationship.destinationTable}.${acDDRelationship.destinationColumn}',
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT:
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement:
               createRelationshipStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
 
@@ -252,7 +280,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database stored procedures.
+  /* AcDoc({
+    "summary": "Creates or recreates all stored procedures defined in the data dictionary.",
+    "description": "This method iterates through all stored procedures, drops each one if it exists, and then recreates it.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseStoredProcedures() async {
     final result = AcResult();
     try {
@@ -280,14 +313,14 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE:
-              AcEnumDDSqlEntity.STORED_PROCEDURE,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME:
+          TblSchemaLogs.acSchemaEntityType:
+              AcEnumSqlEntity.storedProcedure,
+          TblSchemaLogs.acSchemaEntityName:
               acDDStoredProcedure.storedProcedureName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'drop',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: dropResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: dropStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaOperation: 'drop',
+          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
 
         final createStatement = acDDStoredProcedure
@@ -306,14 +339,14 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE:
-              AcEnumDDSqlEntity.STORED_PROCEDURE,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME:
+          TblSchemaLogs.acSchemaEntityType:
+              AcEnumSqlEntity.storedProcedure,
+          TblSchemaLogs.acSchemaEntityName:
               acDDStoredProcedure.storedProcedureName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: createStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
       result.setSuccess(
@@ -326,7 +359,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database tables.
+  /* AcDoc({
+    "summary": "Creates all database tables defined in the data dictionary.",
+    "description": "This method iterates through all table definitions and executes a `CREATE TABLE IF NOT EXISTS` statement for each one.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseTables() async {
     final result = AcResult();
     try {
@@ -352,12 +390,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.TABLE,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDTable.tableName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+          TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: createStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
       result.setSuccess(message: 'Tables created successfully', logger: logger);
@@ -367,7 +405,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database triggers.
+  /* AcDoc({
+    "summary": "Creates or recreates all database triggers defined in the data dictionary.",
+    "description": "This method iterates through all triggers, drops each one if it exists, and then recreates it.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseTriggers() async {
     final result = AcResult();
     try {
@@ -395,12 +438,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.TRIGGER,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDTrigger.triggerName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'drop',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: dropResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: dropStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger,
+          TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
+          TblSchemaLogs.acSchemaOperation: 'drop',
+          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
 
         final createStatement = acDDTrigger.getCreateTriggerStatement(
@@ -420,12 +463,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.TRIGGER,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDTrigger.triggerName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger,
+          TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: createStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
       result.setSuccess(
@@ -438,7 +481,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates database views.
+  /* AcDoc({
+    "summary": "Creates or recreates all database views defined in the data dictionary.",
+    "description": "This method iterates through all views, drops each one if it exists, and then recreates it. It includes a retry mechanism for views that may depend on other, later-created views.",
+    "returns": "An `AcResult` indicating the overall success or failure.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createDatabaseViews() async {
     final result = AcResult();
     try {
@@ -467,12 +515,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.VIEW,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDView.viewName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'drop',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: dropResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: dropStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+          TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
+          TblSchemaLogs.acSchemaOperation: 'drop',
+          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
 
         final createStatement = acDDView.getCreateViewStatement(
@@ -489,12 +537,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           errorViews.add(acDDView);
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.VIEW,
-          TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDView.viewName,
-          TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-          TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-          TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+          TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
+          TblSchemaLogs.acSchemaOperation: 'create',
+          TblSchemaLogs.acSchemaOperationResult: createResult.status,
+          TblSchemaLogs.acSchemaOperationStatement: createStatement,
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
         });
       }
 
@@ -524,12 +572,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               retryViews.add(acDDView);
             }
             await saveSchemaLogEntry({
-              TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.VIEW,
-              TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: acDDView.viewName,
-              TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-              TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-              TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-              TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP: DateTime.now(),
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+              TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
+              TblSchemaLogs.acSchemaOperation: 'create',
+              TblSchemaLogs.acSchemaOperationResult: createResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: createStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
             });
           }
           logger.log(
@@ -551,7 +599,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               databaseType: databaseType,
             );
             final errorViewDetails = {
-              AcDDViewColumn.KEY_COLUMN_NAME: acDDView.viewName,
+              AcDDViewColumn.keyColumnName: acDDView.viewName,
               "create_statement": createStatement,
             };
             logger.error(["Error in view", errorViewDetails]);
@@ -577,7 +625,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Creates the database schema.
+  /* AcDoc({
+    "summary": "Creates the entire database schema.",
+    "description": "This is a composite method that orchestrates the creation of all schema entities in the correct order: tables, views, triggers, stored procedures, and functions.",
+    "returns": "An `AcResult` indicating the overall success or failure of the entire process.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> createSchema() async {
     final result = AcResult();
     try {
@@ -650,7 +703,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Gets the difference between the database schema and the data dictionary.
+  /* AcDoc({
+    "summary": "Compares the live database schema against the current data dictionary.",
+    "description": "This method inspects the live database and reports on differences, such as tables or columns that exist in one but not the other, and tables that have different column definitions.",
+    "returns": "An `AcResult` where the `value` is a map detailing the differences.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> getDatabaseSchemaDifference() async {
     final result = AcResult();
     try {
@@ -663,35 +721,35 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         List<Map<String, dynamic>> modifiedTables = [];
         List<String> missingInDataDictionaryTables = [];
         for (final tableRow in getTablesResult.rows) {
-          if (tableRow[AcDDTable.KEY_TABLE_NAME] !=
-                  AcSchemaManagerTables.SCHEMA_DETAILS &&
-              tableRow[AcDDTable.KEY_TABLE_NAME] !=
-                  AcSchemaManagerTables.SCHEMA_LOGS) {
+          if (tableRow[AcDDTable.keyTableName] !=
+                  AcSchemaManagerTables.schemaDetails &&
+              tableRow[AcDDTable.keyTableName] !=
+                  AcSchemaManagerTables.schemaLogs) {
             if (currentDataDictionaryTables.contains(
-              tableRow[AcDDTable.KEY_TABLE_NAME],
+              tableRow[AcDDTable.keyTableName],
             )) {
               Map<String, dynamic> tableDifferenceResult = {};
-              foundTables.add(tableRow[AcDDTable.KEY_TABLE_NAME]);
+              foundTables.add(tableRow[AcDDTable.keyTableName]);
               final getTableColumnsResult = await dao!.getTableColumns(
-                tableName: tableRow[AcDDTable.KEY_TABLE_NAME],
+                tableName: tableRow[AcDDTable.keyTableName],
               );
               if (getTableColumnsResult.isSuccess()) {
                 final currentDataDictionaryColumns = acDataDictionary
                     .getTableColumnNames(
-                      tableName: tableRow[AcDDTable.KEY_TABLE_NAME],
+                      tableName: tableRow[AcDDTable.keyTableName],
                     );
                 List<String> foundColumns = [];
                 List<String> missingInDataDictionaryColumns = [];
                 for (final columnRow in getTableColumnsResult.rows) {
                   if (currentDataDictionaryColumns.contains(
-                    columnRow[AcDDTableColumn.KEY_COLUMN_NAME],
+                    columnRow[AcDDTableColumn.keyColumnName],
                   )) {
                     foundColumns.add(
-                      columnRow[AcDDTableColumn.KEY_COLUMN_NAME],
+                      columnRow[AcDDTableColumn.keyColumnName],
                     );
                   } else {
                     missingInDataDictionaryColumns.add(
-                      columnRow[AcDDTableColumn.KEY_COLUMN_NAME],
+                      columnRow[AcDDTableColumn.keyColumnName],
                     );
                   }
                 }
@@ -705,7 +763,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 return result.setFromResult(
                   result: getTableColumnsResult,
                   message:
-                      'Error getting columns for table ${tableRow[AcDDTable.KEY_TABLE_NAME]}',
+                      'Error getting columns for table ${tableRow[AcDDTable.keyTableName]}',
                   logger: logger,
                 );
               }
@@ -715,13 +773,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                           .length >
                       0) {
                 modifiedTables.add({
-                  AcDDTable.KEY_TABLE_NAME: tableRow[AcDDTable.KEY_TABLE_NAME],
+                  AcDDTable.keyTableName: tableRow[AcDDTable.keyTableName],
                   "difference_details": tableDifferenceResult,
                 });
               }
             } else {
               missingInDataDictionaryTables.add(
-                tableRow[AcDDTable.KEY_TABLE_NAME],
+                tableRow[AcDDTable.keyTableName],
               );
             }
           }
@@ -748,7 +806,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Initializes the database.
+  /* AcDoc({
+    "summary": "Initializes the database, creating or updating the schema as necessary.",
+    "description": "This is the main entry point for the schema manager. It checks if the database exists, creates it if not, and then creates or updates the schema to match the current data dictionary version. It also ensures the manager's own internal tracking tables are present.",
+    "returns": "An `AcResult` indicating the final outcome of the initialization process.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> initDatabase() async {
     final result = AcResult();
     try {
@@ -773,9 +836,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   logger: logger,
                 );
                 await saveSchemaDetail({
-                  TblSchemaDetails.AC_SCHEMA_DETAIL_KEY:
-                      SchemaDetails.KEY_CREATED_ON,
-                  TblSchemaDetails.AC_SCHEMA_DETAIL_STRING_VALUE:
+                  TblSchemaDetails.acSchemaDetailKey:
+                      SchemaDetails.keyCreatedOn,
+                  TblSchemaDetails.acSchemaDetailStringValue:
                       DateTime.now().toIso8601String(),
                 });
               } else {
@@ -806,9 +869,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                     logger: logger,
                   );
                   await saveSchemaDetail({
-                    TblSchemaDetails.AC_SCHEMA_DETAIL_KEY:
-                        SchemaDetails.KEY_LAST_UPDATED_ON,
-                    TblSchemaDetails.AC_SCHEMA_DETAIL_STRING_VALUE:
+                    TblSchemaDetails.acSchemaDetailKey:
+                        SchemaDetails.keyLastUpdatedOn,
+                    TblSchemaDetails.acSchemaDetailStringValue:
                         DateTime.now().toIso8601String(),
                   });
                 } else {
@@ -835,9 +898,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           }
           if (updateDataDictionaryVersion) {
             await saveSchemaDetail({
-              TblSchemaDetails.AC_SCHEMA_DETAIL_KEY:
-                  SchemaDetails.KEY_DATA_DICTIONARY_VERSION,
-              TblSchemaDetails.AC_SCHEMA_DETAIL_NUMERIC_VALUE:
+              TblSchemaDetails.acSchemaDetailKey:
+                  SchemaDetails.keyDataDictionaryVersion,
+              TblSchemaDetails.acSchemaDetailNumericValue:
                   acDataDictionary.version,
             });
           }
@@ -861,31 +924,36 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Initializes the schema data dictionary.
+  /* AcDoc({
+    "summary": "Initializes the internal schema required by the Schema Manager itself.",
+    "description": "Ensures that the `_ac_schema_details` and `_ac_schema_logs` tables exist so that the manager can track schema versions and log its operations.",
+    "returns": "An `AcResult` indicating the outcome.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> initSchemaDataDictionary() async {
     final result = AcResult();
     try {
       if (!AcDataDictionary.dataDictionaries.containsKey(
-        AcSMDataDictionary.DATA_DICTIONARY_NAME,
+        AcSMDataDictionary.dataDictionaryName,
       )) {
         logger.log("Registering schema data dictionary...");
         AcDataDictionary.registerDataDictionary(
-          jsonData: AcSMDataDictionary.DATA_DICTIONARY,
-          dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
+          jsonData: AcSMDataDictionary.dataDictionary,
+          dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         acSqlDDTableSchemaDetails = AcSqlDbTable(
-          tableName: AcSchemaManagerTables.SCHEMA_DETAILS,
-          dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
+          tableName: AcSchemaManagerTables.schemaDetails,
+          dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         acSqlDDTableSchemaLogs = AcSqlDbTable(
-          tableName: AcSchemaManagerTables.SCHEMA_LOGS,
-          dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
+          tableName: AcSchemaManagerTables.schemaLogs,
+          dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         final acSchemaManager = AcSqlDbSchemaManager();
         acSchemaManager.dao = dao;
         acSchemaManager.logger = logger;
         acSchemaManager.useDataDictionary(
-          dataDictionaryName: AcSMDataDictionary.DATA_DICTIONARY_NAME,
+          dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         acSchemaManager.acDataDictionary = acDataDictionary;
         final initSchemaResult = await acSchemaManager.initDatabase();
@@ -913,17 +981,33 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Saves a schema log entry.
+  /* AcDoc({
+    "summary": "Saves a record to the internal `_ac_schema_logs` table.",
+    "params": [{"name": "row", "description": "A map representing the log entry."}],
+    "returns": "An `AcSqlDaoResult` from the insert operation.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> saveSchemaLogEntry(Map<String, dynamic> row) async {
     return await acSqlDDTableSchemaLogs.insertRow(row: row);
   }
 
-  /// Saves schema details.
+  /* AcDoc({
+    "summary": "Saves a key-value record to the internal `_ac_schema_details` table.",
+    "description": "Used to store persistent metadata like the schema version and creation/update timestamps.",
+    "params": [{"name": "data", "description": "A map representing the detail entry."}],
+    "returns": "An `AcSqlDaoResult` from the save operation.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
   Future<AcSqlDaoResult> saveSchemaDetail(Map<String, dynamic> data) async {
     return await acSqlDDTableSchemaDetails.saveRow(row: data);
   }
 
-  /// Updates the database schema based on differences with the data dictionary.
+  /* AcDoc({
+    "summary": "Applies schema changes to the database based on a difference analysis.",
+    "description": "This method takes the output of `getDatabaseSchemaDifference` and executes the necessary `CREATE TABLE` or `ALTER TABLE ADD COLUMN` statements. It logs statements for dropping extra tables/columns but does not execute them automatically.",
+    "returns": "An `AcResult` indicating the outcome.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> updateDatabaseDifferences() async {
     final result = AcResult();
     try {
@@ -954,12 +1038,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               return result.setFromResult(result: createResult, logger: logger);
             }
             await saveSchemaLogEntry({
-              TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.TABLE,
-              TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: tableName,
-              TblSchemaLogs.AC_SCHEMA_OPERATION: 'create',
-              TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-              TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: createStatement,
-              TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP:
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+              TblSchemaLogs.acSchemaEntityName: tableName,
+              TblSchemaLogs.acSchemaOperation: 'create',
+              TblSchemaLogs.acSchemaOperationResult: createResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: createStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp:
                   DateTime.now().toIso8601String(),
             });
           }
@@ -968,7 +1052,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         if (differences["modified_tables_in_data_dictionary"] != null) {
           for (final modificationDetails
               in differences["modified_tables_in_data_dictionary"]) {
-            final tableName = modificationDetails[AcDDTable.KEY_TABLE_NAME];
+            final tableName = modificationDetails[AcDDTable.keyTableName];
             final tableDifferenceDetails =
                 modificationDetails["difference_details"]
                     as Map<String, dynamic>; // Cast
@@ -1000,12 +1084,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   );
                 }
                 await saveSchemaLogEntry({
-                  TblSchemaLogs.AC_SCHEMA_ENTITY_TYPE: AcEnumDDSqlEntity.TABLE,
-                  TblSchemaLogs.AC_SCHEMA_ENTITY_NAME: tableName,
-                  TblSchemaLogs.AC_SCHEMA_OPERATION: 'modify',
-                  TblSchemaLogs.AC_SCHEMA_OPERATION_RESULT: createResult.status,
-                  TblSchemaLogs.AC_SCHEMA_OPERATION_STATEMENT: addStatement,
-                  TblSchemaLogs.AC_SCHEMA_OPERATION_TIMESTAMP:
+                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+                  TblSchemaLogs.acSchemaEntityName: tableName,
+                  TblSchemaLogs.acSchemaOperation: 'modify',
+                  TblSchemaLogs.acSchemaOperationResult: createResult.status,
+                  TblSchemaLogs.acSchemaOperationStatement: addStatement,
+                  TblSchemaLogs.acSchemaOperationTimestamp:
                       DateTime.now().toIso8601String(),
                 });
               }
@@ -1060,7 +1144,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  /// Updates the database schema.
+  /* AcDoc({
+    "summary": "Updates an existing database schema to match the current data dictionary.",
+    "description": "This is a composite method that first applies structural differences (new tables/columns) and then recreates other database objects like views, triggers, stored procedures, and functions to ensure they are up-to-date.",
+    "returns": "An `AcResult` indicating the outcome of the full update process.",
+    "returns_type": "Future<AcResult>"
+  }) */
   Future<AcResult> updateSchema() async {
     final result = AcResult();
     bool continueOperation = true;
