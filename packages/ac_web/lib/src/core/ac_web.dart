@@ -121,7 +121,7 @@ class AcWeb {
     acApiDocRoute ??= AcApiDocRoute();
     for (var param in methodMirror.parameters) {
       for (var meta in param.metadata) {
-        var key = symbolToName(param.simpleName);
+        var key = param.simpleName.getName();
         if (meta is AcWebValueFromPath) {
           acApiDocRoute.addParameter(parameter: AcApiDocParameter(name: key, required: true, in_: "path"));
         } else if (meta is AcWebValueFromQuery) {
@@ -199,7 +199,7 @@ class AcWeb {
           valueSet = true;
         } else {
           for (final meta in parameter.metadata) {
-            final key = symbolToName(parameter.simpleName);
+            final key = parameter.simpleName.getName();
             if (meta is AcWebValueFromPath && request.pathParameters.containsKey(key)) {
               argValue = request.pathParameters[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromQuery && request.queryParameters.containsKey(key)) {
@@ -276,7 +276,7 @@ class AcWeb {
             'url': fullPath,
             'method': httpMethod,
             'controller': controllerClass,
-            'handler': symbolToName(member.simpleName),
+            'handler': member.simpleName.getName(),
             'documentation': acApiDocRoute,
           });
         }

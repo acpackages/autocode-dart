@@ -49,6 +49,9 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_documentation/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_ai_clients/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_ai_clients/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_ai_clients/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />
