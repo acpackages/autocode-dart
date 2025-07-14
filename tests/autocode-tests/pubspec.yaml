@@ -8,10 +8,12 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
-  autocode:
-    path: './../../packages/autocode'
   ac_ai_clients:
     path: './../../packages/ac_ai_clients'
+  ac_blueprints:
+    path: './../../packages/ac_blueprints'
+  autoc:
+    path: './../../packages/ac_blueprints'
   ac_data_dictionary:
     path: './../../packages/ac_data_dictionary'
   ac_extensions:
@@ -24,6 +26,8 @@ dependencies:
     path: './../../packages/ac_web'
   ac_web_on_jaguar:
     path: './../../packages/ac_web_on_jaguar'
+  autocode:
+    path: './../../packages/autocode'
   # path: ^1.8.0
 
 dev_dependencies:
