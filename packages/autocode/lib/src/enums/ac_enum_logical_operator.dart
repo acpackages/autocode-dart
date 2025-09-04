@@ -5,13 +5,13 @@
 }) */
 enum AcEnumLogicalOperator {
   /* AcDoc({"description": "Logical AND operator."}) */
-  and('and'),
+  and('AND'),
 
   /* AcDoc({"description": "Logical OR operator."}) */
-  or('or'),
+  or('OR'),
 
   /* AcDoc({"description": "Unknown operator."}) */
-  unknown('unknown');
+  unknown('UNKNOWN');
 
   /* AcDoc({"description": "The string representation of the logical operator."}) */
   final String value;

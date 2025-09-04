@@ -8,8 +8,8 @@ import 'package:autocode/autocode.dart';
 class AcDeprecation {
   static const String keyMessage = "message";
   static const String keySince = "since";
-  static const String keyPlannedRemoval = "planned_removal";
-  static const String keyRemovalDate = "removal_date";
+  static const String keyPlannedRemoval = "plannedRemoval";
+  static const String keyRemovalDate = "removalDate";
   static const String keyReplacement = "replacement";
   static const String keyReason = "reason";
   static const String keyStatus = "status";
@@ -75,7 +75,9 @@ class AcDeprecation {
     },
     "type": "development"
   }) */
-  factory AcDeprecation.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDeprecation.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDeprecation();
     instance.fromJson(jsonData: jsonData);
     return instance;
@@ -93,7 +95,10 @@ class AcDeprecation {
     "type": "development"
   }) */
   AcDeprecation fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

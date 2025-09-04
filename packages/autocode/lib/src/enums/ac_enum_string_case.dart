@@ -5,49 +5,49 @@
 }) */
 enum AcEnumStringCase {
   /* AcDoc({"description": "camelCase style (e.g., myVariableName)."}) */
-  camel('camel'),
+  camel('CAMEL'),
 
   /* AcDoc({"description": "camel_snake style (e.g., my_variableName)."}) */
-  camelSnake('camel_snake'),
+  camelSnake('CAMEL_SNAKE'),
 
   /* AcDoc({"description": "Capitalized words (e.g., My Variable Name)."}) */
-  capital('capital'),
+  capital('CAPITAL'),
 
   /* AcDoc({"description": "Capitalized words with underscores (e.g., My_Variable_Name)."}) */
-  capitalSnake('capital_snake'),
+  capitalSnake('CAPITAL_SNAKE'),
 
   /* AcDoc({"description": "COBOL style with hyphens and uppercase (e.g., MY-VARIABLE-NAME)."}) */
-  cobol('cobol'),
+  cobol('COBOL'),
 
   /* AcDoc({"description": "Dot separated lower case (e.g., my.variable.name)."}) */
-  dot('dot'),
+  dot('DOT'),
 
   /* AcDoc({"description": "kebab-case style (e.g., my-variable-name)."}) */
-  kebab('kebab'),
+  kebab('KEBAB'),
 
   /* AcDoc({"description": "Lowercase style (e.g., myvariablename)."}) */
-  lower('lower'),
+  lower('LOWER'),
 
   /* AcDoc({"description": "PascalCase style (e.g., MyVariableName)."}) */
-  pascal('pascal'),
+  pascal('PASCAL'),
 
   /* AcDoc({"description": "Pascal case with underscores (e.g., My_Variable_Name)."}) */
-  pascalSnake('pascal_snake'),
+  pascalSnake('PASCAL_SNAKE'),
 
   /* AcDoc({"description": "SCREAMING_SNAKE_CASE style (e.g., MY_VARIABLE_NAME)."}) */
-  screamingSnake('screaming_snake'),
+  screamingSnake('SCREAMING_SNAKE'),
 
   /* AcDoc({"description": "Sentence case (e.g., My variable name)."}) */
-  sentence('sentence'),
+  sentence('SENTENCE'),
 
   /* AcDoc({"description": "snake_case style (e.g., my_variable_name)."}) */
-  snake('snake'),
+  snake('SNAKE'),
 
   /* AcDoc({"description": "Train-Case style (e.g., My-Variable-Name)."}) */
-  train('train'),
+  train('TRAIN'),
 
   /* AcDoc({"description": "UPPERCASE style (e.g., MYVARIABLENAME)."}) */
-  upper('upper');
+  upper('UPPER');
 
   /* AcDoc({"description": "The string representation of the case style."}) */
   final String value;

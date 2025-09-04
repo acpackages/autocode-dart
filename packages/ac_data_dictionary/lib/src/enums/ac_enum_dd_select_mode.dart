@@ -5,19 +5,19 @@
 }) */
 enum AcEnumDDSelectMode {
   /* AcDoc({"description": "Selects all rows that match the query conditions."}) */
-  all("all"),
+  all("ALL"),
 
   /* AcDoc({"description": "Counts the number of rows that match the query conditions."}) */
-  count("count"),
+  count("COUNT"),
 
   /* AcDoc({"description": "Selects the first row that matches the query conditions."}) */
-  first("first"),
+  first("FIRST"),
 
   /* AcDoc({"description": "Selects a list of rows that match the query conditions."}) */
-  list("list"),
+  list("LIST"),
 
   /* AcDoc({"description": "Selects a list of rows along with the total count of matched rows."}) */
-  listWithCount("list_with_count");
+  listWithCount("LIST_WITH_COUNT");
 
   /* AcDoc({"description": "The string representation of the select mode."}) */
   final String value;

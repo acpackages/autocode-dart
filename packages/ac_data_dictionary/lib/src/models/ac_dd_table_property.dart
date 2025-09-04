@@ -10,8 +10,8 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcDDTableProperty {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyPropertyName = "property_name";
-  static const String keyPropertyValue = "property_value";
+  static const String keyPropertyName = "propertyName";
+  static const String keyPropertyValue = "propertyValue";
 
   /* AcDoc({
     "summary": "The name of the table property.",
@@ -40,9 +40,11 @@ class AcDDTableProperty {
     "returns": "A new, populated AcDDTableProperty instance.",
     "returns_type": "AcDDTableProperty"
   }) */
-  factory AcDDTableProperty.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDTableProperty.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDTableProperty();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -56,7 +58,10 @@ class AcDDTableProperty {
     "returns_type": "AcDDTableProperty"
   }) */
   AcDDTableProperty fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -79,6 +84,7 @@ class AcDDTableProperty {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
+
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';

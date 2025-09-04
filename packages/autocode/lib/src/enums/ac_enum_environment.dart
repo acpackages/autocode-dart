@@ -5,16 +5,16 @@
 }) */
 enum AcEnumEnvironment {
   /* AcDoc({"description": "Development environment used by engineers for building and testing."}) */
-  development('development'),
+  development('DEVELOPMENT'),
 
   /* AcDoc({"description": "Local environment typically used for personal machines or isolated setups."}) */
-  local('local'),
+  local('LOCAL'),
 
   /* AcDoc({"description": "Production environment for live deployment and real users."}) */
-  production('production'),
+  production('PRODUCTION'),
 
   /* AcDoc({"description": "Staging environment for final testing before going live."}) */
-  staging('staging');
+  staging('STAGING');
 
   /* AcDoc({"description": "The string representation of the environment."}) */
   final String value;

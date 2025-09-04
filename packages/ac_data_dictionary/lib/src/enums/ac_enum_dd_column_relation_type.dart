@@ -5,13 +5,13 @@
 }) */
 enum AcEnumDDColumnRelationType {
   /* AcDoc({"description": "Indicates the relation can be of any type (source or destination)."}) */
-  any("any"),
+  any("ANY"),
 
   /* AcDoc({"description": "Specifies the relation as a source in the schema."}) */
-  source("source"),
+  source("SOURCE"),
 
   /* AcDoc({"description": "Specifies the relation as a destination in the schema."}) */
-  destination("destination");
+  destination("DESTINATION");
 
   /* AcDoc({"description": "The string representation of the relation type."}) */
   final String value;
@@ -26,7 +26,9 @@ enum AcEnumDDColumnRelationType {
   }) */
   static AcEnumDDColumnRelationType? fromValue(String value) {
     try {
-      return AcEnumDDColumnRelationType.values.firstWhere((e) => e.value == value);
+      return AcEnumDDColumnRelationType.values.firstWhere(
+        (e) => e.value == value,
+      );
     } catch (_) {
       return null;
     }

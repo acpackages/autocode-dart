@@ -4,7 +4,7 @@ void testGemini() async {
   // 1. Create the config
   final config = AcAIClientConfig(
     model: AcEnumAIModel.gemini15Pro,
-    apiKey: '', // Replace with your Gemini API key
+    apiKey: 'AIzaSyBHqX9wEALr92mokqDnlN9sZipVLFGjC_U', // Replace with your Gemini API key
     apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
     creativityLevel: 0.7,
     responseType: AcEnumAIResponseType.text,
@@ -16,8 +16,9 @@ void testGemini() async {
 
   // 3. Prepare the request
   final request = AcAIRequest(
-    prompt: 'Summarize the latest trends in artificial intelligence.',
+    prompt: 'Extract invoice details from the image in json format. Include supplier, products and transaction details.',
     inputType: AcEnumAIInputType.text,
+    filePaths:['F:/Packages/AutoCode/Github/autocode-dart/tests/assets/wallmart-receipt.png']
   );
 
   // 4. Send the request

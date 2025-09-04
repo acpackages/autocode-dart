@@ -5,22 +5,22 @@
 }) */
 enum AcEnumDDColumnFormat {
   /* AcDoc({"description": "Represents a date format (e.g., YYYY-MM-DD)."}) */
-  date("date"),
+  date("DATE"),
 
   /* AcDoc({"description": "Indicates the column should be encrypted."}) */
-  encrypt("encrypt"),
+  encrypt("ENCRYPT"),
 
   /* AcDoc({"description": "Hides the column from display or output."}) */
-  hideColumn("hide_column"),
+  hideColumn("HIDE_COLUMN"),
 
   /* AcDoc({"description": "Denotes that the column stores JSON-formatted data."}) */
-  json("json"),
+  json("JSON"),
 
   /* AcDoc({"description": "Forces the value to be stored or displayed in lowercase."}) */
-  lowercase("lowercase"),
+  lowercase("LOWERCASE"),
 
   /* AcDoc({"description": "Forces the value to be stored or displayed in uppercase."}) */
-  uppercase("uppercase");
+  uppercase("UPPERCASE");
 
   /* AcDoc({"description": "The string representation of the column format."}) */
   final String value;

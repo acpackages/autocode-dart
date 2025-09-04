@@ -11,18 +11,18 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 class AcSqlDaoResult extends AcResult {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
   static const String keyRows = 'rows';
-  static const String keyAffectedRowsCount = 'affected_rows_count';
-  static const String keyLastInsertedId = 'last_inserted_id';
+  static const String keyAffectedRowsCount = 'affectedRowsCount';
+  static const String keyLastInsertedId = 'lastInsertedId';
   static const String keyOperation = 'operation';
-  static const String keyPrimaryKeyColumn = 'primary_key_column';
-  static const String keyPrimaryKeyValue = 'primary_key_value';
-  static const String keyTotalRows = 'total_rows';
+  static const String keyPrimaryKeyColumn = 'primaryKeyColumn';
+  static const String keyPrimaryKeyValue = 'primaryKeyValue';
+  static const String keyTotalRows = 'totalRows';
 
   /* AcDoc({
     "summary": "A list of rows returned by a SELECT query.",
     "description": "Each item in the list is a map representing a single row, with column names as keys."
   }) */
-  List<Map<String,dynamic>> rows = [];
+  List<Map<String, dynamic>> rows = [];
 
   /* AcDoc({
     "summary": "The number of rows affected by an INSERT, UPDATE, or DELETE operation."

@@ -1,4 +1,3 @@
-
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 
@@ -10,36 +9,36 @@ import 'package:autocode/autocode.dart';
 }) */
 @AcReflectable()
 class AcEventExecutionResult extends AcResult {
-/* AcDoc({"description": "Key for the continuation status during serialization."}) */
-  static const String keyContinueOperation = "continue_operation";
+  /* AcDoc({"description": "Key for the continuation status during serialization."}) */
+  static const String keyContinueOperation = "continueOperation";
 
-/* AcDoc({"description": "Key for the result availability status during serialization."}) */
-  static const String keyHasResults = "has_results";
+  /* AcDoc({"description": "Key for the result availability status during serialization."}) */
+  static const String keyHasResults = "hasResults";
 
-/* AcDoc({"description": "Key for the result data during serialization."}) */
+  /* AcDoc({"description": "Key for the result data during serialization."}) */
   static const String keyResults = "results";
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "A flag to control the continuation of an operation chain.",
 "description": "If true, the process or event chain will continue. If false, it signals that subsequent operations should be halted."
 }) */
   @AcBindJsonProperty(key: keyContinueOperation)
   bool continueOperation = true;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Indicates if the execution produced any data.",
 "description": "A boolean flag that is true if the results map contains data, and false otherwise."
 }) */
   @AcBindJsonProperty(key: keyHasResults)
   bool hasResults = false;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "A map containing the data payload from the execution.",
 "description": "Holds the key-value pairs of any data returned by the event or operation."
 }) */
   Map<String, dynamic> results = {};
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Creates an instance of an event execution result.",
 "description": "Initializes the result with optional values for controlling operation flow and providing data.",
 "params": [

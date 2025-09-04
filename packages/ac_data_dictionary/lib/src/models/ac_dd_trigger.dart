@@ -10,11 +10,11 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDTrigger {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyRowOperation = "row_operation";
-  static const String keyTableName = "table_name";
-  static const String keyTriggerCode = "trigger_code";
-  static const String keyTriggerExecution = "trigger_execution";
-  static const String keyTriggerName = "trigger_name";
+  static const String keyRowOperation = "rowOperation";
+  static const String keyTableName = "tableName";
+  static const String keyTriggerCode = "triggerCode";
+  static const String keyTriggerExecution = "triggerExecution";
+  static const String keyTriggerName = "triggerName";
 
   /* AcDoc({
     "summary": "The DML operation that fires the trigger (e.g., 'INSERT', 'UPDATE', 'DELETE')."
@@ -59,9 +59,11 @@ class AcDDTrigger {
     "returns": "A new, populated AcDDTrigger instance.",
     "returns_type": "AcDDTrigger"
   }) */
-  factory AcDDTrigger.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDTrigger.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDTrigger();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -75,9 +77,14 @@ class AcDDTrigger {
     "returns": "An AcDDTrigger instance.",
     "returns_type": "AcDDTrigger"
   }) */
-  factory AcDDTrigger.getInstance(String triggerName, {String dataDictionaryName = "default"}) {
+  factory AcDDTrigger.getInstance(
+    String triggerName, {
+    String dataDictionaryName = "default",
+  }) {
     final result = AcDDTrigger();
-    final acDataDictionary = AcDataDictionary.getInstance(dataDictionaryName:dataDictionaryName);
+    final acDataDictionary = AcDataDictionary.getInstance(
+      dataDictionaryName: dataDictionaryName,
+    );
 
     if (acDataDictionary.triggers.containsKey(triggerName)) {
       result.fromJson(jsonData: acDataDictionary.triggers[triggerName]);
@@ -96,7 +103,10 @@ class AcDDTrigger {
     "returns": "A SQL string to drop the trigger.",
     "returns_type": "String"
   }) */
-  static String getDropTriggerStatement({required String triggerName, AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropTriggerStatement({
+    required String triggerName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return 'DROP TRIGGER IF EXISTS $triggerName;';
   }
 
@@ -109,10 +119,16 @@ class AcDDTrigger {
     "returns": "The complete SQL string to create the trigger, or an empty string if the database type is not supported.",
     "returns_type": "String"
   }) */
-  String getCreateTriggerStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getCreateTriggerStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     String result = '';
-    if ([AcEnumSqlDatabaseType.mysql, AcEnumSqlDatabaseType.sqlite].contains(databaseType)) {
-      result = 'CREATE TRIGGER $triggerName $triggerExecution $rowOperation ON $tableName FOR EACH ROW BEGIN $triggerCode END;';
+    if ([
+      AcEnumSqlDatabaseType.mysql,
+      AcEnumSqlDatabaseType.sqlite,
+    ].contains(databaseType)) {
+      result =
+          'CREATE TRIGGER $triggerName $triggerExecution $rowOperation ON $tableName FOR EACH ROW BEGIN $triggerCode END;';
     }
     return result;
   }
@@ -127,7 +143,10 @@ class AcDDTrigger {
     "returns_type": "AcDDTrigger"
   }) */
   AcDDTrigger fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -150,6 +169,7 @@ class AcDDTrigger {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
+
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';

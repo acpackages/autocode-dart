@@ -1,29 +1,31 @@
+import 'package:ac_mirrors/annotations.dart';
 /* AcDoc({
   "description": "Enumeration of operations that can be performed on a row within the data dictionary system.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDRowOperation {
   /* AcDoc({"description": "Operation representing the deletion of a row."}) */
-  delete("delete"),
+  delete("DELETE"),
 
   /* AcDoc({"description": "Operation representing the formatting of a row's content or structure."}) */
-  format("format"),
+  format("FORMAT"),
 
   /* AcDoc({"description": "Operation representing the insertion of a new row."}) */
-  insert("insert"),
+  insert("INSERT"),
 
   /* AcDoc({"description": "Operation representing the saving of a row's state."}) */
-  save("save"),
+  save("SAVE"),
 
   /* AcDoc({"description": "Operation representing the selection or retrieval of a row."}) */
-  select("select"),
+  select("SELECT"),
 
   /* AcDoc({"description": "Operation representing the update of existing row data."}) */
-  update("update"),
+  update("UPDATE"),
 
   /* AcDoc({"description": "Unknown or undefined row operation."}) */
-  unknown("unknown");
+  unknown("UNKNOWN");
 
   /* AcDoc({"description": "The string representation of the row operation."}) */
   final String value;

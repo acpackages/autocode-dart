@@ -5,43 +5,43 @@
 }) */
 enum AcEnumDDRowEvent {
   /* AcDoc({"description": "Event triggered after a delete operation."}) */
-  afterDelete("after_delete"),
+  afterDelete("AFTER_DELETE"),
 
   /* AcDoc({"description": "Event triggered after formatting the row."}) */
-  afterFormat("after_format"),
+  afterFormat("AFTER_FORMAT"),
 
   /* AcDoc({"description": "Event triggered after a new row is inserted."}) */
-  afterInsert("after_insert"),
+  afterInsert("AFTER_INSERT"),
 
   /* AcDoc({"description": "Event triggered after modifications are made to the row."}) */
-  afterModify("after_modify"),
+  afterModify("AFTER_MODIFY"),
 
   /* AcDoc({"description": "Event triggered after a row is saved."}) */
-  afterSave("after_save"),
+  afterSave("AFTER_SAVE"),
 
   /* AcDoc({"description": "Event triggered after a row is updated."}) */
-  afterUpdate("after_update"),
+  afterUpdate("AFTER_UPDATE"),
 
   /* AcDoc({"description": "Event triggered before a delete operation."}) */
-  beforeDelete("before_delete"),
+  beforeDelete("BEFORE_DELETE"),
 
   /* AcDoc({"description": "Event triggered before formatting the row."}) */
-  beforeFormat("before_format"),
+  beforeFormat("BEFORE_FORMAT"),
 
   /* AcDoc({"description": "Event triggered before a new row is inserted."}) */
-  beforeInsert("before_insert"),
+  beforeInsert("BEFORE_INSERT"),
 
   /* AcDoc({"description": "Event triggered before modifying a row."}) */
-  beforeModify("before_modify"),
+  beforeModify("BEFORE_MODIFY"),
 
   /* AcDoc({"description": "Event triggered before saving a row."}) */
-  beforeSave("before_save"),
+  beforeSave("BEFORE_SAVE"),
 
   /* AcDoc({"description": "Event triggered before a row is updated."}) */
-  beforeUpdate("before_update"),
+  beforeUpdate("BEFORE_UPDATE"),
 
   /* AcDoc({"description": "Unknown or unclassified row event."}) */
-  unknown("unknown");
+  unknown("UNKNOWN");
 
   /* AcDoc({"description": "The string representation of the row event."}) */
   final String value;

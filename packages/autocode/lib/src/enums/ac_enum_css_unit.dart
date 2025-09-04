@@ -5,22 +5,22 @@
 }) */
 enum AcEnumCssUnit {
   /* AcDoc({"description": "Pixels - relative to the screen resolution."}) */
-  px('px'),
+  px('PX'),
 
   /* AcDoc({"description": "Centimeters - absolute length unit."}) */
-  cm('cm'),
+  cm('CM'),
 
   /* AcDoc({"description": "Millimeters - absolute length unit."}) */
-  mm('mm'),
+  mm('MM'),
 
   /* AcDoc({"description": "Inches - absolute length unit."}) */
-  inch('in'),
+  inch('IN'),
 
   /* AcDoc({"description": "Points - 1/72 of an inch."}) */
-  pt('pt'),
+  pt('PT'),
 
   /* AcDoc({"description": "Picas - 1 pica equals 12 points."}) */
-  pc('pc');
+  pc('PC');
 
   /* AcDoc({"description": "The string representation of the CSS unit (e.g., 'px', 'cm')."}) */
   final String value;

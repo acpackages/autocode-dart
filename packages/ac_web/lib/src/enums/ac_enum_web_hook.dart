@@ -5,7 +5,7 @@
 }) */
 enum AcEnumWebHook {
   /* AcDoc({"description": "Triggered when a new AcWeb instance is created."}) */
-  acWebCreated("ac_web_created");
+  acWebCreated("AC_WEB_CREATED");
 
   /* AcDoc({"description": "The string value associated with the webhook type."}) */
   final String value;

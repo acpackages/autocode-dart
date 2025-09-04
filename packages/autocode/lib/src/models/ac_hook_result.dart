@@ -8,7 +8,7 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcHookResult extends AcResult {
   /* AcDoc({ "description": "Key used to map the continueOperation flag in JSON serialization." }) */
-  static const String keyContinueOperation = "continue_operation";
+  static const String keyContinueOperation = "continueOperation";
 
   /* AcDoc({ "description": "Key used to map the changes list in JSON serialization." }) */
   static const String keyChanges = "changes";

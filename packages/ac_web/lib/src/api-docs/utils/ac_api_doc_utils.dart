@@ -59,10 +59,7 @@ class AcApiDocUtils {
       AcEnumDDColumnType.integer,
     ].contains(dataType)) {
       result = AcEnumApiDataType.integer.value;
-    } else if ([
-      AcEnumDDColumnType.json,
-      AcEnumDDColumnType.mediaJson,
-    ].contains(dataType)) {
+    } else if ([AcEnumDDColumnType.json].contains(dataType)) {
       result = AcEnumApiDataType.object.value;
     } else if (dataType == AcEnumDDColumnType.double_) {
       result = AcEnumApiDataType.number.value;
@@ -86,7 +83,8 @@ class AcApiDocUtils {
   }) {
     if (acApiDoc.models.containsKey(acDDTable.tableName)) {
       return {
-        r'$ref': "#/components/schemas/${acApiDoc.models[acDDTable.tableName]!.name}",
+        r'$ref':
+            "#/components/schemas/${acApiDoc.models[acDDTable.tableName]!.name}",
       };
     }
 
@@ -95,8 +93,12 @@ class AcApiDocUtils {
     final modelProperties = <String, dynamic>{};
 
     for (final column in acDDTable.tableColumns) {
-      final columnType = getApiDataTypeFromDataDictionaryDataType(dataType: column.columnType);
-      final columnFormat = getApiDataFormatFromDataDictionaryDataType(dataType: column.columnType);
+      final columnType = getApiDataTypeFromDataDictionaryDataType(
+        dataType: column.columnType,
+      );
+      final columnFormat = getApiDataFormatFromDataDictionaryDataType(
+        dataType: column.columnType,
+      );
 
       final propertySchema = {'type': columnType};
       if (columnFormat.isNotEmpty) {
@@ -109,7 +111,8 @@ class AcApiDocUtils {
     acApiDoc.addModel(model: acApiDocModel);
 
     return {
-      r'$ref': "#/components/schemas/${acApiDoc.models[acDDTable.tableName]!.name}",
+      r'$ref':
+          "#/components/schemas/${acApiDoc.models[acDDTable.tableName]!.name}",
     };
   }
 
@@ -160,7 +163,9 @@ class AcApiDocUtils {
           case 'List':
           case 'Array':
             propSchema['type'] = 'array';
-            propSchema['items'] = {'type': 'object'}; // Default for unknown list type
+            propSchema['items'] = {
+              'type': 'object',
+            }; // Default for unknown list type
             break;
           case 'String':
             propSchema['type'] = 'string';
@@ -168,9 +173,12 @@ class AcApiDocUtils {
           default:
             try {
               acReflectClass(propType);
-              propSchema.addAll(getApiModelRefFromClass(type: propType, acApiDoc: acApiDoc));
+              propSchema.addAll(
+                getApiModelRefFromClass(type: propType, acApiDoc: acApiDoc),
+              );
             } catch (e) {
-              propSchema['type'] = 'string'; // Fallback for non-reflectable types
+              propSchema['type'] =
+                  'string'; // Fallback for non-reflectable types
             }
             break;
         }
@@ -224,9 +232,10 @@ class AcApiDocUtils {
       },
     );
 
-    final acApiDocResponse = AcApiDocResponse(description: "Successful operation")
-      ..code = AcEnumHttpResponseCode.ok
-      ..content['application/json'] = jsonContent;
+    final acApiDocResponse =
+        AcApiDocResponse(description: "Successful operation")
+          ..code = AcEnumHttpResponseCode.ok
+          ..content['application/json'] = jsonContent;
 
     responses.add(acApiDocResponse);
 

@@ -5,28 +5,28 @@
 }) */
 enum AcEnumWebResponseType {
   /* AcDoc({"description": "Indicates a downloadable file response."}) */
-  download("download"),
+  download("DOWNLOAD"),
 
   /* AcDoc({"description": "Indicates a file response type, typically binary or large file transfers."}) */
-  file("file"),
+  file("FILE"),
 
   /* AcDoc({"description": "Response that returns HTML content."}) */
-  html("html"),
+  html("HTML"),
 
   /* AcDoc({"description": "Response formatted as JSON."}) */
-  json("json"),
+  json("JSON"),
 
   /* AcDoc({"description": "Response that redirects the user to another URL."}) */
-  redirect("redirect"),
+  redirect("REDIRECT"),
 
   /* AcDoc({"description": "Raw, unformatted response output."}) */
-  raw("raw"),
+  raw("RAW"),
 
   /* AcDoc({"description": "Plain text response."}) */
-  text("text"),
+  text("TEXT"),
 
   /* AcDoc({"description": "Response that returns a rendered view/template."}) */
-  view("view");
+  view("VIEW");
 
   /* AcDoc({"description": "The string value associated with the web response type."}) */
   final String value;

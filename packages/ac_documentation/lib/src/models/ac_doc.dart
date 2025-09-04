@@ -19,7 +19,7 @@ class AcDoc {
   static const String keyOwner = "owner";
   static const String keyParams = "params";
   static const String keyReturns = "returns";
-  static const String keyReturnsType = "returns_type";
+  static const String keyReturnsType = "returnsType";
   static const String keyThrows = "throws";
   static const String keyExamples = "examples";
   static const String keyTags = "tags";
@@ -28,7 +28,7 @@ class AcDoc {
   static const String keyFeature = "feature";
   static const String keyPlatforms = "platforms";
   static const String keyVisibility = "visibility";
-  static const String keyVisibilityModifiers = "visibility_modifiers";
+  static const String keyVisibilityModifiers = "visibilityModifiers";
   static const String keyLicense = "license";
   static const String keyDeprecated = "deprecated";
   static const String keyTodo = "todo";
@@ -37,31 +37,31 @@ class AcDoc {
   static const String keyDocs = "docs";
   static const String keySource = "source";
   static const String keyIssues = "issues";
-  static const String keySecurityNotes = "security_notes";
+  static const String keySecurityNotes = "securityNotes";
   static const String keyCompliance = "compliance";
   static const String keyCompatibility = "compatibility";
   static const String keyIsAsync = "is_async";
   static const String keyIsPure = "is_pure";
   static const String keyIsStatic = "is_static";
-  static const String keyIsConstructor = "is_constructor";
-  static const String keyIsDeprecated = "is_deprecated";
+  static const String keyIsConstructor = "isConstructor";
+  static const String keyIsDeprecated = "isDeprecated";
   static const String keyInheritDoc = "inherit_doc";
-  static const String keyIsRequired = "is_required";
-  static const String keyIsNullable = "is_nullable";
-  static const String keyIsReadonly = "is_readonly";
-  static const String keyDefaultValue = "default_value";
+  static const String keyIsRequired = "isRequired";
+  static const String keyIsNullable = "isNullable";
+  static const String keyIsReadonly = "isReadonly";
+  static const String keyDefaultValue = "defaultValue";
   static const String keyOverrides = "overrides";
   static const String keyImplements = "implements";
-  static const String keyImplementsInterfaces = "implements_interfaces";
+  static const String keyImplementsInterfaces = "implementsInterfaces";
   static const String keyExtends = "extends";
   static const String keyMixins = "mixins";
-  static const String keyTypeParams = "type_params";
-  static const String keyFilePath = "file_path";
-  static const String keySourceLine = "source_line";
-  static const String keyAnchorId = "anchor_id";
-  static const String keyTargetName = "target_name";
-  static const String keyTargetType = "target_type";
-  static const String keyEnclosingClass = "enclosing_class";
+  static const String keyTypeParams = "typeParams";
+  static const String keyFilePath = "filePath";
+  static const String keySourceLine = "sourceLine";
+  static const String keyAnchorId = "anchorId";
+  static const String keyTargetName = "targetName";
+  static const String keyTargetType = "targetType";
+  static const String keyEnclosingClass = "enclosingClass";
 
   /* AcDoc({"description": "The type of documentation entry, e.g., 'usage', 'development'."}) */
   dynamic type;
@@ -252,13 +252,16 @@ class AcDoc {
   /* AcDoc({"description": "Creates an instance of AcDoc from a JSON map."}) */
   factory AcDoc.instanceFromJson({required Map<String, dynamic> jsonData}) {
     final instance = AcDoc();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
   /* AcDoc({"description": "Populates this instance with values from a JSON map."}) */
   AcDoc fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

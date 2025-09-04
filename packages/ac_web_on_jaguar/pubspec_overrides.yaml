@@ -1,0 +1,15 @@
+# melos_managed_dependency_overrides: ac_data_dictionary,ac_extensions,ac_mirrors,ac_sql,ac_web,autocode,mime
+dependency_overrides:
+  ac_data_dictionary:
+    path: ..\\ac_data_dictionary
+  ac_extensions:
+    path: ..\\ac_extensions
+  ac_mirrors:
+    path: ..\\ac_mirrors
+  ac_sql:
+    path: ..\\ac_sql
+  ac_web:
+    path: ..\\ac_web
+  autocode:
+    path: ..\\autocode
+  mime: ^2.0.0

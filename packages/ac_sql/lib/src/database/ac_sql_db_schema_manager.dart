@@ -919,6 +919,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
       }
     } on Exception catch (ex, stack) {
+
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
     return result;

@@ -5,61 +5,61 @@
 }) */
 enum AcEnumSqlEntity {
   /* AcDoc({"description": "Represents a SQL function entity."}) */
-  function('function'),
+  function('FUNCTION'),
 
   /* AcDoc({"description": "Represents a relationship entity in SQL such as foreign keys."}) */
-  relationship('relationship'),
+  relationship('RELATIONSHIP'),
 
   /* AcDoc({"description": "Represents a stored procedure in SQL."}) */
-  storedProcedure('stored_procedure'),
+  storedProcedure('STORED_PROCEDURE'),
 
   /* AcDoc({"description": "Represents a table entity in SQL."}) */
-  table('table'),
+  table('TABLE'),
 
   /* AcDoc({"description": "Represents a SQL trigger."}) */
-  trigger('trigger'),
+  trigger('TRIGGER'),
 
   /* AcDoc({"description": "Represents a view entity in SQL."}) */
-  view('view'),
+  view('VIEW'),
 
   /* AcDoc({"description": "Represents an index used to speed up queries."}) */
-  index_('index'),
+  index_('INDEX'),
 
   /* AcDoc({"description": "Represents a schema in a SQL database."}) */
-  schema('schema'),
+  schema('SCHEMA'),
 
   /* AcDoc({"description": "Represents a sequence object for generating numeric values."}) */
-  sequence('sequence'),
+  sequence('SEQUENCE'),
 
   /* AcDoc({"description": "Represents a constraint entity like primary key or check constraint."}) */
-  constraint('constraint'),
+  constraint('CONSTRAINT'),
 
   /* AcDoc({"description": "Represents a column in a SQL table."}) */
-  column('column'),
+  column('COLUMN'),
 
   /* AcDoc({"description": "Represents an entire SQL database."}) */
-  database('database'),
+  database('DATABASE'),
 
   /* AcDoc({"description": "Represents a user-defined type (UDT)."}) */
-  userDefinedType('user_defined_type'),
+  userDefinedType('USER_DEFINED_TYPE'),
 
   /* AcDoc({"description": "Represents a synonym, which is an alias for another object."}) */
-  synonym('synonym'),
+  synonym('SYNONYM'),
 
   /* AcDoc({"description": "Represents a SQL role."}) */
-  role('role'),
+  role('ROLE'),
 
   /* AcDoc({"description": "Represents a SQL rule object."}) */
-  rule('rule'),
+  rule('RULE'),
 
   /* AcDoc({"description": "Represents a default value object in SQL."}) */
-  defaultValue('default'),
+  defaultValue('DEFAULT'),
 
   /* AcDoc({"description": "Represents a partition function used in table partitioning."}) */
-  partitionFunction('partition_function'),
+  partitionFunction('PARTITION_FUNCTION'),
 
   /* AcDoc({"description": "Represents a partition scheme for mapping partitions to filegroups."}) */
-  partitionScheme('partition_scheme');
+  partitionScheme('PARTITION_SCHEME');
 
   /* AcDoc({"description": "The string representation of the SQL entity."}) */
   final String value;

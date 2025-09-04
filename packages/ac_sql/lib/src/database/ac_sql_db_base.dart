@@ -51,6 +51,10 @@ class AcSqlDbBase {
       // The force-unwrap `!` implies AcSqlDatabase.sqlConnection must be configured before creating this class.
       dao?.setSqlConnection(sqlConnection: sqlConnection!);
     }
+    else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      dao = AcSqliteDao();
+      dao?.setSqlConnection(sqlConnection: sqlConnection!);
+    }
     // Other database types like SQLite or PostgreSQL could be handled here.
   }
 

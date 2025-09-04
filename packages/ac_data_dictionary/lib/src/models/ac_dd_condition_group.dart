@@ -10,7 +10,7 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDConditionGroup {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyDatabaseType = "database_type";
+  static const String keyDatabaseType = "databaseType";
   static const String keyConditions = "conditions";
   static const String keyOperator = "operator";
 
@@ -47,9 +47,11 @@ class AcDDConditionGroup {
     "returns": "A new, populated AcDDConditionGroup instance.",
     "returns_type": "AcDDConditionGroup"
   }) */
-  factory AcDDConditionGroup.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDConditionGroup.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDConditionGroup();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -64,13 +66,21 @@ class AcDDConditionGroup {
     "returns": "The current instance, allowing for a fluent interface.",
     "returns_type": "AcDDConditionGroup"
   }) */
-  AcDDConditionGroup addCondition({required String columnName, required AcEnumConditionOperator operator, required dynamic value}) {
-    conditions.add(AcDDCondition.instanceFromJson(jsonData:{
-      // Assuming AcDDCondition constants are also refactored to lowerCamelCase
-      AcDDCondition.keyColumnName: columnName,
-      AcDDCondition.keyOperator: operator,
-      AcDDCondition.keyValue: value,
-    }));
+  AcDDConditionGroup addCondition({
+    required String columnName,
+    required AcEnumConditionOperator operator,
+    required dynamic value,
+  }) {
+    conditions.add(
+      AcDDCondition.instanceFromJson(
+        jsonData: {
+          // Assuming AcDDCondition constants are also refactored to lowerCamelCase
+          AcDDCondition.keyColumnName: columnName,
+          AcDDCondition.keyOperator: operator,
+          AcDDCondition.keyValue: value,
+        },
+      ),
+    );
     return this;
   }
 
@@ -84,11 +94,18 @@ class AcDDConditionGroup {
     "returns": "The current instance, allowing for a fluent interface.",
     "returns_type": "AcDDConditionGroup"
   }) */
-  AcDDConditionGroup addConditionGroup({required List<dynamic> conditions, AcEnumLogicalOperator operator = AcEnumLogicalOperator.and}) {
-    this.conditions.add(AcDDConditionGroup.instanceFromJson(jsonData:{
-      AcDDConditionGroup.keyConditions: conditions,
-      AcDDConditionGroup.keyOperator: operator,
-    }));
+  AcDDConditionGroup addConditionGroup({
+    required List<dynamic> conditions,
+    AcEnumLogicalOperator operator = AcEnumLogicalOperator.and,
+  }) {
+    this.conditions.add(
+      AcDDConditionGroup.instanceFromJson(
+        jsonData: {
+          AcDDConditionGroup.keyConditions: conditions,
+          AcDDConditionGroup.keyOperator: operator,
+        },
+      ),
+    );
     return this;
   }
 
@@ -102,24 +119,29 @@ class AcDDConditionGroup {
     "returns_type": "AcDDConditionGroup"
   }) */
   AcDDConditionGroup fromJson({required Map<String, dynamic> jsonData}) {
-    Map<String,dynamic> json = Map.from(jsonData);
+    Map<String, dynamic> json = Map.from(jsonData);
     if (json.containsKey(keyConditions)) {
       final conditionList = json[keyConditions] as List;
       for (final condition in conditionList) {
         if (condition is Map<String, dynamic>) {
           // If it has a 'conditions' key, it's a nested group.
           if (condition.containsKey(keyConditions)) {
-            conditions.add(AcDDConditionGroup.instanceFromJson(jsonData:condition));
+            conditions.add(
+              AcDDConditionGroup.instanceFromJson(jsonData: condition),
+            );
           }
           // Otherwise, if it has a 'column_name' key, it's a simple condition.
           else if (condition.containsKey(AcDDCondition.keyColumnName)) {
-            conditions.add(AcDDCondition.instanceFromJson(jsonData:condition));
+            conditions.add(AcDDCondition.instanceFromJson(jsonData: condition));
           }
         }
       }
       json.remove(keyConditions);
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance:this, jsonData:json);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: json,
+    );
     return this;
   }
 
@@ -130,7 +152,7 @@ class AcDDConditionGroup {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance:this);
+    return AcJsonUtils.getJsonDataFromInstance(instance: this);
   }
 
   /* AcDoc({
@@ -143,7 +165,6 @@ class AcDDConditionGroup {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
-
 
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';

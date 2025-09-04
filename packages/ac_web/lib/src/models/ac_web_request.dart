@@ -16,7 +16,7 @@ class AcWebRequest {
   static const String keyQueryParameters = 'get'; // Renamed for clarity in docs
   static const String keyHeaders = 'headers';
   static const String keyMethod = 'method';
-  static const String keyPathParameters = 'path_parameters';
+  static const String keyPathParameters = 'pathParameters';
   static const String keyFormFields = 'post'; // Renamed for clarity in docs
   static const String keySession = 'session';
   static const String keyUrl = 'url';
@@ -46,7 +46,6 @@ class AcWebRequest {
   @AcBindJsonProperty(key: keyQueryParameters)
   Map<String, dynamic> get queryParameters => get; // Keep original name for compatibility, use getter for clarity.
   Map<String, dynamic> get = {};
-
 
   /* AcDoc({"summary": "A map of HTTP headers sent with the request."}) */
   @AcBindJsonProperty(key: keyHeaders)
@@ -109,7 +108,10 @@ class AcWebRequest {
     "returns_type": "AcWebRequest"
   }) */
   AcWebRequest fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

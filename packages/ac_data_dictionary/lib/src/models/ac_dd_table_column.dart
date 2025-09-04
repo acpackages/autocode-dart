@@ -1,6 +1,7 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
+
 @AcReflectable()
 /* AcDoc({
   "summary": "Represents a single column within a database table definition.",
@@ -8,10 +9,10 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
   "example": "// 1. Retrieve a column definition from a table.\nfinal userTable = AcDDTable.getInstance(tableName: 'users');\nfinal idColumn = userTable.getColumn('id');\n\n// 2. Check properties of the column.\nif (idColumn != null && idColumn.isPrimaryKey()) {\n  print('Column \"id\" is the primary key.');\n}\n\n// 3. Generate the SQL definition for the column.\nfinal definition = idColumn?.getColumnDefinitionForStatement(databaseType: AcEnumSqlDatabaseType.mysql);\nprint('SQL Definition: \$definition');"
 }) */
 class AcDDTableColumn {
-  static const String keyColumnName = "column_name";
-  static const String keyColumnProperties = "column_properties";
-  static const String keyColumnType = "column_type";
-  static const String keyColumnValue = "column_value";
+  static const String keyColumnName = "columnName";
+  static const String keyColumnProperties = "columnProperties";
+  static const String keyColumnType = "columnType";
+  static const String keyColumnValue = "columnValue";
 
   /* AcDoc({"summary": "The name of the database column."}) */
   @AcBindJsonProperty(key: AcDDTableColumn.keyColumnName)
@@ -36,8 +37,7 @@ class AcDDTableColumn {
     "summary": "A back-reference to the parent table containing this column.",
     "description": "This is populated during the table's `fromJson` deserialization process."
   }) */
-  @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
-
+  @AcBindJsonProperty(skipInFromJson: true, skipInToJson: true)
   /* AcDoc({"summary": "Creates a new, empty instance of a table column."}) */
   AcDDTable? table;
 
@@ -52,8 +52,16 @@ class AcDDTableColumn {
     "returns": "An `AcDDTableColumn` instance.",
     "returns_type": "AcDDTableColumn"
   }) */
-  static AcDDTableColumn getInstance({required String tableName,required String columnName,String dataDictionaryName = "default"}) {
-    return AcDataDictionary.getTableColumn(tableName:tableName,columnName: columnName,dataDictionaryName: dataDictionaryName)!;
+  static AcDDTableColumn getInstance({
+    required String tableName,
+    required String columnName,
+    String dataDictionaryName = "default",
+  }) {
+    return AcDataDictionary.getTableColumn(
+      tableName: tableName,
+      columnName: columnName,
+      dataDictionaryName: dataDictionaryName,
+    )!;
   }
 
   /* AcDoc({
@@ -82,7 +90,11 @@ class AcDDTableColumn {
     "returns": "A SQL string to drop the column.",
     "returns_type": "String"
   }) */
-  static String getDropColumnStatement({required String tableName,required String columnName,AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropColumnStatement({
+    required String tableName,
+    required String columnName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return "ALTER TABLE $tableName DROP COLUMN $columnName;";
   }
 
@@ -93,7 +105,10 @@ class AcDDTableColumn {
       AcEnumDDColumnProperty.checkInAutoNumber.value,
     )) {
       result =
-          (columnProperties[AcEnumDDColumnProperty.checkInAutoNumber.value]?.propertyValue ?? false) == true;
+          (columnProperties[AcEnumDDColumnProperty.checkInAutoNumber.value]
+                  ?.propertyValue ??
+              false) ==
+          true;
     }
     return result;
   }
@@ -101,7 +116,9 @@ class AcDDTableColumn {
   /* AcDoc({"summary": "Checks if the column is configured to be modifiable."}) */
   bool checkInModify() {
     bool result = false;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.checkInModify.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.checkInModify.value,
+    )) {
       result =
           (columnProperties[AcEnumDDColumnProperty.checkInModify.value]
                   ?.propertyValue ??
@@ -114,7 +131,9 @@ class AcDDTableColumn {
   /* AcDoc({"summary": "Checks if the column is configured to be included in save operations."}) */
   bool checkInSave() {
     bool result = false;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.checkInSave.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.checkInSave.value,
+    )) {
       result =
           (columnProperties[AcEnumDDColumnProperty.checkInSave.value]
                   ?.propertyValue ??
@@ -160,9 +179,12 @@ class AcDDTableColumn {
   /* AcDoc({"summary": "Gets the defined default value for the column."}) */
   dynamic getDefaultValue() {
     dynamic result;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.defaultValue.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.defaultValue.value,
+    )) {
       result =
-          columnProperties[AcEnumDDColumnProperty.defaultValue.value]?.propertyValue;
+          columnProperties[AcEnumDDColumnProperty.defaultValue.value]
+              ?.propertyValue;
     }
     return result;
   }
@@ -172,7 +194,9 @@ class AcDDTableColumn {
     List<String> result = [];
     if (columnProperties.containsKey(AcEnumDDColumnProperty.format.value)) {
       result =
-          columnProperties[AcEnumDDColumnProperty.format.value]?.propertyValue ?? [];
+          columnProperties[AcEnumDDColumnProperty.format.value]
+              ?.propertyValue ??
+          [];
     }
     return result;
   }
@@ -180,7 +204,9 @@ class AcDDTableColumn {
   /* AcDoc({"summary": "Gets the display title for the column, falling back to the column name."}) */
   String getColumnTitle() {
     String result = columnName;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.columnTitle.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.columnTitle.value,
+    )) {
       result =
           columnProperties[AcEnumDDColumnProperty.columnTitle.value]
               ?.propertyValue ??
@@ -194,7 +220,10 @@ class AcDDTableColumn {
     "returns": "An `ALTER TABLE...ADD COLUMN` SQL string.",
     "returns_type": "String"
   }) */
-  String getAddColumnStatement({required tableName,AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getAddColumnStatement({
+    required tableName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     if (databaseType == AcEnumSqlDatabaseType.mysql) {
       return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement()}";
     }
@@ -210,7 +239,9 @@ class AcDDTableColumn {
     "returns": "The SQL column definition string.",
     "returns_type": "String"
   }) */
-  String getColumnDefinitionForStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getColumnDefinitionForStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     String result = "";
     var defaultValue = getDefaultValue();
     var size = getSize();
@@ -256,7 +287,8 @@ class AcDDTableColumn {
           sqlType = 'TIME';
           break;
         case AcEnumDDColumnType.timestamp:
-          sqlType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
+          sqlType =
+              'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
           break;
         default:
           sqlType = 'TEXT';
@@ -348,7 +380,8 @@ class AcDDTableColumn {
     int result = 0;
     if (columnProperties.containsKey(AcEnumDDColumnProperty.size.value)) {
       result =
-          columnProperties[AcEnumDDColumnProperty.size.value]?.propertyValue ?? 0;
+          columnProperties[AcEnumDDColumnProperty.size.value]?.propertyValue ??
+          0;
     }
     return result;
   }
@@ -356,7 +389,9 @@ class AcDDTableColumn {
   /* AcDoc({"summary": "Checks if the column is an auto-incrementing integer."}) */
   bool isAutoIncrement() {
     bool result = false;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.autoIncrement.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.autoIncrement.value,
+    )) {
       result =
           (columnProperties[AcEnumDDColumnProperty.autoIncrement.value]
                   ?.propertyValue ??
@@ -380,11 +415,13 @@ class AcDDTableColumn {
   }
 
   /* AcDoc({"summary": "Checks if the column should be included in default search queries."}) */
-  bool isInSearchQuery() {
+  bool isUseForRowLikeFilter() {
     bool result = false;
-    if (columnProperties.containsKey(AcEnumDDColumnProperty.inSearchQuery.value)) {
+    if (columnProperties.containsKey(
+      AcEnumDDColumnProperty.useForRowLikeFilter.value,
+    )) {
       result =
-          (columnProperties[AcEnumDDColumnProperty.inSearchQuery.value]
+          (columnProperties[AcEnumDDColumnProperty.useForRowLikeFilter.value]
                   ?.propertyValue ??
               false) ==
           true;
@@ -397,7 +434,8 @@ class AcDDTableColumn {
     bool result = false;
     if (columnProperties.containsKey(AcEnumDDColumnProperty.notNull.value)) {
       result =
-          (columnProperties[AcEnumDDColumnProperty.notNull.value]?.propertyValue ??
+          (columnProperties[AcEnumDDColumnProperty.notNull.value]
+                  ?.propertyValue ??
               false) ==
           true;
     }
@@ -422,7 +460,8 @@ class AcDDTableColumn {
     bool result = false;
     if (columnProperties.containsKey(AcEnumDDColumnProperty.required.value)) {
       result =
-          (columnProperties[AcEnumDDColumnProperty.required.value]?.propertyValue ??
+          (columnProperties[AcEnumDDColumnProperty.required.value]
+                  ?.propertyValue ??
               false) ==
           true;
     }
@@ -464,7 +503,8 @@ class AcDDTableColumn {
     bool result = false;
     if (columnProperties.containsKey(AcEnumDDColumnProperty.uniqueKey.value)) {
       result =
-          (columnProperties[AcEnumDDColumnProperty.uniqueKey.value]?.propertyValue ??
+          (columnProperties[AcEnumDDColumnProperty.uniqueKey.value]
+                  ?.propertyValue ??
               false) ==
           true;
     }
@@ -481,7 +521,7 @@ class AcDDTableColumn {
     "returns_type": "AcDDTableColumn"
   }) */
   AcDDTableColumn fromJson({required Map<String, dynamic> jsonData}) {
-    Map<String,dynamic> json = Map.from(jsonData);
+    Map<String, dynamic> json = Map.from(jsonData);
     if (json.containsKey(keyColumnProperties) &&
         json[keyColumnProperties] is Map) {
       jsonData[keyColumnProperties].forEach((key, value) {

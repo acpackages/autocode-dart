@@ -23,9 +23,9 @@ class AcResult {
   static const String keyException = 'exception';
   static const String keyLog = 'log';
   static const String keyMessage = 'message';
-  static const String keyOtherDetails = 'other_details';
-  static const String keyPreviousResult = 'previous_result';
-  static const String keyStackTrace = 'stack_trace';
+  static const String keyOtherDetails = 'otherDetails';
+  static const String keyPreviousResult = 'previousResult';
+  static const String keyStackTrace = 'stackTrace';
   static const String keyStatus = 'status';
   static const String keyValue = 'value';
 
@@ -67,7 +67,10 @@ class AcResult {
 
   /* AcDoc({ "description": "Populates this instance from JSON." }) */
   AcResult fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -93,7 +96,11 @@ class AcResult {
   }
 
   /* AcDoc({ "description": "Copies relevant properties from another result." }) */
-  AcResult setFromResult({required AcResult result, String? message, AcLogger? logger}) {
+  AcResult setFromResult({
+    required AcResult result,
+    String? message,
+    AcLogger? logger,
+  }) {
     status = result.status;
     this.message = result.message;
     code = result.code;

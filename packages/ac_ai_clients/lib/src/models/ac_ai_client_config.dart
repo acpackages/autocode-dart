@@ -16,12 +16,12 @@ import '../enums/ac_enum_ai_response_type.dart';
 @AcReflectable()
 class AcAIClientConfig {
   static const String keyModel = "model";
-  static const String keyApiKey = "api_key";
-  static const String keyApiUrl = "api_url";
-  static const String keyResponseType = "response_type";
+  static const String keyApiKey = "apiKey";
+  static const String keyApiUrl = "apiUrl";
+  static const String keyResponseType = "responseType";
   static const String keyLanguage = "language";
   static const String keyTone = "tone";
-  static const String keyCreativityLevel = "creativity_level";
+  static const String keyCreativityLevel = "creativityLevel";
   static const String keyOrganization = "organization";
   static const String keyProject = "project";
 
@@ -95,7 +95,9 @@ class AcAIClientConfig {
     "params": [{"name": "jsonData", "description": "The JSON map containing configuration values."}],
     "returns": "A configured AcAIClientConfig instance."
   }) */
-  factory AcAIClientConfig.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcAIClientConfig.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcAIClientConfig();
     instance.fromJson(jsonData: jsonData);
     return instance;
@@ -107,7 +109,10 @@ class AcAIClientConfig {
     "returns": "The current instance with values populated."
   }) */
   AcAIClientConfig fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

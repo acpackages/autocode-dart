@@ -1,0 +1,36 @@
+name: ac_chat
+description: A complete Flutter chat UI toolkit, flexible and pluggable, supporting mobile, desktop, and web.
+version: 0.0.1
+publish_to: 'none'  # For example purposes, not publishing.
+
+environment:
+  sdk: ^3.6.2
+  flutter: ">=3.27.4"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.18.0  # For date formatting
+  image_picker: ^1.0.0  # For attachments
+  file_picker: ^6.0.0  # For file picking
+  audio_waveforms: ^1.0.0  # For audio messages
+  video_player: ^2.8.0  # For video messages
+  chewie: ^1.7.0  # Video player controls
+  flutter_chat_types: ^0.0.1  # Assuming a types package, but we'll define our own
+  flutter_emoji_picker: ^0.0.1  # Placeholder, use any emoji picker
+  shared_preferences: ^2.2.0  # For drafts, themes, etc.
+  flutter_slidable: ^3.0.0  # For swipe actions
+  cached_network_image: ^3.3.0  # For avatars and images
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+# This package supports all platforms listed below.
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:

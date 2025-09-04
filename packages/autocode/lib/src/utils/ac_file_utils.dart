@@ -396,7 +396,7 @@ class AcFileUtils {
   }) */
   static String getMimeTypeFromExt(String extension) {
     final lowerExt = extension.toLowerCase();
-    return values[lowerExt]?['mime_type'] ?? '';
+    return values[lowerExt]?['mime_type'] ?? 'application/octet-stream';
   }
 
   /* AcDoc({
@@ -404,7 +404,7 @@ class AcFileUtils {
   }) */
   static String getMimeTypeFromName(String fileName) {
     final parts = fileName.split('.');
-    return parts.length > 1 ? getMimeTypeFromExt(parts.last) : '';
+    return parts.length > 1 ? getMimeTypeFromExt(parts.last) : 'application/octet-stream';
   }
 
   /* AcDoc({

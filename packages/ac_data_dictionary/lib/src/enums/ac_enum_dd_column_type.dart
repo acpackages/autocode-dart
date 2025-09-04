@@ -5,55 +5,55 @@
 }) */
 enum AcEnumDDColumnType {
   /* AcDoc({"description": "Auto-incrementing numeric field."}) */
-  autoIncrement("auto_increment"),
+  autoIncrement("AUTO_INCREMENT"),
 
   /* AcDoc({"description": "Automatically generated unique identifier in a specific format."}) */
-  autoNumber("auto_number"),
+  autoNumber("AUTO_NUMBER"),
+  autoIndex("AUTO_INDEX"),
 
   /* AcDoc({"description": "Binary Large Object for storing binary data."}) */
-  blob("blob"),
+  blob("BLOB"),
 
   /* AcDoc({"description": "Date-only field (YYYY-MM-DD)."}) */
-  date("date"),
+  date("DATE"),
 
   /* AcDoc({"description": "Date and time field."}) */
-  datetime("datetime"),
+  datetime("DATETIME"),
 
   /* AcDoc({"description": "Double-precision floating point number."}) */
-  double_("double"),
+  double_("DOUBLE"),
 
   /* AcDoc({"description": "Field that stores encrypted data."}) */
-  encrypted("encrypted"),
+  encrypted("ENCRYPTED"),
 
   /* AcDoc({"description": "Integer numeric field."}) */
-  integer("integer"),
+  integer("INTEGER"),
 
   /* AcDoc({"description": "JSON structured data field."}) */
-  json("json"),
-
-  /* AcDoc({"description": "JSON representing media data, such as images or video metadata."}) */
-  mediaJson("media_json"),
+  json("JSON"),
 
   /* AcDoc({"description": "Field to store user passwords, typically hashed."}) */
-  password("password"),
+  password("PASSWORD"),
 
   /* AcDoc({"description": "Textual string field."}) */
-  string("string"),
+  string("STRING"),
 
   /* AcDoc({"description": "Long form text field."}) */
-  text("text"),
+  text("TEXT"),
 
   /* AcDoc({"description": "Time-only field (HH:MM:SS)."}) */
-  time("time"),
+  time("TIME"),
 
   /* AcDoc({"description": "Timestamp with automatic time tracking."}) */
-  timestamp("timestamp"),
+  timestamp("TIMESTAMP"),
 
   /* AcDoc({"description": "Field representing a computed value via user-defined logic."}) */
-  userDefinedFunction("user_defined_function"),
+  unknown("UNKNOWN"),
 
   /* AcDoc({"description": "Universally Unique Identifier field."}) */
-  uuid("uuid");
+  uuid("UUID"),
+
+  yesNo("YES_NO");
 
   /* AcDoc({"description": "The string representation of the column type."}) */
   final String value;

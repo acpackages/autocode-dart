@@ -14,8 +14,8 @@ class AcWebResponse {
   static const String keyCookies = 'cookies';
   static const String keyContent = 'content';
   static const String keyHeaders = 'headers';
-  static const String keyResponseCode = 'response_code';
-  static const String keyResponseType = 'response_type';
+  static const String keyResponseCode = 'responseCode';
+  static const String keyResponseType = 'responseType';
   static const String keySession = 'session';
 
   /* AcDoc({
@@ -70,7 +70,8 @@ class AcWebResponse {
   }) */
   static AcWebResponse internalError({
     dynamic data,
-    AcEnumHttpResponseCode responseCode = AcEnumHttpResponseCode.internalServerError,
+    AcEnumHttpResponseCode responseCode =
+        AcEnumHttpResponseCode.internalServerError,
   }) {
     final response = AcWebResponse();
     response.responseCode = responseCode;
@@ -147,7 +148,8 @@ class AcWebResponse {
   }) */
   static AcWebResponse redirect({
     required String url,
-    AcEnumHttpResponseCode responseCode = AcEnumHttpResponseCode.temporaryRedirect,
+    AcEnumHttpResponseCode responseCode =
+        AcEnumHttpResponseCode.temporaryRedirect,
   }) {
     final response = AcWebResponse();
     response.responseCode = responseCode;
@@ -175,7 +177,8 @@ class AcWebResponse {
     final response = AcWebResponse();
     response.responseCode = responseCode;
     response.responseType = AcEnumWebResponseType.view;
-    response.content = '<html><body>View: $template</body></html>'; // Example content
+    response.content =
+        '<html><body>View: $template</body></html>'; // Example content
     response.headers['Content-Type'] = 'text/html';
     return response;
   }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:ac_mirrors/annotations.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
@@ -537,10 +538,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                   );
                 }
               }
-            } else if ([
-              AcEnumDDColumnType.json,
-              AcEnumDDColumnType.mediaJson,
-            ].contains(type)) {
+            } else if ([AcEnumDDColumnType.json].contains(type)) {
               value = value is String ? value : json.encode(value);
             } else if (type == AcEnumDDColumnType.password) {
               value = AcEncryption.encrypt(plainText: value);
@@ -586,8 +584,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     Map<String, List<AcEnumDDColumnFormat>> result = {};
     for (final acDDTableColumn in acDDTable.tableColumns) {
       List<AcEnumDDColumnFormat> columnFormats = [];
-      if (acDDTableColumn.columnType == AcEnumDDColumnType.json ||
-          acDDTableColumn.columnType == AcEnumDDColumnType.mediaJson) {
+      if (acDDTableColumn.columnType == AcEnumDDColumnType.json) {
         columnFormats.add(AcEnumDDColumnFormat.json);
       } else if (acDDTableColumn.columnType == AcEnumDDColumnType.date) {
         columnFormats.add(AcEnumDDColumnFormat.date);

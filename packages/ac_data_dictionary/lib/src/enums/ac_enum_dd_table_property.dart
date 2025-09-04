@@ -4,32 +4,29 @@
   "type": "development"
 }) */
 enum AcEnumDDTableProperty {
-  /* AcDoc({"description": "Specifies the default column(s) to order results by."}) */
-  orderBy("order_by"),
-
   /* AcDoc({"description": "Defines index number of the table."}) */
-  index_("index"),
+  index_("INDEX"),
+
+  /* AcDoc({"description": "Specifies the default column(s) to order results by."}) */
+  orderBy("ORDER_BY"),
 
   /* AcDoc({"description": "Specifies the plural form of the table's entity name."}) */
-  pluralName("plural_name"),
+  pluralName("PLURAL_NAME"),
 
   /* AcDoc({"description": "Defines columns to be used while performing search query in api."}) */
-  selectQueryColumns("select_query_columns"),
+  remarks("REMARKS"),
 
   /* AcDoc({"description": "Specifies the SQL query used for data selection."}) */
-  selectQuery("select_query"),
-
-  /* AcDoc({"description": "Columns used for filtering requests in apis."}) */
-  selectRequestColumns("select_request_columns"),
+  selectSqlQuery("SELECT_SQL_QUERY"),
 
   /* AcDoc({"description": "The name of the view used for selection."}) */
-  selectViewName("select_view_name"),
+  sqlViewName("SQL_VIEW_NAME"),
 
   /* AcDoc({"description": "Specifies the singular form of the table's entity name."}) */
-  singularName("singular_name"),
+  singularName("SINGULAR_NAME"),
 
   /* AcDoc({"description": "Extra filter columns to include in search queries."}) */
-  additionalFilterColumns("additional_filter_columns"),
+  tags("TAGS"),
 
   /* AcDoc({"description": "Unknown property."}) */
   unknown("unknown");

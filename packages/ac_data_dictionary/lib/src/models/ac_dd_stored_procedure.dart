@@ -10,8 +10,8 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDStoredProcedure {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyStoredProcedureName = "stored_procedure_name";
-  static const String keyStoredProcedureCode = "stored_procedure_code";
+  static const String keyStoredProcedureName = "storedProcedureName";
+  static const String keyStoredProcedureCode = "storedProcedureCode";
 
   /* AcDoc({
     "summary": "The name of the database stored procedure."
@@ -38,9 +38,11 @@ class AcDDStoredProcedure {
     "returns": "A new, populated AcDDStoredProcedure instance.",
     "returns_type": "AcDDStoredProcedure"
   }) */
-  factory AcDDStoredProcedure.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDStoredProcedure.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDStoredProcedure();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -54,12 +56,19 @@ class AcDDStoredProcedure {
     "returns": "An AcDDStoredProcedure instance.",
     "returns_type": "AcDDStoredProcedure"
   }) */
-  factory AcDDStoredProcedure.getInstance({required String storedProcedureName, String dataDictionaryName = "default"}) {
+  factory AcDDStoredProcedure.getInstance({
+    required String storedProcedureName,
+    String dataDictionaryName = "default",
+  }) {
     final result = AcDDStoredProcedure();
-    final acDataDictionary = AcDataDictionary.getInstance(dataDictionaryName: dataDictionaryName);
+    final acDataDictionary = AcDataDictionary.getInstance(
+      dataDictionaryName: dataDictionaryName,
+    );
 
     if (acDataDictionary.storedProcedures.containsKey(storedProcedureName)) {
-      result.fromJson(jsonData: acDataDictionary.storedProcedures[storedProcedureName]);
+      result.fromJson(
+        jsonData: acDataDictionary.storedProcedures[storedProcedureName],
+      );
     }
     return result;
   }
@@ -74,7 +83,10 @@ class AcDDStoredProcedure {
     "returns": "A SQL string to drop the stored procedure.",
     "returns_type": "String"
   }) */
-  static String getDropStoredProcedureStatement({required String storedProcedureName,AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropStoredProcedureStatement({
+    required String storedProcedureName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return "DROP PROCEDURE IF EXISTS $storedProcedureName;";
   }
 
@@ -88,7 +100,10 @@ class AcDDStoredProcedure {
     "returns_type": "AcDDStoredProcedure"
   }) */
   AcDDStoredProcedure fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -101,7 +116,9 @@ class AcDDStoredProcedure {
     "returns": "The SQL code for the stored procedure's body.",
     "returns_type": "String"
   }) */
-  String getCreateStoredProcedureStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getCreateStoredProcedureStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return storedProcedureCode;
   }
 

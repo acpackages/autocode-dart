@@ -12,12 +12,13 @@ import 'package:ac_extensions/ac_extensions.dart';
 @AcReflectable()
 class AcDataDictionary {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyDataDictionaries = "data_dictionaries";
+  static const String keyDataDictionaries = "dataDictionaries";
   static const String keyFunctions = "functions";
   static const String keyRelationships = "relationships";
-  static const String keyStoredProcedures = "stored_procedures";
+  static const String keyStoredProcedures = "storedProcedures";
   static const String keyTables = "tables";
   static const String keyTriggers = "triggers";
+  static const String keyName = "name";
   static const String keyVersion = "version";
   static const String keyViews = "views";
 
@@ -34,6 +35,7 @@ class AcDataDictionary {
   Map<String, dynamic> triggers = {};
   int version = 0;
   Map<String, dynamic> views = {};
+  String name = "";
 
   /* AcDoc({
     "summary": "Creates a data dictionary instance from a JSON map.",
@@ -268,11 +270,15 @@ class AcDataDictionary {
     String dataDictionaryName = "default",
   }) {
     final result = <AcDDRelationship>[];
-    final allRelationships = getRelationships(dataDictionaryName: dataDictionaryName);
+    final allRelationships = getRelationships(
+      dataDictionaryName: dataDictionaryName,
+    );
 
     for (final r in allRelationships) {
-      final isSource = r.sourceTable == tableName && r.sourceColumn == columnName;
-      final isDestination = r.destinationTable == tableName && r.destinationColumn == columnName;
+      final isSource =
+          r.sourceTable == tableName && r.sourceColumn == columnName;
+      final isDestination =
+          r.destinationTable == tableName && r.destinationColumn == columnName;
 
       bool shouldInclude = false;
       switch (relationType) {
@@ -311,7 +317,9 @@ class AcDataDictionary {
     String dataDictionaryName = "default",
   }) {
     final result = <AcDDRelationship>[];
-    final allRelationships = getRelationships(dataDictionaryName: dataDictionaryName);
+    final allRelationships = getRelationships(
+      dataDictionaryName: dataDictionaryName,
+    );
 
     for (final r in allRelationships) {
       final isSource = r.sourceTable == tableName;
@@ -456,7 +464,10 @@ class AcDataDictionary {
       {"name": "dataDictionaryName", "description": "The name to register the dictionary under. Defaults to 'default'."}
     ]
   }) */
-  static void registerDataDictionary({required Map<String, dynamic> jsonData, String dataDictionaryName = "default"}) {
+  static void registerDataDictionary({
+    required Map<String, dynamic> jsonData,
+    String dataDictionaryName = "default",
+  }) {
     dataDictionaries[dataDictionaryName] = jsonData;
   }
 
@@ -508,7 +519,8 @@ class AcDataDictionary {
     "returns": "A list of JSON maps, where each map represents a table.",
     "returns_type": "List<Map<String, dynamic>>"
   }) */
-  List<Map<String, dynamic>> getTablesList() => tables.values.cast<Map<String, dynamic>>().toList();
+  List<Map<String, dynamic>> getTablesList() =>
+      tables.values.cast<Map<String, dynamic>>().toList();
 
   /* AcDoc({
     "summary": "Gets the names of all columns for a specific table.",
@@ -522,7 +534,8 @@ class AcDataDictionary {
     if (tables.containsKey(tableName)) {
       final tableDetails = tables[tableName] as Map<String, dynamic>;
       if (tableDetails.containsKey(AcDDTable.keyTableColumns)) {
-        final tableColumns = tableDetails[AcDDTable.keyTableColumns] as Map<String, dynamic>;
+        final tableColumns =
+            tableDetails[AcDDTable.keyTableColumns] as Map<String, dynamic>;
         return tableColumns.keys.toList();
       }
     }
@@ -541,7 +554,9 @@ class AcDataDictionary {
     if (tables.containsKey(tableName)) {
       final tableDetails = tables[tableName] as Map<String, dynamic>;
       if (tableDetails[AcDDTable.keyTableColumns] is Map) {
-        return (tableDetails[AcDDTable.keyTableColumns] as Map).values.cast<Map<String, dynamic>>().toList();
+        return (tableDetails[AcDDTable.keyTableColumns] as Map).values
+            .cast<Map<String, dynamic>>()
+            .toList();
       }
     }
     return [];
@@ -567,9 +582,10 @@ class AcDataDictionary {
         destinationColumnDetails.forEach((_, sourceTableDetails) {
           sourceTableDetails.forEach((_, relationshipDetails) {
             final r = relationshipDetails as Map<String, dynamic>;
-            final columnKey = asDestination
-                ? AcDDRelationship.keyDestinationTable
-                : AcDDRelationship.keySourceTable;
+            final columnKey =
+                asDestination
+                    ? AcDDRelationship.keyDestinationTable
+                    : AcDDRelationship.keySourceTable;
             if (r[columnKey] == tableName) {
               result.add(r);
             }

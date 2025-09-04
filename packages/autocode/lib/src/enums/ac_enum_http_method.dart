@@ -5,23 +5,23 @@
 }) */
 enum AcEnumHttpMethod {
   /* AcDoc({"description": "Establishes a tunnel to the server identified by a given URI."}) */
-  connect('connect'),
+  connect('CONNECT'),
   /* AcDoc({"description": "Deletes the specified resource."}) */
-  delete('delete'),
+  delete('DELETE'),
   /* AcDoc({"description": "Requests data from a specified resource."}) */
-  get('get'),
+  get('GET'),
   /* AcDoc({"description": "Same as GET but returns only HTTP headers and no document body."}) */
-  head('head'),
+  head('HEAD'),
   /* AcDoc({"description": "Describes the communication options for the target resource."}) */
-  options('options'),
+  options('OPTIONS'),
   /* AcDoc({"description": "Applies partial modifications to a resource."}) */
-  patch('patch'),
+  patch('PATCH'),
   /* AcDoc({"description": "Submits data to be processed to a specified resource."}) */
-  post('post'),
+  post('POST'),
   /* AcDoc({"description": "Replaces all current representations of the target resource with the uploaded content."}) */
-  put('put'),
+  put('PUT'),
   /* AcDoc({"description": "Performs a message loop-back test along the path to the target resource."}) */
-  trace('trace');
+  trace('TRACE');
 
   /* AcDoc({"description": "The string representation of the HTTP method."}) */
   final String value;

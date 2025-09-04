@@ -11,24 +11,24 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 class AcDDSelectStatement {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
   static const String keyCondition = "condition";
-  static const String keyConditionGroup = "condition_group";
-  static const String keyDatabaseType = "database_type";
-  static const String keyDataDictionaryName = "data_dictionary_name";
-  static const String keyExcludeColumns = "exclude_columns";
-  static const String keyIncludeColumns = "include_columns";
-  static const String keyOrderBy = "order_by";
-  static const String keyPageNumber = "page_number";
-  static const String keyPageSize = "page_size";
+  static const String keyConditionGroup = "conditionGroup";
+  static const String keyDatabaseType = "databaseType";
+  static const String keyDataDictionaryName = "dataDictionaryName";
+  static const String keyExcludeColumns = "excludeColumns";
+  static const String keyIncludeColumns = "includeColumns";
+  static const String keyOrderBy = "orderBy";
+  static const String keyPageNumber = "pageNumber";
+  static const String keyPageSize = "pageSize";
   static const String keyParameters = "parameters";
-  static const String keySelectStatement = "select_statement";
-  static const String keySqlStatement = "sql_statement";
-  static const String keyTableName = "table_name";
+  static const String keySelectStatement = "selectStatement";
+  static const String keySqlStatement = "sqlStatement";
+  static const String keyTableName = "tableName";
 
   // Internal state properties
   String condition = "";
   late AcDDConditionGroup conditionGroup;
   List<AcDDConditionGroup> groupStack = [];
-  Map<String,dynamic> parameters = {};
+  Map<String, dynamic> parameters = {};
   String selectStatement = "";
   String sqlStatement = "";
 
@@ -71,7 +71,10 @@ class AcDDSelectStatement {
       {"name": "dataDictionaryName", "description": "The data dictionary to use. Defaults to 'default'."}
     ]
   }) */
-  AcDDSelectStatement({this.tableName = "", this.dataDictionaryName = "default"}) {
+  AcDDSelectStatement({
+    this.tableName = "",
+    this.dataDictionaryName = "default",
+  }) {
     conditionGroup = AcDDConditionGroup();
     conditionGroup.operator = AcEnumLogicalOperator.and;
     groupStack.add(conditionGroup);
@@ -202,7 +205,7 @@ class AcDDSelectStatement {
   String getSqlStatement({
     bool skipCondition = false,
     bool skipSelectStatement = false,
-    bool skipLimit = false
+    bool skipLimit = false,
   }) {
     if (!skipSelectStatement) {
       var acDDTable = AcDataDictionary.getTable(
@@ -285,10 +288,14 @@ class AcDDSelectStatement {
         }
         break;
       case AcEnumConditionOperator.contains:
-        setSqlLikeStringCondition(acDDCondition:acDDCondition);
+        setSqlLikeStringCondition(acDDCondition: acDDCondition);
         break;
       case AcEnumConditionOperator.endsWith:
-        setSqlLikeStringCondition(acDDCondition:acDDCondition,includeInBetween: false, includeStart: false);
+        setSqlLikeStringCondition(
+          acDDCondition: acDDCondition,
+          includeInBetween: false,
+          includeStart: false,
+        );
         break;
       case AcEnumConditionOperator.equalTo:
         parameterName = "@parameter${parameters.length}";
@@ -307,10 +314,9 @@ class AcDDSelectStatement {
         break;
       case AcEnumConditionOperator.in_:
         parameterName = "@parameter${parameters.length}";
-        if(acDDCondition.value is String){
+        if (acDDCondition.value is String) {
           parameters[parameterName] = acDDCondition.value.toString().split(",");
-        }
-        else if(acDDCondition.value is List){
+        } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
         }
         condition += "${acDDCondition.columnName} IN ($parameterName)";
@@ -347,16 +353,19 @@ class AcDDSelectStatement {
         break;
       case AcEnumConditionOperator.notIn:
         parameterName = "@parameter${parameters.length}";
-        if(acDDCondition.value is String){
+        if (acDDCondition.value is String) {
           parameters[parameterName] = acDDCondition.value.toString().split(",");
-        }
-        else if(acDDCondition.value is List){
+        } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
         }
         condition += "${acDDCondition.columnName} NOT IN ($parameterName)";
         break;
       case AcEnumConditionOperator.startsWith:
-        setSqlLikeStringCondition(acDDCondition:acDDCondition,includeInBetween: false, includeEnd: false);
+        setSqlLikeStringCondition(
+          acDDCondition: acDDCondition,
+          includeInBetween: false,
+          includeEnd: false,
+        );
         break;
       default:
         break;
@@ -392,51 +401,56 @@ class AcDDSelectStatement {
     return this;
   }
 
-  AcDDSelectStatement setSqlLikeStringCondition({required AcDDCondition acDDCondition,bool includeEnd = true,bool includeInBetween = true,bool includeStart = true}) {
-    AcDDTableColumn acDDTableColumn = AcDataDictionary.getTableColumn(
-      tableName: tableName,
-      columnName: acDDCondition.columnName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+  AcDDSelectStatement setSqlLikeStringCondition({
+    required AcDDCondition acDDCondition,
+    bool includeEnd = true,
+    bool includeInBetween = true,
+    bool includeStart = true,
+  }) {
+    AcDDTableColumn acDDTableColumn =
+        AcDataDictionary.getTableColumn(
+          tableName: tableName,
+          columnName: acDDCondition.columnName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
     String columnCheck = 'LOWER(${acDDCondition.columnName})';
     String likeValue = acDDCondition.value.toLowerCase();
     String jsonColumn = "value";
     List<String> conditionParts = List.empty(growable: true);
     if (acDDTableColumn.columnType == AcEnumDDColumnType.json) {
-      if(includeStart) {
+      if (includeStart) {
         String parameter1 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter1");
         parameters[parameter1] = '%"$jsonColumn":"$likeValue%"%';
       }
-      if(includeInBetween) {
+      if (includeInBetween) {
         String parameter2 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter2");
         parameters[parameter2] = '%"$jsonColumn":"%$likeValue%"%';
       }
-      if(includeEnd) {
+      if (includeEnd) {
         String parameter3 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter3");
         parameters[parameter3] = '%"$jsonColumn":"%$likeValue"%';
       }
-
     } else {
-      if(includeStart) {
+      if (includeStart) {
         String parameter1 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter1");
         parameters[parameter1] = '$likeValue%';
       }
-      if(includeInBetween) {
+      if (includeInBetween) {
         String parameter2 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter2");
         parameters[parameter2] = '%$likeValue%';
       }
-      if(includeEnd) {
+      if (includeEnd) {
         String parameter3 = "@parameter${parameters.length}";
         conditionParts.add("$columnCheck LIKE $parameter3");
         parameters[parameter3] = '$likeValue%';
       }
     }
-    if(conditionParts.isNotEmpty){
+    if (conditionParts.isNotEmpty) {
       condition += '(${conditionParts.join((" OR "))})';
     }
     return this;
@@ -451,7 +465,9 @@ class AcDDSelectStatement {
     "returns": "The current instance, for a fluent interface.",
     "returns_type": "AcDDSelectStatement"
   }) */
-  AcDDSelectStatement startGroup({AcEnumLogicalOperator operator = AcEnumLogicalOperator.and}) {
+  AcDDSelectStatement startGroup({
+    AcEnumLogicalOperator operator = AcEnumLogicalOperator.and,
+  }) {
     var group = AcDDConditionGroup();
     group.operator = operator;
     groupStack.add(group);
@@ -477,10 +493,6 @@ class AcDDSelectStatement {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
-
-
-
-
 
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';

@@ -5,25 +5,25 @@
 }) */
 enum AcEnumSqlDatabaseType {
   /* AcDoc({"description": "MariaDB SQL database type."}) */
-  mariadb('mariadb'),
+  mariadb('MARIADB'),
 
   /* AcDoc({"description": "Microsoft SQL Server database type."}) */
-  mssql('mssql'),
+  mssql('MSSQL'),
 
   /* AcDoc({"description": "MySQL SQL database type."}) */
-  mysql('mysql'),
+  mysql('MYSQL'),
 
   /* AcDoc({"description": "Oracle SQL database type."}) */
-  oracle('oracle'),
+  oracle('ORACLE'),
 
   /* AcDoc({"description": "PostgreSQL SQL database type."}) */
-  postgresql('postgresql'),
+  postgreSql('POSTGRE_SQL'),
 
   /* AcDoc({"description": "SQLite SQL database type."}) */
-  sqlite('sqlite'),
+  sqlite('SQLITE'),
 
   /* AcDoc({"description": "Unknown or unsupported SQL database type."}) */
-  unknown('unknown');
+  unknown('UNKNOWN');
 
   /* AcDoc({"description": "The string representation of the SQL database type."}) */
   final String value;

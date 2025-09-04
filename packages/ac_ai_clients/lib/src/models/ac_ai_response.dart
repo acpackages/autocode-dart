@@ -12,11 +12,11 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcAIResponse extends AcResult {
   static const String keyText = 'text';
-  static const String keyImageUrls = 'image_urls';
-  static const String keyAudioUrls = 'audio_urls';
-  static const String keyVideoUrls = 'video_urls';
-  static const String keyFileUrls = 'file_urls';
-  static const String keyTokensUsed = 'tokens_used';
+  static const String keyImageUrls = 'imageUrls';
+  static const String keyAudioUrls = 'audioUrls';
+  static const String keyVideoUrls = 'videoUrls';
+  static const String keyFileUrls = 'fileUrls';
+  static const String keyTokensUsed = 'tokensUsed';
   static const String keyRaw = 'raw';
 
   /* AcDoc({ "description": "Primary text response returned by the AI." }) */
@@ -55,7 +55,9 @@ class AcAIResponse extends AcResult {
     "params": [{"name": "jsonData", "description": "The input map representing a raw or parsed AI response."}],
     "returns": "A new AcAIResponse object."
   }) */
-  factory AcAIResponse.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcAIResponse.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcAIResponse();
     return instance.fromJson(jsonData: jsonData);
   }
@@ -67,7 +69,10 @@ class AcAIResponse extends AcResult {
   }) */
   @override
   AcAIResponse fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

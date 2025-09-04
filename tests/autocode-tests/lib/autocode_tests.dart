@@ -10,9 +10,9 @@ void main() {
   // testSchemaManager();
   // testWebOnJaguarAutoApi();
 
-  testAimlApi();
+  // testAimlApi();
   // testOpenAI();
-  // testGemini();
+  testGemini();
 }
 
 

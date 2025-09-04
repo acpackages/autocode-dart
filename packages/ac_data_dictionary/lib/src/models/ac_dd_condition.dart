@@ -9,8 +9,8 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcDDCondition {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyDatabaseType = "database_type";
-  static const String keyColumnName = "column_name";
+  static const String keyDatabaseType = "databaseType";
+  static const String keyColumnName = "columnName";
   static const String keyOperator = "operator";
   static const String keyValue = "value";
 
@@ -53,9 +53,11 @@ class AcDDCondition {
     "returns": "A new, populated AcDDCondition instance.",
     "returns_type": "AcDDCondition"
   }) */
-  factory AcDDCondition.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDCondition.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDCondition();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -69,7 +71,10 @@ class AcDDCondition {
     "returns_type": "AcDDCondition"
   }) */
   AcDDCondition fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData:jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

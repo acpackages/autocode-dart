@@ -5,19 +5,19 @@
 }) */
 enum AcEnumLogType {
   /* AcDoc({"description": "Logs output to the system console."}) */
-  console('console'),
+  console('CONSOLE'),
 
   /* AcDoc({"description": "Logs output using Dart's print statement. 'print' is a reserved keyword, so 'print_' is used."}) */
-  print_('print'),
+  print_('PRINT'),
 
   /* AcDoc({"description": "Logs output to HTML content, useful in web environments."}) */
-  html('html'),
+  html('HTML'),
 
   /* AcDoc({"description": "Logs output to a SQLite database for persistent storage."}) */
-  sqlite('sqlite'),
+  sqlite('SQLITE'),
 
   /* AcDoc({"description": "Logs output to plain text format, typically in a file."}) */
-  text('text');
+  text('TEXT');
 
   /* AcDoc({"description": "The string representation of the log output type."}) */
   final String value;

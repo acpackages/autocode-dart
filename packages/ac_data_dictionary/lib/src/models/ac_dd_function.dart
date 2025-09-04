@@ -10,8 +10,8 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDFunction {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyFunctionName = "function_name";
-  static const String keyFunctionCode = "function_code";
+  static const String keyFunctionName = "functionName";
+  static const String keyFunctionCode = "functionCode";
 
   /* AcDoc({
     "summary": "The name of the database function."
@@ -39,9 +39,11 @@ class AcDDFunction {
     "returns": "A new, populated AcDDFunction instance.",
     "returns_type": "AcDDFunction"
   }) */
-  factory AcDDFunction.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDFunction.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDFunction();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -55,11 +57,16 @@ class AcDDFunction {
     "returns": "An AcDDFunction instance.",
     "returns_type": "AcDDFunction"
   }) */
-  factory AcDDFunction.getInstance({required String functionName, String dataDictionaryName = "default"}) {
+  factory AcDDFunction.getInstance({
+    required String functionName,
+    String dataDictionaryName = "default",
+  }) {
     final result = AcDDFunction();
-    final acDataDictionary = AcDataDictionary.getInstance(dataDictionaryName:dataDictionaryName);
+    final acDataDictionary = AcDataDictionary.getInstance(
+      dataDictionaryName: dataDictionaryName,
+    );
     if (acDataDictionary.functions.containsKey(functionName)) {
-      result.fromJson(jsonData:acDataDictionary.functions[functionName]);
+      result.fromJson(jsonData: acDataDictionary.functions[functionName]);
     }
     return result;
   }
@@ -74,7 +81,10 @@ class AcDDFunction {
     "returns": "A SQL string to drop the function.",
     "returns_type": "String"
   }) */
-  static String getDropFunctionStatement({required String functionName, AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropFunctionStatement({
+    required String functionName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return "DROP FUNCTION IF EXISTS $functionName;";
   }
 
@@ -88,7 +98,10 @@ class AcDDFunction {
     "returns_type": "AcDDFunction"
   }) */
   AcDDFunction fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance:this, jsonData:jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -99,7 +112,7 @@ class AcDDFunction {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance:this);
+    return AcJsonUtils.getJsonDataFromInstance(instance: this);
   }
 
   /* AcDoc({
@@ -111,7 +124,9 @@ class AcDDFunction {
     "returns": "The SQL code for the function's body.",
     "returns_type": "String"
   }) */
-  String getCreateFunctionStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getCreateFunctionStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return functionCode;
   }
 

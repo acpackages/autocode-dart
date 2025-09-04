@@ -1,4 +1,3 @@
-
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 /* AcDoc({
@@ -10,51 +9,51 @@ import 'package:autocode/autocode.dart';
 
 @AcReflectable()
 class AcCronJob {
-/* AcDoc({"description": "Key for the callback function during serialization."}) */
+  /* AcDoc({"description": "Key for the callback function during serialization."}) */
   static const String keyCallback = "callback";
 
-/* AcDoc({"description": "Key for the duration settings during serialization."}) */
+  /* AcDoc({"description": "Key for the duration settings during serialization."}) */
   static const String keyDuration = "duration";
 
-/* AcDoc({"description": "Key for the execution type during serialization."}) */
+  /* AcDoc({"description": "Key for the execution type during serialization."}) */
   static const String keyExecution = "execution";
 
-/* AcDoc({"description": "Key for the unique job ID during serialization."}) */
+  /* AcDoc({"description": "Key for the unique job ID during serialization."}) */
   static const String keyId = "id";
 
-/* AcDoc({"description": "Key for the last execution time during serialization."}) */
-  static const String keyLastExecutionTime = "last_execution_time";
+  /* AcDoc({"description": "Key for the last execution time during serialization."}) */
+  static const String keyLastExecutionTime = "lastExecutionTime";
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Unique identifier for the cron job."
 }) */
   late String id;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Execution type, e.g., 'every' or 'daily_at'."
 }) */
   late String execution;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Map specifying the schedule interval (e.g., {'days': 1})."
 }) */
   late Map<String, int> duration;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "The function to be executed by the cron job.",
 "description": "This field holds the actual code to be run. It is marked to be skipped during JSON serialization to avoid trying to serialize a function."
 }) */
   @AcBindJsonProperty(key: AcCronJob.keyCallback, skipInToJson: true)
   Function callback;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "The last time the cron job was executed.",
 "description": "This is used by the cron scheduler to determine when the job should run next. It is updated automatically after each execution."
 }) */
   @AcBindJsonProperty(key: AcCronJob.keyLastExecutionTime)
   DateTime? lastExecutionTime;
 
-/* AcDoc({
+  /* AcDoc({
 "summary": "Creates a new instance of a cron job.",
 "params": [
 {"name": "id", "description": "The unique identifier for the job."},

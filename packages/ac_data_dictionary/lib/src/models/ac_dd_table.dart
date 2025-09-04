@@ -10,9 +10,9 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDTable {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyTableColumns = "table_columns";
-  static const String keyTableName = "table_name";
-  static const String keyTableProperties = "table_properties";
+  static const String keyTableColumns = "tableColumns";
+  static const String keyTableName = "tableName";
+  static const String keyTableProperties = "tableProperties";
 
   /* AcDoc({
     "summary": "A list of column objects belonging to this table."
@@ -61,7 +61,10 @@ class AcDDTable {
     "returns": "A SQL string to drop the table.",
     "returns_type": "String"
   }) */
-  static String getDropTableStatement({required String tableName,AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropTableStatement({
+    required String tableName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return "DROP TABLE IF EXISTS $tableName;";
   }
 
@@ -127,11 +130,18 @@ class AcDDTable {
     "returns": "A complete SQL string to create the table.",
     "returns_type": "String"
   }) */
-  String getCreateTableStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
-    final columnDefinitions = tableColumns
-        .map((column) => column.getColumnDefinitionForStatement(databaseType: databaseType))
-        .where((def) => def.isNotEmpty)
-        .toList();
+  String getCreateTableStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
+    final columnDefinitions =
+        tableColumns
+            .map(
+              (column) => column.getColumnDefinitionForStatement(
+                databaseType: databaseType,
+              ),
+            )
+            .where((def) => def.isNotEmpty)
+            .toList();
 
     return "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
   }
@@ -182,7 +192,9 @@ class AcDDTable {
     "returns_type": "List<AcDDTableColumn>"
   }) */
   List<AcDDTableColumn> getSearchQueryColumns() {
-    return tableColumns.where((column) => column.isInSearchQuery()).toList();
+    return tableColumns
+        .where((column) => column.isUseForRowLikeFilter())
+        .toList();
   }
 
   /* AcDoc({
@@ -241,8 +253,9 @@ class AcDDTable {
     "returns_type": "AcDDTable"
   }) */
   AcDDTable fromJson({required Map<String, dynamic> jsonData}) {
-    Map<String,dynamic> json = Map.from(jsonData);
-    if (jsonData.containsKey(keyTableColumns) && jsonData[keyTableColumns] is Map) {
+    Map<String, dynamic> json = Map.from(jsonData);
+    if (jsonData.containsKey(keyTableColumns) &&
+        jsonData[keyTableColumns] is Map) {
       (json[keyTableColumns] as Map).forEach((columnName, columnData) {
         final column = AcDDTableColumn.instanceFromJson(jsonData: columnData);
         column.table = this;
@@ -251,7 +264,8 @@ class AcDDTable {
       json.remove(keyTableColumns);
     }
 
-    if (json.containsKey(keyTableProperties) && json[keyTableProperties] is Map) {
+    if (json.containsKey(keyTableProperties) &&
+        json[keyTableProperties] is Map) {
       (json[keyTableProperties] as Map).forEach((propertyName, propertyData) {
         tableProperties.add(
           AcDDTableProperty.instanceFromJson(jsonData: propertyData),
@@ -286,7 +300,6 @@ class AcDDTable {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
-
 
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';

@@ -10,12 +10,12 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDRelationship {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyCascadeDeleteDestination = "cascade_delete_destination";
-  static const String keyCascadeDeleteSource = "cascade_delete_source";
-  static const String keyDestinationColumn = "destination_column";
-  static const String keyDestinationTable = "destination_table";
-  static const String keySourceColumn = "source_column";
-  static const String keySourceTable = "source_table";
+  static const String keyCascadeDeleteDestination = "cascadeDeleteDestination";
+  static const String keyCascadeDeleteSource = "cascadeDeleteSource";
+  static const String keyDestinationColumn = "destinationColumn";
+  static const String keyDestinationTable = "destinationTable";
+  static const String keySourceColumn = "sourceColumn";
+  static const String keySourceTable = "sourceTable";
 
   /* AcDoc({
     "summary": "Indicates if a delete should cascade to destination records.",
@@ -103,7 +103,7 @@ class AcDDRelationship {
           destinationColumn,
         )) {
       final sourceDetails =
-      acDataDictionary.relationships[destinationTable][destinationColumn];
+          acDataDictionary.relationships[destinationTable][destinationColumn];
       sourceDetails.forEach((sourceTable, sourceColumnDetails) {
         sourceColumnDetails.forEach((sourceColumn, relationshipDetails) {
           result.add(
@@ -142,7 +142,9 @@ class AcDDRelationship {
     "returns": "A SQL string to create the foreign key.",
     "returns_type": "String"
   }) */
-  String getCreateRelationshipStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getCreateRelationshipStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return "ALTER TABLE $destinationTable ADD FOREIGN KEY ($destinationColumn) REFERENCES $sourceTable($sourceColumn);";
   }
 

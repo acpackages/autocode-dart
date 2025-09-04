@@ -1,0 +1,4 @@
+# melos_managed_dependency_overrides: ac_extensions
+dependency_overrides:
+  ac_extensions:
+    path: ..\\ac_extensions

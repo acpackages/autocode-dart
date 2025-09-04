@@ -11,12 +11,12 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDViewColumn {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyColumnName = "column_name";
-  static const String keyColumnProperties = "column_properties";
-  static const String keyColumnType = "column_type";
-  static const String keyColumnValue = "column_value";
-  static const String keyColumnSource = "column_source";
-  static const String keyColumnSourceName = "column_source_name";
+  static const String keyColumnName = "columnName";
+  static const String keyColumnProperties = "columnProperties";
+  static const String keyColumnType = "columnType";
+  static const String keyColumnValue = "columnValue";
+  static const String keyColumnSource = "columnSource";
+  static const String keyColumnSourceName = "columnSourceName";
 
   /* AcDoc({"summary": "The name of the column as it appears in the view."}) */
   @AcBindJsonProperty(key: keyColumnName)
@@ -64,9 +64,11 @@ class AcDDViewColumn {
     "returns": "A new, populated AcDDViewColumn instance.",
     "returns_type": "AcDDViewColumn"
   }) */
-  factory AcDDViewColumn.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcDDViewColumn.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     final instance = AcDDViewColumn();
-    instance.fromJson(jsonData:jsonData);
+    instance.fromJson(jsonData: jsonData);
     return instance;
   }
 
@@ -80,15 +82,20 @@ class AcDDViewColumn {
     "returns_type": "AcDDViewColumn"
   }) */
   AcDDViewColumn fromJson({required Map<String, dynamic> jsonData}) {
-    Map<String,dynamic> json = Map.from(jsonData);
+    Map<String, dynamic> json = Map.from(jsonData);
     if (json.containsKey(keyColumnProperties)) {
       final props = json[keyColumnProperties] as Map<String, dynamic>;
       for (final entry in props.entries) {
-        columnProperties[entry.key] = AcDDTableColumnProperty.instanceFromJson(jsonData:entry.value);
+        columnProperties[entry.key] = AcDDTableColumnProperty.instanceFromJson(
+          jsonData: entry.value,
+        );
       }
       json.remove(keyColumnProperties);
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: json);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: json,
+    );
     return this;
   }
 

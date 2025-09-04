@@ -10,9 +10,9 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcDDView {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyViewName = "view_name";
-  static const String keyViewColumns = "view_columns";
-  static const String keyViewQuery = "view_query";
+  static const String keyViewName = "viewName";
+  static const String keyViewColumns = "viewColumns";
+  static const String keyViewQuery = "viewQuery";
 
   /* AcDoc({
     "summary": "The name of the database view."
@@ -62,9 +62,9 @@ class AcDDView {
     "returns_type": "AcDDView"
   }) */
   factory AcDDView.getInstance(
-      String viewName, {
-        String dataDictionaryName = "default",
-      }) {
+    String viewName, {
+    String dataDictionaryName = "default",
+  }) {
     final result = AcDDView();
     final acDataDictionary = AcDataDictionary.getInstance(
       dataDictionaryName: dataDictionaryName,
@@ -87,7 +87,7 @@ class AcDDView {
     "returns_type": "AcDDView"
   }) */
   AcDDView fromJson({required Map<String, dynamic> jsonData}) {
-    Map<String,dynamic> json = Map.from(jsonData);
+    Map<String, dynamic> json = Map.from(jsonData);
     if (json.containsKey(keyViewColumns) && json[keyViewColumns] is Map) {
       final columns = jsonData[keyViewColumns] as Map;
       columns.forEach((columnName, columnData) {
@@ -114,7 +114,10 @@ class AcDDView {
     "returns": "A SQL string to drop the view.",
     "returns_type": "String"
   }) */
-  static String getDropViewStatement({required String viewName, AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  static String getDropViewStatement({
+    required String viewName,
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return 'DROP VIEW IF EXISTS $viewName;';
   }
 
@@ -127,7 +130,9 @@ class AcDDView {
     "returns": "The complete SQL string to create the view.",
     "returns_type": "String"
   }) */
-  String getCreateViewStatement({AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown}) {
+  String getCreateViewStatement({
+    AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
+  }) {
     return 'CREATE VIEW $viewName AS $viewQuery;';
   }
 

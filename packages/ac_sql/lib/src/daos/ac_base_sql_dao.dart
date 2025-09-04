@@ -365,8 +365,54 @@ class AcBaseSqlDao {
     required Map<String, dynamic> passedParameters,
     bool returnMap = true,
   }) {
-    // ... implementation remains the same
-    return {}; // Placeholder
+    if(returnMap){
+      statementParametersMap ??= {};
+    }
+    else {
+      statementParametersList ??= List.empty(growable: true);
+    }
+    List<String> keys = passedParameters.keys.toList();
+    for (String key in keys) {
+      var value = passedParameters[key];
+      if(!returnMap){
+        while (statement.contains(key)) {
+          logger.log("Searching For Key : $key");
+          logger.log("SQL Statement : $statement");
+          logger.log("Key Value: ${value.toString()}");
+          String beforeQueryString = statement.substring(0, statement.indexOf(key));
+          logger.log("Before String in Statement Where Key is found: $beforeQueryString");
+          int parameterIndex = _countOccurrences(beforeQueryString, '?');
+          logger.log("Parameter Index: $parameterIndex");
+          logger.log("Values Before: ${statementParametersList.toString()}");
+          if (value is List) {
+            String replacement = List.filled(value.length, '?').join(',');
+            statement = statement.replaceFirst(RegExp(RegExp.escape(key)), replacement);
+            statementParametersList!.insertAll(parameterIndex, value);
+          } else {
+            statement = statement.replaceFirst(RegExp(RegExp.escape(key)), '?');
+            statementParametersList!.insert(parameterIndex, value);
+          }
+          logger.log("Statement : $statement");
+          logger.log("Values After: ${statementParametersList.toString()}");
+        }
+      }
+      else{
+        int index = statementParametersMap!.keys.length;
+        String parameterKey = "parameter$index";
+        while(statementParametersMap.keys.contains(parameterKey)){
+          index++;
+          parameterKey = "parameter$index";
+        }
+        statement = statement.replaceAll(key, ":$parameterKey");
+        statementParametersMap[parameterKey] = value;
+      }
+    }
+    return {
+      'statement': statement,
+      'statementParametersList': statementParametersList,
+      'statementParametersMap': statementParametersMap,
+      'passedParameters': passedParameters
+    };
   }
 
   /* AcDoc({

@@ -5,70 +5,70 @@
 }) */
 enum AcEnumProgrammingLanguage {
   /* AcDoc({"description": "TypeScript programming language."}) */
-  typescript('typescript'),
+  typescript('TYPESCRIPT'),
 
   /* AcDoc({"description": "JavaScript programming language."}) */
-  javascript('javascript'),
+  javascript('JAVASCRIPT'),
 
   /* AcDoc({"description": "Dart programming language."}) */
-  dart('dart'),
+  dart('DART'),
 
   /* AcDoc({"description": "PHP programming language."}) */
-  php('php'),
+  php('PHP'),
 
   /* AcDoc({"description": "C# programming language."}) */
-  csharp('csharp'),
+  csharp('CSHARP'),
 
   /* AcDoc({"description": "Java programming language."}) */
-  java('java'),
+  java('JAVA'),
 
   /* AcDoc({"description": "Python programming language."}) */
-  python('python'),
+  python('PYTHON'),
 
   /* AcDoc({"description": "Go programming language."}) */
-  go('go'),
+  go('GO'),
 
   /* AcDoc({"description": "Kotlin programming language."}) */
-  kotlin('kotlin'),
+  kotlin('KOTLIN'),
 
   /* AcDoc({"description": "Swift programming language."}) */
-  swift('swift'),
+  swift('SWIFT'),
 
   /* AcDoc({"description": "Ruby programming language."}) */
-  ruby('ruby'),
+  ruby('RUBY'),
 
   /* AcDoc({"description": "Rust programming language."}) */
-  rust('rust'),
+  rust('RUST'),
 
   /* AcDoc({"description": "C programming language."}) */
-  c('c'),
+  c('C'),
 
   /* AcDoc({"description": "C++ programming language."}) */
-  cpp('cpp'),
+  cpp('CPP'),
 
   /* AcDoc({"description": "Objective-C programming language."}) */
-  objectivec('objectivec'),
+  objectivec('OBJECTIVEC'),
 
   /* AcDoc({"description": "Scala programming language."}) */
-  scala('scala'),
+  scala('SCALA'),
 
   /* AcDoc({"description": "Perl programming language."}) */
-  perl('perl'),
+  perl('PERL'),
 
   /* AcDoc({"description": "Haskell programming language."}) */
-  haskell('haskell'),
+  haskell('HASKELL'),
 
   /* AcDoc({"description": "SQL query language."}) */
-  sql('sql'),
+  sql('SQL'),
 
   /* AcDoc({"description": "Shell scripting language."}) */
-  shell('shell'),
+  shell('SHELL'),
 
   /* AcDoc({"description": "YAML configuration format."}) */
-  yaml('yaml'),
+  yaml('YAML'),
 
   /* AcDoc({"description": "JSON data format."}) */
-  json('json');
+  json('JSON');
 
   /* AcDoc({"description": "The string representation of the programming language."}) */
   final String value;
@@ -83,7 +83,9 @@ enum AcEnumProgrammingLanguage {
   }) */
   static AcEnumProgrammingLanguage? fromValue(String value) {
     try {
-      return AcEnumProgrammingLanguage.values.firstWhere((e) => e.value == value);
+      return AcEnumProgrammingLanguage.values.firstWhere(
+        (e) => e.value == value,
+      );
     } catch (_) {
       return null;
     }
