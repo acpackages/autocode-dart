@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of webhook types supported by the Ac platform.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumWebHook {
   /* AcDoc({"description": "Triggered when a new AcWeb instance is created."}) */
   acWebCreated("AC_WEB_CREATED");

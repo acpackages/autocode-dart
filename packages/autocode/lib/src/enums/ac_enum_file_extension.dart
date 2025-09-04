@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of common file extensions used across file types and formats.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumFileExtension {
   aac('aac'),
   aaf('aaf'),

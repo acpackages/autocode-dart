@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of column types used in a data dictionary schema.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDColumnType {
   /* AcDoc({"description": "Auto-incrementing numeric field."}) */
   autoIncrement("AUTO_INCREMENT"),

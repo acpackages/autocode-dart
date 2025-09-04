@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of column relation types used in a data dictionary schema.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDColumnRelationType {
   /* AcDoc({"description": "Indicates the relation can be of any type (source or destination)."}) */
   any("ANY"),

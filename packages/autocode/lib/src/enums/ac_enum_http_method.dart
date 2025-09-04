@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of standard HTTP methods used in RESTful services.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumHttpMethod {
   /* AcDoc({"description": "Establishes a tunnel to the server identified by a given URI."}) */
   connect('CONNECT'),

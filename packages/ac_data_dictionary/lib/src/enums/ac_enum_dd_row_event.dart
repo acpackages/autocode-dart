@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of row-level events used in data dictionary lifecycle hooks.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDRowEvent {
   /* AcDoc({"description": "Event triggered after a delete operation."}) */
   afterDelete("AFTER_DELETE"),

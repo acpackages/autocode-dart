@@ -1,8 +1,10 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
 /* AcDoc({
   "description": "Enumeration of all known AI models (mid‑2025), covering text, multimodal, image, audio, and video.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumAIModel {
   // ------------------------------- OpenAI -------------------------------
   /* AcDoc({"description": "OpenAI GPT-4 model."}) */

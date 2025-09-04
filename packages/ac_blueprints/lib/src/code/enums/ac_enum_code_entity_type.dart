@@ -1,3 +1,6 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
+@AcReflectable()
 class AcEnumCodeEntityType {
   // 🔵 Core Types
   static const CLASS = 'class';

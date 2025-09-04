@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of different string case styles, useful for naming conventions and formatting.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumStringCase {
   /* AcDoc({"description": "camelCase style (e.g., myVariableName)."}) */
   camel('CAMEL'),

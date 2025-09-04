@@ -1,3 +1,4 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
 /* AcDoc({
   "description": "Enumerates the types of inputs that can be sent to an AI model.",
   "author": "Sanket Patel",
@@ -6,6 +7,7 @@
   "group": "Input Type",
   "tags": ["input", "enum", "media", "modality"]
 }) */
+@AcReflectable()
 enum AcEnumAIInputType {
   /* AcDoc({"description": "Represents a plain text input prompt."}) */
   text("text"),

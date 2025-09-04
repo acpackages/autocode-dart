@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of select modes used in the data dictionary query system.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDSelectMode {
   /* AcDoc({"description": "Selects all rows that match the query conditions."}) */
   all("ALL"),

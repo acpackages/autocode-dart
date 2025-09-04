@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration representing various SQL database types supported by the system.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumSqlDatabaseType {
   /* AcDoc({"description": "MariaDB SQL database type."}) */
   mariadb('MARIADB'),

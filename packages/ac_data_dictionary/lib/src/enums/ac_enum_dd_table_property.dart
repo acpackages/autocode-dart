@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of table-level properties supported in the data dictionary schema.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDTableProperty {
   /* AcDoc({"description": "Defines index number of the table."}) */
   index_("INDEX"),

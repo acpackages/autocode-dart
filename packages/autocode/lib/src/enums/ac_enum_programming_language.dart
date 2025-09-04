@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration representing various programming languages supported by the system.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumProgrammingLanguage {
   /* AcDoc({"description": "TypeScript programming language."}) */
   typescript('TYPESCRIPT'),

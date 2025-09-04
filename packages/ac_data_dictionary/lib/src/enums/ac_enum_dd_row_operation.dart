@@ -1,4 +1,5 @@
-import 'package:ac_mirrors/annotations.dart';
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of operations that can be performed on a row within the data dictionary system.",
   "author": "Sanket Patel",

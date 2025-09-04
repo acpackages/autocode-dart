@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of different log output types supported in the system.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumLogType {
   /* AcDoc({"description": "Logs output to the system console."}) */
   console('CONSOLE'),

@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of known AI API unifier platforms.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumAIUnifier {
   /* AcDoc({
     "description": "AIMLAPI - Unified OpenAI-compatible API to access Gemini, Claude, Mistral, etc.",

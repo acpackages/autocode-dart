@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of column format types used in a data dictionary schema.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumDDColumnFormat {
   /* AcDoc({"description": "Represents a date format (e.g., YYYY-MM-DD)."}) */
   date("DATE"),

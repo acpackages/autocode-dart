@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration representing logical operators used in conditional expressions.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumLogicalOperator {
   /* AcDoc({"description": "Logical AND operator."}) */
   and('AND'),

@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of environments used in application deployment and configuration contexts.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumEnvironment {
   /* AcDoc({"description": "Development environment used by engineers for building and testing."}) */
   development('DEVELOPMENT'),

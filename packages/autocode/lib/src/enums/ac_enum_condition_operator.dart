@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of supported condition operators used for filtering or querying data.",
   "author": "AcDocs System",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumConditionOperator {
   /* AcDoc({"description": "Represents a value that falls between two bounds (inclusive or exclusive depending on implementation)."}) */
   between('BETWEEN'),

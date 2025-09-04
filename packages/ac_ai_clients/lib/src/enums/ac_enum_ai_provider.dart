@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of supported AI API providers.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumAIProvider {
   /* AcDoc({"description": "Amazon Bedrock platform for hosted AI services (e.g., Titan, Claude, Cohere)."}) */
   amazon("amazon"),

@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of different types of web responses supported by the Ac platform.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumWebResponseType {
   /* AcDoc({"description": "Indicates a downloadable file response."}) */
   download("DOWNLOAD"),

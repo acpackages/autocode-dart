@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of AI response types supported by the ACAIApi package.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumAIResponseType {
   /* AcDoc({"description": "Textual response such as natural language or code generation."}) */
   text("text"),

@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of different SQL-related entities such as tables, views, triggers, and more.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumSqlEntity {
   /* AcDoc({"description": "Represents a SQL function entity."}) */
   function('FUNCTION'),

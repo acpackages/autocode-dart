@@ -1,8 +1,11 @@
+import 'package:ac_mirrors/ac_mirrors.dart';
+
 /* AcDoc({
   "description": "Enumeration of common CSS units used for defining dimensions in styles.",
   "author": "Sanket Patel",
   "type": "development"
 }) */
+@AcReflectable()
 enum AcEnumCssUnit {
   /* AcDoc({"description": "Pixels - relative to the screen resolution."}) */
   px('PX'),
