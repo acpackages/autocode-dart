@@ -118,7 +118,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function.value,
           TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
           TblSchemaLogs.acSchemaOperation: 'drop',
           TblSchemaLogs.acSchemaOperationResult: dropResult.status,
@@ -142,7 +142,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function.value,
           TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
@@ -217,7 +217,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             logger.log('Executed drop relation statement successfully.');
           }
           await saveSchemaLogEntry({
-            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship,
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
             TblSchemaLogs.acSchemaEntityName: constraintName,
             TblSchemaLogs.acSchemaOperation: 'drop',
             TblSchemaLogs.acSchemaOperationResult: dropResponse.status,
@@ -257,7 +257,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           logger.log('Relationship created successfully.');
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
           TblSchemaLogs.acSchemaEntityName:
               '${acDDRelationship.sourceTable}.${acDDRelationship.sourceColumn}>${acDDRelationship.destinationTable}.${acDDRelationship.destinationColumn}',
           TblSchemaLogs.acSchemaOperation: 'create',
@@ -312,7 +312,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         }
         await saveSchemaLogEntry({
           TblSchemaLogs.acSchemaEntityType:
-              AcEnumSqlEntity.storedProcedure,
+              AcEnumSqlEntity.storedProcedure.value,
           TblSchemaLogs.acSchemaEntityName:
               acDDStoredProcedure.storedProcedureName,
           TblSchemaLogs.acSchemaOperation: 'drop',
@@ -338,7 +338,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         }
         await saveSchemaLogEntry({
           TblSchemaLogs.acSchemaEntityType:
-              AcEnumSqlEntity.storedProcedure,
+              AcEnumSqlEntity.storedProcedure.value,
           TblSchemaLogs.acSchemaEntityName:
               acDDStoredProcedure.storedProcedureName,
           TblSchemaLogs.acSchemaOperation: 'create',
@@ -388,7 +388,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
           TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
@@ -436,7 +436,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
           TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
           TblSchemaLogs.acSchemaOperation: 'drop',
           TblSchemaLogs.acSchemaOperationResult: dropResult.status,
@@ -461,7 +461,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
           TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
@@ -513,7 +513,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           );
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
           TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
           TblSchemaLogs.acSchemaOperation: 'drop',
           TblSchemaLogs.acSchemaOperationResult: dropResult.status,
@@ -535,7 +535,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           errorViews.add(acDDView);
         }
         await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
           TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
@@ -570,7 +570,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               retryViews.add(acDDView);
             }
             await saveSchemaLogEntry({
-              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view,
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
               TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
               TblSchemaLogs.acSchemaOperation: 'create',
               TblSchemaLogs.acSchemaOperationResult: createResult.status,
@@ -837,7 +837,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   TblSchemaDetails.acSchemaDetailKey:
                       SchemaDetails.keyCreatedOn,
                   TblSchemaDetails.acSchemaDetailStringValue:
-                      DateTime.now().toIso8601String(),
+                      DateTime.now(),
                 });
                 if (createdOnResponse.isFailure()) {
                   result.setFromResult(result: createdOnResponse, message: 'error saving created on schema detail' );
@@ -873,7 +873,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                     TblSchemaDetails.acSchemaDetailKey:
                         SchemaDetails.keyLastUpdatedOn,
                     TblSchemaDetails.acSchemaDetailStringValue:
-                        DateTime.now().toIso8601String(),
+                        DateTime.now(),
                   });
                   if (updatedOnResponse.isFailure()) {
                     result.setFromResult(result: updatedOnResponse, message: 'error saving updated on schema detail' );
@@ -1056,13 +1056,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               return result.setFromResult(result: createResult, logger: logger);
             }
             await saveSchemaLogEntry({
-              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
               TblSchemaLogs.acSchemaEntityName: tableName,
               TblSchemaLogs.acSchemaOperation: 'create',
               TblSchemaLogs.acSchemaOperationResult: createResult.status,
               TblSchemaLogs.acSchemaOperationStatement: createStatement,
               TblSchemaLogs.acSchemaOperationTimestamp:
-                  DateTime.now().toIso8601String(),
+                  DateTime.now(),
             });
           }
         }
@@ -1102,13 +1102,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   );
                 }
                 await saveSchemaLogEntry({
-                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table,
+                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
                   TblSchemaLogs.acSchemaEntityName: tableName,
                   TblSchemaLogs.acSchemaOperation: 'modify',
                   TblSchemaLogs.acSchemaOperationResult: createResult.status,
                   TblSchemaLogs.acSchemaOperationStatement: addStatement,
                   TblSchemaLogs.acSchemaOperationTimestamp:
-                      DateTime.now().toIso8601String(),
+                      DateTime.now(),
                 });
               }
             }

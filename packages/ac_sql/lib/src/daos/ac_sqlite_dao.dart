@@ -153,7 +153,7 @@ class AcSqliteDao extends AcBaseSqlDao {
           .toList();
       final affectedRows = await db.rawDelete(
         updatedStatement,
-        updatedParameterValues,
+        ensureValidParamsType(params:updatedParameterValues),
       );
       result.affectedRowsCount = affectedRows;
       result.setSuccess();
@@ -165,6 +165,15 @@ class AcSqliteDao extends AcBaseSqlDao {
       }
     }
     return result;
+  }
+
+  ensureValidParamsType({required List<dynamic> params}){
+    for(int i=0;i<params.length;i++){
+      if(params.runtimeType is DateTime){
+        params[i] = params[i].toIso8601String();
+      }
+    }
+    return params;
   }
 
   /* AcDoc({
@@ -197,7 +206,7 @@ class AcSqliteDao extends AcBaseSqlDao {
           (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
               .values
               .toList();
-          await txn.rawQuery(updatedStatement, updatedParameterValues);
+          await txn.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
         }
       });
       result.setSuccess();
@@ -240,7 +249,7 @@ class AcSqliteDao extends AcBaseSqlDao {
       (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
           .values
           .toList();
-      await db.execute(updatedStatement, updatedParameterValues);
+      await db.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
@@ -481,7 +490,7 @@ class AcSqliteDao extends AcBaseSqlDao {
       (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
           .values
           .toList();
-      final results = await db.rawQuery(updatedStatement, updatedParameterValues);
+      final results = await db.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
       if (mode == AcEnumDDSelectMode.count) {
         result.totalRows = results.first['records_count'] as int;
       } else {
@@ -613,7 +622,7 @@ class AcSqliteDao extends AcBaseSqlDao {
       final statement =
           "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
       final params = row.values.toList();
-      final lastInsertId = await db.rawInsert(statement, params);
+      final lastInsertId = await db.rawInsert(statement, ensureValidParamsType(params: params));
       result.lastInsertedId = lastInsertId;
       result.setSuccess();
     } catch (ex, stack) {
@@ -652,7 +661,7 @@ class AcSqliteDao extends AcBaseSqlDao {
         await db.transaction((txn) async {
           for (final rowData in rows) {
             final params = rowData.values.toList();
-            await txn.rawInsert(statement, params);
+            await txn.rawInsert(statement, ensureValidParamsType(params: params));
           }
         });
         result.setSuccess();
@@ -695,7 +704,7 @@ class AcSqliteDao extends AcBaseSqlDao {
       final statement =
           "UPDATE $tableName SET $setValues ${condition.isNotEmpty ? "WHERE $condition" : ""}";
       final params = [...row.values, ...parameters.values];
-      final affectedRows = await db.rawUpdate(statement, params);
+      final affectedRows = await db.rawUpdate(statement, ensureValidParamsType(params: params));
       result.affectedRowsCount = affectedRows;
       result.setSuccess();
     } catch (ex, stack) {
@@ -740,7 +749,7 @@ class AcSqliteDao extends AcBaseSqlDao {
             final statement =
                 "UPDATE $tableName SET $setValues WHERE $condition";
             final params = [...row.values, ...conditionParameters.values];
-            final affectedRows = await txn.rawUpdate(statement, params);
+            final affectedRows = await txn.rawUpdate(statement, ensureValidParamsType(params: params));
             result.affectedRowsCount ??= 0;
             result.affectedRowsCount = result.affectedRowsCount! + affectedRows;
           }

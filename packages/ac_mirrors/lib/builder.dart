@@ -131,6 +131,8 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
   void generateFileContent(StringBuffer buffer, Set<Element> elements) {
     final allUris = <Uri>{};
+    final generatedMirrors = <String>{}; // Track generated mirror names
+
     for (final element in elements) {
       if (element is ClassElement) {
         collectUris(element, allUris);
@@ -143,12 +145,26 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
     for (final element in elements) {
       if (element is ClassElement) {
-        generateDeclarationMirrors(buffer, element);
+        // Generate declaration mirrors, skipping duplicates
+        for (final declaration in getAllDeclarations(element).where((d) => !d.isSynthetic)) {
+          final mirrorName = generateMirrorName(declaration);
+          if (generatedMirrors.contains(mirrorName)) {
+            log(" -> Skipping duplicate declaration mirror '$mirrorName' for '${declaration.name}'");
+            continue;
+          }
+          generatedMirrors.add(mirrorName);
+          generateDeclarationMirrors(buffer, element, declaration);
+        }
       }
-      // Enums have their value mirrors generated in generateClassMirror
     }
 
     for (final element in elements) {
+      final mirrorName = generateMirrorName(element);
+      if (generatedMirrors.contains(mirrorName)) {
+        log(" -> Skipping duplicate class/enum mirror '$mirrorName' for '${element.name}'");
+        continue;
+      }
+      generatedMirrors.add(mirrorName);
       generateClassMirror(buffer, element);
     }
 
@@ -182,6 +198,21 @@ class AcMirrorsAggregatingBuilder implements Builder {
               uris.add(paramTypeElement!.library!.source.uri);
             }
           }
+        }
+      }
+      // Collect URIs for metadata on the class itself
+      for (final meta in current.metadata) {
+        final metaElement = meta.element;
+        if (metaElement?.library?.source.uri != null) {
+          uris.add(metaElement!.library!.source.uri);
+        }
+        try {
+          final constant = meta.computeConstantValue();
+          if (constant != null) {
+            _collectUrisFromDartObject(constant, uris);
+          }
+        } catch (e) {
+          log("  > WARNING: Could not compute URIs from annotation on class ${current.name}. Error: $e");
         }
       }
       final supertype = current.supertype;
@@ -264,7 +295,11 @@ class AcMirrorsAggregatingBuilder implements Builder {
   }
 
   String generateMirrorName(Element element) {
-    final uniqueId = '${element.library!.source.uri}::${element.enclosingElement?.name ?? ""}::${element.name}';
+    // Use the declaring class for inherited members
+    final declaringElement = element is ClassElement || element is EnumElement
+        ? element
+        : element.enclosingElement ?? element;
+    final uniqueId = '${declaringElement.library!.source.uri}::${declaringElement.name}::${element.name}';
     final bytes = utf8.encode(uniqueId);
     final digest = sha1.convert(bytes);
     return 'M${digest.toString().substring(0, 16)}';
@@ -316,88 +351,88 @@ class AcMirrorsAggregatingBuilder implements Builder {
     return 'const $typeName$accessor($allArgs)';
   }
 
-  void generateDeclarationMirrors(StringBuffer buffer, ClassElement classEl) {
-    log("Generating declaration mirrors for class '${classEl.name}'.");
-    for (final declaration in getAllDeclarations(classEl).where((d) => !d.isSynthetic)) {
-      final mirrorName = generateMirrorName(declaration);
-      log(" -> Generating declaration mirror '$mirrorName' for '${declaration.name}' (${declaration.runtimeType})");
-      final metadata = _generateMetadataSource(declaration.metadata);
+  void generateDeclarationMirrors(StringBuffer buffer, ClassElement classEl, Element declaration) {
+    final mirrorName = generateMirrorName(declaration);
+    final declSource = declaration.enclosingElement == classEl
+        ? "in class '${classEl.name}'"
+        : "inherited from '${declaration.enclosingElement?.name}'";
+    log(" -> Generating declaration mirror '$mirrorName' for '${declaration.name}' ($declSource, ${declaration.runtimeType})");
+    final metadata = _generateMetadataSource(declaration.metadata);
 
-      String getReturnTypeLine(ExecutableElement e) {
-        final typeString = e.returnType.isVoid ? 'dynamic' : e.returnType.getDisplayString(withNullability: false);
-        return '  @override Type get returnType => $typeString;';
-      }
+    String getReturnTypeLine(ExecutableElement e) {
+      final typeString = e.returnType.isVoid ? 'dynamic' : e.returnType.getDisplayString(withNullability: false);
+      return '  @override Type get returnType => $typeString;';
+    }
 
-      String getSimpleNameLine(Element e) {
-        return "  @override Symbol get simpleName => const Symbol('${e.name}');";
-      }
+    String getSimpleNameLine(Element e) {
+      return "  @override Symbol get simpleName => const Symbol('${e.name}');";
+    }
 
-      String getNameLine(Element e) {
-        return "  @override String getName() => '${e.name}';";
-      }
+    String getNameLine(Element e) {
+      return "  @override String getName() => '${e.name}';";
+    }
 
-      if (declaration is ConstructorElement) {
-        buffer.writeln("// Mirror for constructor '${declaration.name}' in class '${classEl.name}'");
-        buffer.writeln('class ${mirrorName} implements AcMethodMirror {');
-        buffer.writeln('  const ${mirrorName}();');
-        buffer.writeln(getSimpleNameLine(declaration));
-        buffer.writeln(getNameLine(declaration));
-        buffer.writeln('  @override bool get isStatic => false;');
-        buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-        buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
-        buffer.writeln(getReturnTypeLine(declaration));
-        buffer.writeln('  @override bool get isConstructor => true;');
-        buffer.writeln('  @override bool get isGetter => false;');
-        buffer.writeln('  @override bool get isSetter => false;');
-        buffer.writeln('  @override String get constructorName => "${declaration.name}";');
-        buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
-        buffer.writeln('}');
-      } else if (declaration is MethodElement) {
-        buffer.writeln("// Mirror for method '${declaration.name}' in class '${classEl.name}'");
-        buffer.writeln('class ${mirrorName} implements AcMethodMirror {');
-        buffer.writeln('  const ${mirrorName}();');
-        buffer.writeln(getSimpleNameLine(declaration));
-        buffer.writeln(getNameLine(declaration));
-        buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
-        buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-        buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
-        buffer.writeln(getReturnTypeLine(declaration));
-        buffer.writeln('  @override bool get isConstructor => false;');
-        buffer.writeln('  @override bool get isGetter => false;');
-        buffer.writeln('  @override bool get isSetter => false;');
-        buffer.writeln('  @override String get constructorName => "";');
-        buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
-        buffer.writeln('}');
-      } else if (declaration is PropertyAccessorElement) {
-        buffer.writeln("// Mirror for accessor '${declaration.name}' in class '${classEl.name}'");
-        buffer.writeln('class ${mirrorName} implements AcMethodMirror {');
-        buffer.writeln('  const ${mirrorName}();');
-        buffer.writeln(getSimpleNameLine(declaration));
-        buffer.writeln(getNameLine(declaration));
-        buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
-        buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-        buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
-        buffer.writeln(getReturnTypeLine(declaration));
-        buffer.writeln('  @override bool get isConstructor => false;');
-        buffer.writeln('  @override bool get isGetter => ${declaration.isGetter};');
-        buffer.writeln('  @override bool get isSetter => ${declaration.isSetter};');
-        buffer.writeln('  @override String get constructorName => "";');
-        buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
-        buffer.writeln('}');
-      } else if (declaration is FieldElement) {
-        buffer.writeln("// Mirror for field '${declaration.name}' in class '${classEl.name}'");
-        buffer.writeln('class ${mirrorName} implements AcVariableMirror {');
-        buffer.writeln('  const ${mirrorName}();');
-        buffer.writeln(getSimpleNameLine(declaration));
-        buffer.writeln(getNameLine(declaration));
-        buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
-        buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-        buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
-        buffer.writeln('  @override Type get type => ${declaration.type.getDisplayString(withNullability: false)};');
-        buffer.writeln('  @override bool get isFinal => ${declaration.isFinal};');
-        buffer.writeln('  @override bool get isConst => ${declaration.isConst};');
-        buffer.writeln('}');
-      }
+    if (declaration is ConstructorElement) {
+      buffer.writeln("// Mirror for constructor '${declaration.name}' $declSource");
+      buffer.writeln('class $mirrorName implements AcMethodMirror {');
+      buffer.writeln('  const $mirrorName();');
+      buffer.writeln(getSimpleNameLine(declaration));
+      buffer.writeln(getNameLine(declaration));
+      buffer.writeln('  @override bool get isStatic => false;');
+      buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
+      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln(getReturnTypeLine(declaration));
+      buffer.writeln('  @override bool get isConstructor => true;');
+      buffer.writeln('  @override bool get isGetter => false;');
+      buffer.writeln('  @override bool get isSetter => false;');
+      buffer.writeln('  @override String get constructorName => "${declaration.name}";');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('}');
+    } else if (declaration is MethodElement) {
+      buffer.writeln("// Mirror for method '${declaration.name}' $declSource");
+      buffer.writeln('class $mirrorName implements AcMethodMirror {');
+      buffer.writeln('  const $mirrorName();');
+      buffer.writeln(getSimpleNameLine(declaration));
+      buffer.writeln(getNameLine(declaration));
+      buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
+      buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
+      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln(getReturnTypeLine(declaration));
+      buffer.writeln('  @override bool get isConstructor => false;');
+      buffer.writeln('  @override bool get isGetter => false;');
+      buffer.writeln('  @override bool get isSetter => false;');
+      buffer.writeln('  @override String get constructorName => "";');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('}');
+    } else if (declaration is PropertyAccessorElement) {
+      buffer.writeln("// Mirror for accessor '${declaration.name}' $declSource");
+      buffer.writeln('class $mirrorName implements AcMethodMirror {');
+      buffer.writeln('  const $mirrorName();');
+      buffer.writeln(getSimpleNameLine(declaration));
+      buffer.writeln(getNameLine(declaration));
+      buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
+      buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
+      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln(getReturnTypeLine(declaration));
+      buffer.writeln('  @override bool get isConstructor => false;');
+      buffer.writeln('  @override bool get isGetter => ${declaration.isGetter};');
+      buffer.writeln('  @override bool get isSetter => ${declaration.isSetter};');
+      buffer.writeln('  @override String get constructorName => "";');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('}');
+    } else if (declaration is FieldElement) {
+      buffer.writeln("// Mirror for field '${declaration.name}' $declSource");
+      buffer.writeln('class $mirrorName implements AcVariableMirror {');
+      buffer.writeln('  const $mirrorName();');
+      buffer.writeln(getSimpleNameLine(declaration));
+      buffer.writeln(getNameLine(declaration));
+      buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
+      buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
+      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln('  @override Type get type => ${declaration.type.getDisplayString(withNullability: false)};');
+      buffer.writeln('  @override bool get isFinal => ${declaration.isFinal};');
+      buffer.writeln('  @override bool get isConst => ${declaration.isConst};');
+      buffer.writeln('}');
     }
     buffer.writeln('');
   }
@@ -522,9 +557,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln('  @override List<AcClassMirror> get superinterfaces => const [];');
 
       final instanceMembers = <Symbol, Element>{};
-      for (final member in getAllDeclarations(element).where((d) => !_isStatic(d) && d is! ConstructorElement)) {
+      final staticMembers = <Symbol, Element>{};
+      for (final member in getAllDeclarations(element)) {
         if (member.isSynthetic) continue;
-        instanceMembers.putIfAbsent(Symbol(member.name!), () => member);
+        if (_isStatic(member)) {
+          staticMembers.putIfAbsent(Symbol(member.name!), () => member);
+        } else if (member is! ConstructorElement) {
+          instanceMembers.putIfAbsent(Symbol(member.name!), () => member);
+        }
       }
 
       log("  -> Found ${instanceMembers.length} non-synthetic instance members for '$className'.");
@@ -536,7 +576,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
       }
       buffer.writeln('  };');
 
-      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get staticMembers => const {};');
+      log("  -> Found ${staticMembers.length} non-synthetic static members for '$className'.");
+      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get staticMembers => const {');
+      for (final member in staticMembers.values) {
+        final mirrorName = generateMirrorName(member);
+        log("    -> Mapping static member '${member.name}' to its mirror '$mirrorName'.");
+        buffer.writeln("    const Symbol('${member.name}'): const $mirrorName(),");
+      }
+      buffer.writeln('  };');
 
       buffer.writeln('  @override Map<String, AcMethodMirror> get constructors => const {');
       if (!element.isAbstract) {
@@ -577,8 +624,8 @@ class AcMirrorsAggregatingBuilder implements Builder {
       for (final member in instanceMembers.values.where((m) => !m.isPrivate)) {
         if (member is FieldElement) {
           buffer.writeln("      case const Symbol('${member.name}'): return instance.${member.name};");
-          if (!member.isFinal) {
-            buffer.writeln('      case const Symbol("${member.name}="): instance.${member.name} = positionalArgs[0]; break;');
+          if (!member.isFinal && !member.isConst) {
+            buffer.writeln("      case const Symbol('${member.name}='): instance.${member.name} = positionalArgs[0]; break;");
           }
         } else if (member is PropertyAccessorElement) {
           if (member.isGetter) {
@@ -621,12 +668,44 @@ class AcMirrorsAggregatingBuilder implements Builder {
   }
 
   List<Element> getAllDeclarations(ClassElement classEl) {
-    return [
-      ...classEl.fields,
-      ...classEl.methods,
-      ...classEl.accessors,
-      ...classEl.constructors,
-    ];
+    final declarations = <Element>[];
+    final seenKeys = <String>{}; // Use a more robust key for deduplication
+
+    // Helper function to collect declarations from a class
+    void collectDeclarations(ClassElement? current, bool isRoot) {
+      if (current == null || current.name == 'Object') return;
+
+      // Collect fields, methods, accessors, and constructors
+      final members = [
+        ...current.fields,
+        ...current.methods,
+        ...current.accessors,
+        if (isRoot) ...current.constructors, // Only include constructors for the root class
+      ];
+
+      for (final member in members) {
+        // Skip private members from superclasses (not accessible)
+        if (!isRoot && member.isPrivate) continue;
+
+        // Create a unique key based on the declaring class, member name, and type
+        final declaringClass = member.enclosingElement?.name ?? current.name;
+        final memberKey = '${declaringClass}:${member.name}:${member.runtimeType}';
+        if (!seenKeys.contains(memberKey)) {
+          seenKeys.add(memberKey);
+          declarations.add(member);
+        }
+      }
+
+      // Recursively collect from superclass
+      final supertype = current.supertype;
+      if (supertype != null && supertype.element is ClassElement) {
+        collectDeclarations(supertype.element as ClassElement, false);
+      }
+    }
+
+    // Start collecting from the given class
+    collectDeclarations(classEl, true);
+    return declarations;
   }
 
   bool _isStatic(Element d) {

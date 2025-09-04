@@ -20,18 +20,26 @@ class AcJsonUtils {
     }
   }) */
   static Map<String, dynamic> instanceToJson({required Object instance}) {
-    final mirror = acReflect(instance);
+    try {
+      final mirror = acReflect(instance);
 
-    if (mirror.classMirror.instanceMembers.containsKey(const Symbol('toJson'))) {
-      try {
-        final result = mirror.invoke(const Symbol('toJson'), []);
-        if (result is Map<String, dynamic>) {
-          return result;
-        }
-      } catch (_) {}
+      if (mirror.classMirror.instanceMembers.containsKey(
+          const Symbol('toJson'))) {
+        try {
+          final result = mirror.invoke(const Symbol('toJson'), []);
+          if (result is Map<String, dynamic>) {
+            return result;
+          }
+        } catch (_) {}
+      }
+
+      return getJsonDataFromInstance(instance: instance);
     }
-
-    return getJsonDataFromInstance(instance: instance);
+    catch(ex){
+      print("Error instance to json");
+      print(instance.runtimeType);
+      throw ex;
+    }
   }
 
   /* AcDoc({
@@ -248,20 +256,26 @@ class AcJsonUtils {
     }
   }) */
   static dynamic getJsonForPropertyValue(dynamic propertyValue) {
-    if (propertyValue == null || propertyValue is num || propertyValue is String || propertyValue is bool) {
-      return propertyValue;
-    }
-    if (propertyValue is List) {
-      return propertyValue.map((e) => getJsonForPropertyValue(e)).toList();
-    }
-    if (propertyValue is Map) {
-      return propertyValue.map((k, v) => MapEntry(k.toString(), getJsonForPropertyValue(v)));
-    }
-    if (propertyValue is Exception || propertyValue is Error) {
-      return propertyValue.toString();
-    }
+    try {
+      if (propertyValue == null || propertyValue is num ||
+          propertyValue is String || propertyValue is bool) {
+        return propertyValue;
+      }
+      if (propertyValue is List) {
+        return propertyValue.map((e) => getJsonForPropertyValue(e)).toList();
+      }
+      if (propertyValue is Map) {
+        return propertyValue.map((k, v) =>
+            MapEntry(k.toString(), getJsonForPropertyValue(v)));
+      }
+      if (propertyValue is Exception || propertyValue is Error) {
+        return propertyValue.toString();
+      }
 
-    return instanceToJson(instance: propertyValue);
+      return instanceToJson(instance: propertyValue);
+    }catch(ex){
+      return null;
+    }
   }
 
   /* AcDoc({
