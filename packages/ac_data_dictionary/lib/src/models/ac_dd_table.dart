@@ -65,7 +65,7 @@ class AcDDTable {
     required String tableName,
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
-    return "DROP TABLE IF EXISTS $tableName;";
+    return "DROP TABLE IF EXISTS `$tableName`;";
   }
 
   /* AcDoc({

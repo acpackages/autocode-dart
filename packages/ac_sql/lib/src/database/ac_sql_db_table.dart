@@ -543,6 +543,11 @@ class AcSqlDbTable extends AcSqlDbBase {
             } else if (type == AcEnumDDColumnType.password) {
               value = AcEncryption.encrypt(plainText: value);
             }
+            else if (type == AcEnumDDColumnType.uuid && insertMode) {
+              if(value == '' || value == null){
+                value = Autocode.uuid();
+              }
+            }
             row[column.columnName] = value;
           }
         }
@@ -857,8 +862,8 @@ class AcSqlDbTable extends AcSqlDbBase {
               tableName: tableName,
               row: row,
             );
+            logger.log(insertResult.toString());
             if (insertResult.isSuccess()) {
-              logger.log(insertResult.toString());
               result.setSuccess(message: "Row inserted successfully");
               result.primaryKeyColumn = primaryKeyColumn;
               result.primaryKeyValue = primaryKeyValue;
@@ -1103,12 +1108,6 @@ class AcSqlDbTable extends AcSqlDbBase {
             conditionParameters[":$key"] = value;
           });
           condition = checkConditions.join(" AND ");
-        } else {
-          continueOperation = false;
-          result.setFailure(
-            message: "No values to check in save",
-            logger: logger,
-          );
         }
       }
 

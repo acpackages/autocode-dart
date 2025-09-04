@@ -294,7 +294,7 @@ class AcDDTableColumn {
           sqlType = 'TEXT';
       }
 
-      result = "$columnName $sqlType";
+      result = "`$columnName` $sqlType";
       if (isAutoIncrement() && !isAutoIncrementSet) {
         result += " AUTO_INCREMENT";
       }
@@ -327,7 +327,7 @@ class AcDDTableColumn {
           sqlType = 'TEXT';
       }
 
-      result = "$columnName $sqlType";
+      result = "`$columnName` $sqlType";
       if (isAutoIncrement() && !isAutoIncrementSet) {
         result += " AUTOINCREMENT";
       }
@@ -525,9 +525,17 @@ class AcDDTableColumn {
     if (json.containsKey(keyColumnProperties) &&
         json[keyColumnProperties] is Map) {
       jsonData[keyColumnProperties].forEach((key, value) {
-        columnProperties[key] = AcDDTableColumnProperty.instanceFromJson(
-          jsonData: value,
-        );
+        if(key is AcEnumDDColumnProperty){
+          columnProperties[key.value] = AcDDTableColumnProperty.instanceFromJson(
+            jsonData: value,
+          );
+        }
+        else{
+          columnProperties[key] = AcDDTableColumnProperty.instanceFromJson(
+            jsonData: value,
+          );
+        }
+
       });
       json.remove(keyColumnProperties);
     }

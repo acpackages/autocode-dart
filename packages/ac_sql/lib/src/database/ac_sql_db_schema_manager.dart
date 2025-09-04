@@ -1,4 +1,5 @@
 import 'package:autocode/autocode.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 /* AcDoc({
@@ -48,10 +49,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
 
       if (versionResult.isSuccess()) {
         if (versionResult.rows.isNotEmpty) {
-          final databaseVersion =
-              versionResult.rows.first[TblSchemaDetails
-                      .acSchemaDetailNumericValue]
-                  as int;
+          final databaseVersion = versionResult.rows.first.getInt(TblSchemaDetails.acSchemaDetailNumericValue);
           if (acDataDictionary.version == databaseVersion) {
             logger.log(
               'Database data dictionary and current data dictionary version are the same.',
@@ -835,12 +833,15 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   message: 'Schema created successfully',
                   logger: logger,
                 );
-                await saveSchemaDetail({
+                var createdOnResponse = await saveSchemaDetail({
                   TblSchemaDetails.acSchemaDetailKey:
                       SchemaDetails.keyCreatedOn,
                   TblSchemaDetails.acSchemaDetailStringValue:
                       DateTime.now().toIso8601String(),
                 });
+                if (createdOnResponse.isFailure()) {
+                  result.setFromResult(result: createdOnResponse, message: 'error saving created on schema detail' );
+                }
               } else {
                 return result.setFromResult(
                   result: createSchemaResult,
@@ -868,12 +869,15 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                     message: 'Schema updated successfully',
                     logger: logger,
                   );
-                  await saveSchemaDetail({
+                  var updatedOnResponse = await saveSchemaDetail({
                     TblSchemaDetails.acSchemaDetailKey:
                         SchemaDetails.keyLastUpdatedOn,
                     TblSchemaDetails.acSchemaDetailStringValue:
                         DateTime.now().toIso8601String(),
                   });
+                  if (updatedOnResponse.isFailure()) {
+                    result.setFromResult(result: updatedOnResponse, message: 'error saving updated on schema detail' );
+                  }
                 } else {
                   return result.setFromResult(
                     result: updateSchemaResult,
@@ -897,12 +901,15 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             }
           }
           if (updateDataDictionaryVersion) {
-            await saveSchemaDetail({
+            var versionLogResponse = await saveSchemaDetail({
               TblSchemaDetails.acSchemaDetailKey:
                   SchemaDetails.keyDataDictionaryVersion,
               TblSchemaDetails.acSchemaDetailNumericValue:
                   acDataDictionary.version,
             });
+            if (versionLogResponse.isFailure()) {
+              result.setFromResult(result: versionLogResponse, message: 'error saving version schema detail' );
+            }
           }
         } else {
           return result.setFromResult(
@@ -989,7 +996,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns_type": "Future<AcSqlDaoResult>"
   }) */
   Future<AcSqlDaoResult> saveSchemaLogEntry(Map<String, dynamic> row) async {
-    return await acSqlDDTableSchemaLogs.insertRow(row: row);
+    print(row);
+    AcSqlDaoResult result =  await acSqlDDTableSchemaLogs.saveRow(row: row);
+    if(result.isFailure()){
+      print(result.toJson());
+    }
+    print(result);
+    return result;
   }
 
   /* AcDoc({
@@ -999,8 +1012,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcSqlDaoResult` from the save operation.",
     "returns_type": "Future<AcSqlDaoResult>"
   }) */
-  Future<AcSqlDaoResult> saveSchemaDetail(Map<String, dynamic> data) async {
-    return await acSqlDDTableSchemaDetails.saveRow(row: data);
+  Future<AcSqlDaoResult> saveSchemaDetail(Map<String, dynamic> row) async {
+    AcSqlDaoResult result =  await acSqlDDTableSchemaDetails.saveRow(row: row);
+    if(result.isFailure()){
+      print(result.toJson());
+    }
+    return result;
   }
 
   /* AcDoc({

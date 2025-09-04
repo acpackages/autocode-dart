@@ -155,12 +155,12 @@ class AcJsonUtils {
 
       try {
         instanceMirror.setField(fieldSymbol, dartValue);
-      } catch(e) {}
+      } catch (e) {}
     }
   }
 
   /* AcDoc({
-    "description": "Converts a raw JSON value into its expected Dart type, including instantiating nested classes and arrays.",
+    "description": "Converts a raw JSON value into its expected Dart type, including instantiating nested classes, arrays, and enums.",
     "parameters": {
       "jsonValue": {
         "type": "dynamic",
@@ -182,6 +182,33 @@ class AcJsonUtils {
   }) */
   static dynamic convertJsonToDartValue(dynamic jsonValue, Type fieldType, Type? arrayType) {
     if (jsonValue == null) return null;
+
+    // Skip enum handling for dynamic type
+    if (fieldType == dynamic) {
+      return jsonValue;
+    }
+
+    // Handle enums
+    try {
+      final classMirror = acReflectClass(fieldType);
+      if (classMirror.isEnum && jsonValue is String) {
+        try {
+          // Try to invoke static fromValue method using ac_mirrors
+          final fromValueResult = (classMirror as dynamic).invoke(null, const Symbol('fromValue'), [jsonValue]);
+          return fromValueResult;
+        } catch (e) {
+          // Fallback to invoking the enum value directly
+          try {
+            return (classMirror as dynamic).invoke(null, Symbol(jsonValue), []);
+          } catch (e) {
+            throw ArgumentError('Cannot convert "$jsonValue" to enum $fieldType: $e');
+          }
+        }
+      }
+    } catch (e) {
+      // If reflection fails (e.g., no mirror for fieldType), return jsonValue as-is
+      return jsonValue;
+    }
 
     if (arrayType != null && jsonValue is List) {
       return jsonValue.map((item) {
@@ -272,4 +299,3 @@ class AcJsonUtils {
     return symbol.toString().split('"')[1];
   }
 }
-

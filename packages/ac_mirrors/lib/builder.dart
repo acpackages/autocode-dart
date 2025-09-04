@@ -26,7 +26,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    final uniqueElements = <Element>{}; // Renamed to uniqueElements to include classes and enums
+    final uniqueElements = <Element>{};
     final reflectableChecker = TypeChecker.fromRuntime(AcReflectable);
     log("Starting build step. Scanning for reflectable annotations...");
 
@@ -134,8 +134,9 @@ class AcMirrorsAggregatingBuilder implements Builder {
     for (final element in elements) {
       if (element is ClassElement) {
         collectUris(element, allUris);
+      } else if (element is EnumElement) {
+        collectUrisForEnum(element, allUris);
       }
-      // Enums don't need to collect URIs for members since they don't have constructors or instance methods
     }
 
     writeHeader(buffer, allUris);
@@ -144,7 +145,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       if (element is ClassElement) {
         generateDeclarationMirrors(buffer, element);
       }
-      // Enums don't have declarations like fields or methods to generate mirrors for
+      // Enums have their value mirrors generated in generateClassMirror
     }
 
     for (final element in elements) {
@@ -188,6 +189,67 @@ class AcMirrorsAggregatingBuilder implements Builder {
     }
   }
 
+  void collectUrisForEnum(EnumElement enumEl, Set<Uri> uris) {
+    uris.add(enumEl.library.source.uri);
+    for (final member in enumEl.fields.where((f) => f.isEnumConstant)) {
+      for (final meta in member.metadata) {
+        final metaElement = meta.element;
+        if (metaElement?.library?.source.uri != null) {
+          uris.add(metaElement!.library!.source.uri);
+        }
+      }
+      final typeElement = member.type.element;
+      if (typeElement?.library?.source.uri != null) {
+        uris.add(typeElement!.library!.source.uri);
+      }
+    }
+    // Collect URIs for metadata on the enum itself
+    for (final meta in enumEl.metadata) {
+      final metaElement = meta.element;
+      if (metaElement?.library?.source.uri != null) {
+        uris.add(metaElement!.library!.source.uri);
+      }
+    }
+    // Collect URIs for types used in annotations
+    for (final meta in enumEl.metadata) {
+      try {
+        final constant = meta.computeConstantValue();
+        if (constant != null) {
+          _collectUrisFromDartObject(constant, uris);
+        }
+      } catch (e) {
+        log("  > WARNING: Could not compute URIs from annotation on enum ${enumEl.name}. Error: $e");
+      }
+    }
+  }
+
+  void _collectUrisFromDartObject(DartObject object, Set<Uri> uris) {
+    final reader = ConstantReader(object);
+    if (reader.isType && reader.typeValue.element?.library?.source.uri != null) {
+      uris.add(reader.typeValue.element!.library!.source.uri);
+    } else if (reader.isList) {
+      for (final value in reader.listValue) {
+        _collectUrisFromDartObject(value, uris);
+      }
+    } else if (reader.isMap) {
+      for (final entry in reader.mapValue.entries) {
+        if (entry.key != null) _collectUrisFromDartObject(entry.key!, uris);
+        if (entry.value != null) _collectUrisFromDartObject(entry.value!, uris);
+      }
+    } else if (reader.isLiteral) {
+      // No URIs to collect for literals
+    } else {
+      final variable = object.variable;
+      if (variable?.library?.source.uri != null) {
+        uris.add(variable!.library!.source.uri);
+      }
+      final revived = reader.revive();
+      // if (revived.source.library?.source.uri != null) {
+      //   uris.add(revived.source.library!.source.uri);
+      // }
+    }
+  }
+
   void writeHeader(StringBuffer buffer, Set<Uri> uris) {
     log("Writing file header and imports.");
     buffer.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
@@ -202,7 +264,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
   }
 
   String generateMirrorName(Element element) {
-    final uniqueId = '${element.library!.source.uri}::${element.enclosingElement?.name}::${element.name}';
+    final uniqueId = '${element.library!.source.uri}::${element.enclosingElement?.name ?? ""}::${element.name}';
     final bytes = utf8.encode(uniqueId);
     final digest = sha1.convert(bytes);
     return 'M${digest.toString().substring(0, 16)}';
@@ -346,26 +408,9 @@ class AcMirrorsAggregatingBuilder implements Builder {
       final enumMirrorName = generateMirrorName(element);
       log("Generating enum mirror '$enumMirrorName' for enum '$enumName'.");
 
-      buffer.writeln("// Mirror for enum '${element.name}' from ${element.library.source.uri}");
-      buffer.writeln('class $enumMirrorName extends GeneratedAcClassMirror<$enumName> {');
-
-      buffer.writeln("  const $enumMirrorName();");
-      buffer.writeln("  @override final Symbol simpleName = const Symbol('$enumName');");
-      buffer.writeln('  @override final Type reflectedType = $enumName;');
-      buffer.writeln('  @override final bool isAbstract = false;');
-      buffer.writeln('  @override bool get isEnum => true;');
-      buffer.writeln('  @override final bool isStatic = false;');
-      buffer.writeln('  @override final bool isPrivate = ${element.isPrivate};');
-      buffer.writeln('  @override final List<Object> metadata = const [${_generateMetadataSource(element.metadata)}];');
-      buffer.writeln('  @override String getName() => "$enumName";');
-      buffer.writeln('  @override AcClassMirror? get superclass => null;');
-      buffer.writeln('  @override List<AcClassMirror> get superinterfaces => const [];');
-
-      // Enum values as static members
-      final enumValues = element.fields.where((f) => f.isEnumConstant);
+      // Generate mirrors for enum values first
+      final enumValues = element.fields.where((f) => f.isEnumConstant).toList();
       log("  -> Found ${enumValues.length} enum values for '$enumName'.");
-      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get instanceMembers => const {};');
-      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get staticMembers => const {');
       for (final value in enumValues) {
         final mirrorName = generateMirrorName(value);
         log("    -> Generating enum value mirror '$mirrorName' for '${value.name}'.");
@@ -381,8 +426,51 @@ class AcMirrorsAggregatingBuilder implements Builder {
         buffer.writeln('  @override bool get isFinal => true;');
         buffer.writeln('  @override bool get isConst => true;');
         buffer.writeln('}');
+        buffer.writeln('');
+      }
+
+      // Generate mirror for the 'values' getter
+      final valuesGetter = element.getGetter('values');
+      final valuesMirrorName = generateMirrorName(valuesGetter ?? element);
+      buffer.writeln("// Mirror for values getter in enum '$enumName'");
+      buffer.writeln('class $valuesMirrorName implements AcMethodMirror {');
+      buffer.writeln('  const $valuesMirrorName();');
+      buffer.writeln("  @override Symbol get simpleName => const Symbol('values');");
+      buffer.writeln("  @override String getName() => 'values';");
+      buffer.writeln('  @override bool get isStatic => true;');
+      buffer.writeln('  @override bool get isPrivate => false;');
+      buffer.writeln('  @override List<Object> get metadata => const [];');
+      buffer.writeln('  @override Type get returnType => List<$enumName>;');
+      buffer.writeln('  @override bool get isConstructor => false;');
+      buffer.writeln('  @override bool get isGetter => true;');
+      buffer.writeln('  @override bool get isSetter => false;');
+      buffer.writeln('  @override String get constructorName => "";');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('}');
+      buffer.writeln('');
+
+      // Generate the enum class mirror
+      buffer.writeln("// Mirror for enum '${element.name}' from ${element.library.source.uri}");
+      buffer.writeln('class $enumMirrorName extends GeneratedAcClassMirror<$enumName> {');
+      buffer.writeln('  const $enumMirrorName();');
+      buffer.writeln("  @override final Symbol simpleName = const Symbol('$enumName');");
+      buffer.writeln('  @override final Type reflectedType = $enumName;');
+      buffer.writeln('  @override final bool isAbstract = false;');
+      buffer.writeln('  @override bool get isEnum => true;');
+      buffer.writeln('  @override final bool isStatic = false;');
+      buffer.writeln('  @override final bool isPrivate = ${element.isPrivate};');
+      buffer.writeln('  @override final List<Object> metadata = const [${_generateMetadataSource(element.metadata)}];');
+      buffer.writeln('  @override String getName() => "$enumName";');
+      buffer.writeln('  @override AcClassMirror? get superclass => null;');
+      buffer.writeln('  @override List<AcClassMirror> get superinterfaces => const [];');
+
+      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get instanceMembers => const {};');
+      buffer.writeln('  @override Map<Symbol, AcDeclarationMirror> get staticMembers => const {');
+      for (final value in enumValues) {
+        final mirrorName = generateMirrorName(value);
         buffer.writeln("    const Symbol('${value.name}'): const $mirrorName(),");
       }
+      buffer.writeln("    const Symbol('values'): const $valuesMirrorName(),");
       buffer.writeln('  };');
 
       buffer.writeln('  @override Map<String, AcMethodMirror> get constructors => const {};');
@@ -392,7 +480,13 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln('  }');
 
       buffer.writeln('  @override dynamic invoke(Object target, Symbol memberName, List<dynamic> positionalArgs, [Map<Symbol, dynamic> namedArgs = const {}]) {');
-      buffer.writeln('    throw UnimplementedError("Cannot invoke methods on enum \\"$enumName\\".");');
+      buffer.writeln('    switch(memberName) {');
+      for (final value in enumValues) {
+        buffer.writeln("      case const Symbol('${value.name}'): return $enumName.${value.name};");
+      }
+      buffer.writeln("      case const Symbol('values'): return $enumName.values;");
+      buffer.writeln('      default: throw UnimplementedError("Cannot invoke \\"\${_symbolToName(memberName)}\\" on enum \\"$enumName\\".");');
+      buffer.writeln('    }');
       buffer.writeln('  }');
 
       buffer.writeln('}');
@@ -409,7 +503,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln("// Mirror for class '${element.name}' from ${element.library.source.uri}");
       buffer.writeln('class $classMirrorName extends GeneratedAcClassMirror<$classNameWithTypeParams> {');
 
-      buffer.writeln("  const $classMirrorName();");
+      buffer.writeln('  const $classMirrorName();');
       buffer.writeln("  @override final Symbol simpleName = const Symbol('$className');");
       buffer.writeln('  @override final Type reflectedType = $className;');
       buffer.writeln('  @override final bool isAbstract = ${element.isAbstract};');
@@ -438,7 +532,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       for (final member in instanceMembers.values) {
         final mirrorName = generateMirrorName(member);
         log("    -> Mapping instance member '${member.name}' to its mirror '$mirrorName'.");
-        buffer.writeln("    const Symbol('${member.name}'): const ${mirrorName}(),");
+        buffer.writeln("    const Symbol('${member.name}'): const $mirrorName(),");
       }
       buffer.writeln('  };');
 
@@ -452,7 +546,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
           final memberName = member.name.isEmpty ? "" : member.name;
           final mirrorName = generateMirrorName(member);
           log("    -> Mapping constructor '${memberName.isEmpty ? '(default)' : memberName}' to its mirror '$mirrorName'.");
-          buffer.writeln('    "$memberName": const ${mirrorName}(),');
+          buffer.writeln('    "$memberName": const $mirrorName(),');
         }
       }
       buffer.writeln('  };');
@@ -520,7 +614,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
     buffer.writeln('\nfinal Map<Type, AcClassMirror> generatedMirrors = {');
     for (final element in elements) {
       final mirrorName = generateMirrorName(element);
-      buffer.writeln('  ${element.name}: const ${mirrorName}(),');
+      buffer.writeln('  ${element.name}: const $mirrorName(),');
     }
     buffer.writeln('};');
     buffer.writeln('\nvoid acMirrorsInitialize() { initializeAcMirrors(generatedMirrors); }');
