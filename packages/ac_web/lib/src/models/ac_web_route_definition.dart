@@ -35,7 +35,7 @@ class AcWebRouteDefinition {
     "summary": "The API documentation for this specific route."
   }) */
   @AcBindJsonProperty(key: keyDocumentation)
-  late AcApiDocOperation documentation;
+  AcApiDocOperation documentation = AcApiDocOperation();
 
   /* AcDoc({
     "summary": "The HTTP method for this route (e.g., 'GET', 'POST', 'PUT', 'DELETE')."
