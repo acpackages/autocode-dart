@@ -362,4 +362,38 @@ class AcWeb {
     staticFilesRoutes.add({'prefix': prefix, 'directory': directory});
     return this;
   }
+
+  Map getUrlJson() {
+    List<String> urls = routeDefinitions.keys.toList();
+    var index = 0;
+    final Map result = {};
+
+    for (var url in urls) {
+      url = url.substring(url.indexOf(">")+1);
+      url = url .replaceAll(RegExp(r"\{.*?\}"), "");
+      url = url.trim();
+      if(url.charAt(url.length - 1) =="/"){
+        url = url.substring(0,url.length-1);
+      }
+      final parts = url.replaceFirst(RegExp(r"^/"), "").split("/");
+
+      // recursive builder
+      Map current = result;
+      for (int i = 0; i < parts.length; i++) {
+        final key = (parts[i].replaceAll(RegExp(r"\{.*?\}"), "")).toCamelCase();
+        if (i == parts.length - 1) {
+          current[key] = url;
+        } else {
+          if(!current.containsKey(key)){
+            current[key] = Map.from({});
+          }
+          if(current[key] is Map){
+            current = current[key];
+          }
+        }
+      }
+    }
+
+    return result;
+  }
 }

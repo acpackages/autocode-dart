@@ -32,6 +32,11 @@ export './src/models/ac_hook_execution_result.dart';
 export './src/models/ac_hook_result.dart';
 export './src/models/ac_result.dart';
 
+export './src/reactivity/ac_context.dart';
+export './src/reactivity/ac_reactive_list.dart';
+export './src/reactivity/ac_reactive_model.dart';
+export './src/reactivity/ac_reactive_value.dart';
+
 export './src/utils/ac_file_utils.dart';
 export './src/utils/ac_json_utils.dart';
 

@@ -37,32 +37,33 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     final result = AcResult();
     try {
       logger.log(
-        'Checking if database data dictionary version is the same as the current data dictionary version...',
+        'Checking if database data dictionary version is same as the current data dictionary version...',
       );
 
       final versionResult = await dao!.getRows(
         statement: acSqlDDTableSchemaDetails.getSelectStatement(),
         condition: "${TblSchemaDetails.acSchemaDetailKey} = @key",
-        parameters: {"@key": SchemaDetails.keyDataDictionaryVersion},
+        parameters: {"@key": "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]"},
         mode: AcEnumDDSelectMode.first, //important
       );
 
       if (versionResult.isSuccess()) {
         if (versionResult.rows.isNotEmpty) {
-          final databaseVersion = versionResult.rows.first.getInt(TblSchemaDetails.acSchemaDetailNumericValue);
+          print(versionResult.rows[0]);
+          final databaseVersion = versionResult.rows.first.getDouble(TblSchemaDetails.acSchemaDetailNumericValue);
           if (acDataDictionary.version == databaseVersion) {
             logger.log(
-              'Database data dictionary and current data dictionary version are the same.',
+              'Database data dictionary version ${acDataDictionary.version} and current data dictionary version $databaseVersion are same.',
             );
             result.setSuccess(value: false); // No update available
           } else if (acDataDictionary.version < databaseVersion) {
             logger.log(
-              'Database data dictionary version is greater than the current data dictionary version.',
+              'Database data dictionary version ${acDataDictionary.version} is greater than the current data dictionary version $databaseVersion.',
             );
             result.setSuccess(value: false); // No update available
           } else {
             logger.log(
-              'Database data dictionary version is less than the current data dictionary version.',
+              'Database data dictionary version ${acDataDictionary.version} is less than the current data dictionary version $databaseVersion.',
             );
             result.setSuccess(value: true); // Update available
           }
@@ -903,7 +904,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           if (updateDataDictionaryVersion) {
             var versionLogResponse = await saveSchemaDetail({
               TblSchemaDetails.acSchemaDetailKey:
-                  SchemaDetails.keyDataDictionaryVersion,
+                  "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
               TblSchemaDetails.acSchemaDetailNumericValue:
                   acDataDictionary.version,
             });
@@ -957,13 +958,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           tableName: AcSchemaManagerTables.schemaLogs,
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
-        final acSchemaManager = AcSqlDbSchemaManager();
+        final acSchemaManager = AcSqlDbSchemaManager(dataDictionaryName: AcSMDataDictionary.dataDictionaryName);
         acSchemaManager.dao = dao;
         acSchemaManager.logger = logger;
         acSchemaManager.useDataDictionary(
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
-        acSchemaManager.acDataDictionary = acDataDictionary;
+        // acSchemaManager.acDataDictionary = acDataDictionary;
         final initSchemaResult = await acSchemaManager.initDatabase();
         if (initSchemaResult.isSuccess()) {
           result.setSuccess(
@@ -1042,7 +1043,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               tableName: tableName,
               dataDictionaryName: dataDictionaryName,
             );
-            final createStatement = acDDTable.getCreateTableStatement();
+            print(acDDTable.tableColumns.length);
+            final createStatement = acDDTable.getCreateTableStatement(databaseType: databaseType);
             logger.log([
               "Executing create table statement...",
               createStatement,
@@ -1084,7 +1086,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   dataDictionaryName: dataDictionaryName,
                 );
                 final addStatement = acDDTableColumn.getAddColumnStatement(
-                  tableName: tableName,
+                  tableName: tableName, databaseType: databaseType
                 );
                 logger.log([
                   "Executing add table column statement...",

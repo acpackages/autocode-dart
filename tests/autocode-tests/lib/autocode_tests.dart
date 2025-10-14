@@ -8,11 +8,11 @@ import 'sql/test_schema_manager.dart';
 
 void main() {
   // testSchemaManager();
-  // testWebOnJaguarAutoApi();
+  testWebOnJaguarAutoApi();
 
   // testAimlApi();
   // testOpenAI();
-  testGemini();
+  // testGemini();
 }
 
 

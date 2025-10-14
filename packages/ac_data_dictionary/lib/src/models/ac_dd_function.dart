@@ -61,13 +61,7 @@ class AcDDFunction {
     required String functionName,
     String dataDictionaryName = "default",
   }) {
-    final result = AcDDFunction();
-    final acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
-    );
-    if (acDataDictionary.functions.containsKey(functionName)) {
-      result.fromJson(jsonData: acDataDictionary.functions[functionName]);
-    }
+    final result = AcDataDictionary.getFunction(functionName: functionName,dataDictionaryName: dataDictionaryName) ?? AcDDFunction();
     return result;
   }
 

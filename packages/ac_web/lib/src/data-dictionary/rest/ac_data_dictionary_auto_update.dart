@@ -28,7 +28,7 @@ class AcDataDictionaryAutoUpdate {
   }) {
     final apiUrl =
         '${acDataDictionaryAutoApi.urlPrefix}/'
-        '${acDDTable.tableName}/'
+        '${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/'
         '${acDataDictionaryAutoApi.pathForUpdate}';
 
     acDataDictionaryAutoApi.acWeb.post(

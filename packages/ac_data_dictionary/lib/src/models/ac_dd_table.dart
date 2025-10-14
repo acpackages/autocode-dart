@@ -82,15 +82,7 @@ class AcDDTable {
     required String tableName,
     String dataDictionaryName = "default",
   }) {
-    final result = AcDDTable();
-    final acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
-    );
-
-    if (acDataDictionary.tables.containsKey(tableName)) {
-      result.fromJson(jsonData: acDataDictionary.tables[tableName]);
-    }
-
+    final result = AcDataDictionary.getTable(tableName: tableName,dataDictionaryName: dataDictionaryName) ?? AcDDTable();
     return result;
   }
 
@@ -133,6 +125,7 @@ class AcDDTable {
   String getCreateTableStatement({
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
+    print(databaseType);
     final columnDefinitions =
         tableColumns
             .map(

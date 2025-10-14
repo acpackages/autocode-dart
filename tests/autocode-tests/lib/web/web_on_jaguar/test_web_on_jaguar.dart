@@ -35,7 +35,7 @@ testWebOnJaguarAutoApi() async {
     print(acWeb.acApiDoc);
     AcSqlDatabase.sqlConnection = sqlConnection;
     // print("Schema init result : ");
-    // print(schemaInitResult);
+    // print(AcDataDictionary.dataDictionaries);
   } else {
     print(
       "Could not find data dictionary json file at location : ${dataDictionaryFile.absolute}",

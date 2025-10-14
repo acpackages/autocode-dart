@@ -60,16 +60,7 @@ class AcDDStoredProcedure {
     required String storedProcedureName,
     String dataDictionaryName = "default",
   }) {
-    final result = AcDDStoredProcedure();
-    final acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
-    );
-
-    if (acDataDictionary.storedProcedures.containsKey(storedProcedureName)) {
-      result.fromJson(
-        jsonData: acDataDictionary.storedProcedures[storedProcedureName],
-      );
-    }
+    final result = AcDataDictionary.getStoredProcedure(storedProcedureName: storedProcedureName,dataDictionaryName: dataDictionaryName) ?? AcDDStoredProcedure();
     return result;
   }
 

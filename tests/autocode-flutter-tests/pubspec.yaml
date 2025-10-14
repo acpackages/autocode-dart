@@ -47,6 +47,8 @@ dependencies:
     path: './../../packages/ac_web'
   ac_web_on_jaguar:
     path: './../../packages/ac_web_on_jaguar'
+  ac_webview:
+    path: './../../packages/ac_webview'
   autocode_tests:
     path: './../autocode-tests'
   responsive_builder: ^0.7.0

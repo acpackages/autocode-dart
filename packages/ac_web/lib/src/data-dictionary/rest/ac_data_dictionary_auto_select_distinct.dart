@@ -32,7 +32,7 @@ class AcDataDictionaryAutoSelectDistinct {
   }) {
     final apiUrl =
         '${acDataDictionaryAutoApi.urlPrefix}/'
-        '${acDDTable.tableName}/'
+        '${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/'
         '${acDataDictionaryAutoApi.pathForSelectDistinct}-'
         '${acDDTableColumn.columnName}';
 

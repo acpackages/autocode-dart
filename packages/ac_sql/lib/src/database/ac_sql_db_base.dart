@@ -68,7 +68,7 @@ class AcSqlDbBase {
   void useDataDictionary({String dataDictionaryName = "default"}) {
     this.dataDictionaryName = dataDictionaryName;
     acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
+      dataDictionaryName: this.dataDictionaryName,
     );
   }
 }

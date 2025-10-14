@@ -57,6 +57,7 @@ export './src/data-dictionary/rest/ac_data_dictionary_auto_save.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_select.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_select_distinct.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_update.dart';
+export './src/data-dictionary/utils/ac_web_data_dictionary_utils.dart';
 
 export './src/enums/ac_enum_web_hook.dart';
 export './src/enums/ac_enum_web_response_type.dart';

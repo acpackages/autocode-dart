@@ -27,7 +27,7 @@ class AcDataDictionaryAutoSave {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForSave}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSave}';
 
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl,

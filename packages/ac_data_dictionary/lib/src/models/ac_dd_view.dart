@@ -65,15 +65,7 @@ class AcDDView {
     String viewName, {
     String dataDictionaryName = "default",
   }) {
-    final result = AcDDView();
-    final acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
-    );
-
-    if (acDataDictionary.views.containsKey(viewName)) {
-      result.fromJson(jsonData: acDataDictionary.views[viewName]);
-    }
-
+    final result = AcDataDictionary.getView(viewName: viewName,dataDictionaryName: dataDictionaryName) ?? AcDDView();
     return result;
   }
 

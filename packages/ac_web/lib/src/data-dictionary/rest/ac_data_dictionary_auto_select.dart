@@ -28,7 +28,7 @@ class AcDataDictionaryAutoSelect {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl1 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForSelect}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}';
     acDataDictionaryAutoApi.acWeb.get(
       url: apiUrl1,
       handler: getHandler(),
@@ -36,7 +36,7 @@ class AcDataDictionaryAutoSelect {
     );
 
     final apiUrl2 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
     acDataDictionaryAutoApi.acWeb.get(
       url: apiUrl2,
       handler: getByIdHandler(),
@@ -44,7 +44,7 @@ class AcDataDictionaryAutoSelect {
     );
 
     final apiUrl3 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForSelect}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}';
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl3,
       handler: postHandler(),

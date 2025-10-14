@@ -28,7 +28,7 @@ class AcDataDictionaryAutoInsert {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForInsert}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForInsert}';
 
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl,

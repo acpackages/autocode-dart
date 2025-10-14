@@ -81,15 +81,7 @@ class AcDDTrigger {
     String triggerName, {
     String dataDictionaryName = "default",
   }) {
-    final result = AcDDTrigger();
-    final acDataDictionary = AcDataDictionary.getInstance(
-      dataDictionaryName: dataDictionaryName,
-    );
-
-    if (acDataDictionary.triggers.containsKey(triggerName)) {
-      result.fromJson(jsonData: acDataDictionary.triggers[triggerName]);
-    }
-
+    final result = AcDataDictionary.getTrigger(triggerName: triggerName,dataDictionaryName: dataDictionaryName) ?? AcDDTrigger();
     return result;
   }
 

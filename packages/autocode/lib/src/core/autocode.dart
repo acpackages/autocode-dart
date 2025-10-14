@@ -39,21 +39,21 @@ class Autocode {
 
   /* AcDoc({"description": "Generates a globally unique ID using timestamp, random parts, and prefix."}) */
   static String uniqueId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final timestampHex = timestamp.toRadixString(16);
-    final randomPart = _generateRandomHex(16);
-    String id = "ac_\${generateRandomString()}\$timestampHex\$randomPart";
+    // final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // final timestampHex = timestamp.toRadixString(16);
+    // final randomPart = _generateRandomHex(16);
+    // String id = "ac_\${generateRandomString()}\$timestampHex\$randomPart";
+    //
+    // final tsKey = timestamp.toString();
+    // _uniqueIds.putIfAbsent(tsKey, () => <String>{});
+    //
+    // while (_uniqueIds[tsKey]!.contains(id)) {
+    //   final newRandom = _generateRandomHex(16);
+    //   id = "ac_\${generateRandomString()}\$timestampHex\$newRandom";
+    // }
+    // _uniqueIds[tsKey]!.add(id);
 
-    final tsKey = timestamp.toString();
-    _uniqueIds.putIfAbsent(tsKey, () => <String>{});
-
-    while (_uniqueIds[tsKey]!.contains(id)) {
-      final newRandom = _generateRandomHex(16);
-      id = "ac_\${generateRandomString()}\$timestampHex\$newRandom";
-    }
-    _uniqueIds[tsKey]!.add(id);
-
-    return id;
+    return uuid();
   }
 
   /* AcDoc({"description": "Generates a random alphanumeric string of a given length."}) */

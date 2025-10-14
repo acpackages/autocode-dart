@@ -169,8 +169,12 @@ class AcSqliteDao extends AcBaseSqlDao {
 
   ensureValidParamsType({required List<dynamic> params}){
     for(int i=0;i<params.length;i++){
-      if(params.runtimeType is DateTime){
+      if(params[i] is DateTime){
         params[i] = params[i].toIso8601String();
+        print("Found invalid date data type");
+      }
+      else{
+        print("Found valid data type");
       }
     }
     return params;

@@ -34,7 +34,7 @@ packages:
       path: "../../packages/ac_chat"
       relative: true
     source: path
-    version: "9.13.0"
+    version: "0.0.1"
   ac_data_dictionary:
     dependency: "direct main"
     description:
@@ -74,6 +74,13 @@ packages:
     dependency: "direct main"
     description:
       path: "../../packages/ac_web_on_jaguar"
+      relative: true
+    source: path
+    version: "1.0.0"
+  ac_webview:
+    dependency: "direct main"
+    description:
+      path: "../../packages/ac_webview"
       relative: true
     source: path
     version: "1.0.0"
@@ -679,6 +686,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.0"
+  fullscreen_window:
+    dependency: transitive
+    description:
+      name: fullscreen_window
+      sha256: b3502f890a875de6cd300b06cfc542e089a324faef6c4fb5d5528f9e2ea68d8d
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   gal:
     dependency: transitive
     description:
@@ -1508,6 +1523,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.5"
+  sqflite_common_ffi:
+    dependency: transitive
+    description:
+      name: sqflite_common_ffi
+      sha256: "9faa2fedc5385ef238ce772589f7718c24cdddd27419b609bb9c6f703ea27988"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.6"
   sqflite_darwin:
     dependency: transitive
     description:
@@ -1932,6 +1955,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.3"
+  webview_flutter:
+    dependency: transitive
+    description:
+      name: webview_flutter
+      sha256: c3e4fe614b1c814950ad07186007eff2f2e5dd2935eba7b9a9a1af8e5885f1ba
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.13.0"
+  webview_flutter_android:
+    dependency: transitive
+    description:
+      name: webview_flutter_android
+      sha256: "9a25f6b4313978ba1c2cda03a242eea17848174912cfb4d2d8ee84a556f248e3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.10.1"
+  webview_flutter_platform_interface:
+    dependency: transitive
+    description:
+      name: webview_flutter_platform_interface
+      sha256: "63d26ee3aca7256a83ccb576a50272edd7cfc80573a4305caa98985feb493ee0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.14.0"
+  webview_flutter_wkwebview:
+    dependency: transitive
+    description:
+      name: webview_flutter_wkwebview
+      sha256: fb46db8216131a3e55bcf44040ca808423539bc6732e7ed34fb6d8044e3d512f
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.23.0"
+  webview_win_floating:
+    dependency: transitive
+    description:
+      name: webview_win_floating
+      sha256: "5432b18aec12ad1e3471207dcd249078e423ef0e989c28b4aecd13c6f26e0f97"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.2"
   win32:
     dependency: transitive
     description:

@@ -19,10 +19,10 @@ class AcEvents {
     ],
     "returns": "An instance of [AcEventExecutionResult] containing execution status and results."
   }) */
-  AcEventExecutionResult execute({
+  Future<AcEventExecutionResult> execute({
     required String key,
     List<dynamic> args = const [],
-  }) {
+  }) async {
     final result = AcEventExecutionResult();
 
     try {
@@ -34,7 +34,7 @@ class AcEvents {
         for (final entry in functionsToExecute.entries) {
           final functionId = entry.key;
           final fun = entry.value;
-          final functionResult = Function.apply(fun, args);
+          final functionResult = await Function.apply(fun, args);
 
           if (functionResult != null &&
               functionResult is AcEventExecutionResult &&
@@ -60,18 +60,20 @@ class AcEvents {
   /* AcDoc({
     "description": "Subscribes a callback function to a named event.",
     "params": [
-      { "name": "eventName", "description": "The name of the event to subscribe to." },
+      { "name": "event", "description": "The name of the event to subscribe to." },
       { "name": "callback", "description": "The callback function to invoke when the event is executed." }
     ],
     "returns": "A unique subscription ID for the registered callback."
   }) */
   String subscribe({
-    required String eventName,
+    required String event,
     required Function callback,
   }) {
-    _events[eventName] ??= {};
+    if(!_events.containsKey(event)){
+      _events[event] = {};
+    }
     final subscriptionId = Autocode.uniqueId();
-    _events[eventName]![subscriptionId] = callback;
+    _events[event]![subscriptionId] = callback;
     return subscriptionId;
   }
 
@@ -82,8 +84,8 @@ class AcEvents {
     ]
   }) */
   void unsubscribe({required String subscriptionId}) {
-    for (final eventName in _events.keys) {
-      final eventFunctions = _events[eventName]!;
+    for (final event in _events.keys) {
+      final eventFunctions = _events[event]!;
       if (eventFunctions.containsKey(subscriptionId)) {
         eventFunctions.remove(subscriptionId);
       }

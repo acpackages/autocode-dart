@@ -2,6 +2,7 @@ import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
+
 /* AcDoc({
   "summary": "Automatically generates a 'DELETE' API route for a specific table.",
   "description": "This class is a route generator used by `AcDataDictionaryAutoApi`. Upon instantiation, it creates and registers a `DELETE` endpoint with the `AcWeb` server. The generated route handles deleting a single record by its primary key, which is specified as a path parameter.",
@@ -27,7 +28,7 @@ class AcDataDictionaryAutoDelete {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${acDDTable.tableName}/${acDataDictionaryAutoApi.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
     acDataDictionaryAutoApi.acWeb.delete(
       url: apiUrl,
       handler: getHandler(),

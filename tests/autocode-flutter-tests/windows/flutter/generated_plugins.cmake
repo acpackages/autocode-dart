@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   desktop_drop
   file_selector_windows
+  fullscreen_window
   gal
   media_kit_video
   record_windows
@@ -14,6 +15,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   thumblr_windows
   url_launcher_windows
   volume_controller
+  webview_win_floating
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

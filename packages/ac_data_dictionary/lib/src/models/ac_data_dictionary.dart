@@ -221,9 +221,12 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    if (acDataDictionary.tables.containsKey(tableName)) {
+    List<dynamic> matches = acDataDictionary.tables.values.where((data) {
+      return data[AcDDTable.keyTableName] == tableName;
+    }).toList();
+    if (matches.isNotEmpty) {
       return AcDDTable.instanceFromJson(
-        jsonData: acDataDictionary.tables[tableName],
+        jsonData: matches.first,
       );
     }
     return null;
