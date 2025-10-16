@@ -29,7 +29,7 @@ class AcDataDictionaryAutoUpdate {
     final apiUrl =
         '${acDataDictionaryAutoApi.urlPrefix}/'
         '${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/'
-        '${acDataDictionaryAutoApi.pathForUpdate}';
+        '${AcDataDictionaryAutoApiConfig.pathForUpdate}';
 
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl,
@@ -92,20 +92,20 @@ class AcDataDictionaryAutoUpdate {
   }) */
   Function getHandler() {
     return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-      var response = AcResult();
 
       final body = acWebRequest.body;
 
       if (body.containsKey('row')) {
-        response = await acSqlDbTable.updateRow(row: body['row']);
+        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: body['row']));
       } else if (body.containsKey('rows')) {
-        response = await acSqlDbTable.updateRows(rows: body['rows']);
+        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: body['rows']));
       } else {
         response.message = 'parameters missing';
       }
 
-      return AcWebResponse.json(data: response);
+      return response.toWebResponse();
     };
   }
 }

@@ -19,5 +19,5 @@ class AcWebRouteProduces {
       {"name": "contentType", "description": "The MIME type that the route's handler will return."}
     ]
   }) */
-  const AcWebRouteProduces(this.contentType);
+  const AcWebRouteProduces({required this.contentType});
 }

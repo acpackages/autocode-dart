@@ -1,4 +1,4 @@
-import 'package:autocode/autocode.dart';
+
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
@@ -27,7 +27,7 @@ class AcDataDictionaryAutoSave {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSave}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSave}';
 
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl,
@@ -88,19 +88,15 @@ class AcDataDictionaryAutoSave {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  AcWebResponse Function(AcWebRequest) getHandler() {
-    return (AcWebRequest acWebRequest) {
+  Future<AcWebResponse> Function(AcWebRequest) getHandler() {
+    return (AcWebRequest acWebRequest) async {
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-      final response = AcResult();
+      final response = AcWebApiResponse();
 
       if (acWebRequest.body.containsKey('row')) {
-        return AcWebResponse.json(
-          data: acSqlDbTable.saveRow(row: acWebRequest.body['row']),
-        );
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.saveRow(row: acWebRequest.body['row'])).toWebResponse();
       } else if (acWebRequest.body.containsKey('rows')) {
-        return AcWebResponse.json(
-          data: acSqlDbTable.saveRows(rows: acWebRequest.body['rows']),
-        );
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.saveRows(rows: acWebRequest.body['rows'])).toWebResponse();
       } else {
         response.message = 'parameters missing';
         return AcWebResponse.json(data: response);

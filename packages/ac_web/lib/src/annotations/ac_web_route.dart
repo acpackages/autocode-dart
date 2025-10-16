@@ -26,5 +26,5 @@ class AcWebRoute {
       {"name": "method", "description": "The HTTP method for the route. Defaults to 'GET'."}
     ]
   }) */
-  const AcWebRoute(this.path, {this.method = 'GET'});
+  const AcWebRoute({required this.path, this.method = 'GET'});
 }

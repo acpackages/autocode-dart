@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 extension AcMapExtensions on Map<String, dynamic> {
+
   Map<K, V> castMap<K, V>() {
     return Map<K, V>.fromEntries(
       entries.map((e) => MapEntry(e.key as K, e.value as V)),
@@ -98,6 +99,72 @@ extension AcMapExtensions on Map<String, dynamic> {
   bool isSame(Map other) => jsonEncode(this) == jsonEncode(other);
 
   void put(String key, dynamic value) => this[key] = value;
+
+  Map<String, dynamic> toNestedMap({Function? valueExtractor}) {
+    final Map<String, dynamic> result = {};
+
+    for (final entry in entries) {
+      final key = entry.key;
+      final value = valueExtractor != null ? valueExtractor(entry.value) : entry
+          .value;
+
+      // Extract keys and indices: items[0][name] → [items, 0, name]
+      final regex = RegExp(r'([^\[\]\.]+)|\[(.*?)\]');
+      final matches = regex.allMatches(key);
+      final parts = matches.map((m) => m.group(1) ?? m.group(2)!).toList();
+
+      dynamic current = result;
+      for (int i = 0; i < parts.length; i++) {
+        final part = parts[i];
+        final isLast = i == parts.length - 1;
+
+        // Determine if current part is an array index
+        final index = int.tryParse(part);
+
+        if (index != null && current is List) {
+          // Current is a list, and part is numeric index
+          if (index >= current.length) {
+            // Extend the list if needed
+            current.addAll(List.filled(index - current.length + 1, null));
+          }
+
+          if (isLast) {
+            current[index] = value;
+          } else {
+            // If next is not set or not a Map/List, create structure
+            if (current[index] == null) {
+              final nextPart = parts[i + 1];
+              current[index] = int.tryParse(nextPart) != null
+                  ? <dynamic>[]
+                  : <String, dynamic>{};
+            }
+            current = current[index];
+          }
+        } else if (index == null && current is Map<String, dynamic>) {
+          // Map key
+          if (isLast) {
+            current[part] = value;
+          } else {
+            final nextPart = parts[i + 1];
+            final isNextIndex = int.tryParse(nextPart) != null;
+            if (current[part] == null) {
+              current[part] = isNextIndex
+                  ? <dynamic>[]
+                  : <String, dynamic>{};
+            }
+            current = current[part];
+          }
+        } else if (index != null && current is Map<String, dynamic>) {
+          // Example: starting directly with a numeric key inside map (rare)
+          current[index.toString()] = value;
+        } else {
+          throw StateError('Unexpected structure for key: $key');
+        }
+      }
+    }
+
+    return result;
+  }
 
   String toQueryString() => Uri(queryParameters: this).query;
 

@@ -2,6 +2,23 @@
 import 'dart:mirrors' as mirrors;
 import '../api.dart';
 
+List<Type> acGetClassTypesWithAnnotation(Type annotationType) {
+  final libMirror = mirrors.currentMirrorSystem().isolate.rootLibrary;
+  final List<Type> result = [];
+
+  // Iterate all declarations in the root library
+  for (var decl in libMirror.declarations.values) {
+    if (decl is mirrors.ClassMirror) {
+      for (var meta in decl.metadata) {
+        if (meta.reflectee.runtimeType == annotationType) {
+          result.add(decl.runtimeType);
+        }
+      }
+    }
+  }
+
+  return result;
+}
 // Public API functions
 void initializeAcMirrors(Map<Type, AcClassMirror> mirrors) {
   // No-op on the VM, as reflection is available at runtime.

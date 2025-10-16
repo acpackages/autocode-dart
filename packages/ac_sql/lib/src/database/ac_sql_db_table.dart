@@ -725,8 +725,7 @@ class AcSqlDbTable extends AcSqlDbBase {
   }) async {
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
-      String actualSelectStatement =
-          selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
+      String actualSelectStatement = selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
       final sqlStatement = AcDDSelectStatement.generateSqlStatement(
         selectStatement: actualSelectStatement,
         condition: condition,
@@ -780,6 +779,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         var countResult = await dao!.getRows(
           statement: countSqlStatement,
           parameters: sqlParameters,
+          mode: AcEnumDDSelectMode.count
         );
         if (countResult.isSuccess()) {
           result.totalRows = countResult.totalRows;

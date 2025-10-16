@@ -351,8 +351,10 @@ class AcMirrorsAggregatingBuilder implements Builder {
     return 'const $typeName$accessor($allArgs)';
   }
 
+  
+
   void generateDeclarationMirrors(StringBuffer buffer, ClassElement classEl, Element declaration) {
-    final mirrorName = generateMirrorName(declaration);
+    final String mirrorName = generateMirrorName(declaration);
     final declSource = declaration.enclosingElement == classEl
         ? "in class '${classEl.name}'"
         : "inherited from '${declaration.enclosingElement?.name}'";
@@ -372,6 +374,32 @@ class AcMirrorsAggregatingBuilder implements Builder {
       return "  @override String getName() => '${e.name}';";
     }
 
+    // Generate parameter mirrors for methods, constructors, setters
+    List<String> paramMirrors = [];
+    if (declaration is ExecutableElement) {
+      for(var parameter in declaration.parameters){
+        final metadata = _generateMetadataSource(parameter.metadata);
+        final parameterClassName = "${mirrorName}${parameter.name}";
+        buffer.writeln("// Mirror for parameter '${parameter.name}'");
+        buffer.writeln("class ${parameterClassName} implements AcParameterMirror{");
+        buffer.writeln('  const $parameterClassName();');
+        buffer.writeln(getSimpleNameLine(parameter));
+        buffer.writeln(getNameLine(declaration));
+        buffer.writeln('  @override Type get type => ${parameter.type.getDisplayString(withNullability: false)};');
+        buffer.writeln('  @override bool get isOptional => ${parameter.isOptional};');
+        buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+        buffer.writeln('  @override bool get isNamed => ${parameter.isNamed};');
+        buffer.writeln('  @override bool get isRequired => ${parameter.isRequiredNamed};');
+        buffer.writeln('  @override bool get isPrivate => ${parameter.isPrivate};');
+        buffer.writeln('  @override bool get isStatic => ${parameter.isStatic};');
+        buffer.writeln('  @override bool get hasDefaultValue => ${parameter.hasDefaultValue};');
+        buffer.writeln('}');
+        paramMirrors.add('const ${parameterClassName}()');
+      }
+    }
+
+    
+
     if (declaration is ConstructorElement) {
       buffer.writeln("// Mirror for constructor '${declaration.name}' $declSource");
       buffer.writeln('class $mirrorName implements AcMethodMirror {');
@@ -380,15 +408,16 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln(getNameLine(declaration));
       buffer.writeln('  @override bool get isStatic => false;');
       buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln('  @override List<Object> get metadata => const [${_generateMetadataSource(declaration.metadata)}];');
       buffer.writeln(getReturnTypeLine(declaration));
       buffer.writeln('  @override bool get isConstructor => true;');
       buffer.writeln('  @override bool get isGetter => false;');
       buffer.writeln('  @override bool get isSetter => false;');
       buffer.writeln('  @override String get constructorName => "${declaration.name}";');
-      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [${paramMirrors.join(',')}];');
       buffer.writeln('}');
-    } else if (declaration is MethodElement) {
+    } 
+    else if (declaration is MethodElement) {
       buffer.writeln("// Mirror for method '${declaration.name}' $declSource");
       buffer.writeln('class $mirrorName implements AcMethodMirror {');
       buffer.writeln('  const $mirrorName();');
@@ -396,15 +425,16 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln(getNameLine(declaration));
       buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
       buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln('  @override List<Object> get metadata => const [${_generateMetadataSource(declaration.metadata)}];');
       buffer.writeln(getReturnTypeLine(declaration));
       buffer.writeln('  @override bool get isConstructor => false;');
       buffer.writeln('  @override bool get isGetter => false;');
       buffer.writeln('  @override bool get isSetter => false;');
       buffer.writeln('  @override String get constructorName => "";');
-      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [${paramMirrors.join(',')}];');
       buffer.writeln('}');
-    } else if (declaration is PropertyAccessorElement) {
+    } 
+    else if (declaration is PropertyAccessorElement) {
       buffer.writeln("// Mirror for accessor '${declaration.name}' $declSource");
       buffer.writeln('class $mirrorName implements AcMethodMirror {');
       buffer.writeln('  const $mirrorName();');
@@ -412,13 +442,13 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln(getNameLine(declaration));
       buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
       buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln('  @override List<Object> get metadata => const [${_generateMetadataSource(declaration.metadata)}];');
       buffer.writeln(getReturnTypeLine(declaration));
       buffer.writeln('  @override bool get isConstructor => false;');
       buffer.writeln('  @override bool get isGetter => ${declaration.isGetter};');
       buffer.writeln('  @override bool get isSetter => ${declaration.isSetter};');
       buffer.writeln('  @override String get constructorName => "";');
-      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [];');
+      buffer.writeln('  @override List<AcParameterMirror> get parameters => const [${paramMirrors.join(',')}];');
       buffer.writeln('}');
     } else if (declaration is FieldElement) {
       buffer.writeln("// Mirror for field '${declaration.name}' $declSource");
@@ -428,7 +458,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln(getNameLine(declaration));
       buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
       buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
-      buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
+      buffer.writeln('  @override List<Object> get metadata => const [${_generateMetadataSource(declaration.metadata)}];');
       buffer.writeln('  @override Type get type => ${declaration.type.getDisplayString(withNullability: false)};');
       buffer.writeln('  @override bool get isFinal => ${declaration.isFinal};');
       buffer.writeln('  @override bool get isConst => ${declaration.isConst};');

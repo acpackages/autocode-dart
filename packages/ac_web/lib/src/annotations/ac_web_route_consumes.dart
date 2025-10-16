@@ -19,5 +19,5 @@ class AcWebRouteConsumes {
       {"name": "contentType", "description": "The MIME type that the route's handler expects."}
     ]
   }) */
-  const AcWebRouteConsumes(this.contentType);
+  const AcWebRouteConsumes({required this.contentType});
 }

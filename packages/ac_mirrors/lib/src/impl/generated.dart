@@ -4,6 +4,27 @@ import '../api.dart';
 Map<Type, AcClassMirror> generatedMirrorsMap = {};
 bool isAcMirrorsInitialized = false;
 
+
+
+List<Type> acGetClassTypesWithAnnotation(Type annotationType) {
+  if (!isAcMirrorsInitialized) {
+    throw StateError(
+        'The ac_mirrors system has not been initialized. '
+            'Please make sure you have run the build_runner and called `acMirrorsInitialize()` '
+            'in your main() function.'
+    );
+  }
+  final List<Type> result = [];
+  for (var decl in generatedMirrorsMap.values) {
+    for (var meta in decl.metadata) {
+      if (meta.runtimeType == annotationType) {
+        result.add(decl.reflectedType);
+      }
+    }
+  }
+  return result;
+}
+
 // Public API functions
 void initializeAcMirrors(Map<Type, AcClassMirror> mirrors) {
   generatedMirrorsMap = mirrors;

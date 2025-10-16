@@ -28,7 +28,7 @@ class AcDataDictionaryAutoDelete {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
     acDataDictionaryAutoApi.acWeb.delete(
       url: apiUrl,
       handler: getHandler(),
@@ -78,17 +78,15 @@ class AcDataDictionaryAutoDelete {
     "returns": "The request handler function.",
     "returns_type": "AcWebResponse Function(AcWebRequest)"
   }) */
-  AcWebResponse Function(AcWebRequest) getHandler() {
-    return (AcWebRequest acWebRequest) {
-      final response = AcResult();
+  Future<AcWebResponse> Function(AcWebRequest) getHandler() {
+    return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
       final key = acDDTable.getPrimaryKeyColumnName();
       if (acWebRequest.pathParameters.containsKey(key)) {
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        return AcWebResponse.json(
-          data: acSqlDbTable.deleteRows(
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
             primaryKeyValue: acWebRequest.pathParameters[key],
-          ),
-        );
+          )).toWebResponse();
       } else {
         response.message = 'parameters missing';
         return AcWebResponse.json(data: response);

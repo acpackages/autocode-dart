@@ -50,6 +50,7 @@ export './src/api-docs/swagger/ac_swagger_resources.dart';
 export './src/api-docs/utils/ac_api_doc_utils.dart';
 
 export './src/core/ac_web.dart';
+export './src/data-dictionary/rest/ac_data_dictionary_auto_api_config.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_api.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_delete.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_insert.dart';

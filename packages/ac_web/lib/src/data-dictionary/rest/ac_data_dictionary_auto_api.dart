@@ -19,24 +19,6 @@ class AcDataDictionaryAutoApi {
   /* AcDoc({"summary": "A map of tables and their specific operations to explicitly include in generation."}) */
   Map<String, Map<String, bool>> includeTables = {};
 
-  /* AcDoc({"summary": "The URL path segment for generated 'delete' routes."}) */
-  String pathForDelete = 'delete';
-
-  /* AcDoc({"summary": "The URL path segment for generated 'insert' routes."}) */
-  String pathForInsert = 'add';
-
-  /* AcDoc({"summary": "The URL path segment for generated 'save' (upsert) routes."}) */
-  String pathForSave = 'save';
-
-  /* AcDoc({"summary": "The URL path segment for generated 'select' (get) routes."}) */
-  String pathForSelect = 'get';
-
-  /* AcDoc({"summary": "The URL path segment for generated 'select distinct' routes."}) */
-  String pathForSelectDistinct = 'unique';
-
-  /* AcDoc({"summary": "The URL path segment for generated 'update' routes."}) */
-  String pathForUpdate = 'update';
-
   /* AcDoc({"summary": "A global URL prefix to apply to all generated routes."}) */
   String urlPrefix = '';
 

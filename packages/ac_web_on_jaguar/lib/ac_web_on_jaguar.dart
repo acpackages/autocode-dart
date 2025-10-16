@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:jaguar/jaguar.dart';
@@ -100,48 +101,78 @@ class AcWebOnJaguar extends AcWeb {
         bool foundNested = false;
         if (context.isFormData) {
           var formData = await context.bodyAsFormData();
-          for (var key in formData.keys) {
-            FormField value = formData[key]!;
-            logger.log(
-              "Found File Field : $key = ${formData[key] is FileFormField}",
-            );
-            logger.log("$key = ${value}");
-            if (formData[key] is FileFormField ||
-                formData[key] is BinaryFileFormField) {
-              ContentType? type = value.contentType;
-              // UploadFile uploadFile=UploadFile();
-              // Simplify.debug("Found file");
-              // if(formData[key] is TextFileFormField){
-              //   // Simplify.debug("Found text file form field");
-              //   TextFileFormField textFile=formData[key] as TextFileFormField;
-              //
-              //   Simplify.debug(textFile.toString());
-              //   Simplify.debug(textFile);
-              //   uploadFile.filename=textFile.filename!;
-              //   uploadFile.contentStream=textFile.value.cast();
-              // }
-              // else{
-              //   Simplify.debug("Found Binary file form field");
-              //   BinaryFileFormField binaryFile=formData[key] as BinaryFileFormField;
-              //   uploadFile.filename=binaryFile.filename!;
-              //   uploadFile.contentStream=binaryFile.value;
-              // }
-              // FileFormField? fileFormField = await context.getFile(key);
-              // if (fileFormField != null) {
-              //   uploadFile.field=fileFormField;
-              //   acWebRequest.putFile(key, uploadFile);
-              // }
-            } else {
-              if (key.indexOf("[") > 0) {
-                // FormField formField=formData[key] as FormField;
-                // foundNested = true;
-                // acWebRequest.putPostUrlEncodedMap(formField.name, formField.value);
-              } else {
-                FormField formField = formData[key] as FormField;
-                acWebRequest.post[formField.name] = formField.value;
-              }
-            }
+          Map<String,dynamic> formEntries = formData.toNestedMap(valueExtractor: ( FormField<dynamic> value){
+            return value.value;
+          });
+          print(formEntries);
+          for (var key in formEntries.keys) {
+            acWebRequest.post[key] = formEntries[key];
           }
+          // for (var entry in formData.entries) {
+          //   final key = entry.key;
+          //   final value = entry.value.value;
+          //
+          //   // Parse key: accountee[accountee_name] => ["accountee", "accountee_name"]
+          //   final regex = RegExp(r'([^\[\]]+)|\[(.*?)\]');
+          //   final matches = regex.allMatches(key);
+          //   final parts = matches.map((m) => m.group(1) ?? m.group(2)!).toList();
+          //
+          //   Map<String, dynamic> current = acWebRequest.post;
+          //   for (int i = 0; i < parts.length; i++) {
+          //     final part = parts[i];
+          //
+          //     if (i == parts.length - 1) {
+          //       current[part] = value;
+          //     } else {
+          //       if (current[part] == null || current[part] is! Map<String, dynamic>) {
+          //         current[part] = {};
+          //       }
+          //       current = current[part];
+          //     }
+          //   }
+          // }
+          // for (var key in formData.keys) {
+          //   FormField value = formData[key]!;
+          //   logger.log(
+          //     "Found File Field : $key = ${formData[key] is FileFormField}",
+          //   );
+          //   logger.log("$key = ${value}");
+          //   if (formData[key] is FileFormField ||
+          //       formData[key] is BinaryFileFormField) {
+          //     ContentType? type = value.contentType;
+          //     // UploadFile uploadFile=UploadFile();
+          //     // Simplify.debug("Found file");
+          //     // if(formData[key] is TextFileFormField){
+          //     //   // Simplify.debug("Found text file form field");
+          //     //   TextFileFormField textFile=formData[key] as TextFileFormField;
+          //     //
+          //     //   Simplify.debug(textFile.toString());
+          //     //   Simplify.debug(textFile);
+          //     //   uploadFile.filename=textFile.filename!;
+          //     //   uploadFile.contentStream=textFile.value.cast();
+          //     // }
+          //     // else{
+          //     //   Simplify.debug("Found Binary file form field");
+          //     //   BinaryFileFormField binaryFile=formData[key] as BinaryFileFormField;
+          //     //   uploadFile.filename=binaryFile.filename!;
+          //     //   uploadFile.contentStream=binaryFile.value;
+          //     // }
+          //     // FileFormField? fileFormField = await context.getFile(key);
+          //     // if (fileFormField != null) {
+          //     //   uploadFile.field=fileFormField;
+          //     //   acWebRequest.putFile(key, uploadFile);
+          //     // }
+          //   } else {
+          //     if (key.indexOf("[") > 0) {
+          //       FormField formField=formData[key] as FormField;
+          //       foundNested = true;
+          //       acWebRequest.putPostUrlEncodedMap(formField.name, formField.value);
+          //     } else {
+          //       FormField formField = formData[key] as FormField;
+          //       acWebRequest.post[formField.name] = formField.value;
+          //     }
+          //   }
+          // }
         } else if (context.isJson) {
           Map<String, dynamic> formData =
               (await context.bodyAsJsonMap()).cast<String, dynamic>();

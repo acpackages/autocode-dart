@@ -33,7 +33,7 @@ class AcDataDictionaryAutoSelectDistinct {
     final apiUrl =
         '${acDataDictionaryAutoApi.urlPrefix}/'
         '${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/'
-        '${acDataDictionaryAutoApi.pathForSelectDistinct}-'
+        '${AcDataDictionaryAutoApiConfig.pathForSelectDistinct}-'
         '${acDDTableColumn.columnName}';
 
     acDataDictionaryAutoApi.acWeb.get(
@@ -60,7 +60,7 @@ class AcDataDictionaryAutoSelectDistinct {
 
     final queryParameter =
         AcApiDocParameter()
-          ..name = "query"
+          ..name = AcDataDictionaryAutoApiConfig.selectParameterQueryKey
           ..description =
               "Filter values using like condition for column ${acDDTable.getPrimaryKeyColumnName()}"
           ..required = false
@@ -103,11 +103,13 @@ class AcDataDictionaryAutoSelectDistinct {
   }) */
   Function getHandler() {
     return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final getResponse = await acSqlDbTable.getDistinctColumnValues(
         columnName: acDDTableColumn.columnName,
       );
-      return AcWebResponse.json(data: getResponse.toJson());
+      response.setFromSqlDaoResult(result: getResponse);
+      return response.toWebResponse();
     };
   }
 }

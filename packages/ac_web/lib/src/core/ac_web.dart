@@ -158,6 +158,13 @@ class AcWeb {
     return pattern.hasMatch(uri);
   }
 
+  void autoRegisterControllers(){
+    List<Type> controllers =  acGetClassTypesWithAnnotation(AcWebController);
+    for(var controller in  controllers){
+      registerController(controllerClass: controller);
+    }
+  }
+
   /* AcDoc({
     "summary": "Handles an incoming web request by dispatching it to the correct handler.",
     "description": "This is the main request dispatcher. It finds the matching route definition and executes its handler. For controller methods, it uses reflection to perform dependency injection, automatically populating method parameters from the request path, query, headers, body, etc., based on `@AcWebValueFrom...` annotations.",
@@ -179,38 +186,51 @@ class AcWeb {
 
     // Case 1: Handler is a method on a registered controller.
     if (routeDefinition.controller != null && routeDefinition.handler is String) {
+      logger.log("Handing controller route...");
       final controllerClassMirror = acReflectClass(routeDefinition.controller!);
       // Create a new instance of the controller for each request.
       final controllerInstance = controllerClassMirror.newInstance('', []);
+      logger.log("Instance class name is : ${controllerClassMirror.getName()}");
       final controllerInstanceMirror = acReflect(controllerInstance);
 
       final methodName = Symbol(routeDefinition.handler as String);
+      logger.log("Handler controller method name is : ${methodName.getName()}");
       final methodMirror = controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
 
       final positionalArgs = <dynamic>[];
       final namedArgs = <Symbol, dynamic>{};
-
+      logger.log("Looking for arguments of method : ${methodName.getName()}");
       for (final parameter in methodMirror.parameters) {
         dynamic argValue;
         bool valueSet = false;
+        logger.log("Found parameter : ${parameter.getName()}");
 
         if (parameter.type == AcWebRequest) {
+          logger.log("Parameter type is AcWebRequest");
           argValue = request;
           valueSet = true;
         } else {
+          logger.log("Checking meta of parameter");
           for (final meta in parameter.metadata) {
             final key = parameter.simpleName.getName();
+            logger.log("Parameter key : $key");
             if (meta is AcWebValueFromPath && request.pathParameters.containsKey(key)) {
+              logger.log("Parameter is of type AcWebValueFromPath");
               argValue = request.pathParameters[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromQuery && request.queryParameters.containsKey(key)) {
+              logger.log("Parameter is of type AcWebValueFromQuery");
               argValue = request.queryParameters[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromForm && request.formFields.containsKey(key)) {
+              logger.log("Parameter is of type AcWebValueFromForm");
               argValue = request.formFields[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromHeader && request.headers.containsKey(key)) {
+              logger.log("Parameter is of type AcWebValueFromHeader");
               argValue = request.headers[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromCookie && request.cookies.containsKey(key)) {
+              logger.log("Parameter is of type AcWebValueFromCookie");
               argValue = request.cookies[key]; valueSet = true; break;
             } else if (meta is AcWebValueFromBody) {
+              logger.log("Parameter is of type AcWebValueFromBody");
               final paramType = parameter.type;
               final object = acReflectClass(paramType).newInstance('', []);
               AcJsonUtils.setInstancePropertiesFromJsonData(instance: object, jsonData: request.body);
@@ -219,14 +239,21 @@ class AcWeb {
           }
         }
         if (!valueSet) {
+          logger.log("Value is not set");
           argValue = null;
         }
         if(parameter.isNamed){
+          logger.log("Parameter is named");
           namedArgs[parameter.simpleName] = argValue;
         } else {
+          logger.log("Parameter is not named");
           positionalArgs.add(argValue);
         }
       }
+      print(controllerInstanceMirror.instance);
+      print(methodName);
+      print(positionalArgs);
+      print(namedArgs);
       return await controllerInstanceMirror.invoke(methodName, positionalArgs, namedArgs);
 
     }
@@ -253,23 +280,29 @@ class AcWeb {
   }) */
   AcWeb registerController({required Type controllerClass}) {
     final classMirror = acReflectClass(controllerClass);
+    logger.log("Registering controller class : ${classMirror.getName()}");
     String classRoute = '';
-
+    logger.log("Checking class meta...");
     for (var meta in classMirror.metadata) {
       if (meta is AcWebRoute) {
+        logger.log("Found route meta annotation.");
         classRoute = meta.path.trimRight();
       }
     }
-
+    logger.log("Class meta checked.");
+    logger.log("Class route is : $classRoute");
+    logger.log("Going through class instance members...");
     for (var member in classMirror.instanceMembers.values) {
       if (member is! AcMethodMirror) continue;
-
+      logger.log("Found method mirror.");
       for (var meta in member.metadata) {
+        logger.log("Checking method meta...");
         if (meta is AcWebRoute) {
+          logger.log("Found route meta annotation on method.");
           final fullPath = '$classRoute/${meta.path.trim()}'.replaceAll('//', '/');
           final httpMethod = meta.method.toLowerCase();
           final routeKey = '$httpMethod>$fullPath';
-
+          logger.log("Method route details > Method: $httpMethod, Path : $fullPath, RouteKey : $routeKey ");
           final acApiDocRoute = _getRouteDocFromMethodMirror(methodMirror: member);
 
           routeDefinitions[routeKey] = AcWebRouteDefinition.instanceFromJson({
@@ -282,6 +315,7 @@ class AcWeb {
         }
       }
     }
+    logger.log("Controller registered.");
     return this;
   }
 

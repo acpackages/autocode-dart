@@ -28,7 +28,7 @@ class AcDataDictionaryAutoSelect {
     required this.acDataDictionaryAutoApi,
   }) {
     final apiUrl1 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}';
     acDataDictionaryAutoApi.acWeb.get(
       url: apiUrl1,
       handler: getHandler(),
@@ -36,7 +36,7 @@ class AcDataDictionaryAutoSelect {
     );
 
     final apiUrl2 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
     acDataDictionaryAutoApi.acWeb.get(
       url: apiUrl2,
       handler: getByIdHandler(),
@@ -44,7 +44,7 @@ class AcDataDictionaryAutoSelect {
     );
 
     final apiUrl3 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${acDataDictionaryAutoApi.pathForSelect}';
+        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}';
     acDataDictionaryAutoApi.acWeb.post(
       url: apiUrl3,
       handler: postHandler(),
@@ -68,7 +68,7 @@ class AcDataDictionaryAutoSelect {
     final queryColumns = acDDTable.getSearchQueryColumnNames();
     if (queryColumns.isNotEmpty) {
       final queryParameter = AcApiDocParameter();
-      queryParameter.name = "query";
+      queryParameter.name = AcDataDictionaryAutoApiConfig.selectParameterQueryKey;
       queryParameter.description =
           "Filter values using like condition for columns (${queryColumns.join(",")})";
       queryParameter.required = false;
@@ -78,7 +78,7 @@ class AcDataDictionaryAutoSelect {
 
     final pageParameter =
         AcApiDocParameter()
-          ..name = "page_number"
+          ..name = AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey
           ..description = "Page number of rows"
           ..required = false
           ..in_ = "query";
@@ -86,7 +86,7 @@ class AcDataDictionaryAutoSelect {
 
     final countParameter =
         AcApiDocParameter()
-          ..name = "page_size"
+          ..name = AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey
           ..description = "Number of rows in each page"
           ..required = false
           ..in_ = "query";
@@ -94,7 +94,7 @@ class AcDataDictionaryAutoSelect {
 
     final orderParameter =
         AcApiDocParameter()
-          ..name = "order_by"
+          ..name =AcDataDictionaryAutoApiConfig.selectParameterOrderByKey
           ..description = "Order by value for rows"
           ..required = false
           ..in_ = "query";
@@ -130,19 +130,20 @@ class AcDataDictionaryAutoSelect {
   }) */
   Function getHandler() {
     return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final acDDSelectStatement = AcDDSelectStatement(
         tableName: acDDTable.tableName,
       );
 
-      if (acWebRequest.get.containsKey("query")) {
+      if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
         final queryColumns = acDDTable.getSearchQueryColumnNames();
         acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
             operator: AcEnumConditionOperator.contains,
-            value: acWebRequest.get["query"],
+            value: acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
           );
         }
         acDDSelectStatement.endGroup();
@@ -159,26 +160,23 @@ class AcDataDictionaryAutoSelect {
       }
 
       acDDSelectStatement.pageNumber =
-          acWebRequest.get.containsKey("page_number")
-              ? int.tryParse(acWebRequest.get["page_number"] ?? '') ?? 1
+          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
+              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
               : 1;
       acDDSelectStatement.pageSize =
-          acWebRequest.get.containsKey("page_size")
-              ? int.tryParse(acWebRequest.get["page_size"] ?? '') ?? 50
+          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)
+              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] ?? '') ?? 50
               : 50;
-      if (acWebRequest.get.containsKey("order_by")) {
-        acDDSelectStatement.orderBy = acWebRequest.get["order_by"];
+      if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
+        acDDSelectStatement.orderBy = acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
       }
 
-      final sqlStatement = acDDSelectStatement.getSqlStatement();
-      final sqlParameters = acDDSelectStatement.parameters;
-
-      final getResponse = await acSqlDbTable.getRows(
-        selectStatement: sqlStatement,
-        parameters: sqlParameters,
+      final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
+        acDDSelectStatement: acDDSelectStatement
       );
 
-      return AcWebResponse.json(data: getResponse.toJson());
+      response.setFromSqlDaoResult(result: getResponse);
+      return response.toWebResponse();
     };
   }
 
@@ -225,7 +223,9 @@ class AcDataDictionaryAutoSelect {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function getByIdHandler() {
-    return (AcWebRequest acWebRequest) async {
+    return (AcWebRequest acWebRequest) async
+    {
+      final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
 
       final pkName = acDDTable.getPrimaryKeyColumnName();
@@ -236,7 +236,8 @@ class AcDataDictionaryAutoSelect {
         parameters: {'@primaryKeyValue': primaryKeyValue},
       );
 
-      return AcWebResponse.json(data: getResponse.toJson());
+      response.setFromSqlDaoResult(result: getResponse);
+      return response.toWebResponse();
     };
   }
 
@@ -256,23 +257,23 @@ class AcDataDictionaryAutoSelect {
     final queryColumns = acDDTable.getSearchQueryColumnNames();
 
     final properties = <String, dynamic>{
-      "query": {"type": AcEnumApiDataType.string},
-      "page_number": {"type": AcEnumApiDataType.integer},
-      "page_size": {"type": AcEnumApiDataType.integer},
-      "order_by": {"type": AcEnumApiDataType.string},
-      "filters": {"type": AcEnumApiDataType.object},
-      "include_columns": {
+      AcDataDictionaryAutoApiConfig.selectParameterQueryKey: {"type": AcEnumApiDataType.string},
+      AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey: {"type": AcEnumApiDataType.integer},
+      AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey: {"type": AcEnumApiDataType.integer},
+      AcDataDictionaryAutoApiConfig.selectParameterOrderByKey: {"type": AcEnumApiDataType.string},
+      AcDataDictionaryAutoApiConfig.selectParameterFiltersKey: {"type": AcEnumApiDataType.object},
+      AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey : {
         "type": AcEnumApiDataType.array,
         "items": {"type": AcEnumApiDataType.string},
       },
-      "exclude_columns": {
+      AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey: {
         "type": AcEnumApiDataType.array,
         "items": {"type": AcEnumApiDataType.string},
       },
     };
 
     if (queryColumns.isEmpty) {
-      properties.remove("query");
+      properties.remove(AcDataDictionaryAutoApiConfig.selectParameterQueryKey);
     }
 
     final content =
@@ -309,35 +310,36 @@ class AcDataDictionaryAutoSelect {
   }) */
   Function postHandler() {
     return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final acDDSelectStatement = AcDDSelectStatement(
         tableName: acDDTable.tableName,
       );
 
-      if (acWebRequest.body.containsKey("include_columns")) {
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
         acDDSelectStatement.includeColumns = List<String>.from(
-          acWebRequest.body["include_columns"],
+          acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey],
         );
       }
-      if (acWebRequest.body.containsKey("exclude_columns")) {
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey)) {
         acDDSelectStatement.excludeColumns = List<String>.from(
-          acWebRequest.body["exclude_columns"],
+          acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey],
         );
       }
-      if (acWebRequest.body.containsKey("query")) {
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
         final queryColumns = acDDTable.getSearchQueryColumnNames();
         acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
             columnName: columnName,
             operator: AcEnumConditionOperator.contains,
-            value: acWebRequest.body["query"],
+            value: acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
           );
         }
         acDDSelectStatement.endGroup();
       }
-      if (acWebRequest.body.containsKey("filters")) {
-        final filters = acWebRequest.body["filters"] as Map<String, dynamic>;
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterFiltersKey)) {
+        final filters = acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
         for (final entry in filters.entries) {
           final columnName = entry.key;
           final value = entry.value;
@@ -348,36 +350,34 @@ class AcDataDictionaryAutoSelect {
           );
         }
       }
-      if (acWebRequest.body.containsKey("page_number")) {
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
         acDDSelectStatement.pageNumber =
-            acWebRequest.body["page_number"] is int
-                ? acWebRequest.body["page_number"]
-                : int.tryParse(acWebRequest.body["page_number"].toString()) ??
+            acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
+                ? acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
+                : int.tryParse(acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey].toString()) ??
                     1;
       } else {
         acDDSelectStatement.pageNumber = 1;
       }
-      if (acWebRequest.body.containsKey("page_size")) {
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
         acDDSelectStatement.pageSize =
-            acWebRequest.body["page_size"] is int
-                ? acWebRequest.body["page_size"]
-                : int.tryParse(acWebRequest.body["page_size"].toString()) ?? 50;
+            acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
+                ? acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
+                : int.tryParse(acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey].toString()) ?? 50;
       } else {
         acDDSelectStatement.pageSize = 50;
       }
-      if (acWebRequest.body.containsKey("order_by")) {
-        acDDSelectStatement.orderBy = acWebRequest.body["order_by"];
+      if (acWebRequest.body.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
+        acDDSelectStatement.orderBy = acWebRequest.body[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
       }
 
-      final sqlStatement = acDDSelectStatement.getSqlStatement();
-      final sqlParameters = acDDSelectStatement.parameters;
-
-      final getResponse = await acSqlDbTable.getRows(
-        selectStatement: sqlStatement,
-        parameters: sqlParameters,
+      final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
+          acDDSelectStatement: acDDSelectStatement
       );
 
-      return AcWebResponse.json(data: getResponse.toJson());
+      response.setFromSqlDaoResult(result: getResponse);
+
+      return response.toWebResponse();
     };
   }
 }

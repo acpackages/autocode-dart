@@ -1,4 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
+import 'package:ac_sql/ac_sql.dart';
+import 'package:ac_web/ac_web.dart';
 import 'package:autocode/autocode.dart'; // Assuming your Dart package imports
 
 /* AcDoc({
@@ -8,9 +10,49 @@ import 'package:autocode/autocode.dart'; // Assuming your Dart package imports
 }) */
 @AcReflectable()
 class AcWebApiResponse extends AcResult {
+  static const String keyData = 'data';
+
+  dynamic data;
   /* AcDoc({
     "summary": "Creates a new instance of a web API response.",
     "description": "Initializes an empty response object, which can then be populated with success or failure details using methods inherited from `AcResult`."
   }) */
   AcWebApiResponse();
+
+  AcWebResponse toWebResponse() {
+    return AcWebResponse.json(data: this.toJson());
+  }
+
+  AcWebApiResponse setFromSqlDaoResult({
+    required AcSqlDaoResult result,
+    String? message,
+    AcLogger? logger,
+  }) {
+    setFromResult(result: result,message: message,logger: logger);
+    Map<String,dynamic> sqlData = {};
+    sqlData["rows"] = result.rows;
+    if(result.affectedRowsCount!=null && result.affectedRowsCount! > 0){
+      sqlData["affectedRowsCount"] = result.affectedRowsCount;
+    }
+    if(result.lastInsertedId!=null && result.lastInsertedId! > 0){
+      sqlData["lastInsertedId"] = result.lastInsertedId;
+    }
+    if(result.totalRows > 0){
+      sqlData["totalRows"] = result.totalRows;
+    }
+    data = sqlData;
+    return this;
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    Map<String,dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    if(result.containsKey(AcResult.keyLog) && log.isEmpty){
+      result.remove(AcResult.keyLog);
+    }
+    if(result.containsKey(AcResult.keyOtherDetails) && otherDetails.isEmpty){
+      result.remove(AcResult.keyOtherDetails);
+    }
+    return result;
+  }
 }
