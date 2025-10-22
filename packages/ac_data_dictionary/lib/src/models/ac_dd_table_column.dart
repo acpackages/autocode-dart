@@ -193,10 +193,13 @@ class AcDDTableColumn {
   List<String> getColumnFormats() {
     List<String> result = [];
     if (columnProperties.containsKey(AcEnumDDColumnProperty.format.value)) {
-      result =
-          columnProperties[AcEnumDDColumnProperty.format.value]
-              ?.propertyValue ??
-          [];
+      if(columnProperties[AcEnumDDColumnProperty.format.value]?.propertyValue is String){
+        result = [columnProperties[AcEnumDDColumnProperty.format.value]?.propertyValue];
+      }
+      else{
+        result = columnProperties[AcEnumDDColumnProperty.format.value]?.propertyValue ?? [];
+      }
+
     }
     return result;
   }

@@ -43,7 +43,7 @@ class AcSqlDbBase {
     databaseType = AcSqlDatabase.databaseType;
     sqlConnection = AcSqlDatabase.sqlConnection;
     useDataDictionary(dataDictionaryName: dataDictionaryName);
-    logger = AcLogger(logType: AcEnumLogType.print_, logMessages: true);
+    logger = AcLogger(logType: AcEnumLogType.print_, logMessages: false);
     events = AcEvents(); // Initialized to prevent LateInitializationError.
 
     if (databaseType == AcEnumSqlDatabaseType.mysql) {

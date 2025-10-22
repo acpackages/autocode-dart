@@ -27,12 +27,17 @@ class AcDataDictionaryAutoDelete {
     required this.acDDTable,
     required this.acDataDictionaryAutoApi,
   }) {
-    final apiUrl =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForDelete}/{${acDDTable.getPrimaryKeyColumnName()}}';
+    final apiUrl = '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForDelete}';
     acDataDictionaryAutoApi.acWeb.delete(
-      url: apiUrl,
+      url: "$apiUrl/{${acDDTable.getPrimaryKeyColumnName()}}",
       handler: getHandler(),
       acApiDocRoute: getAcApiDocRoute(),
+    );
+
+    acDataDictionaryAutoApi.acWeb.post(
+      url: apiUrl,
+      handler: getPostHandler(),
+      acApiDocRoute: getAcApPostDocRoute(),
     );
   }
 
@@ -87,6 +92,70 @@ class AcDataDictionaryAutoDelete {
         return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
             primaryKeyValue: acWebRequest.pathParameters[key],
           )).toWebResponse();
+      } else {
+        response.message = 'parameters missing';
+        return AcWebResponse.json(data: response);
+      }
+    };
+  }
+
+
+  /* AcDoc({
+    "summary": "Builds the OpenAPI documentation for the generated DELETE route.",
+    "description": "This method creates an `AcApiDocRoute` object that describes the endpoint, including its summary, path parameters, and standard success and error responses.",
+    "returns": "A configured `AcApiDocRoute` object for documentation.",
+    "returns_type": "AcApiDocRoute"
+  }) */
+  AcApiDocRoute getAcApPostDocRoute() {
+    final acApiDocRoute = AcApiDocRoute();
+    acApiDocRoute.addTag(tag: acDDTable.tableName);
+    acApiDocRoute.summary = "Delete row in ${acDDTable.tableName}";
+    acApiDocRoute.description = "Auto generated data dictionary api to delete row in table ${acDDTable.tableName}";
+
+    final properties = <String, dynamic>{
+      acDDTable.getPrimaryKeyColumnName() : {"type": AcEnumApiDataType.string}
+    };
+    final content =
+    AcApiDocContent()
+      ..encoding = "application/json"
+      ..schema = {
+        "type": AcEnumApiDataType.object,
+        "properties": properties,
+      };
+
+    final requestBody = AcApiDocRequestBody();
+    requestBody.addContent(content: content);
+
+    acApiDocRoute.requestBody = requestBody;
+
+    final responses = AcApiDocUtils.getApiDocRouteResponsesForOperation(
+      operation: AcEnumDDRowOperation.delete,
+      acDDTable: acDDTable,
+      acApiDoc: acDataDictionaryAutoApi.acWeb.acApiDoc,
+    );
+
+    for (final response in responses) {
+      acApiDocRoute.addResponse(response: response);
+    }
+
+    return acApiDocRoute;
+  }
+
+  /* AcDoc({
+    "summary": "Creates the request handler function for the DELETE route.",
+    "description": "This method returns an asynchronous closure that processes the incoming `AcWebRequest`. The handler extracts the primary key from the URL path, calls the `deleteRows` method of the `AcSqlDbTable` service, and returns the result as a JSON response.",
+    "returns": "The request handler function.",
+    "returns_type": "AcWebResponse Function(AcWebRequest)"
+  }) */
+  Future<AcWebResponse> Function(AcWebRequest) getPostHandler() {
+    return (AcWebRequest acWebRequest) async {
+      final response = AcWebApiResponse();
+      final key = acDDTable.getPrimaryKeyColumnName();
+      if (acWebRequest.post.containsKey(key)) {
+        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
+          primaryKeyValue: acWebRequest.post[key],
+        )).toWebResponse();
       } else {
         response.message = 'parameters missing';
         return AcWebResponse.json(data: response);

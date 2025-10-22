@@ -107,6 +107,7 @@ class AcResult {
 
     if (isException()) {
       exception = result.exception;
+      stackTrace = result.stackTrace;
       this.message = result.message;
     } else if (isSuccess()) {
       value = result.value;
@@ -158,6 +159,8 @@ class AcResult {
     this.message = (message ?? exception?.toString())!;
 
     if (logException) {
+      print(exception);
+      print(stackTrace);
       logger?.error([exception?.toString(), this.stackTrace]);
       this.logger?.error([exception?.toString(), this.stackTrace]);
     }

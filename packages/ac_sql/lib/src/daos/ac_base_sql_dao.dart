@@ -119,6 +119,10 @@ class AcBaseSqlDao {
     return AcSqlDaoResult();
   }
 
+  Future<AcResult> dropExistingRelationships() async {
+    return AcResult();
+  }
+
   /* AcDoc({
     "summary": "Executes a list of SQL statements in a transaction or batch.",
     "params": [

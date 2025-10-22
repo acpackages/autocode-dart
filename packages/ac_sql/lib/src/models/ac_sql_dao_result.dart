@@ -13,6 +13,7 @@ class AcSqlDaoResult extends AcResult {
   static const String keyRows = 'rows';
   static const String keyAffectedRowsCount = 'affectedRowsCount';
   static const String keyLastInsertedId = 'lastInsertedId';
+  static const String keyLastInsertedIds = 'lastInsertedIds';
   static const String keyOperation = 'operation';
   static const String keyPrimaryKeyColumn = 'primaryKeyColumn';
   static const String keyPrimaryKeyValue = 'primaryKeyValue';
@@ -35,14 +36,14 @@ class AcSqlDaoResult extends AcResult {
     "remarks": ["This field shares a JSON key with `lastInsertedIds`. Deserialization behavior may vary depending on the exact JSON payload (single value vs. list)."]
   }) */
   @AcBindJsonProperty(key: keyLastInsertedId)
-  int? lastInsertedId;
+  dynamic? lastInsertedId;
 
   /* AcDoc({
     "summary": "A list of auto-generated IDs from a bulk INSERT operation.",
     "remarks": ["This field shares a JSON key with `lastInsertedId`. Deserialization behavior may vary depending on the exact JSON payload (single value vs. list)."]
   }) */
-  @AcBindJsonProperty(key: keyLastInsertedId)
-  dynamic lastInsertedIds;
+  @AcBindJsonProperty(key: keyLastInsertedIds)
+  List<dynamic> lastInsertedIds = [];
 
   /* AcDoc({
     "summary": "The type of DAO operation that was performed (e.g., select, insert, update)."

@@ -95,12 +95,12 @@ class AcDataDictionaryAutoUpdate {
       final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
 
-      final body = acWebRequest.body;
+      final post = acWebRequest.post;
 
-      if (body.containsKey('row')) {
-        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: body['row']));
-      } else if (body.containsKey('rows')) {
-        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: body['rows']));
+      if (post.containsKey('row')) {
+        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: post['row']));
+      } else if (post.containsKey('rows')) {
+        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: post['rows']));
       } else {
         response.message = 'parameters missing';
       }

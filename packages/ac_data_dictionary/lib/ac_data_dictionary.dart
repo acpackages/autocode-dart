@@ -10,6 +10,7 @@ export './src/enums/ac_enum_dd_column_type.dart';
 export './src/enums/ac_enum_dd_row_event.dart';
 export './src/enums/ac_enum_dd_row_operation.dart';
 export './src/enums/ac_enum_dd_select_mode.dart';
+export './src/enums/ac_enum_dd_table_constraint.dart';
 export './src/enums/ac_enum_dd_table_property.dart';
 
 export './src/models/ac_data_dictionary.dart';

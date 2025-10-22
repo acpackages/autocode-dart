@@ -137,7 +137,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     try {
       List<String> checkColumns = [];
       Map<String, Map<String, dynamic>> autoNumberColumns = {};
-
+      bool continueOperation = true;
       for (final tableColumn in acDDTable.tableColumns) {
         bool setAutoNumber = true;
         if (tableColumn.isAutoNumber()) {
@@ -209,11 +209,14 @@ class AcSqlDbTable extends AcSqlDbBase {
               row[name] = autoNumberValue;
             }
           } else {
+            continueOperation = false;
             return result.setFromResult(result: selectResponse);
           }
         }
       }
-      result.setSuccess(value: row);
+      if(continueOperation){
+        result.setSuccess(value: row);
+      }
     } on Exception catch (ex, stack) {
       result.setException(
         exception: ex,
@@ -239,6 +242,7 @@ class AcSqlDbTable extends AcSqlDbBase {
   }) async {
     final result = AcResult();
     try {
+      bool continueOperation = false;
       Map<String, dynamic> parameters = {};
       List<String> conditions = [];
       List<String> modifyConditions = [];
@@ -294,6 +298,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
           } else {
             result.setFromResult(result: selectResponse);
+            continueOperation = false;
           }
         } else {
           result.setSuccess();
@@ -425,6 +430,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                     "${deleteResult.affectedRowsCount} row(s) deleted successfully",
               );
             } else {
+              continueOperation=false;
               result.setFromResult(result: deleteResult);
               if (deleteResult.message.contains("foreign key")) {
                 result.message =
@@ -433,6 +439,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
           }
         } else {
+          continueOperation=false;
           result.setFromResult(result: getResult, logger: logger);
         }
       }
@@ -449,8 +456,12 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (eventResult.isSuccess()) {
           result = rowEvent.result;
         } else {
+          continueOperation=false;
           result.setFromResult(result: eventResult);
         }
+      }
+      if(continueOperation){
+        result.setSuccess();
       }
     } on Exception catch (ex, stack) {
       result.setException(
@@ -499,9 +510,17 @@ class AcSqlDbTable extends AcSqlDbBase {
           List<String> formats = column.getColumnFormats();
           AcEnumDDColumnType type = column.columnType;
           dynamic value = row[column.columnName] ?? "";
-          if (value == "" && column.getDefaultValue() != null && insertMode) {
-            value = column.getDefaultValue();
-            setColumnValue = true;
+          print("${column.columnName} Value : $value");
+          if (value == "" && insertMode) {
+            print("Value is empty! Checking default value");
+            if(column.getDefaultValue() != null){
+              print("Value is empty and has default value for column");
+              value = column.getDefaultValue();
+              setColumnValue = true;
+            }
+            else if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && insertMode && column.isPrimaryKey()) {
+              setColumnValue = true;
+            }
           }
           if (setColumnValue) {
             if ([
@@ -520,7 +539,8 @@ class AcSqlDbTable extends AcSqlDbBase {
                 if (formats.contains(AcEnumDDColumnFormat.encrypt.value)) {
                   value = AcEncryption.encrypt(plainText: value);
                 }
-              } else if ([
+              }
+              else if ([
                     AcEnumDDColumnType.datetime,
                     AcEnumDDColumnType.date,
                   ].contains(type) &&
@@ -543,7 +563,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             } else if (type == AcEnumDDColumnType.password) {
               value = AcEncryption.encrypt(plainText: value);
             }
-            else if (type == AcEnumDDColumnType.uuid && insertMode) {
+            else if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && insertMode && column.isPrimaryKey()) {
               if(value == '' || value == null){
                 value = Autocode.uuid();
               }
@@ -819,18 +839,19 @@ class AcSqlDbTable extends AcSqlDbBase {
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
     try {
       logger.log(["Inserting row with data : ", row]);
+
       bool continueOperation = true;
+      final formatResult = await formatValues(row: row,insertMode: true);
+      if (formatResult.isSuccess()) {
+        row = formatResult.value;
+      } else {
+        continueOperation = false;
+      }
+
       validateResult ??= await validateValues(row: row, isInsert: true);
       logger.log(["Validation result : ", validateResult]);
       if (validateResult.isSuccess()) {
-        for (final column in acDDTable.tableColumns) {
-          if ((column.columnType == AcEnumDDColumnType.uuid ||
-                  (column.columnType == AcEnumDDColumnType.string &&
-                      column.isPrimaryKey())) &&
-              !row.containsKey(column.columnName)) {
-            row[column.columnName] = Autocode.uuid(); // Use the uuid package
-          }
-        }
+
         final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
         dynamic primaryKeyValue = row[primaryKeyColumn];
         if (row.isNotEmpty) {
@@ -901,10 +922,12 @@ class AcSqlDbTable extends AcSqlDbBase {
                 if (eventResult.isSuccess()) {
                   // result = eventResult;
                 } else {
+                  continueOperation=false;
                   result.setFromResult(result: eventResult);
                 }
               }
             } else {
+              continueOperation=false;
               result.setFromResult(result: insertResult);
             }
           }
@@ -912,9 +935,13 @@ class AcSqlDbTable extends AcSqlDbBase {
           result.message = 'No values for new row';
         }
       } else {
+        continueOperation=false;
         result.setFromResult(result: validateResult);
       }
-    } on Exception catch (ex, stack) {
+      if(continueOperation){
+        result.setSuccess();
+      }
+    } catch (ex, stack) {
       result.setException(
         exception: ex,
         stackTrace: stack,
@@ -950,16 +977,15 @@ class AcSqlDbTable extends AcSqlDbBase {
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
       for (var row in rows) {
         if (continueOperation) {
+          final formatResult = await formatValues(row: row,insertMode: true);
+          if (formatResult.isSuccess()) {
+            row = formatResult.value;
+          } else {
+            continueOperation = false;
+          }
+
           final validateResult = await validateValues(row: row, isInsert: true);
           if (validateResult.isSuccess()) {
-            for (final column in acDDTable.tableColumns) {
-              if ((column.columnType == AcEnumDDColumnType.uuid ||
-                      (column.columnType == AcEnumDDColumnType.string &&
-                          column.isPrimaryKey())) &&
-                  !row.containsKey(column.columnName)) {
-                row[column.columnName] = Autocode.uuid(); // Use uuid package.
-              }
-            }
             if (row.containsKey(primaryKeyColumn)) {
               primaryKeyValues.add(row[primaryKeyColumn]);
             }
@@ -994,6 +1020,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
           } else {
             result.setFromResult(result: validateResult);
+            continueOperation = false;
           }
         }
       }
@@ -1167,8 +1194,14 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
         if (operation == AcEnumDDRowOperation.insert) {
           result.setFromResult(result: await insertRow(row: row));
+          if(result.isFailure()){
+            continueOperation = false;
+          }
         } else if (operation == AcEnumDDRowOperation.update) {
           result.setFromResult(result: await updateRow(row: row));
+          if(result.isFailure()){
+            continueOperation = false;
+          }
         } else {
           continueOperation = false; // Redundant, but good for clarity
         }
@@ -1184,9 +1217,14 @@ class AcSqlDbTable extends AcSqlDbBase {
           if (eventResult.isSuccess()) {
             // result.setFromResult(eventResult.result);
           } else {
+            continueOperation = false;
             result.setFromResult(result: eventResult);
           }
         }
+      }
+
+      if(continueOperation){
+        result.setSuccess();
       }
     } on Exception catch (ex, stack) {
       result.setException(
@@ -1463,6 +1501,14 @@ class AcSqlDbTable extends AcSqlDbBase {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
       bool continueOperation = true;
+
+      final formatResult = await formatValues(row: row);
+      if (formatResult.isSuccess()) {
+        row = formatResult.value;
+      } else {
+        continueOperation = false;
+      }
+
       validateResult ??= await validateValues(row: row, isInsert: false);
 
       if (validateResult.isSuccess() && continueOperation) {
@@ -1470,12 +1516,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
         final primaryKeyValue = row[primaryKeyColumn];
 
-        final formatResult = await formatValues(row: row);
-        if (formatResult.isSuccess()) {
-          row = formatResult.value;
-        } else {
-          continueOperation = false;
-        }
+
         logger.log(["Formatted data : ", row]);
 
         if (condition.isEmpty && Autocode.validPrimaryKey(primaryKeyValue)) {
@@ -1551,10 +1592,12 @@ class AcSqlDbTable extends AcSqlDbBase {
                   // result.setFromResult(eventResult.result);
                 } else {
                   logger.error(["After event result", eventResult]);
+                  continueOperation = false;
                   result.setFromResult(result: eventResult);
                 }
               }
             } else {
+              continueOperation = false;
               result.setFromResult(result: updateResult, logger: logger);
             }
           }
@@ -1565,6 +1608,10 @@ class AcSqlDbTable extends AcSqlDbBase {
       } else {
         logger.error(["Validation result : ", validateResult]);
         result.setFromResult(result: validateResult);
+        continueOperation = false;
+      }
+      if(continueOperation){
+        result.setSuccess();
       }
     } on Exception catch (ex, stack) {
       result.setException(
@@ -1604,6 +1651,13 @@ class AcSqlDbTable extends AcSqlDbBase {
         index++;
         if (continueOperation) {
           logger.log(["Updating row with data : ", row]);
+          final formatResult = await formatValues(row: row);
+          if (formatResult.isSuccess()) {
+            row = formatResult.value;
+          } else {
+            continueOperation = false;
+          }
+
           final validateResult = await validateValues(
             row: row,
             isInsert: false,
@@ -1611,12 +1665,6 @@ class AcSqlDbTable extends AcSqlDbBase {
           if (validateResult.isSuccess() && continueOperation) {
             logger.log(["Validation result : ", validateResult]);
             final primaryKeyValue = row[primaryKeyColumn];
-            final formatResult = await formatValues(row: row);
-            if (formatResult.isSuccess()) {
-              row = formatResult.value;
-            } else {
-              continueOperation = false;
-            }
             logger.log(["Formatted data : ", row]);
             if (row.isNotEmpty && Autocode.validPrimaryKey(primaryKeyValue)) {
               final condition = "$primaryKeyColumn = :primaryKeyValue$index";
@@ -1709,12 +1757,16 @@ class AcSqlDbTable extends AcSqlDbBase {
                 }
               }
             } else {
+              continueOperation = false;
               result.setFromResult(result: updateResult, logger: logger);
             }
           }
         } else {
           result.message = "Nothing to update";
         }
+      }
+      if(continueOperation){
+        result.setSuccess();
       }
     } on Exception catch (ex, stack) {
       result.setException(

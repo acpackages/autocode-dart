@@ -97,22 +97,13 @@ class AcDDRelationship {
     final acDataDictionary = AcDataDictionary.getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-
-    if (acDataDictionary.relationships.containsKey(destinationTable) &&
-        acDataDictionary.relationships[destinationTable].containsKey(
-          destinationColumn,
-        )) {
-      final sourceDetails =
-          acDataDictionary.relationships[destinationTable][destinationColumn];
-      sourceDetails.forEach((sourceTable, sourceColumnDetails) {
-        sourceColumnDetails.forEach((sourceColumn, relationshipDetails) {
-          result.add(
-            AcDDRelationship.instanceFromJson(jsonData: relationshipDetails),
-          );
-        });
-      });
+    for(var relationship in acDataDictionary.relationships){
+      if(relationship[keyDestinationTable] == destinationTable && relationship[keyDestinationColumn] == destinationColumn){
+        result.add(
+          AcDDRelationship.instanceFromJson(jsonData: relationship),
+        );
+      }
     }
-
     return result;
   }
 

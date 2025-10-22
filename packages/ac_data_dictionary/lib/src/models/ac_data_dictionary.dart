@@ -26,7 +26,7 @@ class AcDataDictionary {
   static Map<String, dynamic> dataDictionaries = {};
 
   Map<String, dynamic> functions = {};
-  Map<String, dynamic> relationships = {};
+  List<Map<String, dynamic>> relationships = List.empty(growable: true);
 
   @AcBindJsonProperty(key: keyStoredProcedures)
   Map<String, dynamic> storedProcedures = {};
@@ -146,17 +146,9 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    acDataDictionary.relationships.forEach((_, destinationTableDetails) {
-      destinationTableDetails.forEach((_, destinationColumnDetails) {
-        destinationColumnDetails.forEach((_, sourceTableDetails) {
-          sourceTableDetails.forEach((_, relationshipDetails) {
-            result.add(
-              AcDDRelationship.instanceFromJson(jsonData: relationshipDetails),
-            );
-          });
-        });
-      });
-    });
+    for(var relationship in acDataDictionary.relationships){
+      result.add(AcDDRelationship.instanceFromJson(jsonData: relationship));
+    }
     return result;
   }
 
@@ -358,14 +350,53 @@ class AcDataDictionary {
   }) */
   static Map<String, AcDDTable> getTables({
     String dataDictionaryName = "default",
+    bool foreignKeysSorted = false
   }) {
-    final result = <String, AcDDTable>{};
+    Map<String, AcDDTable> result = <String, AcDDTable>{};
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
     acDataDictionary.tables.forEach((name, data) {
       result[name] = AcDDTable.instanceFromJson(jsonData: data);
     });
+    if(foreignKeysSorted){
+      bool sortedSuccessfully = true;
+      Map<String, AcDDTable> sortedResult = <String, AcDDTable>{};
+      while(sortedResult.length < result.length){
+        int pendingTablesCount = result.length - sortedResult.length;
+        print("Sorted tables ${sortedResult.length} : Actual tables : ${result.length}" );
+        for(var table in result.values){
+          if(!sortedResult.containsKey(table.tableName)){
+            // print("Checking table : ${table.tableName} for foreign keys" );
+            bool foundAllRelatedTables = true;
+            var relationships = table.getForeignKeyRelationships();
+            // print("Relationships in table ${table.tableName} : ${relationships.length}" );
+            for(var relationship in relationships){
+              if(!sortedResult.containsKey(relationship.sourceTable) && relationship.sourceTable != table.tableName){
+                foundAllRelatedTables = false;
+              }
+            }
+            if(foundAllRelatedTables){
+              print("Adding table : ${table.tableName} to sorted list" );
+              sortedResult[table.tableName] = table;
+            }
+          }
+        }
+        if(pendingTablesCount == (result.length - sortedResult.length)){
+          sortedSuccessfully = false;
+          for(var table in result.values){
+            if(!sortedResult.containsKey(table.tableName)){
+              print("Table ${table.tableName} not added to sorted list" );
+            }
+          }
+          break;
+        }
+      }
+      if(sortedSuccessfully){
+        result = sortedResult;
+        print("Sorted all tables in order for foreign keys" );
+      }
+    }
     return result;
   }
 
@@ -580,22 +611,13 @@ class AcDataDictionary {
     bool asDestination = true,
   }) {
     final result = <Map<String, dynamic>>[];
-    relationships.forEach((_, destinationTableDetails) {
-      destinationTableDetails.forEach((_, destinationColumnDetails) {
-        destinationColumnDetails.forEach((_, sourceTableDetails) {
-          sourceTableDetails.forEach((_, relationshipDetails) {
-            final r = relationshipDetails as Map<String, dynamic>;
-            final columnKey =
-                asDestination
-                    ? AcDDRelationship.keyDestinationTable
-                    : AcDDRelationship.keySourceTable;
-            if (r[columnKey] == tableName) {
-              result.add(r);
-            }
-          });
-        });
-      });
-    });
+    for(var relationship in relationships){
+      final checkKey = asDestination ? AcDDRelationship.keyDestinationTable: AcDDRelationship.keySourceTable;
+      if (relationship[checkKey] == tableName) {
+        result.add(relationship);
+      }
+
+    }
     return result;
   }
 

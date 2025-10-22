@@ -192,6 +192,79 @@ class AcMysqlDao extends AcBaseSqlDao {
     return result;
   }
 
+  @override
+  Future<AcResult> dropExistingRelationships() async {
+    final result = AcResult();
+    MySQLConnection? db;
+    try {
+      bool continueOperation =true;
+      const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
+      logger.log('Executing disable check statement: $disableCheckStatement');
+      final setCheckResult = await executeStatement(
+        statement: disableCheckStatement,
+        operation: AcEnumDDRowOperation.unknown,
+      );
+      if (setCheckResult.isFailure()) {
+        continueOperation = false;
+        result.setFromResult(
+          result: setCheckResult,
+          message: 'Error disabling foreign key checks',
+          logger: logger,
+        );
+      } else {
+        logger.log('Disabled foreign key checks.');
+      }
+
+      if(continueOperation){
+        logger.log('Getting and dropping existing relationships...');
+        const getDropRelationshipsStatements = "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
+        final getResult = await getRows(
+          statement: getDropRelationshipsStatements,
+          parameters: {"@databaseName": sqlConnection.database},
+        ); // Corrected parameter passing
+        if (getResult.isSuccess()) {
+          for (final row in getResult.rows) {
+            final dropRelationshipStatement = row['drop_query'] as String;
+            final constraintName = row['constraint_name'] as String;
+            logger.log(
+              'Executing drop relationship statement: $dropRelationshipStatement',
+            );
+            final dropResponse = await executeStatement(
+              statement: dropRelationshipStatement,
+              operation: AcEnumDDRowOperation.unknown,
+            ); // Added operation
+            if (dropResponse.isFailure()) {
+              continueOperation = false;
+              result.setFromResult(
+                result: dropResponse,
+                message: 'Error dropping relationship',
+                logger: logger,
+              );
+            } else {
+              logger.log('Executed drop relation statement successfully.');
+            }
+          }
+        } else {
+          continueOperation = false;
+          result.setFromResult(
+            result: getResult,
+            message: 'Error getting relationships to drop',
+            logger: logger,
+          );
+        }
+      }
+
+      if(continueOperation){
+        result.setSuccess();
+      }
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    } finally {
+      await db?.close();
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Executes multiple SQL statements within a single transaction.",
     "description": "This MySQL implementation wraps the list of statements in a transaction block to ensure atomicity.",

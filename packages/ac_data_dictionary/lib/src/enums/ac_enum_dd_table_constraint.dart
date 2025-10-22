@@ -6,32 +6,9 @@ import 'package:ac_mirrors/ac_mirrors.dart';
   "type": "development"
 }) */
 @AcReflectable()
-enum AcEnumDDTableProperty {
-  constraints("CONSTRAINTS"),
-
-  /* AcDoc({"description": "Defines index number of the table."}) */
-  index_("INDEX"),
-
-  /* AcDoc({"description": "Specifies the default column(s) to order results by."}) */
-  orderBy("ORDER_BY"),
-
-  /* AcDoc({"description": "Specifies the plural form of the table's entity name."}) */
-  pluralName("PLURAL_NAME"),
-
-  /* AcDoc({"description": "Defines columns to be used while performing search query in api."}) */
-  remarks("REMARKS"),
-
-  /* AcDoc({"description": "Specifies the SQL query used for data selection."}) */
-  selectSqlQuery("SELECT_SQL_QUERY"),
-
-  /* AcDoc({"description": "The name of the view used for selection."}) */
-  sqlViewName("SQL_VIEW_NAME"),
-
-  /* AcDoc({"description": "Specifies the singular form of the table's entity name."}) */
-  singularName("SINGULAR_NAME"),
-
-  /* AcDoc({"description": "Extra filter columns to include in search queries."}) */
-  tags("TAGS"),
+enum AcEnumDDTableConstraint {
+  compositePrimaryKey("COMPOSITE_PRIMARY_KEY"),
+  compositeUniqueKey("COMPOSITE_UNIQUE_KEY"),
 
   /* AcDoc({"description": "Unknown property."}) */
   unknown("unknown");
@@ -40,16 +17,16 @@ enum AcEnumDDTableProperty {
   final String value;
 
   /* AcDoc({"description": "Constructor to assign a string value to each enum constant."}) */
-  const AcEnumDDTableProperty(this.value);
+  const AcEnumDDTableConstraint(this.value);
 
   /* AcDoc({
     "description": "Returns the enum constant matching the provided string.",
     "params": [{"name": "value", "description": "The string to convert to an enum."}],
     "returns": "The matching enum constant, or null if not found."
   }) */
-  static AcEnumDDTableProperty? fromValue(String value) {
+  static AcEnumDDTableConstraint? fromValue(String value) {
     try {
-      return AcEnumDDTableProperty.values.firstWhere((e) => e.value == value);
+      return AcEnumDDTableConstraint.values.firstWhere((e) => e.value == value);
     } catch (_) {
       return null;
     }

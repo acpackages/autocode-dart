@@ -125,17 +125,27 @@ class AcDDTable {
   String getCreateTableStatement({
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
-    print(databaseType);
-    final columnDefinitions =
-        tableColumns
-            .map(
-              (column) => column.getColumnDefinitionForStatement(
-                databaseType: databaseType,
-              ),
-            )
-            .where((def) => def.isNotEmpty)
-            .toList();
-
+    final columnDefinitions = tableColumns.map(
+      (column) => column.getColumnDefinitionForStatement(
+        databaseType: databaseType,
+      ),
+    ).where((def) => def.isNotEmpty).toList();
+    for(var property in tableProperties){
+      if(property.propertyName == AcEnumDDTableProperty.constraints){
+        for(var constraint in property.propertyValue){
+          if(constraint['type'] == AcEnumDDTableConstraint.compositeUniqueKey){
+            columnDefinitions.add("UNIQUE (${constraint['value']})");
+          }
+        }
+      }
+    }
+    for(var relationship in getForeignKeyRelationships()){
+      String constraintString ="FOREIGN KEY (${relationship.destinationColumn}) REFERENCES ${relationship.sourceTable}(${relationship.sourceColumn})";
+      if(relationship.cascadeDeleteDestination){
+        constraintString+=" ON DELETE CASCADE";
+      }
+      columnDefinitions.add(constraintString);
+    }
     return "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
   }
 
@@ -197,6 +207,17 @@ class AcDDTable {
   }) */
   List<AcDDTableColumn> getForeignKeyColumns() {
     return tableColumns.where((column) => column.isForeignKey()).toList();
+  }
+
+  List<AcDDRelationship> getForeignKeyRelationships() {
+    final result = <AcDDRelationship>[];
+    final acDataDictionary = AcDataDictionary.getInstance();
+    for(var relationship in acDataDictionary.relationships){
+      if(relationship[AcDDRelationship.keyDestinationTable] == tableName){
+        result.add(AcDDRelationship.instanceFromJson(jsonData: relationship));
+      }
+    }
+    return result;
   }
 
   /* AcDoc({

@@ -171,7 +171,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     final result = AcResult();
     try {
       logger.log('Creating database relationships...');
-
+      bool continueOperation = true;
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
         const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
         logger.log('Executing disable check statement: $disableCheckStatement');
@@ -180,7 +180,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           operation: AcEnumDDRowOperation.unknown,
         );
         if (setCheckResult.isFailure()) {
-          return result.setFromResult(
+          continueOperation = false;
+          result.setFromResult(
             result: setCheckResult,
             message: 'Error disabling foreign key checks',
             logger: logger,
@@ -188,91 +189,105 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         } else {
           logger.log('Disabled foreign key checks.');
         }
-      }
 
-      logger.log('Getting and dropping existing relationships...');
-      const getDropRelationshipsStatements =
-          "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
-      final getResult = await dao!.getRows(
-        statement: getDropRelationshipsStatements,
-        parameters: {"@databaseName": dao!.sqlConnection.database},
-      ); // Corrected parameter passing
-      if (getResult.isSuccess()) {
-        for (final row in getResult.rows) {
-          final dropRelationshipStatement = row['drop_query'] as String;
-          final constraintName = row['constraint_name'] as String;
-          logger.log(
-            'Executing drop relationship statement: $dropRelationshipStatement',
-          );
-          final dropResponse = await dao!.executeStatement(
-            statement: dropRelationshipStatement,
-            operation: AcEnumDDRowOperation.unknown,
-          ); // Added operation
-          if (dropResponse.isFailure()) {
+        if(continueOperation){
+          logger.log('Getting and dropping existing relationships...');
+          const getDropRelationshipsStatements = "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
+          final getResult = await dao!.getRows(
+            statement: getDropRelationshipsStatements,
+            parameters: {"@databaseName": dao!.sqlConnection.database},
+          ); // Corrected parameter passing
+          if (getResult.isSuccess()) {
+            for (final row in getResult.rows) {
+              final dropRelationshipStatement = row['drop_query'] as String;
+              final constraintName = row['constraint_name'] as String;
+              logger.log(
+                'Executing drop relationship statement: $dropRelationshipStatement',
+              );
+              final dropResponse = await dao!.executeStatement(
+                statement: dropRelationshipStatement,
+                operation: AcEnumDDRowOperation.unknown,
+              ); // Added operation
+              if (dropResponse.isFailure()) {
+                continueOperation = false;
+                result.setFromResult(
+                  result: dropResponse,
+                  message: 'Error dropping relationship',
+                  logger: logger,
+                );
+              } else {
+                logger.log('Executed drop relation statement successfully.');
+              }
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
+                TblSchemaLogs.acSchemaEntityName: constraintName,
+                TblSchemaLogs.acSchemaOperation: 'drop',
+                TblSchemaLogs.acSchemaOperationResult: dropResponse.status,
+                TblSchemaLogs.acSchemaOperationStatement:
+                dropRelationshipStatement,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              });
+            }
+          } else {
+            continueOperation = false;
             return result.setFromResult(
-              result: dropResponse,
-              message: 'Error dropping relationship',
+              result: getResult,
+              message: 'Error getting relationships to drop',
               logger: logger,
             );
-          } else {
-            logger.log('Executed drop relation statement successfully.');
           }
-          await saveSchemaLogEntry({
-            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
-            TblSchemaLogs.acSchemaEntityName: constraintName,
-            TblSchemaLogs.acSchemaOperation: 'drop',
-            TblSchemaLogs.acSchemaOperationResult: dropResponse.status,
-            TblSchemaLogs.acSchemaOperationStatement:
-                dropRelationshipStatement,
-            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-          });
         }
-      } else {
-        return result.setFromResult(
-          result: getResult,
-          message: 'Error getting relationships to drop',
+      }
+      if(continueOperation && databaseType != AcEnumSqlDatabaseType.sqlite){
+          final relationshipList = AcDataDictionary.getRelationships(
+            dataDictionaryName: dataDictionaryName,
+          );
+          for (final acDDRelationship in relationshipList) {
+            if(continueOperation){
+              logger.log('Creating relationship for: $acDDRelationship');
+              final createRelationshipStatement =
+              acDDRelationship.getCreateRelationshipStatement(databaseType: databaseType);
+              logger.log(
+                'Create relationship statement: $createRelationshipStatement',
+              );
+              final createResult = await dao!.executeStatement(
+                statement: createRelationshipStatement,
+              );
+              if (createResult.isFailure()) {
+                continueOperation = false;
+                logger.error("Error creating relationship : ${createResult.message}");
+                result.setFromResult(
+                  result: createResult,
+                  message: 'Error creating relationship',
+                  logger: logger,
+                );
+                break;
+              } else {
+                logger.log('Relationship created successfully.');
+              }
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
+                TblSchemaLogs.acSchemaEntityName:
+                '${acDDRelationship.sourceTable}.${acDDRelationship.sourceColumn}>${acDDRelationship.destinationTable}.${acDDRelationship.destinationColumn}',
+                TblSchemaLogs.acSchemaOperation: 'create',
+                TblSchemaLogs.acSchemaOperationResult: createResult.status,
+                TblSchemaLogs.acSchemaOperationStatement:
+                createRelationshipStatement,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              });
+            }
+
+          }
+      }
+
+
+      if(continueOperation){
+        result.setSuccess(
+          message: 'Relationships created successfully',
           logger: logger,
         );
       }
 
-      final relationshipList = AcDataDictionary.getRelationships(
-        dataDictionaryName: dataDictionaryName,
-      );
-      for (final acDDRelationship in relationshipList) {
-        logger.log('Creating relationship for: $acDDRelationship');
-        final createRelationshipStatement =
-            acDDRelationship.getCreateRelationshipStatement();
-        logger.log(
-          'Create relationship statement: $createRelationshipStatement',
-        );
-        final createResult = await dao!.executeStatement(
-          statement: createRelationshipStatement,
-        );
-        if (createResult.isFailure()) {
-          return result.setFromResult(
-            result: createResult,
-            message: 'Error creating relationship',
-            logger: logger,
-          );
-        } else {
-          logger.log('Relationship created successfully.');
-        }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.relationship.value,
-          TblSchemaLogs.acSchemaEntityName:
-              '${acDDRelationship.sourceTable}.${acDDRelationship.sourceColumn}>${acDDRelationship.destinationTable}.${acDDRelationship.destinationColumn}',
-          TblSchemaLogs.acSchemaOperation: 'create',
-          TblSchemaLogs.acSchemaOperationResult: createResult.status,
-          TblSchemaLogs.acSchemaOperationStatement:
-              createRelationshipStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
-      }
-
-      result.setSuccess(
-        message: 'Relationships created successfully',
-        logger: logger,
-      );
     } on Exception catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
@@ -367,37 +382,57 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> createDatabaseTables() async {
     final result = AcResult();
     try {
-      for (final acDDTable
-          in AcDataDictionary.getTables(
-            dataDictionaryName: dataDictionaryName,
-          ).values) {
-        logger.log('Creating table ${acDDTable.tableName}');
-        final createStatement = acDDTable.getCreateTableStatement(
-          databaseType: databaseType,
+      bool continueOperation = true;
+      if (databaseType == AcEnumSqlDatabaseType.sqlite && dataDictionaryName == AcSMDataDictionary.dataDictionaryName){
+        logger.log("Enabling foreign keys for sqlite");
+        final enableForeignKeyResult = await dao!.executeStatement(
+          statement: 'PRAGMA foreign_keys = ON;',
         );
-        logger.log('Executing create table statement: $createStatement');
-        final createResult = await dao!.executeStatement(
-          statement: createStatement,
-        );
-        if (createResult.isSuccess()) {
-          logger.log('Create statement executed successfully.');
-        } else {
-          return result.setFromResult(
-            result: createResult,
-            message: 'Error creating table ${acDDTable.tableName}',
-            logger: logger,
-          );
+        if(enableForeignKeyResult.isFailure()){
+          continueOperation = false;
+          logger.log("Error setting foreign keys on");
+          result.setFromResult(result: enableForeignKeyResult);
         }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
-          TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
-          TblSchemaLogs.acSchemaOperation: 'create',
-          TblSchemaLogs.acSchemaOperationResult: createResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: createStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
       }
-      result.setSuccess(message: 'Tables created successfully', logger: logger);
+      if(continueOperation){
+        for (final acDDTable in AcDataDictionary.getTables(dataDictionaryName: dataDictionaryName,foreignKeysSorted: dataDictionaryName != AcSMDataDictionary.dataDictionaryName).values) {
+          if(continueOperation){
+            logger.log('Creating table ${acDDTable.tableName}');
+            final createStatement = acDDTable.getCreateTableStatement(
+              databaseType: databaseType,
+            );
+            logger.log('Executing create table statement: $createStatement');
+            final createResult = await dao!.executeStatement(
+              statement: createStatement,
+            );
+            if (createResult.isSuccess()) {
+              logger.log('Create statement executed successfully.');
+            } else {
+              continueOperation = false;
+              result.setFromResult(
+                result: createResult,
+                message: 'Error creating table ${acDDTable.tableName}',
+                logger: logger,
+              );
+              break;
+            }
+            if(dataDictionaryName!=AcSMDataDictionary.dataDictionaryName){
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+                TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
+                TblSchemaLogs.acSchemaOperation: 'create',
+                TblSchemaLogs.acSchemaOperationResult: createResult.status,
+                TblSchemaLogs.acSchemaOperationStatement: createStatement,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              });
+            }
+          }
+
+        }
+      }
+      if(continueOperation){
+        result.setSuccess(message: 'Tables created successfully', logger: logger);
+      }
     } on Exception catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
@@ -660,6 +695,17 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           logger: logger,
         );
       }
+
+      // final createRelationshipsResult = await createDatabaseRelationships();
+      // if (createRelationshipsResult.isSuccess()) {
+      //   logger.log('Relationships created successfully');
+      // } else {
+      //   return result.setFromResult(
+      //     result: createRelationshipsResult,
+      //     message: 'Error creating schema database relationships',
+      //     logger: logger,
+      //   );
+      // }
 
       final createTriggersResult = await createDatabaseTriggers();
       if (createTriggersResult.isSuccess()) {

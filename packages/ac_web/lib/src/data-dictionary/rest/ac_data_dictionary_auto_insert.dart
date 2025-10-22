@@ -95,10 +95,10 @@ class AcDataDictionaryAutoInsert {
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final response = AcWebApiResponse();
 
-      if (acWebRequest.body.containsKey('row')) {
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.insertRow(row: acWebRequest.body['row'])).toWebResponse();
-      } else if (acWebRequest.body.containsKey('rows')) {
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.insertRows(rows: acWebRequest.body['rows'])).toWebResponse();
+      if (acWebRequest.post.containsKey('row')) {
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.insertRow(row: acWebRequest.post['row'])).toWebResponse();
+      } else if (acWebRequest.post.containsKey('rows')) {
+        return response.setFromSqlDaoResult(result: await acSqlDbTable.insertRows(rows: acWebRequest.post['rows'])).toWebResponse();
       } else {
         response.message = 'parameters missing';
         return AcWebResponse.json(data: response);
