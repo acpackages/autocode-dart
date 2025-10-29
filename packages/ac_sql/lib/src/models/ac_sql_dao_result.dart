@@ -23,7 +23,7 @@ class AcSqlDaoResult extends AcResult {
     "summary": "A list of rows returned by a SELECT query.",
     "description": "Each item in the list is a map representing a single row, with column names as keys."
   }) */
-  List<Map<String, dynamic>> rows = [];
+  List<Map<String, dynamic>> rows = List.empty(growable: true);
 
   /* AcDoc({
     "summary": "The number of rows affected by an INSERT, UPDATE, or DELETE operation."

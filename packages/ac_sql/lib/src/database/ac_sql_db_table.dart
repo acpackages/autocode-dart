@@ -25,8 +25,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       {"name": "dataDictionaryName", "description": "The data dictionary to use. Defaults to 'default'."}
     ]
   }) */
-  AcSqlDbTable({required this.tableName, String dataDictionaryName = "default"})
-    : super(dataDictionaryName: dataDictionaryName) {
+  AcSqlDbTable({required this.tableName, super.dataDictionaryName,super.logger,super.dao}){
     acDDTable = AcDDTable.getInstance(
       tableName: tableName,
       dataDictionaryName: dataDictionaryName,
@@ -63,8 +62,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             "Checking cascade delete for relationship : ",
             acRelationship,
           ]);
-          if (acRelationship.sourceTable == tableName &&
-              acRelationship.cascadeDeleteDestination == true) {
+          if (acRelationship.sourceTable == tableName && acRelationship.cascadeDeleteDestination == true ) {
             deleteTableName = acRelationship.destinationTable;
             deleteColumnName = acRelationship.destinationColumn;
             deleteColumnValue = row[acRelationship.sourceColumn];
@@ -348,7 +346,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       if (condition.isEmpty) {
         if (primaryKeyValue.isNotEmpty && primaryKeyColumnName.isNotEmpty) {
           condition = "$primaryKeyColumnName = :primaryKeyValue";
-          parameters = {":primaryKeyValue": primaryKeyValue};
+          parameters[":primaryKeyValue"]= primaryKeyValue;
         } else {
           continueOperation = false;
           result.setFailure(
@@ -405,7 +403,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             continueOperation = false;
             result.setFromResult(result: setNullResult);
           }
-          if (continueOperation) {
+          if (continueOperation && acSqlConfig.cascadeDeleteDestinationRows) {
             final cascadeDeleteResult = await cascadeDeleteRows(
               rows: result.rows,
             );
@@ -488,6 +486,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     required Map<String, dynamic> row,
     bool insertMode = false,
   }) async {
+    row = Map.from(row);
     final result = AcResult();
     bool continueOperation = true;
     final rowEvent = AcSqlDbRowEvent(
@@ -504,17 +503,17 @@ class AcSqlDbTable extends AcSqlDbBase {
       continueOperation = false;
     }
     if (continueOperation) {
+      List<String> tableColumnNames = List.empty(growable: true);
       for (final column in acDDTable.tableColumns) {
+        tableColumnNames.add(column.columnName);
         if (row.containsKey(column.columnName) || insertMode) {
           bool setColumnValue = row.containsKey(column.columnName);
           List<String> formats = column.getColumnFormats();
           AcEnumDDColumnType type = column.columnType;
-          dynamic value = row[column.columnName] ?? "";
-          print("${column.columnName} Value : $value");
-          if (value == "" && insertMode) {
-            print("Value is empty! Checking default value");
+          dynamic value = row[column.columnName];
+          logger.log("Formatting value for ${column.columnName} with value type ${value.runtimeType} and value : $value");
+          if (value == null && insertMode) {
             if(column.getDefaultValue() != null){
-              print("Value is empty and has default value for column");
               value = column.getDefaultValue();
               setColumnValue = true;
             }
@@ -528,8 +527,7 @@ class AcSqlDbTable extends AcSqlDbBase {
               AcEnumDDColumnType.datetime,
               AcEnumDDColumnType.string,
             ].contains(type)) {
-              value = value.toString().trim();
-              if (type == AcEnumDDColumnType.string) {
+              if (type == AcEnumDDColumnType.string && value is String) {
                 if (formats.contains(AcEnumDDColumnFormat.lowercase.value)) {
                   value = value.toLowerCase();
                 }
@@ -544,7 +542,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                     AcEnumDDColumnType.datetime,
                     AcEnumDDColumnType.date,
                   ].contains(type) &&
-                  value.isNotEmpty) {
+                  value is String) {
                 try {
                   DateTime dateTimeValue = DateTime.parse(value);
                   String format =
@@ -558,9 +556,9 @@ class AcSqlDbTable extends AcSqlDbBase {
                   );
                 }
               }
-            } else if ([AcEnumDDColumnType.json].contains(type)) {
+            } else if ([AcEnumDDColumnType.json].contains(type) && value != null) {
               value = value is String ? value : json.encode(value);
-            } else if (type == AcEnumDDColumnType.password) {
+            } else if (type == AcEnumDDColumnType.password && value is String) {
               value = AcEncryption.encrypt(plainText: value);
             }
             else if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && insertMode && column.isPrimaryKey()) {
@@ -568,9 +566,19 @@ class AcSqlDbTable extends AcSqlDbBase {
                 value = Autocode.uuid();
               }
             }
+            if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && column.isForeignKey() && value is String && value.isEmpty) {
+              value = null;
+            }
+            logger.log("Formatted value for ${column.columnName} with value type ${value.runtimeType} and value : $value");
             row[column.columnName] = value;
           }
         }
+      }
+      List<String> invalidKeys = row.keys.where((key){
+        return !tableColumnNames.contains(key);
+      }).toList();
+      for(var key in invalidKeys){
+        row.remove(key);
       }
     }
     if (continueOperation) {
@@ -640,7 +648,8 @@ class AcSqlDbTable extends AcSqlDbBase {
     List<String> includeColumns = const [],
     List<String> excludeColumns = const [],
   }) {
-    String result = "SELECT * FROM $tableName";
+    String result = "";
+    String fromName = acDDTable.getSelectQueryFromName();
     List<String> columns = [];
     if (includeColumns.isEmpty && excludeColumns.isEmpty) {
       columns = ["*"];
@@ -651,7 +660,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         columns = excludeColumns; // Corrected logic
       }
     }
-    result = "SELECT ${columns.join(", ")} FROM $tableName";
+    result = "SELECT ${columns.join(", ")} FROM $fromName";
     return result;
   }
 
@@ -885,7 +894,6 @@ class AcSqlDbTable extends AcSqlDbBase {
             );
             logger.log(insertResult.toString());
             if (insertResult.isSuccess()) {
-              result.setSuccess(message: "Row inserted successfully");
               result.primaryKeyColumn = primaryKeyColumn;
               result.primaryKeyValue = primaryKeyValue;
               if (primaryKeyColumn.isNotEmpty) {
@@ -896,20 +904,26 @@ class AcSqlDbTable extends AcSqlDbBase {
               }
               result.lastInsertedId = primaryKeyValue;
               logger.log("Getting inserted row from database");
-              final condition = "$primaryKeyColumn = :primaryKeyValue";
-              final parameters = {":primaryKeyValue": primaryKeyValue};
+              final condition = "$primaryKeyColumn = @primaryKeyValue";
+              final parameters = {"@primaryKeyValue": primaryKeyValue};
               logger.log(["Select condition", condition, parameters]);
               final selectResult = await getRows(
                 condition: condition,
                 parameters: parameters,
               );
               if (selectResult.isSuccess()) {
+                logger.log(["Select executed successfully",selectResult]);
                 if (selectResult.hasRows()) {
                   result.rows = selectResult.rows;
                 }
+                else{
+                  continueOperation = false;
+                  result.setFailure(message: 'Row inserted but cannot get inserted row',logger: logger);
+                }
               } else {
-                result.message =
-                    'Error getting inserted row : ${selectResult.message}';
+                logger.error(["Error executing select statement"]);
+                continueOperation = false;
+                result.setFromResult(result: selectResult,logger: logger);
               }
               if (continueOperation && executeAfterEvent) {
                 final rowEvent = AcSqlDbRowEvent(
@@ -923,12 +937,12 @@ class AcSqlDbTable extends AcSqlDbBase {
                   // result = eventResult;
                 } else {
                   continueOperation=false;
-                  result.setFromResult(result: eventResult);
+                  result.setFromResult(result: eventResult,logger: logger);
                 }
               }
             } else {
               continueOperation=false;
-              result.setFromResult(result: insertResult);
+              result.setFromResult(result: insertResult,logger: logger);
             }
           }
         } else {
@@ -936,10 +950,10 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
       } else {
         continueOperation=false;
-        result.setFromResult(result: validateResult);
+        result.setFromResult(result: validateResult,logger: logger);
       }
       if(continueOperation){
-        result.setSuccess();
+        result.setSuccess(message: "Row inserted successfully");
       }
     } catch (ex, stack) {
       result.setException(
@@ -968,7 +982,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
     try {
       logger.log(["Inserting rows : ", rows]);
       bool continueOperation = true;
@@ -1103,7 +1117,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
     try {
       bool continueOperation = true;
       var operation = AcEnumDDRowOperation.unknown;
@@ -1193,14 +1207,26 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
         }
         if (operation == AcEnumDDRowOperation.insert) {
-          result.setFromResult(result: await insertRow(row: row));
-          if(result.isFailure()){
+          AcSqlDaoResult insertResult = await insertRow(row: row);
+          logger.log(["Insert result",insertResult]);
+          if(insertResult.isFailure()){
+            result.setFromResult(result: insertResult);
             continueOperation = false;
           }
+          else{
+            logger.log(["Setting insert result as result of save operation"]);
+            result = insertResult;
+          }
         } else if (operation == AcEnumDDRowOperation.update) {
-          result.setFromResult(result: await updateRow(row: row));
-          if(result.isFailure()){
+          AcSqlDaoResult updateResult = await updateRow(row: row);
+          logger.log(["Update result",updateResult]);
+          if(updateResult.isFailure()){
+            result.setFromResult(result: updateResult);
             continueOperation = false;
+          }
+          else{
+            logger.log(["Setting update result as result of save operation"]);
+            result = updateResult;
           }
         } else {
           continueOperation = false; // Redundant, but good for clarity
@@ -1226,6 +1252,8 @@ class AcSqlDbTable extends AcSqlDbBase {
       if(continueOperation){
         result.setSuccess();
       }
+
+      logger.log(["Final save result",result]);
     } on Exception catch (ex, stack) {
       result.setException(
         exception: ex,
@@ -1835,7 +1863,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
             if (!validRequired) {
               continueOperation = false;
-              result.setFailure(message: "Required column value is missing");
+              result.setFailure(message: "${column.columnName} value is missing");
             }
           }
         }
@@ -1852,7 +1880,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           } else if (column.columnType == AcEnumDDColumnType.date ||
               column.columnType == AcEnumDDColumnType.datetime ||
               column.columnType == AcEnumDDColumnType.time) {
-            if (value != null && value != "NOW") {
+            if (value != null && value != "null" && value != "NOW") {
               try {
                 DateTime.parse(value);
               } catch (ex, stack) {

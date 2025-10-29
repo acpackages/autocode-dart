@@ -39,21 +39,29 @@ class AcSqlDbBase {
       {"name": "dataDictionaryName", "description": "The name of the data dictionary to load initially. Defaults to 'default'."}
     ]
   }) */
-  AcSqlDbBase({String dataDictionaryName = "default"}) {
+  AcSqlDbBase({String dataDictionaryName = "default",AcLogger? logger,AcBaseSqlDao? dao}) {
     databaseType = AcSqlDatabase.databaseType;
     sqlConnection = AcSqlDatabase.sqlConnection;
     useDataDictionary(dataDictionaryName: dataDictionaryName);
-    logger = AcLogger(logType: AcEnumLogType.print_, logMessages: false);
+    logger ??= AcLogger(logType: AcEnumLogType.html, logMessages: true,logFileName: 'ac_sql_log.html',logDirectory: 'logs/ac-sql');
+    this.logger = logger;
     events = AcEvents(); // Initialized to prevent LateInitializationError.
 
-    if (databaseType == AcEnumSqlDatabaseType.mysql) {
-      dao = AcMysqlDao();
-      // The force-unwrap `!` implies AcSqlDatabase.sqlConnection must be configured before creating this class.
-      dao?.setSqlConnection(sqlConnection: sqlConnection!);
+    if(dao == null) {
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        dao = AcMysqlDao();
+        // The force-unwrap `!` implies AcSqlDatabase.sqlConnection must be configured before creating this class.
+        dao.setSqlConnection(sqlConnection: sqlConnection!);
+        dao.logger = logger;
+      }
+      else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        dao = AcSqliteDao();
+        dao.setSqlConnection(sqlConnection: sqlConnection!);
+        dao.logger = logger;
+      }
     }
-    else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
-      dao = AcSqliteDao();
-      dao?.setSqlConnection(sqlConnection: sqlConnection!);
+    if(dao!=null){
+      this.dao = dao;
     }
     // Other database types like SQLite or PostgreSQL could be handled here.
   }

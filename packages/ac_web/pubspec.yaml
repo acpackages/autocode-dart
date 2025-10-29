@@ -19,6 +19,7 @@ dependencies:
   ac_sql:
     path: './../ac_sql'
   # path: ^1.8.0
+  image: ^4.5.4
 
 dev_dependencies:
   lints: ^5.0.0

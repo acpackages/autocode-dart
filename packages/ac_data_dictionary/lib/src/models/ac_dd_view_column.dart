@@ -84,11 +84,11 @@ class AcDDViewColumn {
   AcDDViewColumn fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
     if (json.containsKey(keyColumnProperties)) {
-      final props = json[keyColumnProperties] as Map<String, dynamic>;
+      final props = Map.from(json[keyColumnProperties]);
       for (final entry in props.entries) {
-        columnProperties[entry.key] = AcDDTableColumnProperty.instanceFromJson(
-          jsonData: entry.value,
-        );
+        // columnProperties[entry.key] = AcDDTableColumnProperty.instanceFromJson(
+        //   jsonData: entry.value,
+        // );
       }
       json.remove(keyColumnProperties);
     }

@@ -291,6 +291,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln("import '$uri';");
     }
     buffer.writeln('');
+    buffer.writeln('class T{}\n\n');
     buffer.writeln('String _symbolToName(Symbol symbol) => symbol.toString().split(\'\\"\')[1];\n');
   }
 
@@ -469,7 +470,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
   void generateClassMirror(StringBuffer buffer, Element element) {
     if (element is EnumElement) {
-      final enumName = element.name;
+      final enumName = element.name.replaceAll("<T>", "");
       final enumMirrorName = generateMirrorName(element);
       log("Generating enum mirror '$enumMirrorName' for enum '$enumName'.");
 

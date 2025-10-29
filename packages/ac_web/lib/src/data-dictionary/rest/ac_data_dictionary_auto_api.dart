@@ -57,6 +57,7 @@ class AcDataDictionaryAutoApi {
     bool? save,
     bool? select,
     bool? selectDistinct,
+    bool? selectRow,
     bool? update,
   }) {
     if (delete == null &&
@@ -64,12 +65,14 @@ class AcDataDictionaryAutoApi {
         save == null &&
         select == null &&
         selectDistinct == null &&
+        selectRow == null &&
         update == null) {
       delete = true;
       insert = true;
       save = true;
       select = true;
       selectDistinct = true;
+      selectRow = true;
       update = true;
     } else {
       delete ??= false;
@@ -77,6 +80,7 @@ class AcDataDictionaryAutoApi {
       save ??= false;
       select ??= false;
       selectDistinct ??= false;
+      selectRow ??= false;
       update ??= false;
     }
     excludeTables[tableName] = {
@@ -85,6 +89,7 @@ class AcDataDictionaryAutoApi {
       'save': save,
       'select': select,
       'select_distinct': selectDistinct,
+      'select_row': selectRow,
       'update': update,
     };
     return this;
@@ -103,6 +108,7 @@ class AcDataDictionaryAutoApi {
     bool? save,
     bool? select,
     bool? selectDistinct,
+    bool? selectRow,
     bool? update,
   }) {
     if (delete == null &&
@@ -110,12 +116,14 @@ class AcDataDictionaryAutoApi {
         save == null &&
         select == null &&
         selectDistinct == null &&
+        selectRow == null &&
         update == null) {
       delete = true;
       insert = true;
       save = true;
       select = true;
       selectDistinct = true;
+      selectRow = true;
       update = true;
     } else {
       delete ??= false;
@@ -123,6 +131,7 @@ class AcDataDictionaryAutoApi {
       save ??= false;
       select ??= false;
       selectDistinct ??= false;
+      selectRow ??= false;
       update ??= false;
     }
     includeTables[tableName] = {
@@ -131,6 +140,7 @@ class AcDataDictionaryAutoApi {
       'save': save,
       'select': select,
       'select_distinct': selectDistinct,
+      'select_row': selectRow,
       'update': update,
     };
     return this;
@@ -156,6 +166,7 @@ class AcDataDictionaryAutoApi {
       bool save = true;
       bool select = true;
       bool selectDistinct = true;
+      bool selectRow = true;
       bool update = true;
       logger.log("Checking table ${acDDTable.tableName} for auto data dictionary...");
       if (includeTables.isEmpty && excludeTables.isEmpty) {
@@ -172,6 +183,7 @@ class AcDataDictionaryAutoApi {
           save = options['save']!;
           select = options['select']!;
           selectDistinct = options['select_distinct']!;
+          selectRow = options['select_row']!;
           update = options['update']!;
         } else {
           logger.log(
@@ -191,6 +203,7 @@ class AcDataDictionaryAutoApi {
         save = !options['save']!;
         select = !options['select']!;
         selectDistinct = !options['select_distinct']!;
+        selectRow = !options['select_row']!;
         update = !options['update']!;
       }
 
@@ -236,6 +249,7 @@ class AcDataDictionaryAutoApi {
           AcDataDictionaryAutoSelect(
             acDDTable: acDDTable,
             acDataDictionaryAutoApi: this,
+            includeSelectRow: selectRow
           );
           apiAdded = true;
           logger.log("Generated select api for table ${acDDTable.tableName}!");

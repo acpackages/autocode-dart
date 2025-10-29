@@ -49,7 +49,10 @@ export './src/api-docs/swagger/ac_api_swagger.dart';
 export './src/api-docs/swagger/ac_swagger_resources.dart';
 export './src/api-docs/utils/ac_api_doc_utils.dart';
 
+export './src/controllers/ac_files_controller.dart';
+
 export './src/core/ac_web.dart';
+
 export './src/data-dictionary/rest/ac_data_dictionary_auto_api_config.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_api.dart';
 export './src/data-dictionary/rest/ac_data_dictionary_auto_delete.dart';
@@ -64,6 +67,8 @@ export './src/enums/ac_enum_web_hook.dart';
 export './src/enums/ac_enum_web_response_type.dart';
 
 export './src/models/ac_web_api_response.dart';
+export './src/models/ac_web_config.dart';
+export './src/models/ac_web_file.dart';
 export './src/models/ac_web_hook_created_args.dart';
 export './src/models/ac_web_request.dart';
 export './src/models/ac_web_response.dart';

@@ -5,6 +5,15 @@ import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:jaguar/jaguar.dart';
 import 'package:jaguar_cors/jaguar_cors.dart';
+
+class RoutePathInfo {
+  final String path; // Final path (possibly converted)
+  final List<String> params; // Any path parameter names
+
+  RoutePathInfo(this.path, this.params);
+}
+
+
 /* AcDoc({
   "summary": "A concrete web server implementation using the Jaguar framework.",
   "description": "This class extends the abstract `AcWeb` server and provides a runnable implementation powered by the Jaguar web server package. It handles the lifecycle of the server (start, stop), translates Jaguar requests and responses to and from the framework's standard `AcWebRequest`/`AcWebResponse` objects, registers routes, and manages SSL.",
@@ -54,12 +63,15 @@ class AcWebOnJaguar extends AcWeb {
       logger.log(
         "Registering jaguar route for route : $routeKey >>>> Url : ${routeDefinition.url}...",
       );
+      var routeDetails = _normalizeRoutePath(routeDefinition.url);
       Route route = Route(
-        routeDefinition.url,
+        routeDetails.path,
         methods: [routeDefinition.method.toUpperCase()],
         (context) async {
           final request = await _createAcWebRequestFromJaguarContext(context);
+          // request
           logger.log("Handling jaguar request for : ${context.path}");
+          logger.log(request);
           AcWebResponse webResponse = await handleWebRequest(
             request,
             routeDefinition,
@@ -73,6 +85,23 @@ class AcWebOnJaguar extends AcWeb {
         "Registered jaguar route for route : $routeKey >>>> Url : ${routeDefinition.url}!",
       );
     }
+  }
+
+  RoutePathInfo _normalizeRoutePath(String originalPath) {
+    final paramRegex = RegExp(r'\{([^}]+)\}');
+    final matches = paramRegex.allMatches(originalPath);
+
+    // If no path params → return original path unchanged
+    if (matches.isEmpty) {
+      return RoutePathInfo(originalPath, []);
+    }
+
+    // Extract param names and replace {param} → :param
+    final params = matches.map((m) => m.group(1)!).toList();
+    final convertedPath =
+    originalPath.replaceAllMapped(paramRegex, (m) => ':${m[1]}');
+
+    return RoutePathInfo(convertedPath, params);
   }
 
   /* AcDoc({"summary": "Translates a Jaguar `Context` object into the framework's standard `AcWebRequest`."}) */
@@ -97,16 +126,38 @@ class AcWebOnJaguar extends AcWeb {
       context.query.forEach((key, value) {
         acWebRequest.get[key] = value;
       });
+      acWebRequest.pathParameters = context.pathParams.toNestedMap();
       if (method == "POST") {
         bool foundNested = false;
         if (context.isFormData) {
           var formData = await context.bodyAsFormData();
           Map<String,dynamic> formEntries = formData.toNestedMap(valueExtractor: ( FormField<dynamic> value){
-            return value.value;
+            if(value is FileFormField || value is BinaryFileFormField){
+              AcWebFile webFile = AcWebFile();
+              if(value.contentType != null){
+                webFile.setContentType(contentType:value.contentType!);
+              }
+              if(value is TextFileFormField){
+                webFile.fileName = value.filename;
+                webFile.contentText = value.value;
+              }
+              else{
+                var fileField = value as BinaryFileFormField;
+                webFile.fileName = fileField.filename;
+                webFile.contentStream = fileField.value;
+              }
+              return webFile;
+            }
+            else{
+              return value.value;
+            }
           });
-          print(formEntries);
           for (var key in formEntries.keys) {
-            acWebRequest.post[key] = formEntries[key];
+            var value = formEntries[key];
+            if(value is AcWebFile){
+              acWebRequest.files[key] = value;
+            }
+            acWebRequest.post[key] = value;
           }
           // for (var entry in formData.entries) {
           //   final key = entry.key;

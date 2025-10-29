@@ -257,6 +257,16 @@ class AcDDTable {
     return tableColumns.where((column) => column.isSelectDistinct()).toList();
   }
 
+  String getSelectQueryFromName() {
+    String result = tableName;
+    for (var property in tableProperties) {
+      if (property.propertyName == AcEnumDDTableProperty.sqlViewName) {
+        result = property.propertyValue;
+      }
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Populates the instance from a JSON map.",
     "description": "This method manually deserializes the nested `tableColumns` and `tableProperties` lists before using a reflection utility for the remaining properties.",

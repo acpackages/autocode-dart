@@ -113,7 +113,7 @@ class AcBackgroundFile {
       final file = File(path);
       if (!file.existsSync()) {
         file.parent.createSync(recursive: true);
-        file.createSync();
+        file.createSync(recursive: true);
       }
 
       if (content.isNotEmpty) {

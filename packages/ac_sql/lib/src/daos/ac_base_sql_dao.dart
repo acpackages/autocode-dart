@@ -16,7 +16,7 @@ class AcBaseSqlDao {
 
   /* AcDoc({"summary": "Initializes a new instance of the base DAO."}) */
   AcBaseSqlDao() {
-    logger = AcLogger(logType: AcEnumLogType.print_, logMessages: false);
+    logger = AcLogger(logType: AcEnumLogType.html, logMessages: false,logDirectory: 'logs',logFileName: 'ac_sql_dao.html');
     sqlConnection = AcSqlConnection();
   }
 
@@ -407,8 +407,26 @@ class AcBaseSqlDao {
           index++;
           parameterKey = "parameter$index";
         }
-        statement = statement.replaceAll(key, ":$parameterKey");
-        statementParametersMap[parameterKey] = value;
+        logger.log("Searching For Key : $key");
+        logger.log("Key Value: ${value.toString()}");
+        logger.log("SQL Statement Before: $statement");
+        logger.log(["SQL Parameters Before:",statementParametersMap]);
+        if (value is List) {
+          logger.log("Value is List so converting to individual values: ${value.toString()}");
+          List<String> listParamKeys = List.empty(growable: true);
+          for(int i =0;i<value.length;i++){
+            final listParameterKey = ":${parameterKey}_$i";
+            listParamKeys.add(listParameterKey);
+            statementParametersMap[listParameterKey] = value[i];
+          }
+          statement = statement.replaceAll(key, listParamKeys.join(","));
+        }
+        else{
+          statement = statement.replaceAll(key, ":$parameterKey");
+          statementParametersMap[parameterKey] = value;
+        }
+        logger.log("SQL Statement After: $statement");
+        logger.log(["SQL Parameters After:",statementParametersMap]);
       }
     }
     return {

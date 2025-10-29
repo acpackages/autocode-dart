@@ -12,6 +12,7 @@ import 'package:ac_web/ac_web.dart';
 class AcWeb {
   /* AcDoc({"summary": "The master API documentation object that accumulates all route docs."}) */
   AcApiDoc acApiDoc;
+  AcWebConfig webConfig = AcWebConfig();
 
   /* AcDoc({"summary": "A map of all registered routes, keyed by 'METHOD>url_path'."}) */
   final Map<String, AcWebRouteDefinition> routeDefinitions = {};
@@ -22,9 +23,9 @@ class AcWeb {
   /* AcDoc({"summary": "The logger instance for the web server."}) */
   AcLogger logger = AcLogger(
     logMessages: true,
-    logDirectory: 'logs/ac-web',
+    logDirectory: 'logs',
     logType: AcEnumLogType.console,
-    logFileName: 'ac-web.txt',
+    logFileName: 'ac-web.text',
   );
 
   /* AcDoc({"summary": "An optional global URL prefix for all routes."}) */
@@ -163,6 +164,9 @@ class AcWeb {
     for(var controller in  controllers){
       registerController(controllerClass: controller);
     }
+    if(webConfig.exposeFilesController){
+      registerController(controllerClass: AcFilesController,routePrefix: webConfig.filesControllerConfig.routePrefix);
+    }
   }
 
   /* AcDoc({
@@ -179,11 +183,10 @@ class AcWeb {
       AcWebRequest request,
       AcWebRouteDefinition routeDefinition,
       ) async {
-    request.pathParameters = _extractPathParams(
-      routeDefinition.url,
-      request.url,
-    );
-
+    // request.pathParameters = _extractPathParams(
+    //   routeDefinition.url,
+    //   request.url,
+    // );
     // Case 1: Handler is a method on a registered controller.
     if (routeDefinition.controller != null && routeDefinition.handler is String) {
       logger.log("Handing controller route...");
@@ -209,26 +212,79 @@ class AcWeb {
           logger.log("Parameter type is AcWebRequest");
           argValue = request;
           valueSet = true;
-        } else {
+        }
+        else if (parameter.type == AcLogger) {
+          logger.log("Parameter type is AcLogger");
+          AcLogger requestLogger = AcLogger(logFileName:"${request.url}.txt",logDirectory: "logs/ac-web-requests",logMessages: true,logType: AcEnumLogType.text);
+          argValue = requestLogger;
+          valueSet = true;
+        }
+        else {
           logger.log("Checking meta of parameter");
           for (final meta in parameter.metadata) {
-            final key = parameter.simpleName.getName();
+            String key = parameter.simpleName.getName();
             logger.log("Parameter key : $key");
-            if (meta is AcWebValueFromPath && request.pathParameters.containsKey(key)) {
-              logger.log("Parameter is of type AcWebValueFromPath");
-              argValue = request.pathParameters[key]; valueSet = true; break;
+            if (meta is AcWebValueFromPath) {
+              logger.log("Parameter meta is of type AcWebValueFromPath");
+              if(meta.key.isNotEmpty){
+                key = meta.key;
+              }
+              if(request.pathParameters.containsKey(key)){
+                argValue = request.pathParameters[key];
+                valueSet = true;
+              }
+              else{
+                logger.log("Path parameter does not contain key : $key");
+              }
+              break;
             } else if (meta is AcWebValueFromQuery && request.queryParameters.containsKey(key)) {
-              logger.log("Parameter is of type AcWebValueFromQuery");
-              argValue = request.queryParameters[key]; valueSet = true; break;
+              logger.log("Parameter meta is of type AcWebValueFromQuery");
+              if(meta.key.isNotEmpty){
+                key = meta.key;
+              }
+              if(request.queryParameters.containsKey(key)){
+                argValue = request.queryParameters[key]; valueSet = true;
+              }
+              else{
+                logger.log("Query parameter does not contain key : $key");
+              }
+               break;
             } else if (meta is AcWebValueFromForm && request.formFields.containsKey(key)) {
-              logger.log("Parameter is of type AcWebValueFromForm");
-              argValue = request.formFields[key]; valueSet = true; break;
+              logger.log("Parameter meta is of type AcWebValueFromForm");
+              if(meta.key.isNotEmpty){
+                key = meta.key;
+              }
+              if(request.formFields.containsKey(key)){
+                argValue = request.formFields[key]; valueSet = true;
+              }
+              else{
+                logger.log("Form fields does not contain key : $key");
+              }
+               break;
             } else if (meta is AcWebValueFromHeader && request.headers.containsKey(key)) {
-              logger.log("Parameter is of type AcWebValueFromHeader");
-              argValue = request.headers[key]; valueSet = true; break;
+              logger.log("Parameter meta is of type AcWebValueFromHeader");
+              if(meta.key.isNotEmpty){
+                key = meta.key;
+              }
+              if(request.headers.containsKey(key)){
+                argValue = request.headers[key]; valueSet = true;
+              }
+              else{
+                logger.log("Headers does not contain key : $key");
+              }
+              break;
             } else if (meta is AcWebValueFromCookie && request.cookies.containsKey(key)) {
-              logger.log("Parameter is of type AcWebValueFromCookie");
-              argValue = request.cookies[key]; valueSet = true; break;
+              logger.log("Parameter meta is of type AcWebValueFromCookie");
+              if(meta.key.isNotEmpty){
+                key = meta.key;
+              }
+              if(request.cookies.containsKey(key)){
+                argValue = request.cookies[key]; valueSet = true;
+              }
+              else{
+                logger.log("Cookies does not contain key : $key");
+              }
+               break;
             } else if (meta is AcWebValueFromBody) {
               logger.log("Parameter is of type AcWebValueFromBody");
               final paramType = parameter.type;
@@ -250,16 +306,13 @@ class AcWeb {
           positionalArgs.add(argValue);
         }
       }
-      print(controllerInstanceMirror.instance);
-      print(methodName);
-      print(positionalArgs);
-      print(namedArgs);
       return await controllerInstanceMirror.invoke(methodName, positionalArgs, namedArgs);
 
     }
     // Case 2: Handler is a simple closure. Parameter injection is not supported.
     else if (routeDefinition.handler is Function) {
       try {
+        logger.log("Handing function route...");
         return await (routeDefinition.handler as Function)(request);
       } catch (e) {
         return AcWebResponse.internalError(data: e.toString());
@@ -278,10 +331,13 @@ class AcWeb {
     "returns": "The current `AcWeb` instance, for a fluent interface.",
     "returns_type": "AcWeb"
   }) */
-  AcWeb registerController({required Type controllerClass}) {
+  AcWeb registerController({required Type controllerClass,String routePrefix = ""}) {
     final classMirror = acReflectClass(controllerClass);
     logger.log("Registering controller class : ${classMirror.getName()}");
     String classRoute = '';
+    if(routePrefix.isNotEmpty){
+      classRoute = routePrefix;
+    }
     logger.log("Checking class meta...");
     for (var meta in classMirror.metadata) {
       if (meta is AcWebRoute) {

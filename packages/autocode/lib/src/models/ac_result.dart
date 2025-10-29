@@ -6,7 +6,7 @@ import 'package:autocode/autocode.dart';
   "author": "Sanket Patel"
 }) */
 @AcReflectable()
-class AcResult {
+class AcResult<T> {
   /* AcDoc({ "description": "Code indicating nothing was executed." }) */
   static const int codeNothingExecuted = 0;
 
@@ -35,7 +35,7 @@ class AcResult {
   int code = codeNothingExecuted;
 
   /* AcDoc({ "description": "Captured exception object if any." }) */
-  dynamic exception;
+  Exception? exception;
 
   /* AcDoc({ "description": "Log entries associated with the result." }) */
   List<dynamic> log = [];
@@ -49,24 +49,24 @@ class AcResult {
 
   /* AcDoc({ "description": "Stack trace if an exception was thrown." }) */
   @AcBindJsonProperty(key: keyStackTrace)
-  dynamic stackTrace;
+  StackTrace? stackTrace;
 
   /* AcDoc({ "description": "Status of the result: 'success' or 'failure'." }) */
   String status = 'failure';
 
   /* AcDoc({ "description": "Value associated with a successful result." }) */
-  dynamic value;
+  T? value;
 
   AcResult();
 
   /* AcDoc({ "description": "Factory to create an AcResult from JSON." }) */
   factory AcResult.instanceFromJson({required Map<String, dynamic> jsonData}) {
-    var instance = AcResult();
+    var instance = AcResult<T>();
     return instance.fromJson(jsonData: jsonData);
   }
 
   /* AcDoc({ "description": "Populates this instance from JSON." }) */
-  AcResult fromJson({required Map<String, dynamic> jsonData}) {
+  AcResult<T> fromJson({required Map<String, dynamic> jsonData}) {
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: jsonData,
@@ -104,11 +104,18 @@ class AcResult {
     status = result.status;
     this.message = result.message;
     code = result.code;
-
-    if (isException()) {
-      exception = result.exception;
-      stackTrace = result.stackTrace;
-      this.message = result.message;
+    if(logger!=null) {
+      logger.log(this.message);
+    }
+    if (isFailure()) {
+      if(isException()){
+        exception = result.exception;
+        stackTrace = result.stackTrace;
+        if(logger!=null){
+          logger.error(exception);
+          logger.error(stackTrace);
+        }
+      }
     } else if (isSuccess()) {
       value = result.value;
     }
@@ -117,29 +124,37 @@ class AcResult {
   }
 
   /* AcDoc({ "description": "Sets this result as success with optional value and message." }) */
-  AcResult setSuccess({dynamic value, String? message, AcLogger? logger}) {
+  AcResult setSuccess({T? value, String? message, AcLogger? logger}) {
     status = 'success';
     code = codeSuccess;
 
     if (value != null) this.value = value;
     if (message != null) {
       this.message = message;
-      logger?.success(this.message);
-      this.logger?.success(this.message);
+      if(logger!=null) {
+        logger?.success(this.message);
+        this.logger?.success(this.message);
+      }
     }
 
     return this;
   }
 
   /* AcDoc({ "description": "Sets this result as failure with optional value and message." }) */
-  AcResult setFailure({dynamic value, String? message, AcLogger? logger}) {
+  AcResult setFailure({T? value, String? message, AcLogger? logger}) {
     status = 'failure';
     code = codeFailure;
 
     if (message != null) {
       this.message = message;
-      logger?.error(this.message);
-      this.logger?.error(this.message);
+      if(logger!=null) {
+        logger?.error(this.message);
+        this.logger?.error(this.message);
+      }
+    }
+
+    if(value!=null){
+      this.value = value;
     }
 
     return this;
@@ -150,19 +165,21 @@ class AcResult {
     required dynamic exception,
     String? message,
     AcLogger? logger,
-    bool logException = false,
-    StackTrace? stackTrace,
+    bool logException = true,
+    dynamic stackTrace,
   }) {
     code = codeException;
     this.exception = exception;
-    this.stackTrace = stackTrace ?? '';
+    this.stackTrace = stackTrace;
     this.message = (message ?? exception?.toString())!;
 
     if (logException) {
       print(exception);
       print(stackTrace);
-      logger?.error([exception?.toString(), this.stackTrace]);
-      this.logger?.error([exception?.toString(), this.stackTrace]);
+      if(logger!=null) {
+        logger?.error([exception?.toString(), this.stackTrace]);
+        this.logger?.error([exception?.toString(), this.stackTrace]);
+      }
     }
 
     return this;

@@ -15,6 +15,8 @@ class AcDataDictionaryAutoSelect {
   /* AcDoc({"summary": "The main auto-API generator instance, providing configuration and the `AcWeb` server."}) */
   final AcDataDictionaryAutoApi acDataDictionaryAutoApi;
 
+  bool includeSelectRow = true;
+
   /* AcDoc({
     "summary": "Creates and registers the SELECT routes for a table.",
     "description": "The constructor immediately builds and registers three distinct endpoints for querying the table: a general GET for lists, a specific GET for fetching by primary key, and a POST for advanced searches.",
@@ -26,6 +28,8 @@ class AcDataDictionaryAutoSelect {
   AcDataDictionaryAutoSelect({
     required this.acDDTable,
     required this.acDataDictionaryAutoApi,
+    this.includeSelectRow = true
+
   }) {
     final apiUrl1 =
         '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}';
@@ -35,13 +39,16 @@ class AcDataDictionaryAutoSelect {
       acApiDocRoute: getAcApiDocRoute(),
     );
 
-    final apiUrl2 =
-        '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
-    acDataDictionaryAutoApi.acWeb.get(
-      url: apiUrl2,
-      handler: getByIdHandler(),
-      acApiDocRoute: getByIdAcApiDocRoute(),
-    );
+    if(includeSelectRow){
+      final apiUrl2 =
+          '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}/{${acDDTable.getPrimaryKeyColumnName()}}';
+      acDataDictionaryAutoApi.acWeb.get(
+        url: apiUrl2,
+        handler: getByIdHandler(),
+        acApiDocRoute: getByIdAcApiDocRoute(),
+      );
+    }
+
 
     final apiUrl3 =
         '${acDataDictionaryAutoApi.urlPrefix}/${AcWebDataDictionaryUtils.getTableNameForApiPath(acDDTable:acDDTable)}/${AcDataDictionaryAutoApiConfig.pathForSelect}';

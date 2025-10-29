@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
+import 'package:ac_web/ac_web.dart';
 import 'package:autocode/autocode.dart';
 
 /* AcDoc({
@@ -37,7 +38,7 @@ class AcWebRequest {
     "description": "Used for `multipart/form-data` requests to access file uploads."
   }) */
   @AcBindJsonProperty(key: keyFiles)
-  Map<String, dynamic> files = {};
+  Map<String, AcWebFile> files = {};
 
   /* AcDoc({
     "summary": "A map of URL query parameters.",

@@ -3,6 +3,8 @@
 /// More dartdocs go here.
 library;
 
+export './src/config/ac_sql_config.dart';
+
 export './src/daos/ac_base_sql_dao.dart';
 export './src/daos/ac_mssql_dao.dart';
 export './src/daos/ac_mysql_dao.dart';

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
+import 'package:autocode/src/utils/ac_string_utils.dart';
 
 /* AcDoc({
   "description": "Defines a comprehensive logger that supports multiple log output formats including console, print, HTML, and plain text."
@@ -29,6 +31,8 @@ class AcLogger {
   /* AcDoc({"description": "Flag to track if the log file has been created."}) */
   bool logFileCreated = false;
 
+  bool addTimestampToFileName = true;
+
   /* AcDoc({"description": "Mapping of message types to their associated color."}) */
   final Map<String, String> messageColors = {
     "default": "Black",
@@ -40,6 +44,9 @@ class AcLogger {
     "success": "Green"
   };
 
+  String logFileNameTimestampPrefix = " [ ";
+  String logFileNameTimestampSuffix = " ]";
+
   /* AcDoc({"description": "Initializes the logger with optional configurations."}) */
   AcLogger({
     this.logMessages = true,
@@ -47,6 +54,7 @@ class AcLogger {
     this.logDirectory = "logs",
     this.logFileName = "",
     this.logType = AcEnumLogType.console,
+    this.addTimestampToFileName = true
   }) {
     logFilePath = "$logDirectory/$logFileName";
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
@@ -76,6 +84,16 @@ class AcLogger {
   /* AcDoc({"description": "Creates a new log file and writes opening headers if HTML type."}) */
   AcLogger createLogFile() {
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+      String logFileDirectory = File("$logDirectory/$logFileName").parent.path;
+      String fileExtension = File(logFileName).extension;
+      String fileName = File(logFileName).fileName.replaceAll(".$fileExtension", "");
+      String filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}${DateTime.now().toIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
+
+      while(File(filePath).existsSync()){
+        filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}[${DateTime.now().toIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
+      }
+      logFilePath = filePath;
+      logFileDirectory = logFileDirectory;
       logFile = AcBackgroundFile(logFilePath);
       if (logType == AcEnumLogType.html) {
         logFile!.write("<html lang=\"eng\">\n\t<body>\n\t\t<table>");

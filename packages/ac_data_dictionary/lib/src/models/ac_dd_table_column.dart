@@ -324,6 +324,8 @@ class AcDDTableColumn {
           sqlType = 'BLOB';
           break;
         case AcEnumDDColumnType.integer:
+        case AcEnumDDColumnType.yesNo:
+        case AcEnumDDColumnType.autoIndex:
           sqlType = 'INTEGER';
           break;
         default:

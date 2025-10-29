@@ -23,6 +23,20 @@ class AcWebApiResponse extends AcResult {
     return AcWebResponse.json(data: this.toJson());
   }
 
+  @override
+  AcWebApiResponse setFromResult({
+    required AcResult result,
+    String? message,
+    AcLogger? logger,
+  }) {
+    super.setFromResult(result: result,message:message,logger: logger);
+    if(value != null){
+      data = value;
+      value = null;
+    }
+    return this;
+  }
+
   AcWebApiResponse setFromSqlDaoResult({
     required AcSqlDaoResult result,
     String? message,
