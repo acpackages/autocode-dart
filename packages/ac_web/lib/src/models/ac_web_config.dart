@@ -45,44 +45,47 @@ class AcFilesControllerConfig {
   factory AcFilesControllerConfig() => _instance;
   AcFilesControllerConfig._internal();
 
-  bool _generateDifferentSizeImages = true;
-  int _imageXsPx = 35;
-  int _imageSquareThumbPx = 70;
-  int _imageThumbPx = 100;
-  int _imageSmPx = 360;
-  int _imageMdPx = 720;
-  int _imageLgPx = 1080;
-  String _uploadDirectory = "file-uploads";
-  String _uploadFormKey = "medias";
-  String _routePrefix = "/api/files";
+  Function? _afterUploadCallback;
+  Function? get afterUploadCallback => _afterUploadCallback;
+  set afterUploadCallback(Function? v) => _afterUploadCallback = v;
 
+  bool _generateDifferentSizeImages = true;
   bool get generateDifferentSizeImages => _generateDifferentSizeImages;
   set generateDifferentSizeImages(bool v) => _generateDifferentSizeImages = v;
 
+  int _imageXsPx = 35;
   int get imageXsPx => _imageXsPx;
   set imageXsPx(int v) => _imageXsPx = v;
 
+  int _imageSquareThumbPx = 70;
   int get imageSquareThumbPx => _imageSquareThumbPx;
   set imageSquareThumbPx(int v) => _imageSquareThumbPx = v;
 
+  int _imageThumbPx = 100;
   int get imageThumbPx => _imageThumbPx;
   set imageThumbPx(int v) => _imageThumbPx = v;
 
+  int _imageSmPx = 360;
   int get imageSmPx => _imageSmPx;
   set imageSmPx(int v) => _imageSmPx = v;
 
+  int _imageMdPx = 720;
   int get imageMdPx => _imageMdPx;
   set imageMdPx(int v) => _imageMdPx = v;
 
+  int _imageLgPx = 1080;
   int get imageLgPx => _imageLgPx;
   set imageLgPx(int v) => _imageLgPx = v;
 
+  String _uploadDirectory = "file-uploads";
   String get uploadDirectory => _uploadDirectory;
   set uploadDirectory(String v) => _uploadDirectory = v;
 
+  String _uploadFormKey = "file";
   String get uploadFormKey => _uploadFormKey;
   set uploadFormKey(String v) => _uploadFormKey = v;
 
+  String _routePrefix = "/api/files";
   String get routePrefix => _routePrefix;
   set routePrefix(String v) => _routePrefix = v;
 

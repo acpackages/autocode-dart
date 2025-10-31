@@ -148,7 +148,7 @@ class AcDataDictionaryAutoSelect {
         acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
-            columnName: columnName,
+            key: columnName,
             operator: AcEnumConditionOperator.contains,
             value: acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
           );
@@ -159,7 +159,7 @@ class AcDataDictionaryAutoSelect {
       for (final col in acDDTable.tableColumns) {
         if (acWebRequest.get.containsKey(col.columnName)) {
           acDDSelectStatement.addCondition(
-            columnName: col.columnName,
+            key: col.columnName,
             operator: AcEnumConditionOperator.contains,
             value: acWebRequest.get[col.columnName],
           );
@@ -317,6 +317,9 @@ class AcDataDictionaryAutoSelect {
   }) */
   Function postHandler() {
     return (AcWebRequest acWebRequest) async {
+      AcLogger logger = AcLogger(logMessages: false);
+      logger.log("Getting rows for table ${acDDTable.tableName} using post method...");
+      logger.log(["Request : ",acWebRequest]);
       final response = AcWebApiResponse();
       final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final acDDSelectStatement = AcDDSelectStatement(
@@ -324,21 +327,24 @@ class AcDataDictionaryAutoSelect {
       );
 
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
+        logger.log("Found include columns key");
         acDDSelectStatement.includeColumns = List<String>.from(
           acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey],
         );
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey)) {
+        logger.log("Found exclude columns key");
         acDDSelectStatement.excludeColumns = List<String>.from(
           acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey],
         );
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
+        logger.log("Found select query key");
         final queryColumns = acDDTable.getSearchQueryColumnNames();
         acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
         for (final columnName in queryColumns) {
           acDDSelectStatement.addCondition(
-            columnName: columnName,
+            key: columnName,
             operator: AcEnumConditionOperator.contains,
             value: acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
           );
@@ -346,18 +352,12 @@ class AcDataDictionaryAutoSelect {
         acDDSelectStatement.endGroup();
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterFiltersKey)) {
+        logger.log("Found filter key");
         final filters = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
-        for (final entry in filters.entries) {
-          final columnName = entry.key;
-          final value = entry.value;
-          acDDSelectStatement.addCondition(
-            columnName: columnName,
-            operator: AcEnumConditionOperator.equalTo,
-            value: value,
-          );
-        }
+        acDDSelectStatement.setConditionsFromFilters(filters: filters);
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
+        logger.log("Found page number key");
         acDDSelectStatement.pageNumber =
             acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
                 ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
@@ -367,6 +367,7 @@ class AcDataDictionaryAutoSelect {
         acDDSelectStatement.pageNumber = 1;
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
+        logger.log("Found page size key");
         acDDSelectStatement.pageSize =
             acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
                 ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
@@ -375,6 +376,7 @@ class AcDataDictionaryAutoSelect {
         acDDSelectStatement.pageSize = 50;
       }
       if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
+        logger.log("Found order by key");
         acDDSelectStatement.orderBy = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
       }
 

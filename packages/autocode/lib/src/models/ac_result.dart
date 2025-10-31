@@ -6,7 +6,7 @@ import 'package:autocode/autocode.dart';
   "author": "Sanket Patel"
 }) */
 @AcReflectable()
-class AcResult<T> {
+class AcResult {
   /* AcDoc({ "description": "Code indicating nothing was executed." }) */
   static const int codeNothingExecuted = 0;
 
@@ -35,7 +35,7 @@ class AcResult<T> {
   int code = codeNothingExecuted;
 
   /* AcDoc({ "description": "Captured exception object if any." }) */
-  Exception? exception;
+  dynamic exception;
 
   /* AcDoc({ "description": "Log entries associated with the result." }) */
   List<dynamic> log = [];
@@ -49,24 +49,24 @@ class AcResult<T> {
 
   /* AcDoc({ "description": "Stack trace if an exception was thrown." }) */
   @AcBindJsonProperty(key: keyStackTrace)
-  StackTrace? stackTrace;
+  dynamic? stackTrace;
 
   /* AcDoc({ "description": "Status of the result: 'success' or 'failure'." }) */
   String status = 'failure';
 
   /* AcDoc({ "description": "Value associated with a successful result." }) */
-  T? value;
+  dynamic value;
 
   AcResult();
 
   /* AcDoc({ "description": "Factory to create an AcResult from JSON." }) */
   factory AcResult.instanceFromJson({required Map<String, dynamic> jsonData}) {
-    var instance = AcResult<T>();
+    var instance = AcResult();
     return instance.fromJson(jsonData: jsonData);
   }
 
   /* AcDoc({ "description": "Populates this instance from JSON." }) */
-  AcResult<T> fromJson({required Map<String, dynamic> jsonData}) {
+  AcResult fromJson({required Map<String, dynamic> jsonData}) {
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: jsonData,
@@ -124,7 +124,7 @@ class AcResult<T> {
   }
 
   /* AcDoc({ "description": "Sets this result as success with optional value and message." }) */
-  AcResult setSuccess({T? value, String? message, AcLogger? logger}) {
+  AcResult setSuccess({dynamic value, String? message, AcLogger? logger}) {
     status = 'success';
     code = codeSuccess;
 
@@ -141,7 +141,7 @@ class AcResult<T> {
   }
 
   /* AcDoc({ "description": "Sets this result as failure with optional value and message." }) */
-  AcResult setFailure({T? value, String? message, AcLogger? logger}) {
+  AcResult setFailure({dynamic value, String? message, AcLogger? logger}) {
     status = 'failure';
     code = codeFailure;
 

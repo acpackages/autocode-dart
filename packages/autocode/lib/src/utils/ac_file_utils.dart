@@ -391,6 +391,16 @@ class AcFileUtils {
     await sourceFile.copy(destinationPath);
   }
 
+  static String getExtensionFromPath(String path) {
+    final parts = path.split('.');
+    return parts.last;
+  }
+
+  static String getNameFromPath(String path) {
+    final parts = path.split('/');
+    return parts.last;
+  }
+
   /* AcDoc({
     "description": "Returns the MIME type for a given file extension."
   }) */

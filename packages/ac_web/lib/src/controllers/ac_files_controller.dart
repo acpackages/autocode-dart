@@ -12,13 +12,20 @@ class AcFilesController {
   late AcLogger logger;
   AcWebConfig acWebConfig = AcWebConfig();
 
+  AcFilesController();
+
   @AcWebRoute(path: '/upload', method: 'POST')
   Future<AcWebResponse> upload(AcWebRequest request,AcLogger requestLogger) async {
     logger = requestLogger;
     AcWebApiResponse apiResponse = AcWebApiResponse();
     if(request.files.containsKey(acWebConfig.filesControllerConfig.uploadFormKey)){
-      AcResult<AcSavedFileDetails> result = await saveFile(webFile: request.files[acWebConfig.filesControllerConfig.uploadFormKey]!);
-      apiResponse.setFromResult(result: result,logger: logger);
+      AcResult result = await saveFile(webFile: request.files[acWebConfig.filesControllerConfig.uploadFormKey]!);
+      if(acWebConfig.filesControllerConfig.afterUploadCallback != null){
+        apiResponse.setFromResult(result: await acWebConfig.filesControllerConfig.afterUploadCallback!(result),logger: logger);
+      }
+      else{
+        apiResponse.setFromResult(result: result,logger: logger);
+      }
     }
     else{
       apiResponse.setFailure(message: "${acWebConfig.filesControllerConfig.uploadFormKey} parameter missing",logger: logger);
@@ -26,8 +33,8 @@ class AcFilesController {
     return apiResponse.toWebResponse();
   }
 
-  Future<AcResult<AcSavedFileDetails>> generateAllSizeImages({required File file,required AcSavedFileDetails fileDetails})async{
-    AcResult<AcSavedFileDetails> result = AcResult();
+  Future<AcResult> generateAllSizeImages({required File file,required AcSavedFileDetails fileDetails})async{
+    AcResult result = AcResult();
     logger.log("Generating different size images from original image");
     try{
       var sourceImage = decodeImage(file.readAsBytesSync())!;
@@ -44,7 +51,7 @@ class AcFilesController {
       bool continueOperation=true;
 
       if(continueOperation && originalPx > acWebConfig.filesControllerConfig.imageLgPx){
-        AcResult<AcSavedFileDetails> fileSaveResult =await generateResizedImage(original: file,directoryName: "lg",imagePx: acWebConfig.filesControllerConfig.imageLgPx);
+        AcResult fileSaveResult =await generateResizedImage(original: file,directoryName: "lg",imagePx: acWebConfig.filesControllerConfig.imageLgPx);
         if(fileSaveResult.isSuccess()){
           fileDetails.otherSizes["lg"]=fileSaveResult.value!;
         }
@@ -55,7 +62,7 @@ class AcFilesController {
       }
 
       if(continueOperation && originalPx > acWebConfig.filesControllerConfig.imageMdPx){
-        AcResult<AcSavedFileDetails> fileSaveResult =await generateResizedImage(original: file,directoryName: "md",imagePx: acWebConfig.filesControllerConfig.imageMdPx);
+        AcResult fileSaveResult =await generateResizedImage(original: file,directoryName: "md",imagePx: acWebConfig.filesControllerConfig.imageMdPx);
         if(fileSaveResult.isSuccess()){
           fileDetails.otherSizes["md"]=fileSaveResult.value!;
         }
@@ -66,7 +73,7 @@ class AcFilesController {
       }
 
       if(continueOperation && originalPx > acWebConfig.filesControllerConfig.imageSmPx){
-        AcResult<AcSavedFileDetails> fileSaveResult =await generateResizedImage(original: file,directoryName: "sm",imagePx: acWebConfig.filesControllerConfig.imageSmPx);
+        AcResult fileSaveResult =await generateResizedImage(original: file,directoryName: "sm",imagePx: acWebConfig.filesControllerConfig.imageSmPx);
         if(fileSaveResult.isSuccess()){
           fileDetails.otherSizes["sm"]=fileSaveResult.value!;
         }
@@ -77,7 +84,7 @@ class AcFilesController {
       }
 
       if(continueOperation && originalPx > acWebConfig.filesControllerConfig.imageXsPx){
-        AcResult<AcSavedFileDetails> fileSaveResult =await generateResizedImage(original: file,directoryName: "xs",imagePx: acWebConfig.filesControllerConfig.imageXsPx);
+        AcResult fileSaveResult =await generateResizedImage(original: file,directoryName: "xs",imagePx: acWebConfig.filesControllerConfig.imageXsPx);
         if(fileSaveResult.isSuccess()){
           fileDetails.otherSizes["xs"]=fileSaveResult.value!;
         }
@@ -96,8 +103,8 @@ class AcFilesController {
     return result;
   }
 
-  Future<AcResult<AcSavedFileDetails>> generateResizedImage({required File original,required String directoryName,required int imagePx, bool preserveRatio=true})async{
-    AcResult<AcSavedFileDetails> result =AcResult();
+  Future<AcResult> generateResizedImage({required File original,required String directoryName,required int imagePx, bool preserveRatio=true})async{
+    AcResult result =AcResult();
     try{
       String destinationPath="${original.parent.path}/$directoryName";
       Directory destinationDirectory=Directory(destinationPath);
@@ -114,8 +121,8 @@ class AcFilesController {
     return result;
   }
 
-  Future<AcResult<AcSavedFileDetails>> saveFile({required AcWebFile webFile})async{
-    AcResult<AcSavedFileDetails> result = AcResult();
+  Future<AcResult> saveFile({required AcWebFile webFile})async{
+    AcResult result = AcResult();
     try{
       String fileName=webFile.fileName!.replaceAll(RegExp(r'\s+'), '');
       String targetFile=fileName;
@@ -134,7 +141,7 @@ class AcFilesController {
       await newDirectory.create(recursive: true);
       targetFile="$newPath/$fileName";
       logger.log("Writing file to path : $targetFile");
-      AcResult<File> fileResult =await webFile.writeTo(path: targetFile);
+      AcResult fileResult =await webFile.writeTo(path: targetFile);
       if(fileResult.isSuccess()){
         File savedFile = fileResult.value!;
         AcSavedFileDetails fileDetails = AcSavedFileDetails(
@@ -160,8 +167,8 @@ class AcFilesController {
     return result;
   }
 
-  Future<AcResult<AcSavedFileDetails>> resizeImage({required File original,required File resized,required int size,required bool preserveRatio})async{
-    AcResult<AcSavedFileDetails> result = AcResult();
+  Future<AcResult> resizeImage({required File original,required File resized,required int size,required bool preserveRatio})async{
+    AcResult result = AcResult();
     try {
       var originalImage = decodeImage(original.readAsBytesSync())!;
       String extension = original.extension;
@@ -224,15 +231,14 @@ class AcSavedFileDetails {
   late int width;
 
   @AcBindJsonProperty(key: keyOtherSizes)
-  late Map<String,dynamic> otherSizes;
+  late Map<String,dynamic> otherSizes = {};
 
   AcSavedFileDetails({
     this.height = 0,
     this.path = "",
     this.size = 0,
     this.type = "",
-    this.width = 0,
-    this.otherSizes = const {}
+    this.width = 0
   });
 
   factory AcSavedFileDetails.instanceFromJson({required Map<String, dynamic> jsonData}) {

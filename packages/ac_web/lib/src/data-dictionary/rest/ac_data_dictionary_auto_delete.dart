@@ -150,16 +150,22 @@ class AcDataDictionaryAutoDelete {
   Future<AcWebResponse> Function(AcWebRequest) getPostHandler() {
     return (AcWebRequest acWebRequest) async {
       final response = AcWebApiResponse();
-      final key = acDDTable.getPrimaryKeyColumnName();
-      if (acWebRequest.post.containsKey(key)) {
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
-          primaryKeyValue: acWebRequest.post[key],
-        )).toWebResponse();
-      } else {
-        response.message = 'parameters missing';
-        return AcWebResponse.json(data: response);
+      try{
+        final key = acDDTable.getPrimaryKeyColumnName();
+        if (acWebRequest.post.containsKey(key)) {
+          final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+          return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
+            primaryKeyValue: acWebRequest.post[key],
+          )).toWebResponse();
+        } else {
+          response.message = 'parameters missing';
+        }
       }
+      catch(ex,stack){
+        response.setException(exception: ex,stackTrace: stack);
+      }
+
+      return AcWebResponse.json(data: response);
     };
   }
 }

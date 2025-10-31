@@ -10,7 +10,7 @@ import 'package:autocode/autocode.dart';
 class AcDDCondition {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
   static const String keyDatabaseType = "databaseType";
-  static const String keyColumnName = "columnName";
+  static const String keyKey = "key";
   static const String keyOperator = "operator";
   static const String keyValue = "value";
 
@@ -24,8 +24,8 @@ class AcDDCondition {
   /* AcDoc({
     "summary": "The name of the column to which the condition applies."
   }) */
-  @AcBindJsonProperty(key: keyColumnName)
-  String columnName = "";
+  @AcBindJsonProperty(key: keyKey)
+  String key = "";
 
   /* AcDoc({
     "summary": "The comparison operator to be used.",

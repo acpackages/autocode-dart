@@ -85,6 +85,59 @@ class AcWebOnJaguar extends AcWeb {
         "Registered jaguar route for route : $routeKey >>>> Url : ${routeDefinition.url}!",
       );
     }
+    for (var staticDirectory in staticFilesRoutes){
+      String url = staticDirectory['prefix']+staticDirectory['directory'];
+      if(!url.startsWith("/")){
+        url = "/$url";
+      }
+      url = "$url/*";
+      String directory = staticDirectory['directory'];
+      logger.log("Registering jaguar route for static files directory : Path : $url >>>> Directory : ${directory}...",
+      );
+      jaguarInstance!.staticFiles(url,directory);
+    }
+  }
+
+  _addStaticFilesRoute(String path, String directory,{Function? errorFunction,ResponseProcessor? responseProcessor,}) {
+    Route route = Route.get(path, (context) async {
+      dynamic body = "";
+      String? mimeType = 'text/html';
+      try {
+        String routePath = context.path;
+        if (routePath.startsWith("/")) {
+          routePath = routePath.substring(1);
+        }
+        String localPath = "$directory/${routePath.substring(path.replaceAll("*","").length)}";
+        if(routePath.startsWith("$directory/")){
+          // localPath = directoryroutePath.substring(path.replaceAll("*","").length);
+        }
+        File localFile = new File(localPath);
+        logger.log("Loading Static File for path $routePath : LocalPath = $localPath");
+        if(localFile.existsSync()){
+          String extension=AcFileUtils.getExtensionFromPath(routePath);
+          logger.log("Found LocalFile $routePath : Extension : $extension : Mime : $mimeType");
+          body = localFile.readAsBytesSync();
+          // mimeType = MimeList.fromExtension[extension];
+          mimeType = AcFileUtils.getMimeTypeFromPath(routePath);
+          context.response = ByteResponse(body: body, mimeType: mimeType);
+        }
+        else{
+          logger.log("Could not file static file for $routePath : LocalPath = $localPath");
+          context.response = Response(statusCode: HttpStatus.notFound);
+        }
+      } catch (ex,stack) {
+        logger.error(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
+        context.response = Response(statusCode: HttpStatus.notFound);
+        if (errorFunction != null) {
+          dynamic errorResponse =
+          errorFunction(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
+          if (errorResponse != null) {
+            context.response = Response.html(errorResponse);
+          }
+        }
+      }
+    }, responseProcessor: responseProcessor,before:[cors(corsOptions)]);
+    jaguarInstance!.addRoute(route);
   }
 
   RoutePathInfo _normalizeRoutePath(String originalPath) {
@@ -336,9 +389,6 @@ class AcWebOnJaguar extends AcWeb {
         _addRoutesToJaguar();
         // jaguarInstance!.add(routes);
       }
-      // staticPaths.forEach((key, value) {
-      //   jaguarInstance?.staticFiles(key, value);
-      // });
       jaguarInstance!.onException.add(
         (ctx, temp, trace) => logger.error(
           "After Path in Exception ${ctx.path} Response = ${ctx.response.statusCode}",

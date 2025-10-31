@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:build/build.dart';
@@ -9,14 +10,26 @@ import 'package:source_gen/source_gen.dart';
 import 'package:ac_mirrors/annotations.dart';
 
 Builder acMirrorsBuilder(BuilderOptions options) {
-  return const AcMirrorsAggregatingBuilder();
+  return AcMirrorsAggregatingBuilder();
 }
 
 class AcMirrorsAggregatingBuilder implements Builder {
-  const AcMirrorsAggregatingBuilder();
+  File logFile = File('logs/ac-mirrors/ac-mirror-builder-log [ ${DateTime.now().toIso8601String().replaceAll(":", "-")} ].txt');
+  bool logFileCreated = false;
 
-  void log(String message) {
-    print('[ac_mirrors_builder] $message');
+  AcMirrorsAggregatingBuilder(){
+
+  }
+
+  void log( String message, {bool showInConsole = false}) {
+    if(!logFileCreated){
+      logFileCreated = true;
+      logFile.createSync(recursive: true);
+    }
+    logFile.writeAsStringSync(DateTime.now().toIso8601String()+"  >>>  "+message+"\n",mode: FileMode.append);
+    if(showInConsole){
+      print('[ac_mirrors_builder] $message');
+    }
   }
 
   @override
@@ -135,9 +148,13 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
     for (final element in elements) {
       if (element is ClassElement) {
+        log("Collecting uris for class element : ${element.name} ");
         collectUris(element, allUris);
+        log("Collected uris for class element : ${element.name} ");
       } else if (element is EnumElement) {
+        log("Collecting uris for enum element : ${element.name} ");
         collectUrisForEnum(element, allUris);
+        log("Collected uris for enum element : ${element.name} ");
       }
     }
 
@@ -175,26 +192,31 @@ class AcMirrorsAggregatingBuilder implements Builder {
     ClassElement? current = classEl;
     while (current != null && current.name != 'Object') {
       uris.add(current.library.source.uri);
+      log("Found uri : ${current.library.source.uri} ");
       for (final member in getAllDeclarations(current)) {
         for (final meta in member.metadata) {
           final metaElement = meta.element;
           if (metaElement?.library?.source.uri != null) {
+            log("Found member meta uri : ${metaElement!.library!.source.uri} ");
             uris.add(metaElement!.library!.source.uri);
           }
         }
         if (member is FieldElement) {
           final typeElement = member.type.element;
           if (typeElement?.library?.source.uri != null) {
+            log("Found type uri : ${typeElement!.library!.source.uri} ");
             uris.add(typeElement!.library!.source.uri);
           }
         } else if (member is ExecutableElement) {
           final returnTypeElement = member.returnType.element;
           if (returnTypeElement?.library?.source.uri != null) {
+            log("Found return type uri : ${returnTypeElement!.library!.source.uri} ");
             uris.add(returnTypeElement!.library!.source.uri);
           }
           for (final param in member.parameters) {
             final paramTypeElement = param.type.element;
             if (paramTypeElement?.library?.source.uri != null) {
+              log("Found param type uri : ${paramTypeElement!.library!.source.uri} ");
               uris.add(paramTypeElement!.library!.source.uri);
             }
           }
@@ -205,6 +227,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
         final metaElement = meta.element;
         if (metaElement?.library?.source.uri != null) {
           uris.add(metaElement!.library!.source.uri);
+          log("Found class meta uri : ${metaElement!.library!.source.uri} ");
         }
         try {
           final constant = meta.computeConstantValue();
@@ -226,11 +249,13 @@ class AcMirrorsAggregatingBuilder implements Builder {
       for (final meta in member.metadata) {
         final metaElement = meta.element;
         if (metaElement?.library?.source.uri != null) {
+          log("Found member meta uri : ${metaElement!.library!.source.uri} ");
           uris.add(metaElement!.library!.source.uri);
         }
       }
       final typeElement = member.type.element;
       if (typeElement?.library?.source.uri != null) {
+        log("Found type meta uri : ${typeElement!.library!.source.uri} ");
         uris.add(typeElement!.library!.source.uri);
       }
     }
@@ -238,6 +263,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
     for (final meta in enumEl.metadata) {
       final metaElement = meta.element;
       if (metaElement?.library?.source.uri != null) {
+        log("Found enum meta uri : ${metaElement!.library!.source.uri} ");
         uris.add(metaElement!.library!.source.uri);
       }
     }
@@ -287,8 +313,22 @@ class AcMirrorsAggregatingBuilder implements Builder {
     buffer.writeln('// ignore_for_file: constant_identifier_names, non_constant_identifier_names, unnecessary_brace_in_string_interps, unused_import, unnecessary_lambdas, prefer_const_constructors, prefer_const_literals_to_create_immutables');
     buffer.writeln("import 'package:ac_mirrors/ac_mirrors.dart';");
     buffer.writeln("import 'package:ac_mirrors/src/impl/generated.dart';");
+    bool foundIo = false;
+    bool foundConvert = false;
     for (final uri in uris.where((u) => u.scheme != 'dart')) {
       buffer.writeln("import '$uri';");
+      if(uri == "dart:io"){
+        foundIo = true;
+      }
+      else if(uri == "dart:convert"){
+        foundConvert = true;
+      }
+    }
+    if(!foundIo){
+      buffer.writeln("import 'dart:io';");
+    }
+    if(!foundConvert){
+      buffer.writeln("import 'dart:convert';");
     }
     buffer.writeln('');
     buffer.writeln('class T{}\n\n');
@@ -626,6 +666,9 @@ class AcMirrorsAggregatingBuilder implements Builder {
           log("    -> Mapping constructor '${memberName.isEmpty ? '(default)' : memberName}' to its mirror '$mirrorName'.");
           buffer.writeln('    "$memberName": const $mirrorName(),');
         }
+      }
+      else{
+        log("  -> Found class '$className' is abstract class so not generating constructors.");
       }
       buffer.writeln('  };');
 

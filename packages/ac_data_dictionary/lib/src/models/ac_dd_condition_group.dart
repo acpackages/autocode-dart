@@ -67,7 +67,7 @@ class AcDDConditionGroup {
     "returns_type": "AcDDConditionGroup"
   }) */
   AcDDConditionGroup addCondition({
-    required String columnName,
+    required String key,
     required AcEnumConditionOperator operator,
     required dynamic value,
   }) {
@@ -75,7 +75,7 @@ class AcDDConditionGroup {
       AcDDCondition.instanceFromJson(
         jsonData: {
           // Assuming AcDDCondition constants are also refactored to lowerCamelCase
-          AcDDCondition.keyColumnName: columnName,
+          AcDDCondition.keyKey: key,
           AcDDCondition.keyOperator: operator,
           AcDDCondition.keyValue: value,
         },
@@ -131,7 +131,7 @@ class AcDDConditionGroup {
             );
           }
           // Otherwise, if it has a 'column_name' key, it's a simple condition.
-          else if (condition.containsKey(AcDDCondition.keyColumnName)) {
+          else if (condition.containsKey(AcDDCondition.keyKey)) {
             conditions.add(AcDDCondition.instanceFromJson(jsonData: condition));
           }
         }

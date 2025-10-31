@@ -48,7 +48,7 @@ class AcWebApiResponse extends AcResult {
     if(result.affectedRowsCount!=null && result.affectedRowsCount! > 0){
       sqlData["affectedRowsCount"] = result.affectedRowsCount;
     }
-    if(result.lastInsertedId!=null && result.lastInsertedId! > 0){
+    if(result.lastInsertedId!=null){
       sqlData["lastInsertedId"] = result.lastInsertedId;
     }
     if(result.totalRows > 0){

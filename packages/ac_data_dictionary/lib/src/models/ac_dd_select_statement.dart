@@ -137,12 +137,12 @@ class AcDDSelectStatement {
     "returns_type": "AcDDSelectStatement"
   }) */
   AcDDSelectStatement addCondition({
-    required String columnName,
+    required String key,
     required AcEnumConditionOperator operator,
     required dynamic value,
   }) {
     groupStack.last.addCondition(
-      columnName: columnName,
+      key: key,
       operator: operator,
       value: value,
     );
@@ -281,7 +281,7 @@ class AcDDSelectStatement {
         if (acDDCondition.value is List && acDDCondition.value.length == 2) {
           parameterName = "@parameter${parameters.length}";
           parameters[parameterName] = acDDCondition.value[0];
-          condition += "${acDDCondition.columnName} BETWEEN $parameterName";
+          condition += "${acDDCondition.key} BETWEEN $parameterName";
           parameterName = "@parameter${parameters.length}";
           parameters[parameterName] = acDDCondition.value[1];
           condition += " AND $parameterName";
@@ -300,17 +300,17 @@ class AcDDSelectStatement {
       case AcEnumConditionOperator.equalTo:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} = $parameterName";
+        condition += "${acDDCondition.key} = $parameterName";
         break;
       case AcEnumConditionOperator.greaterThan:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} > $parameterName";
+        condition += "${acDDCondition.key} > $parameterName";
         break;
       case AcEnumConditionOperator.greaterThanEqualTo:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} >= $parameterName";
+        condition += "${acDDCondition.key} >= $parameterName";
         break;
       case AcEnumConditionOperator.in_:
         parameterName = "@parameter${parameters.length}";
@@ -319,37 +319,37 @@ class AcDDSelectStatement {
         } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
         }
-        condition += "${acDDCondition.columnName} IN ($parameterName)";
+        condition += "${acDDCondition.key} IN ($parameterName)";
         break;
       case AcEnumConditionOperator.isEmpty:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} = ''";
+        condition += "${acDDCondition.key} = ''";
         break;
       case AcEnumConditionOperator.isNotNull:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} IS NOT NULL";
+        condition += "${acDDCondition.key} IS NOT NULL";
         break;
       case AcEnumConditionOperator.isNull:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} IS NULL";
+        condition += "${acDDCondition.key} IS NULL";
         break;
       case AcEnumConditionOperator.lessThan:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} < $parameterName";
+        condition += "${acDDCondition.key} < $parameterName";
         break;
       case AcEnumConditionOperator.lessThanEqualTo:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} <= $parameterName";
+        condition += "${acDDCondition.key} <= $parameterName";
         break;
       case AcEnumConditionOperator.notEqualTo:
         parameterName = "@parameter${parameters.length}";
         parameters[parameterName] = acDDCondition.value;
-        condition += "${acDDCondition.columnName} != $parameterName";
+        condition += "${acDDCondition.key} != $parameterName";
         break;
       case AcEnumConditionOperator.notIn:
         parameterName = "@parameter${parameters.length}";
@@ -358,7 +358,7 @@ class AcDDSelectStatement {
         } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
         }
-        condition += "${acDDCondition.columnName} NOT IN ($parameterName)";
+        condition += "${acDDCondition.key} NOT IN ($parameterName)";
         break;
       case AcEnumConditionOperator.startsWith:
         setSqlLikeStringCondition(
@@ -410,10 +410,10 @@ class AcDDSelectStatement {
     AcDDTableColumn acDDTableColumn =
         AcDataDictionary.getTableColumn(
           tableName: tableName,
-          columnName: acDDCondition.columnName,
+          columnName: acDDCondition.key,
           dataDictionaryName: dataDictionaryName,
         )!;
-    String columnCheck = 'LOWER(${acDDCondition.columnName})';
+    String columnCheck = 'LOWER(${acDDCondition.key})';
     String likeValue = acDDCondition.value.toLowerCase();
     String jsonColumn = "value";
     List<String> conditionParts = List.empty(growable: true);

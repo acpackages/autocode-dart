@@ -52,8 +52,8 @@ class AcWebFile {
     mimeType = contentType.mimeType;
   }
 
-  Future<AcResult<File>> writeTo({required String path,Encoding encoding = utf8}) async {
-    AcResult<File> result = AcResult();
+  Future<AcResult> writeTo({required String path,Encoding encoding = utf8}) async {
+    AcResult result = AcResult();
     try{
       File file=File(path);
       await file.create(recursive: true);

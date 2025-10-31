@@ -95,6 +95,11 @@ class AcWeb {
         },
       );
     }
+
+    if(webConfig.exposeFilesController){
+      registerController(controllerClass: AcFilesController,routePrefix: webConfig.filesControllerConfig.routePrefix);
+      staticFilesDirectory(directory: webConfig.filesControllerConfig.uploadDirectory);
+    }
   }
 
   /* AcDoc({"summary": "Extracts named parameters from a URL path based on a route template."}) */
@@ -115,10 +120,7 @@ class AcWeb {
   }
 
   /* AcDoc({"summary": "Generates API documentation for a route by reflecting on its controller method."}) */
-  AcApiDocRoute _getRouteDocFromMethodMirror({
-    required AcMethodMirror methodMirror,
-    AcApiDocRoute? acApiDocRoute,
-  }) {
+  AcApiDocRoute _getRouteDocFromMethodMirror({required AcMethodMirror methodMirror,AcApiDocRoute? acApiDocRoute}) {
     acApiDocRoute ??= AcApiDocRoute();
     for (var param in methodMirror.parameters) {
       for (var meta in param.metadata) {
@@ -163,9 +165,6 @@ class AcWeb {
     List<Type> controllers =  acGetClassTypesWithAnnotation(AcWebController);
     for(var controller in  controllers){
       registerController(controllerClass: controller);
-    }
-    if(webConfig.exposeFilesController){
-      registerController(controllerClass: AcFilesController,routePrefix: webConfig.filesControllerConfig.routePrefix);
     }
   }
 
@@ -448,7 +447,8 @@ class AcWeb {
     "returns": "The current `AcWeb` instance, for a fluent interface.",
     "returns_type": "AcWeb"
   }) */
-  AcWeb staticFiles({required String directory, required String prefix}) {
+  AcWeb staticFilesDirectory({required String directory, String prefix = ""}) {
+    logger.log("Registering static files directory : $directory");
     staticFilesRoutes.add({'prefix': prefix, 'directory': directory});
     return this;
   }

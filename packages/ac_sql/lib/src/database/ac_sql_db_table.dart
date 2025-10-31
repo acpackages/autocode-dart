@@ -336,6 +336,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
+    parameters = Map.from(parameters);
     logger.log(
       "Deleting row with condition : $condition & primaryKeyValue $primaryKeyValue",
     );
@@ -687,6 +688,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     int pageSize = -1,
     Map<String, dynamic> parameters = const {},
   }) async {
+    parameters = Map.from(parameters);
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
       String actualOrderBy = orderBy.isNotEmpty ? orderBy : columnName;
@@ -752,6 +754,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     int pageSize = -1,
     Map<String, dynamic> parameters = const {},
   }) async {
+    parameters = Map.from(parameters);
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
       String actualSelectStatement = selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
@@ -1453,6 +1456,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     required String condition,
     Map<String, dynamic> parameters = const {},
   }) async {
+    parameters = Map.from(parameters);
     final result = AcResult();
     try {
       bool continueOperation = true;
@@ -1525,6 +1529,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
+    parameters = Map.from(parameters);
     logger.log(["Updating row with data : ", row]);
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
