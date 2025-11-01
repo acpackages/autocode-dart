@@ -90,17 +90,27 @@ class AcDataDictionaryAutoSave {
   }) */
   Future<AcWebResponse> Function(AcWebRequest) getHandler() {
     return (AcWebRequest acWebRequest) async {
-      final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
       final response = AcWebApiResponse();
+      try {
+        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
 
-      if (acWebRequest.post.containsKey('row')) {
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.saveRow(row: acWebRequest.post['row'])).toWebResponse();
-      } else if (acWebRequest.post.containsKey('rows')) {
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.saveRows(rows: acWebRequest.post['rows'])).toWebResponse();
-      } else {
-        response.message = 'parameters missing';
-        return AcWebResponse.json(data: response);
+        if (acWebRequest.post.containsKey('row')) {
+          return response
+              .setFromSqlDaoResult(
+              result: await acSqlDbTable.saveRow(row: acWebRequest.post['row']))
+              .toWebResponse();
+        } else if (acWebRequest.post.containsKey('rows')) {
+          return response.setFromSqlDaoResult(
+              result: await acSqlDbTable.saveRows(
+                  rows: acWebRequest.post['rows'])).toWebResponse();
+        } else {
+          response.message = 'parameters missing';
+        }
       }
+      catch(ex,stack){
+        response.setException(exception: ex,stackTrace: stack);
+      }
+      return response.toWebResponse();
     };
   }
 }

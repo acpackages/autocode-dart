@@ -93,18 +93,22 @@ class AcDataDictionaryAutoUpdate {
   Function getHandler() {
     return (AcWebRequest acWebRequest) async {
       final response = AcWebApiResponse();
-      final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+      try{
+        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
 
-      final post = acWebRequest.post;
+        final post = acWebRequest.post;
 
-      if (post.containsKey('row')) {
-        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: post['row']));
-      } else if (post.containsKey('rows')) {
-        response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: post['rows']));
-      } else {
-        response.message = 'parameters missing';
+        if (post.containsKey('row')) {
+          response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: post['row']));
+        } else if (post.containsKey('rows')) {
+          response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: post['rows']));
+        } else {
+          response.message = 'parameters missing';
+        }
       }
-
+      catch(ex,stack){
+        response.setException(exception: ex,stackTrace: stack);
+      }
       return response.toWebResponse();
     };
   }
