@@ -141,7 +141,7 @@ class AcDataDictionaryAutoSelect {
       try{
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
         final acDDSelectStatement = AcDDSelectStatement(
-          tableName: acDDTable.tableName,
+          tableName: acDDTable.getSelectQueryFromName(),
         );
 
         if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
@@ -333,7 +333,7 @@ class AcDataDictionaryAutoSelect {
         logger.log(["Request : ",acWebRequest]);
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
         final acDDSelectStatement = AcDDSelectStatement(
-          tableName: acDDTable.tableName,
+          tableName: acDDTable.getSelectQueryFromName(),
         );
 
         if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {

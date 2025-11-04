@@ -1858,7 +1858,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       for (final column in acDDTable.tableColumns) {
         dynamic value = row[column.columnName];
         if (continueOperation) {
-          if (column.isRequired()) {
+          if (column.isRequired() && isInsert) {
             bool validRequired = true;
             if (!row.containsKey(column.columnName) && isInsert) {
               validRequired = false;
