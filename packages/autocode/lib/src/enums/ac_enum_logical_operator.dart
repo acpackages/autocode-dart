@@ -1,5 +1,7 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 
+import '../../autocode.dart';
+
 /* AcDoc({
   "description": "Enumeration representing logical operators used in conditional expressions.",
   "author": "Sanket Patel",
@@ -45,4 +47,8 @@ enum AcEnumLogicalOperator {
   /* AcDoc({"description": "Returns the logical operator as a string."}) */
   @override
   String toString() => value;
+
+  Map<String, dynamic> toJson() {
+    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+  }
 }

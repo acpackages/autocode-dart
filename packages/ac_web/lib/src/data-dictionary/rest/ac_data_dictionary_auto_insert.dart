@@ -90,8 +90,8 @@ class AcDataDictionaryAutoInsert {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Future<AcWebResponse> Function(AcWebRequest) getHandler() {
-    return (AcWebRequest acWebRequest) async {
+  Function getHandler() {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try {
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);

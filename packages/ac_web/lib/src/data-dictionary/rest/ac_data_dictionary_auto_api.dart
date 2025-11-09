@@ -152,7 +152,7 @@ class AcDataDictionaryAutoApi {
     "returns": "The current instance, for a fluent interface.",
     "returns_type": "AcDataDictionaryAutoApi"
   }) */
-  AcDataDictionaryAutoApi generate() {
+  AcDataDictionaryAutoApi generate({bool delete = true,bool insert = true,bool save = true,bool select = true,bool selectDistinct = true,bool selectRow = true,bool update = true}) {
     logger.log(
       "Generating apis for tables in data dictionary $dataDictionaryName...",
     );
@@ -161,13 +161,13 @@ class AcDataDictionaryAutoApi {
     }
     for (final acDDTable in AcDataDictionary.getTables(dataDictionaryName: dataDictionaryName).values) {
       bool continueOperation = false;
-      bool delete = true;
-      bool insert = true;
-      bool save = true;
-      bool select = true;
-      bool selectDistinct = true;
-      bool selectRow = true;
-      bool update = true;
+      bool generateDelete = true;
+      bool generateInsert = true;
+      bool generateSave = true;
+      bool generateSelect = true;
+      bool generateSelectDistinct = true;
+      bool generateSelectRow = true;
+      bool generateUpdate = true;
       logger.log("Checking table ${acDDTable.tableName} for auto data dictionary...");
       if (includeTables.isEmpty && excludeTables.isEmpty) {
         continueOperation = true;
@@ -178,13 +178,13 @@ class AcDataDictionaryAutoApi {
             "Include tables list contains table ${acDDTable.tableName}",
           );
           final options = includeTables[acDDTable.tableName]!;
-          delete = options['delete']!;
-          insert = options['insert']!;
-          save = options['save']!;
-          select = options['select']!;
-          selectDistinct = options['select_distinct']!;
-          selectRow = options['select_row']!;
-          update = options['update']!;
+          generateDelete = options['delete']!;
+          generateInsert = options['insert']!;
+          generateSave = options['save']!;
+          generateSelect = options['select']!;
+          generateSelectDistinct = options['select_distinct']!;
+          generateSelectRow = options['select_row']!;
+          generateUpdate = options['update']!;
         } else {
           logger.log(
             "Include tables list does not contains table ${acDDTable.tableName}",
@@ -198,20 +198,20 @@ class AcDataDictionaryAutoApi {
       } else if (excludeTables.containsKey(acDDTable.tableName)) {
         continueOperation = true;
         final options = excludeTables[acDDTable.tableName]!;
-        delete = !options['delete']!;
-        insert = !options['insert']!;
-        save = !options['save']!;
-        select = !options['select']!;
-        selectDistinct = !options['select_distinct']!;
-        selectRow = !options['select_row']!;
-        update = !options['update']!;
+        generateDelete = !options['delete']!;
+        generateInsert = !options['insert']!;
+        generateSave = !options['save']!;
+        generateSelect = !options['select']!;
+        generateSelectDistinct = !options['select_distinct']!;
+        generateSelectRow = !options['select_row']!;
+        generateUpdate = !options['update']!;
       }
 
       if (continueOperation) {
         logger.log("Generating apis for table ${acDDTable.tableName}...");
         bool apiAdded = false;
 
-        if (delete) {
+        if (generateDelete) {
           logger.log(
             "Generating delete api for table ${acDDTable.tableName}...",
           );
@@ -222,7 +222,7 @@ class AcDataDictionaryAutoApi {
           apiAdded = true;
           logger.log("Generated delete api for table ${acDDTable.tableName}!");
         }
-        if (insert) {
+        if (generateInsert) {
           logger.log(
             "Generating insert api for table ${acDDTable.tableName}...",
           );
@@ -233,7 +233,7 @@ class AcDataDictionaryAutoApi {
           apiAdded = true;
           logger.log("Generated insert api for table ${acDDTable.tableName}!");
         }
-        if (save) {
+        if (generateSave) {
           logger.log("Generating save api for table ${acDDTable.tableName}...");
           AcDataDictionaryAutoSave(
             acDDTable: acDDTable,
@@ -242,19 +242,19 @@ class AcDataDictionaryAutoApi {
           apiAdded = true;
           logger.log("Generated save api for table ${acDDTable.tableName}!");
         }
-        if (select) {
+        if (generateSelect) {
           logger.log(
             "Generating select api for table ${acDDTable.tableName}...",
           );
           AcDataDictionaryAutoSelect(
             acDDTable: acDDTable,
             acDataDictionaryAutoApi: this,
-            includeSelectRow: selectRow
+            includeSelectRow: generateSelectRow
           );
           apiAdded = true;
           logger.log("Generated select api for table ${acDDTable.tableName}!");
         }
-        if (selectDistinct) {
+        if (generateSelectDistinct) {
           logger.log(
             "Generating select distinct apis for fields ins table ${acDDTable.tableName}...",
           );
@@ -276,7 +276,7 @@ class AcDataDictionaryAutoApi {
             "Generated select distinct apis for table ${acDDTable.tableName}!",
           );
         }
-        if (update) {
+        if (generateUpdate) {
           logger.log(
             "Generating update api for table ${acDDTable.tableName}...",
           );

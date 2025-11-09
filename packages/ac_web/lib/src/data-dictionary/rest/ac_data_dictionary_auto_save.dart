@@ -2,6 +2,7 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
+import 'package:autocode/autocode.dart';
 /* AcDoc({
   "summary": "Automatically generates a 'POST' (save/upsert) API route for a specific table.",
   "description": "This class is a route generator used by `AcDataDictionaryAutoApi`. Upon instantiation, it creates and registers a `POST` endpoint for saving records. The 'save' operation implies an 'upsert': if a record exists (based on its primary key or other unique identifiers), it is updated; otherwise, it is inserted. The route can handle saving a single row or a list of rows.",
@@ -88,8 +89,8 @@ class AcDataDictionaryAutoSave {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Future<AcWebResponse> Function(AcWebRequest) getHandler() {
-    return (AcWebRequest acWebRequest) async {
+  Function getHandler() {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try {
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);

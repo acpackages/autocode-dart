@@ -25,7 +25,7 @@ class AcWeb {
     logMessages: true,
     logDirectory: 'logs',
     logType: AcEnumLogType.console,
-    logFileName: 'ac-web.text',
+    logFileName: 'ac-web.log',
   );
 
   /* AcDoc({"summary": "An optional global URL prefix for all routes."}) */
@@ -187,6 +187,7 @@ class AcWeb {
     //   request.url,
     // );
     // Case 1: Handler is a method on a registered controller.
+    AcLogger requestLogger = AcLogger(logFileName:"${request.url}.log",logDirectory: "logs/ac-web-requests",logMessages: true,logType: AcEnumLogType.text);
     if (routeDefinition.controller != null && routeDefinition.handler is String) {
       logger.log("Handing controller route...");
       final controllerClassMirror = acReflectClass(routeDefinition.controller!);
@@ -214,7 +215,6 @@ class AcWeb {
         }
         else if (parameter.type == AcLogger) {
           logger.log("Parameter type is AcLogger");
-          AcLogger requestLogger = AcLogger(logFileName:"${request.url}.txt",logDirectory: "logs/ac-web-requests",logMessages: true,logType: AcEnumLogType.text);
           argValue = requestLogger;
           valueSet = true;
         }
@@ -312,7 +312,7 @@ class AcWeb {
     else if (routeDefinition.handler is Function) {
       try {
         logger.log("Handing function route...");
-        return await (routeDefinition.handler as Function)(request);
+        return await (routeDefinition.handler as Function)(request,requestLogger);
       } catch (e) {
         return AcWebResponse.internalError(data: e.toString());
       }

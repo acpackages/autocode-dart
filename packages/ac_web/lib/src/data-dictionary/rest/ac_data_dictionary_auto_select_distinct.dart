@@ -1,6 +1,7 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
+import 'package:autocode/autocode.dart';
 /* AcDoc({
   "summary": "Automatically generates a 'SELECT DISTINCT' API route for a specific table column.",
   "description": "This class is a route generator used by `AcDataDictionaryAutoApi`. Upon instantiation, it creates and registers a `GET` endpoint for fetching the unique values from a single column in a table. This is useful for populating dropdowns or autocomplete fields in a UI.",
@@ -102,7 +103,7 @@ class AcDataDictionaryAutoSelectDistinct {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function getHandler() {
-    return (AcWebRequest acWebRequest) async {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
 
       final response = AcWebApiResponse();
       try{

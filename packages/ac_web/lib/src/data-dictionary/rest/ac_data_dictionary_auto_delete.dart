@@ -147,17 +147,21 @@ class AcDataDictionaryAutoDelete {
     "returns": "The request handler function.",
     "returns_type": "AcWebResponse Function(AcWebRequest)"
   }) */
-  Future<AcWebResponse> Function(AcWebRequest) getPostHandler() {
-    return (AcWebRequest acWebRequest) async {
+  Function getPostHandler() {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
+        logger.log("Deleting row from table ${acDDTable.tableName}");
         final key = acDDTable.getPrimaryKeyColumnName();
+        logger.log("Deleting for primary key field ${key}");
         if (acWebRequest.post.containsKey(key)) {
+          logger.log("Found primary key field ${key}");
           final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
           return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
             primaryKeyValue: acWebRequest.post[key],
           )).toWebResponse();
         } else {
+          logger.log(["Primary key field is missing in post",acWebRequest.post]);
           response.message = 'parameters missing';
         }
       }

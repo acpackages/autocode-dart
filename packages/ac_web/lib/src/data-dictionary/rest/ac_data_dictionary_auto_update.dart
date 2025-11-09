@@ -91,7 +91,7 @@ class AcDataDictionaryAutoUpdate {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function getHandler() {
-    return (AcWebRequest acWebRequest) async {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);

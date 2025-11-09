@@ -136,7 +136,7 @@ class AcDataDictionaryAutoSelect {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function getHandler() {
-    return (AcWebRequest acWebRequest) async {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
@@ -235,7 +235,7 @@ class AcDataDictionaryAutoSelect {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function getByIdHandler() {
-    return (AcWebRequest acWebRequest) async{
+    return (AcWebRequest acWebRequest, AcLogger logger) async{
       final response = AcWebApiResponse();
       try{
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
@@ -325,15 +325,15 @@ class AcDataDictionaryAutoSelect {
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
   Function postHandler() {
-    return (AcWebRequest acWebRequest) async {
+    return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
-        AcLogger logger = AcLogger(logMessages: false);
         logger.log("Getting rows for table ${acDDTable.tableName} using post method...");
         logger.log(["Request : ",acWebRequest]);
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
         final acDDSelectStatement = AcDDSelectStatement(
           tableName: acDDTable.getSelectQueryFromName(),
+          logger: logger
         );
 
         if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
@@ -390,9 +390,11 @@ class AcDataDictionaryAutoSelect {
           acDDSelectStatement.orderBy = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
         }
 
+        logger.log(["Getting response from database for sql statement",acDDSelectStatement]);
         final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
             acDDSelectStatement: acDDSelectStatement
         );
+        logger.log(["Response : ",getResponse]);
 
         response.setFromSqlDaoResult(result: getResponse);
       }

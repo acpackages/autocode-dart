@@ -75,6 +75,15 @@ class AcDDCondition {
       instance: this,
       jsonData: jsonData,
     );
+    if(jsonData.containsKey(AcDDCondition.keyOperator)){
+      var operator = jsonData[AcDDCondition.keyOperator];
+      if(operator is String){
+        var operatorValue = AcEnumConditionOperator.fromValue(operator);
+        if(operatorValue!=null){
+          this.operator = operatorValue;
+        }
+      }
+    }
     return this;
   }
 
