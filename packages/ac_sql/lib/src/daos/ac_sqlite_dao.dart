@@ -732,12 +732,13 @@ class AcSqliteDao extends AcBaseSqlDao {
       db = await _getConnection();
       if(db != null){
         if (rows.isNotEmpty) {
-          final columns = rows.first.keys.toList();
-          final placeholders = List.generate(columns.length, (i) => '?').join(', ');
-          final statement =
-              "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
+
           await db.transaction((txn) async {
             for (final rowData in rows) {
+              final columns = rowData.keys.toList();
+              final placeholders = List.generate(columns.length, (i) => '?').join(', ');
+              final statement =
+                  "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
               final params = rowData.values.toList();
               await txn.rawInsert(statement, ensureValidParamsType(params: params));
             }

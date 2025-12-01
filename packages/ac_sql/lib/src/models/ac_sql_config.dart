@@ -105,15 +105,15 @@ class AcSqliteConfig {
     this.journalMode = 'WAL', // Write-Ahead Logging
     this.synchronous = 'NORMAL', // Balanced durability and performance
     this.tempStore = 'MEMORY', // Store temporary data in memory
-    this.cacheSize = -64000, // ~64MB cache (negative means KB)
+    this.cacheSize = -65536, // ~64MB cache (negative means KB)
     this.busyTimeout = 5000, // 5 seconds
     this.autoVacuum = 'INCREMENTAL',
     this.recursiveTriggers = true,
     this.caseSensitiveLike = false,
     this.secureDelete = false,
     this.lockingMode = 'NORMAL',
-    this.walAutoCheckpoint = 1000,
-    this.journalSizeLimit = -1,
+    this.walAutoCheckpoint = 10000,
+    this.journalSizeLimit = -2,
   });
 
   // 🧩 Factory + JSON serialization

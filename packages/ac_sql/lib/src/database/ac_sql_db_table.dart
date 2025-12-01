@@ -730,6 +730,17 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  Future<AcResult> getInsertRowData({required Map<String, dynamic> row}) async{
+    AcResult result = AcResult();
+    final formatResult = await formatValues(row: row,insertMode: true);
+    if (formatResult.isSuccess()) {
+      result.setSuccess(value:formatResult.value);
+    } else {
+      result.setFromResult(result:result);
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Retrieves rows from the table.",
     "description": "The primary method for querying the table. It constructs and executes a SELECT statement with optional conditions, ordering, and pagination.",
