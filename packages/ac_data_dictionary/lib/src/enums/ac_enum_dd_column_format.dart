@@ -54,4 +54,8 @@ enum AcEnumDDColumnFormat {
   /* AcDoc({"description": "Returns the column format as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

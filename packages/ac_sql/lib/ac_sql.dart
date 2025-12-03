@@ -25,7 +25,9 @@ export './src/database/ac_sql_db_table_column.dart';
 export './src/database/ac_sql_db_trigger.dart';
 export './src/database/ac_sql_db_view.dart';
 
+export './src/models/ac_sql_config.dart';
 export './src/models/ac_sql_connection.dart';
 export './src/models/ac_sql_dao_result.dart';
+export './src/models/ac_sql_statement.dart';
 
 // TODO: Export any libraries intended for clients of this package.

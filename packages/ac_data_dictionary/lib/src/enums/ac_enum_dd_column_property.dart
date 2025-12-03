@@ -101,4 +101,8 @@ enum AcEnumDDColumnProperty {
   /* AcDoc({"description": "Returns the column property as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

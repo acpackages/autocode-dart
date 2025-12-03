@@ -51,4 +51,8 @@ enum AcEnumLogType {
   /* AcDoc({"description": "Returns the log type as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

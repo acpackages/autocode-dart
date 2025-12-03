@@ -75,4 +75,8 @@ enum AcEnumDDRowEvent {
   /* AcDoc({"description": "Returns the row event as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

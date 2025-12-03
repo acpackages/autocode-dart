@@ -93,4 +93,8 @@ enum AcEnumSqlEntity {
   /* AcDoc({"description": "Returns the SQL entity as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

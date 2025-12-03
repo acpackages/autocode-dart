@@ -87,4 +87,8 @@ enum AcEnumDDColumnType {
   /* AcDoc({"description": "Returns the column type as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

@@ -331,8 +331,10 @@ class AcDataDictionaryAutoSelect {
         logger.log("Getting rows for table ${acDDTable.tableName} using post method...");
         logger.log(["Request : ",acWebRequest]);
         final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+        final String fromName = acDDTable.getSelectQueryFromName();
         final acDDSelectStatement = AcDDSelectStatement(
-          tableName: acDDTable.getSelectQueryFromName(),
+          tableName: acDDTable.tableName == fromName?fromName:'',
+          viewName: acDDTable.tableName != fromName?fromName:'',
           logger: logger
         );
 
@@ -353,6 +355,7 @@ class AcDataDictionaryAutoSelect {
           final queryColumns = acDDTable.getSearchQueryColumnNames();
           acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
           for (final columnName in queryColumns) {
+            logger.log("Using column name for select query contains operation");
             acDDSelectStatement.addCondition(
               key: columnName,
               operator: AcEnumConditionOperator.contains,

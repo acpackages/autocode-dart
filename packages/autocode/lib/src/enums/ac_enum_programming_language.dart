@@ -104,4 +104,8 @@ enum AcEnumProgrammingLanguage {
   /* AcDoc({"description": "Returns the programming language as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

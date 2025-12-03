@@ -57,4 +57,8 @@ enum AcEnumCssUnit {
   }) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

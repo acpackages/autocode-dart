@@ -30,7 +30,7 @@ class AcDDView {
     "summary": "A map of column names to their corresponding `AcDDViewColumn` definitions."
   }) */
   @AcBindJsonProperty(key: keyViewColumns)
-  Map<String, AcDDViewColumn> viewColumns = {};
+  List<AcDDViewColumn> viewColumns = [];
 
   /* AcDoc({
     "summary": "Creates a new, empty instance of a view definition."
@@ -80,15 +80,35 @@ class AcDDView {
   }) */
   AcDDView fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
-    if (json.containsKey(keyViewColumns) && json[keyViewColumns] is Map) {
-      final columns = jsonData[keyViewColumns] as Map;
-      columns.forEach((columnName, columnData) {
-        viewColumns[columnName] = AcDDViewColumn.instanceFromJson(
-          jsonData: columnData,
-        );
+    if (jsonData.containsKey(keyViewColumns) &&
+        jsonData[keyViewColumns] is Map) {
+      (json[keyViewColumns] as Map).forEach((columnName, columnData) {
+        final column = AcDDViewColumn.instanceFromJson(jsonData: columnData);
+        // column. = this;
+        viewColumns.add(column);
       });
       json.remove(keyViewColumns);
     }
+
+    // if (json.containsKey(keyTableProperties) &&
+    //     json[keyTableProperties] is Map) {
+    //   (json[keyTableProperties] as Map).forEach((propertyName, propertyData) {
+    //     tableProperties.add(
+    //       AcDDTableProperty.instanceFromJson(jsonData: propertyData),
+    //     );
+    //   });
+    //   json.remove(keyTableProperties);
+    // }
+
+    // if (json.containsKey(keyViewColumns) && json[keyViewColumns] is Map) {
+    //   final columns = jsonData[keyViewColumns] as Map;
+    //   columns.forEach((columnName, columnData) {
+    //     viewColumns[columnName] = AcDDViewColumn.instanceFromJson(
+    //       jsonData: columnData,
+    //     );
+    //   });
+    //   json.remove(keyViewColumns);
+    // }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: json,
@@ -126,6 +146,20 @@ class AcDDView {
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
     return 'CREATE VIEW $viewName AS $viewQuery;';
+  }
+
+  AcDDViewColumn? getColumn(String columnName) {
+    // Use a try/catch or a loop to safely find the column without throwing an error.
+    for (final column in viewColumns) {
+      if (column.columnName == columnName) {
+        return column;
+      }
+    }
+    return null;
+  }
+
+  List<String> getColumnNames() {
+    return viewColumns.map((column) => column.columnName).toList();
   }
 
   /* AcDoc({

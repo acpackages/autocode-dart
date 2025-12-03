@@ -179,4 +179,8 @@ enum AcEnumFileExtension {
   /* AcDoc({"description": "Returns the file extension as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

@@ -28,9 +28,13 @@ export './src/enums/ac_enum_sql_entity.dart';
 
 export './src/models/ac_cron_job.dart';
 export './src/models/ac_event_execution_result.dart';
+export './src/models/ac_filter.dart';
+export './src/models/ac_filter_group.dart';
 export './src/models/ac_hook_execution_result.dart';
 export './src/models/ac_hook_result.dart';
 export './src/models/ac_result.dart';
+export './src/models/ac_sort.dart';
+export './src/models/ac_sort_order.dart';
 
 export './src/reactivity/ac_context.dart';
 export './src/reactivity/ac_reactive_list.dart';

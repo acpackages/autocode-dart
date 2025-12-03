@@ -51,4 +51,8 @@ enum AcEnumDDSelectMode {
   /* AcDoc({"description": "Returns the string representation of the select mode."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

@@ -57,4 +57,8 @@ enum AcEnumDDRowOperation {
   /* AcDoc({"description": "Returns the string representation of the row operation."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

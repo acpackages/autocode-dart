@@ -1,3 +1,4 @@
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 
 import '../../autocode.dart';
@@ -29,14 +30,11 @@ enum AcEnumLogicalOperator {
     "params": [{"name": "value", "description": "The string value to match."}],
     "returns": "The matching enum value, or null if no match is found."
   }) */
-  static AcEnumLogicalOperator? fromValue(String value) {
-    try {
-      return AcEnumLogicalOperator.values.firstWhere((e) => e.value == value);
-    } catch (_) {
-      return null;
-    }
+  static AcEnumLogicalOperator fromValue(String value) {
+    return AcEnumLogicalOperator.values.firstWhere((e) =>
+        e.value.equalsIgnoreCase(value),
+        orElse: () => AcEnumLogicalOperator.unknown);
   }
-
   /* AcDoc({
     "description": "Checks if this enum's value matches the provided string.",
     "params": [{"name": "other", "description": "The string to compare with."}],
@@ -48,7 +46,7 @@ enum AcEnumLogicalOperator {
   @override
   String toString() => value;
 
-  Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+  dynamic toJson() {
+    return value;
   }
 }

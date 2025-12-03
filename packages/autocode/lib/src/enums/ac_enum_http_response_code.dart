@@ -100,4 +100,8 @@ enum AcEnumHttpResponseCode {
   /* AcDoc({"description": "Returns a formatted string representation of the enum."}) */
   @override
   String toString() => '\$name (\$code)';
+
+  dynamic toJson() {
+    return value;
+  }
 }

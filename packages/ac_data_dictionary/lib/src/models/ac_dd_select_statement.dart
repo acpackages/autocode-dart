@@ -23,6 +23,7 @@ class AcDDSelectStatement {
   static const String keySelectStatement = "selectStatement";
   static const String keySqlStatement = "sqlStatement";
   static const String keyTableName = "tableName";
+  static const String keyViewName = "viewName";
 
   // Internal state properties
   String condition = "";
@@ -65,6 +66,9 @@ class AcDDSelectStatement {
   @AcBindJsonProperty(key: keyTableName)
   String tableName = "";
 
+  @AcBindJsonProperty(key: keyViewName)
+  String viewName = "";
+
   /* AcDoc({
     "summary": "Creates a new select statement builder.",
     "params": [
@@ -74,6 +78,7 @@ class AcDDSelectStatement {
   }) */
   AcDDSelectStatement({
     this.tableName = "",
+    this.viewName = "",
     this.dataDictionaryName = "default",
     AcLogger? logger
   }) {
@@ -172,10 +177,12 @@ class AcDDSelectStatement {
   }) {
     logger.log('addConditionGroup called: conditions count=${conditions.length}, operator=$operator');
     logger.log('Current groupStack size before add: ${groupStack.length}');
+    logger.log(conditions);
     groupStack.last.addConditionGroup(
       conditions: conditions,
       operator: operator,
     );
+    logger.log(groupStack);
     logger.log('Condition group added to last group in stack');
     return this;
   }
@@ -213,6 +220,47 @@ class AcDDSelectStatement {
     logger.log('Properties set from JSON data');
   }
 
+  List<String> getColumns(){
+    List<String> columns = [];
+    if (includeColumns.isEmpty && excludeColumns.isEmpty) {
+      logger.log('No column filters: selecting all (*)');
+      columns.add("*");
+    } else if (includeColumns.isNotEmpty) {
+      logger.log('Including specific columns: $includeColumns');
+      columns = includeColumns;
+    } else if (excludeColumns.isNotEmpty) {
+      if(tableName.isNotEmpty){
+        var acDDTable = AcDataDictionary.getTable(
+          tableName: tableName,
+          dataDictionaryName: dataDictionaryName,
+        );
+        if(acDDTable!=null){
+          logger.log('Excluding columns: $excludeColumns from table with columns: ${acDDTable.getColumnNames()}');
+          for (var columnName in acDDTable.getColumnNames()) {
+            if (!excludeColumns.contains(columnName)) {
+              columns.add(columnName);
+            }
+          }
+        }
+      }
+      else if(viewName.isNotEmpty){
+        var acDDView = AcDataDictionary.getView(
+          viewName: viewName,
+          dataDictionaryName: dataDictionaryName,
+        );
+        if(acDDView!=null){
+          logger.log('Excluding columns: $excludeColumns from view with columns: ${acDDView.getColumnNames()}');
+          for (var columnName in acDDView.getColumnNames()) {
+            if (!excludeColumns.contains(columnName)) {
+              columns.add(columnName);
+            }
+          }
+        }
+      }
+    }
+    return columns;
+  }
+
   /* AcDoc({
     "summary": "Generates the final SQL statement and parameters map.",
     "description": "Assembles the complete SQL query string and populates the `parameters` map based on the configured properties and conditions. This is the primary method for getting the final query.",
@@ -230,31 +278,20 @@ class AcDDSelectStatement {
     bool skipLimit = false,
   }) {
     logger.log('getSqlStatement called: skipCondition=$skipCondition, skipSelectStatement=$skipSelectStatement, skipLimit=$skipLimit');
-    logger.log('Current tableName: $tableName, includeColumns: $includeColumns, excludeColumns: $excludeColumns');
+    logger.log('Current tableName: $tableName, viewName:$viewName includeColumns: $includeColumns, excludeColumns: $excludeColumns');
 
     if (!skipSelectStatement) {
       logger.log('Generating SELECT...FROM clause');
-      var acDDTable = AcDataDictionary.getTable(
-        tableName: tableName,
-        dataDictionaryName: dataDictionaryName,
-      );
-      List<String> columns = [];
-      if (includeColumns.isEmpty && excludeColumns.isEmpty) {
-        logger.log('No column filters: selecting all (*)');
-        columns.add("*");
-      } else if (includeColumns.isNotEmpty) {
-        logger.log('Including specific columns: $includeColumns');
-        columns = includeColumns;
-      } else if (acDDTable != null && excludeColumns.isNotEmpty) {
-        logger.log('Excluding columns: $excludeColumns from table with columns: ${acDDTable.getColumnNames()}');
-        for (var columnName in acDDTable.getColumnNames()) {
-          if (!excludeColumns.contains(columnName)) {
-            columns.add(columnName);
-          }
-        }
-      }
+      List<String> columns = getColumns();
       var columnsList = columns.join(",");
-      selectStatement = "SELECT $columnsList FROM $tableName";
+      String selectFrom = '';
+      if(tableName.isNotEmpty){
+        selectFrom = tableName;
+      }
+      else if(viewName.isNotEmpty){
+        selectFrom = viewName;
+      }
+      selectStatement = "SELECT $columnsList FROM $selectFrom";
       logger.log('SELECT statement generated: $selectStatement');
     }
 
@@ -294,7 +331,11 @@ class AcDDSelectStatement {
     required Map<String, dynamic> filters,
   }) {
     logger.log('setConditionsFromFilters called with filters keys: ${filters.keys.toList()}');
-    // Assuming AcDDConditionGroup.keyConditions is also refactored
+    if (filters.containsKey(AcFilterGroup.keyFilters)) {
+      var group = AcDDConditionGroup.instanceFromFilterGroup(filterGroup: AcFilterGroup.instanceFromJson(jsonData: filters));
+      filters = group.toJson();
+    }
+
     if (filters.containsKey(AcDDConditionGroup.keyConditions)) {
       var operator = AcEnumLogicalOperator.and;
       if (filters.containsKey(AcDDConditionGroup.keyOperator)) {
@@ -306,7 +347,9 @@ class AcDDSelectStatement {
         conditions: filters[AcDDConditionGroup.keyConditions],
         operator: operator,
       );
-    } else {
+    }
+
+    else {
       logger.log('No conditions key found in filters');
     }
     return this;
@@ -491,64 +534,83 @@ class AcDDSelectStatement {
     bool includeStart = true,
   }) {
     logger.log('setSqlLikeStringCondition called: key=${acDDCondition.key}, value=${acDDCondition.value}, includeStart=$includeStart, includeInBetween=$includeInBetween, includeEnd=$includeEnd');
-    AcDDTableColumn acDDTableColumn =
-    AcDataDictionary.getTableColumn(
-      tableName: tableName,
-      columnName: acDDCondition.key,
-      dataDictionaryName: dataDictionaryName,
-    )!;
-    logger.log('Retrieved column type: ${acDDTableColumn.columnType}');
-    String columnCheck = 'LOWER(${acDDCondition.key})';
-    String likeValue = acDDCondition.value.toLowerCase();
-    String jsonColumn = "value";
-    List<String> conditionParts = List.empty(growable: true);
-    if (acDDTableColumn.columnType == AcEnumDDColumnType.json) {
-      logger.log('Handling JSON column LIKE conditions');
-      if (includeStart) {
-        String parameter1 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter1");
-        parameters[parameter1] = '%"$jsonColumn":"$likeValue%"%';
-        logger.log('Added JSON START LIKE param: $parameter1');
-      }
-      if (includeInBetween) {
-        String parameter2 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter2");
-        parameters[parameter2] = '%"$jsonColumn":"%$likeValue%"%';
-        logger.log('Added JSON IN_BETWEEN LIKE param: $parameter2');
-      }
-      if (includeEnd) {
-        String parameter3 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter3");
-        parameters[parameter3] = '%"$jsonColumn":"%$likeValue"%';
-        logger.log('Added JSON END LIKE param: $parameter3');
-      }
-    } else {
-      logger.log('Handling non-JSON column LIKE conditions');
-      if (includeStart) {
-        String parameter1 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter1");
-        parameters[parameter1] = '$likeValue%';
-        logger.log('Added START LIKE param: $parameter1');
-      }
-      if (includeInBetween) {
-        String parameter2 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter2");
-        parameters[parameter2] = '%$likeValue%';
-        logger.log('Added IN_BETWEEN LIKE param: $parameter2');
-      }
-      if (includeEnd) {
-        String parameter3 = "@parameter${parameters.length}";
-        conditionParts.add("$columnCheck LIKE $parameter3");
-        parameters[parameter3] = '$likeValue%';
-        logger.log('Added END LIKE param: $parameter3');
+    AcEnumDDColumnType columnType = AcEnumDDColumnType.unknown;
+    if(tableName.isNotEmpty) {
+      AcDDTableColumn? acDDTableColumn = AcDataDictionary.getTableColumn(
+        tableName: tableName,
+        columnName: acDDCondition.key,
+        dataDictionaryName: dataDictionaryName,
+      );
+
+      if(acDDTableColumn!=null){
+        columnType = acDDTableColumn.columnType;
       }
     }
-    if (conditionParts.isNotEmpty) {
-      condition += '(${conditionParts.join((" OR "))})';
-      logger.log('Added LIKE condition parts: ${conditionParts.join(" OR ")}');
-    } else {
-      logger.log('No LIKE condition parts added');
+    else if(viewName.isNotEmpty) {
+      AcDDViewColumn? acDDViewColumn = AcDataDictionary.getViewColumn(
+        viewName: viewName,
+        columnName: acDDCondition.key,
+        dataDictionaryName: dataDictionaryName,
+      );
+
+      if(acDDViewColumn!=null){
+        columnType = acDDViewColumn.columnType;
+      }
     }
+
+      logger.log('Retrieved column type: $columnType');
+      String columnCheck = 'LOWER(${acDDCondition.key})';
+      String likeValue = acDDCondition.value.toLowerCase();
+      String jsonColumn = "value";
+      List<String> conditionParts = List.empty(growable: true);
+      if (columnType == AcEnumDDColumnType.json) {
+        logger.log('Handling JSON column LIKE conditions');
+        if (includeStart) {
+          String parameter1 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter1");
+          parameters[parameter1] = '%"$jsonColumn":"$likeValue%"%';
+          logger.log('Added JSON START LIKE param: $parameter1');
+        }
+        if (includeInBetween) {
+          String parameter2 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter2");
+          parameters[parameter2] = '%"$jsonColumn":"%$likeValue%"%';
+          logger.log('Added JSON IN_BETWEEN LIKE param: $parameter2');
+        }
+        if (includeEnd) {
+          String parameter3 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter3");
+          parameters[parameter3] = '%"$jsonColumn":"%$likeValue"%';
+          logger.log('Added JSON END LIKE param: $parameter3');
+        }
+      } else {
+        logger.log('Handling non-JSON column LIKE conditions');
+        if (includeStart) {
+          String parameter1 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter1");
+          parameters[parameter1] = '$likeValue%';
+          logger.log('Added START LIKE param: $parameter1');
+        }
+        if (includeInBetween) {
+          String parameter2 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter2");
+          parameters[parameter2] = '%$likeValue%';
+          logger.log('Added IN_BETWEEN LIKE param: $parameter2');
+        }
+        if (includeEnd) {
+          String parameter3 = "@parameter${parameters.length}";
+          conditionParts.add("$columnCheck LIKE $parameter3");
+          parameters[parameter3] = '$likeValue%';
+          logger.log('Added END LIKE param: $parameter3');
+        }
+      }
+      if (conditionParts.isNotEmpty) {
+        condition += '(${conditionParts.join((" OR "))})';
+        logger.log('Added LIKE condition parts: ${conditionParts.join(" OR ")}');
+      } else {
+        logger.log('No LIKE condition parts added');
+      }
+
     return this;
   }
 

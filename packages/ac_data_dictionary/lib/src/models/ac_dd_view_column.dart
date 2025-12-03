@@ -33,7 +33,7 @@ class AcDDViewColumn {
     "summary": "The data type of the column as a string (e.g., 'text', 'integer')."
   }) */
   @AcBindJsonProperty(key: keyColumnType)
-  String columnType = "text";
+  AcEnumDDColumnType columnType = AcEnumDDColumnType.unknown;
 
   /* AcDoc({"summary": "The current value of the column, used when this object represents a specific record's data."}) */
   @AcBindJsonProperty(key: keyColumnValue)

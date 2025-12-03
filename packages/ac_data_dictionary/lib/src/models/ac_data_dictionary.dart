@@ -490,6 +490,18 @@ class AcDataDictionary {
     return null;
   }
 
+  static AcDDViewColumn? getViewColumn({
+    required String viewName,
+    required String columnName,
+    String dataDictionaryName = "default",
+  }) {
+    final view = getView(
+      viewName: viewName,
+      dataDictionaryName: dataDictionaryName,
+    );
+    return view?.getColumn(columnName);
+  }
+
   /* AcDoc({
     "summary": "Registers a data dictionary from a JSON map.",
     "description": "Adds or replaces a data dictionary in the static registry under a given name. This allows multiple dictionaries to be managed by the application.",

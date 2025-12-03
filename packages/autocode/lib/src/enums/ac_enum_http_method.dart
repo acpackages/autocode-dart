@@ -55,4 +55,8 @@ enum AcEnumHttpMethod {
   /* AcDoc({"description": "Returns the HTTP method as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

@@ -44,6 +44,13 @@ class AcDDCondition {
   }) */
   AcDDCondition();
 
+  factory AcDDCondition.instanceFromFilter({required AcFilter filter}) {
+    return AcDDCondition()
+      ..key = filter.key ?? ''
+      ..operator = filter.operator
+      ..value = filter.value;
+  }
+
   /* AcDoc({
     "summary": "Creates a new AcDDCondition instance from a JSON map.",
     "description": "This factory constructor provides a convenient way to create and populate a condition object directly from a JSON data structure.",
@@ -87,6 +94,13 @@ class AcDDCondition {
     return this;
   }
 
+  AcDDCondition fromFilter(AcFilter filter) {
+    key = filter.key ?? '';
+    operator = filter.operator;
+    value = filter.value;
+    return this;
+  }
+
   /* AcDoc({
     "summary": "Serializes the current condition instance to a JSON map.",
     "description": "An instance method that uses reflection-based utilities to convert this object's properties into a JSON map.",
@@ -94,7 +108,9 @@ class AcDDCondition {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result[keyOperator] = operator.value;
+    return result;
   }
 
   /* AcDoc({

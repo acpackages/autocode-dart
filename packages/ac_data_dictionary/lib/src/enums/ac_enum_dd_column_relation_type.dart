@@ -47,4 +47,8 @@ enum AcEnumDDColumnRelationType {
   /* AcDoc({"description": "Returns the column relation type as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

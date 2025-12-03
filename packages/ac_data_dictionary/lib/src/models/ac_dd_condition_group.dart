@@ -38,6 +38,24 @@ class AcDDConditionGroup {
   }) */
   AcDDConditionGroup();
 
+  factory AcDDConditionGroup.instanceFromFilterGroup({required AcFilterGroup filterGroup}) {
+    final group = AcDDConditionGroup()
+      ..operator = filterGroup.operator;
+
+    // Convert simple filters
+    for (final filter in filterGroup.filters) {
+      group.conditions.add(AcDDCondition.instanceFromFilter(filter:filter));
+    }
+
+    // Recursively convert nested filter groups
+    for (final childFilterGroup in filterGroup.filterGroups) {
+      group.conditions.add(AcDDConditionGroup.instanceFromFilterGroup(filterGroup:childFilterGroup));
+    }
+
+    return group;
+  }
+
+
   /* AcDoc({
     "summary": "Creates a new AcDDConditionGroup instance from a JSON map.",
     "description": "This factory constructor provides a convenient way to create and populate a condition group, including its nested conditions, directly from a JSON data structure.",
@@ -84,6 +102,22 @@ class AcDDConditionGroup {
     return this;
   }
 
+  AcDDConditionGroup addConditionFromFilter(AcFilter filter) {
+    conditions.add(AcDDCondition.instanceFromFilter(filter:filter));
+    return this;
+  }
+
+  /// Adds all filters from an AcFilterGroup as nested conditions (flattens one level)
+  AcDDConditionGroup addConditionsFromFilterGroup(AcFilterGroup filterGroup) {
+    for (final filter in filterGroup.filters) {
+      addConditionFromFilter(filter);
+    }
+    for (final childGroup in filterGroup.filterGroups) {
+      conditions.add(AcDDConditionGroup.instanceFromFilterGroup(filterGroup:childGroup));
+    }
+    return this;
+  }
+
   /* AcDoc({
     "summary": "Adds a nested condition group to this group.",
     "description": "Creates and adds another `AcDDConditionGroup` to the `conditions` list, allowing for nested logic.",
@@ -98,14 +132,33 @@ class AcDDConditionGroup {
     required List<dynamic> conditions,
     AcEnumLogicalOperator operator = AcEnumLogicalOperator.and,
   }) {
-    this.conditions.add(
-      AcDDConditionGroup.instanceFromJson(
-        jsonData: {
-          AcDDConditionGroup.keyConditions: conditions,
-          AcDDConditionGroup.keyOperator: operator,
-        },
-      ),
+    var group = AcDDConditionGroup.instanceFromJson(
+      jsonData: {
+        AcDDConditionGroup.keyConditions: conditions,
+        AcDDConditionGroup.keyOperator: operator,
+      },
     );
+    print("Add condition group");
+    print(group);
+    this.conditions.add(group);
+    return this;
+  }
+
+
+
+  /// Instance method: Populates this group from an AcFilterGroup
+  AcDDConditionGroup fromFilterGroup({required AcFilterGroup filterGroup}) {
+    operator = filterGroup.operator;
+    conditions.clear();
+
+    for (final filter in filterGroup.filters) {
+      conditions.add(AcDDCondition.instanceFromFilter(filter:filter));
+    }
+
+    for (final childGroup in filterGroup.filterGroups) {
+      conditions.add(AcDDConditionGroup.instanceFromFilterGroup(filterGroup:childGroup));
+    }
+
     return this;
   }
 
@@ -123,6 +176,8 @@ class AcDDConditionGroup {
     if (json.containsKey(keyConditions)) {
       final conditionList = json[keyConditions] as List;
       for (final condition in conditionList) {
+        print("Setting condition in from json");
+        print(condition);
         if (condition is Map<String, dynamic>) {
           // If it has a 'conditions' key, it's a nested group.
           if (condition.containsKey(keyConditions)) {
@@ -135,6 +190,7 @@ class AcDDConditionGroup {
             conditions.add(AcDDCondition.instanceFromJson(jsonData: condition));
           }
         }
+
       }
       json.remove(keyConditions);
     }
@@ -152,7 +208,9 @@ class AcDDConditionGroup {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result[keyOperator] = operator.value;
+    return result;
   }
 
   /* AcDoc({
@@ -165,73 +223,3 @@ class AcDDConditionGroup {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
-
-// import 'package:ac_mirrors/ac_mirrors.dart';
-// import 'package:autocode/autocode.dart';
-// import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-// @AcReflectable()
-// class AcDDConditionGroup {
-//   static const String KEY_DATABASE_TYPE = "database_type";
-//   static const String KEY_CONDITIONS = "conditions";
-//   static const String KEY_OPERATOR = "operator";
-//
-//   @AcBindJsonProperty(key: KEY_DATABASE_TYPE)
-//   String databaseType = "";
-//
-//   List<dynamic> conditions = [];
-//   AcEnumLogicalOperator operator = AcEnumLogicalOperator.unknown;
-//
-//   AcDDConditionGroup();
-//
-//   factory AcDDConditionGroup.instanceFromJson({required Map<String, dynamic> jsonData}) {
-//     final instance = AcDDConditionGroup();
-//     instance.fromJson(jsonData:jsonData);
-//     return instance;
-//   }
-//
-//   AcDDConditionGroup addCondition({required String columnName, required AcEnumConditionOperator operator, required dynamic value}) {
-//     conditions.add(AcDDCondition.instanceFromJson(jsonData:{
-//       AcDDCondition.KEY_COLUMN_NAME: columnName,
-//       AcDDCondition.KEY_OPERATOR: operator,
-//       AcDDCondition.KEY_VALUE: value,
-//     }));
-//     return this;
-//   }
-//
-//   AcDDConditionGroup addConditionGroup({required List<dynamic> conditions, AcEnumLogicalOperator operator = AcEnumLogicalOperator.and}) {
-//     this.conditions.add(AcDDConditionGroup.instanceFromJson(jsonData:{
-//       AcDDConditionGroup.KEY_CONDITIONS: conditions,
-//       AcDDConditionGroup.KEY_OPERATOR: operator,
-//     }));
-//     return this;
-//   }
-//
-//   AcDDConditionGroup fromJson({required Map<String, dynamic> jsonData}) {
-//     Map<String,dynamic> json = Map.from(jsonData);
-//     if (json.containsKey(KEY_CONDITIONS)) {
-//       for (var condition in json[KEY_CONDITIONS]) {
-//         if (condition is Map<String, dynamic>) {
-//           if (condition.containsKey(KEY_CONDITIONS)) {
-//             conditions.add(AcDDConditionGroup.instanceFromJson(jsonData:condition));
-//           } else if (condition.containsKey(AcDDCondition.KEY_COLUMN_NAME)) {
-//             conditions.add(AcDDCondition.instanceFromJson(jsonData:condition));
-//           }
-//         } else {
-//           conditions.add(condition);
-//         }
-//       }
-//       json.remove(KEY_CONDITIONS);
-//     }
-//     AcJsonUtils.setInstancePropertiesFromJsonData(instance:this, jsonData:json);
-//     return this;
-//   }
-//
-//   Map<String, dynamic> toJson() {
-//     return AcJsonUtils.getJsonDataFromInstance(instance:this);
-//   }
-//
-//   @override
-//   String toString() {
-//     return AcJsonUtils.prettyEncode(toJson());
-//   }
-// }

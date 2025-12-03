@@ -42,4 +42,8 @@ enum AcEnumDDTableConstraint {
   /* AcDoc({"description": "Returns the enum's string representation."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

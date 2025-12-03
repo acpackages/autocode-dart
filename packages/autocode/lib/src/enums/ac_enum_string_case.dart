@@ -81,4 +81,8 @@ enum AcEnumStringCase {
   /* AcDoc({"description": "Returns the string case style as a string."}) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }

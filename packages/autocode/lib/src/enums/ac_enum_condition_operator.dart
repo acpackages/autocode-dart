@@ -1,3 +1,4 @@
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 
 /* AcDoc({
@@ -68,12 +69,11 @@ enum AcEnumConditionOperator {
     "params": [{"name": "value", "description": "String value to match against operator names."}],
     "returns": "The matching AcEnumConditionOperator constant or null if not found."
   }) */
-  static AcEnumConditionOperator? fromValue(String value) {
-    try {
-      return AcEnumConditionOperator.values.firstWhere((e) => e.value == value);
-    } catch (_) {
-      return null;
-    }
+
+  static AcEnumConditionOperator fromValue(String value) {
+    return AcEnumConditionOperator.values.firstWhere((e) =>
+        e.value.equalsIgnoreCase(value),
+        orElse: () => AcEnumConditionOperator.unknown);
   }
 
   /* AcDoc({
@@ -89,4 +89,8 @@ enum AcEnumConditionOperator {
   }) */
   @override
   String toString() => value;
+
+  dynamic toJson() {
+    return value;
+  }
 }
