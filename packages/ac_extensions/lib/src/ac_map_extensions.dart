@@ -88,8 +88,8 @@ extension AcMapExtensions on Map<String, dynamic> {
     return {};
   }
 
-  String getString(dynamic key) =>
-      containsKey(key) && this[key] != null ? this[key].toString() : '';
+  String getString(dynamic key,{String defaultValue = ''}) =>
+      containsKey(key) && this[key] != null ? this[key].toString() : defaultValue;
 
   Map<String, dynamic> merge(Map<String, dynamic> other) {
     other.forEach((k, v) => this[k] = v);

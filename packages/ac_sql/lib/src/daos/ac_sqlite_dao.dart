@@ -15,6 +15,8 @@ class AcSqliteDao extends AcBaseSqlDao {
   Database? _database;
   static bool autoCloseAfterExecution = false;
   static bool _platformResolved = false;
+  Transaction? _transaction = null;
+  bool _transactionRollback = false;
 
   _initSqlite(){
     if(!_platformResolved){
@@ -91,14 +93,20 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcResult> checkTableExist({required String tableName}) async {
     final result = AcResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
-        final statement =
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?";
-        final results = await db.rawQuery(statement, [tableName]);
-        final exists = results.isNotEmpty;
+        final statement = "SELECT name FROM sqlite_master WHERE type='table' AND name=?";
+        bool exists = false;
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement, [tableName]);
+          exists = results.isNotEmpty;
+        }
+        else{
+          final results = await db.rawQuery(statement, [tableName]);
+          exists = results.isNotEmpty;
+        }
         result.setSuccess(
           value: exists,
           message: exists ? 'Table exists' : 'Table does not exist',
@@ -126,7 +134,7 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcResult> createDatabase() async {
     final result = AcResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -163,7 +171,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.delete);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -177,10 +185,19 @@ class AcSqliteDao extends AcBaseSqlDao {
         (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
             .values
             .toList();
-        final affectedRows = await db.rawDelete(
-          updatedStatement,
-          ensureValidParamsType(params:updatedParameterValues),
-        );
+        int affectedRows = 0;
+        if(_transaction != null){
+          affectedRows = await _transaction!.rawDelete(
+            updatedStatement,
+            ensureValidParamsType(params:updatedParameterValues),
+          );
+        }
+        else{
+          affectedRows = await db.rawDelete(
+            updatedStatement,
+            ensureValidParamsType(params:updatedParameterValues),
+          );
+        }
         result.affectedRowsCount = affectedRows;
         result.setSuccess();
       }
@@ -226,11 +243,11 @@ class AcSqliteDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
-        await db.transaction((txn) async {
+        if(_transaction != null){
           for (final statement in statements) {
             final setParametersResult = setSqlStatementParameters(
               statement: statement,
@@ -238,9 +255,22 @@ class AcSqliteDao extends AcBaseSqlDao {
             );
             final updatedStatement = setParametersResult['statement'];
             final updatedParameterValues = (setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList();
-            await txn.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+            await _transaction!.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
           }
-        });
+        }
+        else{
+          await db.transaction((txn) async {
+            for (final statement in statements) {
+              final setParametersResult = setSqlStatementParameters(
+                statement: statement,
+                passedParameters: parameters,
+              );
+              final updatedStatement = setParametersResult['statement'];
+              final updatedParameterValues = (setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList();
+              await txn.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+            }
+          });
+        }
         result.setSuccess();
       }
       else{
@@ -273,7 +303,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: operation!);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -286,7 +316,12 @@ class AcSqliteDao extends AcBaseSqlDao {
         (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
             .values
             .toList();
-        await db.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+        if(_transaction != null){
+          await _transaction!.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+        }
+        else{
+          await db.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+        }
         result.setSuccess();
       }
       else{
@@ -405,17 +440,26 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getDatabaseTables() async {
     final result = AcSqlDaoResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
-        const statement =
-            "SELECT name AS TABLE_NAME FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
-        final results = await db.rawQuery(statement);
-        for (final row in results) {
-          result.rows.add({
-            AcDDTable.keyTableName: row['TABLE_NAME'],
-          });
+        const statement = "SELECT name AS TABLE_NAME FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDTable.keyTableName: row['TABLE_NAME'],
+            });
+          }
+        }
+        else{
+          final results = await db.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDTable.keyTableName: row['TABLE_NAME'],
+            });
+          }
         }
         result.setSuccess();
       }
@@ -441,18 +485,28 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getDatabaseTriggers() async {
     final result = AcSqlDaoResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
-        const statement =
-            "SELECT name AS TRIGGER_NAME FROM sqlite_master WHERE type='trigger'";
-        final results = await db.rawQuery(statement);
-        for (final row in results) {
-          result.rows.add({
-            AcDDTrigger.keyTriggerName: row['TRIGGER_NAME'],
-          });
+        const statement = "SELECT name AS TRIGGER_NAME FROM sqlite_master WHERE type='trigger'";
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDTrigger.keyTriggerName: row['TRIGGER_NAME'],
+            });
+          }
         }
+        else{
+          final results = await db.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDTrigger.keyTriggerName: row['TRIGGER_NAME'],
+            });
+          }
+        }
+
         result.setSuccess();
       }
       else{
@@ -477,18 +531,29 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getDatabaseViews() async {
     final result = AcSqlDaoResult();
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
         const statement =
             "SELECT name AS TABLE_NAME FROM sqlite_master WHERE type='view'";
-        final results = await db.rawQuery(statement);
-        for (final row in results) {
-          result.rows.add({
-            AcDDView.keyViewName: row['TABLE_NAME'],
-          });
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDView.keyViewName: row['TABLE_NAME'],
+            });
+          }
         }
+        else{
+          final results = await db.rawQuery(statement);
+          for (final row in results) {
+            result.rows.add({
+              AcDDView.keyViewName: row['TABLE_NAME'],
+            });
+          }
+        }
+
         result.setSuccess();
       }
       else{
@@ -526,7 +591,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     Map<String, List<AcEnumDDColumnFormat>> columnFormats = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -548,15 +613,29 @@ class AcSqliteDao extends AcBaseSqlDao {
             .values
             .toList();
         logger.log(["Select statement",statement,"parameters",updatedParameterValues]);
-        final results = await db.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
-        if (mode == AcEnumDDSelectMode.count) {
-          result.totalRows = results.first['records_count'] as int;
-        } else {
-          result.rows = results.map((row) => formatRow(
-            row: Map<String, dynamic>.from(row),
-            columnFormats: columnFormats,
-          )).toList();
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+          if (mode == AcEnumDDSelectMode.count) {
+            result.totalRows = results.first['records_count'] as int;
+          } else {
+            result.rows = results.map((row) => formatRow(
+              row: Map<String, dynamic>.from(row),
+              columnFormats: columnFormats,
+            )).toList();
+          }
         }
+        else{
+          final results = await db.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+          if (mode == AcEnumDDSelectMode.count) {
+            result.totalRows = results.first['records_count'] as int;
+          } else {
+            result.rows = results.map((row) => formatRow(
+              row: Map<String, dynamic>.from(row),
+              columnFormats: columnFormats,
+            )).toList();
+          }
+        }
+
         result.setSuccess();
       }
       else{
@@ -582,30 +661,54 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getTableColumns({required String tableName}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
         final statement = "PRAGMA table_info($tableName)";
-        final results = await db.rawQuery(statement);
-        for (final row in results) {
-          final properties = <String, dynamic>{};
-          if (row['notnull'] == 1) {
-            properties[AcEnumDDColumnProperty.notNull.value] = false;
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement);
+          for (final row in results) {
+            final properties = <String, dynamic>{};
+            if (row['notnull'] == 1) {
+              properties[AcEnumDDColumnProperty.notNull.value] = false;
+            }
+            if (row['pk'] == 1) {
+              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
+            }
+            if (row['dflt_value'] != null) {
+              properties[AcEnumDDColumnProperty.defaultValue.value] =
+              row['dflt_value'];
+            }
+            result.rows.add({
+              AcDDTableColumn.keyColumnName: row['name'],
+              AcDDTableColumn.keyColumnType: row['type'],
+              AcDDTableColumn.keyColumnProperties: properties,
+            });
           }
-          if (row['pk'] == 1) {
-            properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-          }
-          if (row['dflt_value'] != null) {
-            properties[AcEnumDDColumnProperty.defaultValue.value] =
-            row['dflt_value'];
-          }
-          result.rows.add({
-            AcDDTableColumn.keyColumnName: row['name'],
-            AcDDTableColumn.keyColumnType: row['type'],
-            AcDDTableColumn.keyColumnProperties: properties,
-          });
         }
+        else{
+          final results = await db.rawQuery(statement);
+          for (final row in results) {
+            final properties = <String, dynamic>{};
+            if (row['notnull'] == 1) {
+              properties[AcEnumDDColumnProperty.notNull.value] = false;
+            }
+            if (row['pk'] == 1) {
+              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
+            }
+            if (row['dflt_value'] != null) {
+              properties[AcEnumDDColumnProperty.defaultValue.value] =
+              row['dflt_value'];
+            }
+            result.rows.add({
+              AcDDTableColumn.keyColumnName: row['name'],
+              AcDDTableColumn.keyColumnType: row['type'],
+              AcDDTableColumn.keyColumnProperties: properties,
+            });
+          }
+        }
+
         result.setSuccess();
       }
       else{
@@ -631,30 +734,54 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getViewColumns({required String viewName}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
         final statement = "PRAGMA table_info($viewName)";
-        final results = await db.rawQuery(statement);
-        for (final row in results) {
-          final properties = <String, dynamic>{};
-          if (row['notnull'] == 1) {
-            properties[AcEnumDDColumnProperty.notNull.value] = false;
+        if(_transaction != null){
+          final results = await _transaction!.rawQuery(statement);
+          for (final row in results) {
+            final properties = <String, dynamic>{};
+            if (row['notnull'] == 1) {
+              properties[AcEnumDDColumnProperty.notNull.value] = false;
+            }
+            if (row['pk'] == 1) {
+              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
+            }
+            if (row['dflt_value'] != null) {
+              properties[AcEnumDDColumnProperty.defaultValue.value] =
+              row['dflt_value'];
+            }
+            result.rows.add({
+              AcDDViewColumn.keyColumnName: row['name'],
+              AcDDViewColumn.keyColumnType: row['type'],
+              AcDDViewColumn.keyColumnProperties: properties,
+            });
           }
-          if (row['pk'] == 1) {
-            properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-          }
-          if (row['dflt_value'] != null) {
-            properties[AcEnumDDColumnProperty.defaultValue.value] =
-            row['dflt_value'];
-          }
-          result.rows.add({
-            AcDDViewColumn.keyColumnName: row['name'],
-            AcDDViewColumn.keyColumnType: row['type'],
-            AcDDViewColumn.keyColumnProperties: properties,
-          });
         }
+        else{
+          final results = await db.rawQuery(statement);
+          for (final row in results) {
+            final properties = <String, dynamic>{};
+            if (row['notnull'] == 1) {
+              properties[AcEnumDDColumnProperty.notNull.value] = false;
+            }
+            if (row['pk'] == 1) {
+              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
+            }
+            if (row['dflt_value'] != null) {
+              properties[AcEnumDDColumnProperty.defaultValue.value] =
+              row['dflt_value'];
+            }
+            result.rows.add({
+              AcDDViewColumn.keyColumnName: row['name'],
+              AcDDViewColumn.keyColumnType: row['type'],
+              AcDDViewColumn.keyColumnProperties: properties,
+            });
+          }
+        }
+
         result.setSuccess();
       }
       else{
@@ -686,7 +813,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     required Map<String, dynamic> row,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -695,8 +822,14 @@ class AcSqliteDao extends AcBaseSqlDao {
         final statement =
             "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
         final params = row.values.toList();
-        final lastInsertId = await db.rawInsert(statement, ensureValidParamsType(params: params));
-        result.lastInsertedId = lastInsertId;
+        var lastInsertedId = 0;
+        if(_transaction != null){
+          lastInsertedId = await _transaction!.rawInsert(statement, ensureValidParamsType(params: params));
+        }
+        else{
+          lastInsertedId = await db.rawInsert(statement, ensureValidParamsType(params: params));
+        }
+        result.lastInsertedId = lastInsertedId;
         result.setSuccess();
       }
       else{
@@ -727,22 +860,33 @@ class AcSqliteDao extends AcBaseSqlDao {
     required List<Map<String, dynamic>> rows,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
         if (rows.isNotEmpty) {
-
-          await db.transaction((txn) async {
+          if(_transaction != null){
             for (final rowData in rows) {
               final columns = rowData.keys.toList();
               final placeholders = List.generate(columns.length, (i) => '?').join(', ');
               final statement =
                   "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
               final params = rowData.values.toList();
-              await txn.rawInsert(statement, ensureValidParamsType(params: params));
+              await _transaction!.rawInsert(statement, ensureValidParamsType(params: params));
             }
-          });
+          }
+          else{
+            await db.transaction((txn) async {
+              for (final rowData in rows) {
+                final columns = rowData.keys.toList();
+                final placeholders = List.generate(columns.length, (i) => '?').join(', ');
+                final statement =
+                    "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
+                final params = rowData.values.toList();
+                await txn.rawInsert(statement, ensureValidParamsType(params: params));
+              }
+            });
+          }
           result.setSuccess();
         } else {
           result.setSuccess(value: true, message: 'No rows to insert.');
@@ -757,6 +901,78 @@ class AcSqliteDao extends AcBaseSqlDao {
       if (sqlConnection.database != inMemoryDatabasePath && autoCloseAfterExecution) {
         await db?.close();
       }
+    }
+    return result;
+  }
+
+  Future<AcResult> transactionCommit() async{
+    AcResult result = AcResult();
+    try {
+      if(_transaction != null) {
+        _transaction = null;
+        result.setSuccess();
+      }
+      else{
+        result.setSuccess(message: 'Transaction not started');
+      }
+    }
+    catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    }
+    return result;
+  }
+
+  Future<AcResult> transactionRollback() async{
+    AcResult result = AcResult();
+    try {
+      if(_transaction != null) {
+        _transaction = null;
+        result.setSuccess();
+      }
+      else{
+        result.setSuccess(message: 'Transaction not started');
+      }
+    }
+    catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    }
+    return result;
+  }
+
+  Future<AcResult> transactionStart() async{
+    AcResult result = AcResult();
+   Database? db;
+    try {
+      if(_transaction == null) {
+        db = await _getConnection();
+        if (db != null) {
+          db.transaction((Transaction trns) async{
+            try {
+              _transaction = trns;
+              while (_transaction != null) {
+                await Future.delayed(Duration(milliseconds: 100));
+              }
+              if (_transactionRollback) {
+                _transactionRollback = false;
+                throw Error();
+              }
+            }
+            catch(ex){
+
+            }
+          },exclusive: false);
+          result.setSuccess();
+        }
+        else {
+          result.setFailure(message: 'Error connecting database');
+        }
+      }
+      else{
+        result.setSuccess(message: 'Transaction already started');
+      }
+    }
+    catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
     }
     return result;
   }
@@ -780,7 +996,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
@@ -788,7 +1004,13 @@ class AcSqliteDao extends AcBaseSqlDao {
         final statement =
             "UPDATE $tableName SET $setValues ${condition.isNotEmpty ? "WHERE $condition" : ""}";
         final params = [...row.values, ...parameters.values];
-        final affectedRows = await db.rawUpdate(statement, ensureValidParamsType(params: params));
+        var affectedRows = 0;
+        if(_transaction != null){
+          affectedRows = await _transaction!.rawUpdate(statement, ensureValidParamsType(params: params));
+        }
+        else{
+          affectedRows = await db.rawUpdate(statement, ensureValidParamsType(params: params));
+        }
         result.affectedRowsCount = affectedRows;
         result.setSuccess();
       }
@@ -820,11 +1042,11 @@ class AcSqliteDao extends AcBaseSqlDao {
     required List<Map<String, dynamic>> rowsWithConditions,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
-    Database? db;
+   Database? db;
     try {
       db = await _getConnection();
       if(db != null){
-        await db.transaction((txn) async {
+        if(_transaction != null){
           for (final rowWithCondition in rowsWithConditions) {
             if (rowWithCondition.containsKey('row') &&
                 rowWithCondition.containsKey('condition')) {
@@ -838,12 +1060,35 @@ class AcSqliteDao extends AcBaseSqlDao {
               final statement =
                   "UPDATE $tableName SET $setValues WHERE $condition";
               final params = [...row.values, ...conditionParameters.values];
-              final affectedRows = await txn.rawUpdate(statement, ensureValidParamsType(params: params));
+              final affectedRows = await _transaction!.rawUpdate(statement, ensureValidParamsType(params: params));
               result.affectedRowsCount ??= 0;
-              result.affectedRowsCount = result.affectedRowsCount! + affectedRows;
+              result.affectedRowsCount = (result.affectedRowsCount! + affectedRows) as int?;
             }
           }
-        });
+        }
+        else{
+          await db.transaction((txn) async {
+            for (final rowWithCondition in rowsWithConditions) {
+              if (rowWithCondition.containsKey('row') &&
+                  rowWithCondition.containsKey('condition')) {
+                final row = rowWithCondition['row'] as Map<String, dynamic>;
+                final condition = rowWithCondition['condition'] as String;
+                final conditionParameters =
+                rowWithCondition.containsKey('parameters')
+                    ? rowWithCondition['parameters'] as Map<String, dynamic>
+                    : <String, dynamic>{};
+                final setValues = row.keys.map((key) => "$key = ?").join(", ");
+                final statement =
+                    "UPDATE $tableName SET $setValues WHERE $condition";
+                final params = [...row.values, ...conditionParameters.values];
+                final affectedRows = await txn.rawUpdate(statement, ensureValidParamsType(params: params));
+                result.affectedRowsCount ??= 0;
+                result.affectedRowsCount = (result.affectedRowsCount! + affectedRows) as int?;
+              }
+            }
+          });
+        }
+
         result.setSuccess();
       }
       else{

@@ -542,19 +542,19 @@ class AcSqlDbTable extends AcSqlDbBase {
               else if ([
                     AcEnumDDColumnType.datetime,
                     AcEnumDDColumnType.date,
-                  ].contains(type) &&
-                  value is String) {
-                try {
-                  DateTime dateTimeValue = DateTime.parse(value);
-                  String format =
-                      (type == AcEnumDDColumnType.datetime)
-                          ? 'yyyy-MM-dd HH:mm:ss'
-                          : 'yyyy-MM-dd';
-                  value = dateTimeValue.fromFormatted(format);
-                } catch (e) {
-                  logger.warn(
-                    "Error while setting dateTimeValue for ${column.columnName} in table $tableName with value: $value",
-                  );
+                  ].contains(type)) {
+                if(value is String){
+                  try {
+                    DateTime dateTimeValue = DateTime.parse(value);
+                    String format = (type == AcEnumDDColumnType.datetime)
+                        ? 'yyyy-MM-dd HH:mm:ss'
+                        : 'yyyy-MM-dd';
+                    value = dateTimeValue.fromFormatted(format);
+                  } catch (e) {
+                    logger.warn(
+                      "Error while setting dateTimeValue for ${column.columnName} in table $tableName with value: $value",
+                    );
+                  }
                 }
               }
             } else if ([AcEnumDDColumnType.json].contains(type) && value != null) {
@@ -1896,7 +1896,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           } else if (column.columnType == AcEnumDDColumnType.date ||
               column.columnType == AcEnumDDColumnType.datetime ||
               column.columnType == AcEnumDDColumnType.time) {
-            if (value != null && value != "null" && value != "NOW") {
+            if (value != null && (value is String && value != "null" && value != "NOW")) {
               try {
                 DateTime.parse(value);
               } catch (ex, stack) {

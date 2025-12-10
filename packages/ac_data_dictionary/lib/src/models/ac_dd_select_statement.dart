@@ -499,29 +499,43 @@ class AcDDSelectStatement {
     logger.log('setSqlConditionGroup called: operator=${acDDConditionGroup.operator}, conditions count=${acDDConditionGroup.conditions.length}, includeParenthesis=$includeParenthesis');
     int index = -1;
     for (var acDDCondition in acDDConditionGroup.conditions) {
-      index++;
-      if (index > 0) {
-        condition += " ${acDDConditionGroup.operator} ";
-        logger.log('Added operator ${acDDConditionGroup.operator} before condition $index');
-      }
+      bool continueOperation = true;
       if (acDDCondition is AcDDConditionGroup) {
-        logger.log('Processing nested group at index $index');
-        if (includeParenthesis) {
-          condition += "(";
-          logger.log('Added opening parenthesis');
+        if(acDDCondition.conditions.isEmpty){
+          continueOperation = false;
         }
-        setSqlConditionGroup(
-          acDDConditionGroup: acDDCondition,
-          includeParenthesis: includeParenthesis,
-        );
-        if (includeParenthesis) {
-          condition += ")";
-          logger.log('Added closing parenthesis');
-        }
-      } else if (acDDCondition is AcDDCondition) {
-        logger.log('Processing condition at index $index');
-        setSqlCondition(acDDCondition: acDDCondition);
       }
+      else if (acDDCondition is AcDDCondition) {
+        if(acDDCondition.key.isEmpty){
+          continueOperation = false;
+        }
+      }
+      if(continueOperation){
+        index++;
+        if (index > 0) {
+          condition += " ${acDDConditionGroup.operator} ";
+          logger.log('Added operator ${acDDConditionGroup.operator} before condition $index');
+        }
+        if (acDDCondition is AcDDConditionGroup) {
+          logger.log('Processing nested group at index $index');
+          if (includeParenthesis) {
+            condition += "(";
+            logger.log('Added opening parenthesis');
+          }
+          setSqlConditionGroup(
+            acDDConditionGroup: acDDCondition,
+            includeParenthesis: includeParenthesis,
+          );
+          if (includeParenthesis) {
+            condition += ")";
+            logger.log('Added closing parenthesis');
+          }
+        } else if (acDDCondition is AcDDCondition) {
+          logger.log('Processing condition at index $index');
+          setSqlCondition(acDDCondition: acDDCondition);
+        }
+      }
+
     }
     logger.log('setSqlConditionGroup completed for group with ${acDDConditionGroup.conditions.length} conditions');
     return this;

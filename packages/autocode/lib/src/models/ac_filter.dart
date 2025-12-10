@@ -9,7 +9,7 @@ class AcFilter {
   static const String keyOperator = "operator";
   static const String keyValue = "value";
 
-  String? key;
+  String key = '';
   AcEnumConditionOperator operator = AcEnumConditionOperator.unknown;
   dynamic value;
 
