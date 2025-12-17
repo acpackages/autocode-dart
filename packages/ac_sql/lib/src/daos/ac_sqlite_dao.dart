@@ -286,6 +286,151 @@ class AcSqliteDao extends AcBaseSqlDao {
     return result;
   }
 
+  @override
+  Future<AcResult> executeSqlOperations({
+    required List<AcSqlOperation> operations,
+  }) async {
+    final result = AcSqlDaoResult();
+    Database? db;
+
+    logger.log('=== START executeSqlOperations - ${operations.length} operation(s) to execute ===');
+
+    try {
+      logger.log('Acquiring database connection...');
+      db = await _getConnection();
+
+      if (db != null) {
+        logger.log('Database connection acquired successfully. Starting transaction...');
+
+        result.value = await db.transaction((txn) async {
+          List<dynamic> operationResults = List.empty(growable: true);
+
+          logger.log('Transaction started. Processing ${operations.length} SQL operation(s)');
+
+          for (int i = 0; i < operations.length; i++) {
+            final sqlOperation = operations[i];
+            logger.log('--- Processing Operation ${i + 1}/${operations.length} ---');
+            logger.log('Type: ${sqlOperation.operation}');
+            logger.log('Table: ${sqlOperation.table}');
+
+            if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
+              var row = sqlOperation.row!;
+              final columns = row.keys.toList();
+              final placeholders = List.generate(columns.length, (i) => '?').join(', ');
+              final statement = "INSERT INTO ${sqlOperation.table} (${columns.join(', ')}) VALUES ($placeholders)";
+              final params = row.values.toList();
+
+              logger.log('INSERT Statement: $statement');
+              logger.log('INSERT Parameters: $params');
+              logger.log('INSERT Columns: ${columns.join(', ')}');
+
+              try {
+                final insertedId = await txn.rawInsert(statement, ensureValidParamsType(params: params));
+                operationResults.add(insertedId);
+                logger.log('INSERT SUCCESS - Rows affected / Inserted ID: $insertedId');
+              } catch (insertEx) {
+                logger.log('INSERT FAILED - Exception: $insertEx');
+                rethrow;
+              }
+            }
+
+            else if (sqlOperation.operation == AcEnumDDRowOperation.update) {
+              var row = sqlOperation.row!;
+              final setValues = row.keys.map((key) => "$key = ?").join(", ");
+              final conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty
+                  ? "WHERE ${sqlOperation.condition}"
+                  : "";
+              final statement = "UPDATE ${sqlOperation.table} SET $setValues $conditionClause";
+              final params = [...row.values, ...(sqlOperation.parameters?.values ?? [])];
+
+              logger.log('UPDATE Statement: $statement');
+              logger.log('UPDATE Set Values: $setValues');
+              if (conditionClause.isNotEmpty) {
+                logger.log('UPDATE Condition: ${sqlOperation.condition}');
+                logger.log('UPDATE Condition Parameters: ${sqlOperation.parameters}');
+              }
+              logger.log('UPDATE Parameters (combined): $params');
+
+              try {
+                final updatedCount = await txn.rawUpdate(statement, ensureValidParamsType(params: params));
+                operationResults.add(updatedCount);
+                logger.log('UPDATE SUCCESS - Rows affected: $updatedCount');
+              } catch (updateEx) {
+                logger.log('UPDATE FAILED - Exception: $updateEx');
+                rethrow;
+              }
+            }
+
+            else if (sqlOperation.operation == AcEnumDDRowOperation.delete) {
+              final conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty
+                  ? "WHERE ${sqlOperation.condition}"
+                  : "";
+              final baseStatement = "DELETE FROM ${sqlOperation.table} $conditionClause";
+
+              final setParametersResult = setSqlStatementParameters(
+                statement: baseStatement,
+                passedParameters: sqlOperation.parameters ?? {},
+              );
+              final updatedStatement = setParametersResult['statement'] as String;
+              final parameterMap = setParametersResult['statementParametersMap'] as Map<String, dynamic>;
+              final updatedParameterValues = parameterMap.values.toList();
+
+              logger.log('DELETE Base Statement: $baseStatement');
+              logger.log('DELETE Final Statement: $updatedStatement');
+              logger.log('DELETE Parameters: $updatedParameterValues');
+
+              try {
+                final deletedCount = await txn.rawDelete(
+                  updatedStatement,
+                  ensureValidParamsType(params: updatedParameterValues),
+                );
+                operationResults.add(deletedCount);
+                logger.log('DELETE SUCCESS - Rows deleted: $deletedCount');
+              } catch (deleteEx) {
+                logger.log('DELETE FAILED - Exception: $deleteEx');
+                rethrow;
+              }
+            }
+
+            else {
+              logger.log('UNKNOWN/UNSUPPORTED Operation Type: ${sqlOperation.operation} - Skipping');
+              operationResults.add(null);
+            }
+
+            logger.log('--- End Operation ${i + 1} ---\n');
+          }
+
+          logger.log('All ${operations.length} operations processed. Committing transaction...');
+          return operationResults;
+        });
+
+        logger.log('Transaction committed successfully');
+        result.setSuccess();
+        logger.log('executeSqlOperations COMPLETED SUCCESSFULLY');
+      } else {
+        logger.log('FAILED: Could not acquire database connection');
+        result.setFailure(message: 'Error connecting database');
+      }
+    } catch (ex, stack) {
+      logger.log('EXCEPTION during executeSqlOperations: $ex');
+      logger.log('Stack trace: $stack');
+      result.setException(exception: ex, stackTrace: stack);
+    } finally {
+      if (db != null &&
+          sqlConnection.database != inMemoryDatabasePath &&
+          autoCloseAfterExecution) {
+        logger.log('Closing database connection (autoCloseAfterExecution = true)');
+        await db.close();
+        logger.log('Database connection closed');
+      } else if (db != null) {
+        logger.log('Keeping database connection open (in-memory or autoClose disabled)');
+      }
+    }
+
+    logger.log('=== END executeSqlOperations ===');
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Executes a single, parameterized SQL statement.",
     "params": [

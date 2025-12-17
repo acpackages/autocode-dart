@@ -841,6 +841,17 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
+  Future<AcResult> getUpdateRowData({required Map<String, dynamic> row}) async{
+    AcResult result = AcResult();
+    final formatResult = await formatValues(row: row,insertMode: false);
+    if (formatResult.isSuccess()) {
+      result.setSuccess(value:formatResult.value);
+    } else {
+      result.setFromResult(result:result);
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Inserts a single row into the table, with full event handling.",
     "description": "Orchestrates the insert lifecycle:\n1. Validates the row data.\n2. Generates UUIDs or auto-numbers.\n3. Fires a `beforeInsert` event.\n4. Executes the `INSERT` statement.\n5. Fires an `afterInsert` event.",

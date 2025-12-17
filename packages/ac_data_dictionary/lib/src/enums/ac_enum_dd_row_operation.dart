@@ -39,11 +39,11 @@ enum AcEnumDDRowOperation {
     "params": [{"name": "value", "description": "The string value to match."}],
     "returns": "The matching enum constant, or null if no match is found."
   }) */
-  static AcEnumDDRowOperation? fromValue(String value) {
+  static AcEnumDDRowOperation fromValue(String value) {
     try {
       return AcEnumDDRowOperation.values.firstWhere((e) => e.value == value);
     } catch (_) {
-      return null;
+      return AcEnumDDRowOperation.unknown;
     }
   }
 

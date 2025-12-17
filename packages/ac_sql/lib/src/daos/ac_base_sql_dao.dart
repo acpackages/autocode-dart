@@ -139,6 +139,10 @@ class AcBaseSqlDao {
     return AcSqlDaoResult();
   }
 
+  Future<AcResult> executeSqlOperations({required List<AcSqlOperation> operations}) async {
+    return AcResult();
+  }
+
   /* AcDoc({
     "summary": "Executes a single, generic SQL statement.",
     "params": [
