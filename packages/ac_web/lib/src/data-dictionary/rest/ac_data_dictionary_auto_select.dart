@@ -1,4 +1,5 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:autocode/autocode.dart';
@@ -167,14 +168,25 @@ class AcDataDictionaryAutoSelect {
           }
         }
 
-        acDDSelectStatement.pageNumber =
-            acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
-                ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
-                : 1;
-        acDDSelectStatement.pageSize =
-            acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)
-                ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] ?? '') ?? 50
-                : 50;
+        bool allRows = false;
+
+        if(acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
+          if(acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
+            allRows = true;
+          }
+        }
+
+        if(!allRows){
+          acDDSelectStatement.pageNumber =
+          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
+              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
+              : 1;
+          acDDSelectStatement.pageSize =
+          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)
+              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] ?? '') ?? 50
+              : 50;
+        }
+
         if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
           acDDSelectStatement.orderBy = acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
         }
@@ -369,25 +381,37 @@ class AcDataDictionaryAutoSelect {
           final filters = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
           acDDSelectStatement.setConditionsFromFilters(filters: filters);
         }
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
-          logger.log("Found page number key");
-          acDDSelectStatement.pageNumber =
-              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
-                  ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
-                  : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey].toString()) ??
-                      1;
-        } else {
-          acDDSelectStatement.pageNumber = 1;
+
+        bool allRows = false;
+
+        if(acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
+          if(acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
+            allRows = true;
+          }
         }
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
-          logger.log("Found page size key");
-          acDDSelectStatement.pageSize =
-              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
-                  ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
-                  : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey].toString()) ?? 50;
-        } else {
-          acDDSelectStatement.pageSize = 50;
+
+        if(!allRows){
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
+            logger.log("Found page number key");
+            acDDSelectStatement.pageNumber =
+            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
+                ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
+                : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey].toString()) ??
+                1;
+          } else {
+            acDDSelectStatement.pageNumber = 1;
+          }
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
+            logger.log("Found page size key");
+            acDDSelectStatement.pageSize =
+            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
+                ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
+                : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey].toString()) ?? 50;
+          } else {
+            acDDSelectStatement.pageSize = 50;
+          }
         }
+
         if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
           logger.log("Found order by key");
           acDDSelectStatement.orderBy = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];

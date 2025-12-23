@@ -258,7 +258,15 @@ class AcDDTable {
   }
 
   String getSelectQueryFromName() {
-    String result = tableName;
+    String result = getSqlViewName();
+    if(result.isEmpty){
+      result = tableName;
+    }
+    return result;
+  }
+
+  String getSqlViewName() {
+    String result = "";
     for (var property in tableProperties) {
       if (property.propertyName == AcEnumDDTableProperty.sqlViewName) {
         result = property.propertyValue;

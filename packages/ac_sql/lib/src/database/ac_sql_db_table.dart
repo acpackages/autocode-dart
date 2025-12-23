@@ -616,14 +616,21 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool getPasswordColumns = false,
   }) {
     Map<String, List<AcEnumDDColumnFormat>> result = {};
-    for (final acDDTableColumn in acDDTable.tableColumns) {
+    dynamic columns = acDDTable.tableColumns;
+    String viewName = acDDTable.getSqlViewName();
+    if(viewName.isNotEmpty){
+      var acDDView = AcDataDictionary.getView(viewName: viewName,dataDictionaryName: dataDictionaryName);
+      if(acDDView != null){
+        columns = acDDView.viewColumns;
+      }
+    }
+    for (final acDDTableColumn in columns) {
       List<AcEnumDDColumnFormat> columnFormats = [];
       if (acDDTableColumn.columnType == AcEnumDDColumnType.json) {
         columnFormats.add(AcEnumDDColumnFormat.json);
       } else if (acDDTableColumn.columnType == AcEnumDDColumnType.date) {
         columnFormats.add(AcEnumDDColumnFormat.date);
-      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.password &&
-          !getPasswordColumns) {
+      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.password && !getPasswordColumns) {
         columnFormats.add(AcEnumDDColumnFormat.hideColumn);
       } else if (acDDTableColumn.columnType == AcEnumDDColumnType.encrypted) {
         columnFormats.add(AcEnumDDColumnFormat.encrypt);
@@ -837,6 +844,62 @@ class AcSqlDbTable extends AcSqlDbBase {
         logger: logger,
         logException: true,
       );
+    }
+    return result;
+  }
+
+  Future<AcResult> getSaveSqlOperation({required Map<String, dynamic> row,bool checkRowExist = true}) async{
+    AcResult result = AcResult();
+    Map<String,dynamic> operationRow = Map.from(row);
+    AcSqlOperation operation = AcSqlOperation(table: acDDTable.tableName);
+    String primaryKeyName = acDDTable.getPrimaryKeyColumnName();
+    bool isExisting = false,continueOperation = true;
+    if(operationRow.containsKey(primaryKeyName) && operationRow[primaryKeyName] != null){
+      if(checkRowExist){
+        var getRowsResult = await getRows(condition: "$primaryKeyName = @primaryKeyValue",parameters: {"@primaryKeyValue":operationRow[primaryKeyName]});
+        if(getRowsResult.isSuccess()){
+          if(getRowsResult.rows.isNotEmpty){
+            isExisting = true;
+          }
+        }
+        else{
+          continueOperation = false;
+          result.setFromResult(result: result);
+        }
+      }
+      else{
+        isExisting = true;
+      }
+    }
+    if(continueOperation){
+      if(isExisting){
+        operation.operation = AcEnumDDRowOperation.update;
+        operation.condition = "$primaryKeyName = @primaryKeyValue";
+        operation.parameters = {"@primaryKeyValue":operationRow[primaryKeyName]};
+        var getOperationDataResult = await getUpdateRowData(row: operationRow);
+        if(getOperationDataResult.isSuccess()){
+          operation.row = getOperationDataResult.value;
+        }
+        else{
+          continueOperation = false;
+          result.setFromResult(result: result);
+        }
+      }
+      else{
+        operation.operation = AcEnumDDRowOperation.insert;
+        var getOperationDataResult = await getInsertRowData(row: operationRow);
+        if(getOperationDataResult.isSuccess()){
+          operation.row = getOperationDataResult.value;
+        }
+        else{
+          continueOperation = false;
+          result.setFromResult(result: result);
+        }
+      }
+    }
+    if(continueOperation){
+      result.setSuccess();
+      result.value = operation;
     }
     return result;
   }

@@ -24,6 +24,8 @@ class AcDataDictionaryAutoApiConfig{
 
   static String selectParameterOrderByKey = "orderBy";
 
+  static String selectParameterAllRows = "allRows";
+
   static String selectParameterFiltersKey = "filters";
 
   static String selectParameterIncludeColumnsKey = "includeColumns";
