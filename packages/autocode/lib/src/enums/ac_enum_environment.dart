@@ -17,7 +17,9 @@ enum AcEnumEnvironment {
   production('PRODUCTION'),
 
   /* AcDoc({"description": "Staging environment for final testing before going live."}) */
-  staging('STAGING');
+  staging('STAGING'),
+
+  unknown('UNKNOWN');
 
   /* AcDoc({"description": "The string representation of the environment."}) */
   final String value;

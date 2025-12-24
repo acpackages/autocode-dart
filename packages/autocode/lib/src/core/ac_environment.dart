@@ -3,12 +3,19 @@
   "author": "Sanket Patel",
   "type": "utility"
 }) */
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:autocode/autocode.dart';
 
 class AcEnvironment {
   /* AcDoc({
     "description": "Defines the current application environment. Default is 'local'."
   }) */
+
+  static String envFilePath = "_env.json";
+
+
   static AcEnumEnvironment environment = AcEnumEnvironment.local;
 
   /* AcDoc({
@@ -39,4 +46,28 @@ class AcEnvironment {
     "returns": "True if environment is staging, false otherwise."
   }) */
   static bool isStaging() => environment == AcEnumEnvironment.staging;
+
+  static init({AcEnumEnvironment? environment,Map<AcEnumEnvironment,dynamic> configs = const {}}) async{
+    if(environment != null){
+      AcEnvironment.environment=environment;
+    }
+    if(configs.containsKey(environment)){
+      AcEnvironment.config=configs[environment];
+    }
+    await _initFromJsonFile();
+  }
+
+  static _initFromJsonFile() async{
+    File envFile = File(envFilePath);
+    if(envFile.existsSync()){
+      String envJsonString = envFile.readAsStringSync();
+      try {
+        Map<String,dynamic> configJson = jsonDecode(envJsonString);
+        AcEnvironment.config = configJson;
+      }
+      catch(ex){
+        //
+      }
+    }
+  }
 }

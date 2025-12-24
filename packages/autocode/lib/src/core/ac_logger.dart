@@ -29,6 +29,8 @@ class AcLogger {
   /* AcDoc({"description": "The background file object used to write logs."}) */
   late AcBackgroundFile? logFile;
 
+  late List<String> envConfigTags;
+
   /* AcDoc({"description": "Flag to track if the log file has been created."}) */
   bool logFileCreated = false;
 
@@ -55,12 +57,14 @@ class AcLogger {
     this.logDirectory = "logs",
     this.logFileName = "",
     this.logType = AcEnumLogType.console,
-    this.addTimestampToFileName = true
+    this.addTimestampToFileName = true,
+    this.envConfigTags = const ["logs"],
   }) {
     logFilePath = "$logDirectory/$logFileName";
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
       logFile = AcBackgroundFile(logFilePath);
     }
+    _setEnvConfig();
   }
 
   AcLogger debug(dynamic args) => _loggerMessage(args, "debug");
@@ -146,6 +150,31 @@ class AcLogger {
       }
     }
     return this;
+  }
+
+  _setEnvConfig(){
+    if(AcEnvironment.config.containsKey("logs")){
+      Map<String,dynamic> logConfig = Map.from(AcEnvironment.config["logs"]);
+      for(var key in logConfig.keys.toList()){
+        List<String> values = List.from(logConfig[key]);
+        if(key == "enable"){
+          for(var tag in envConfigTags){
+            if(values.contains(tag)){
+              logMessages = true;
+            }
+            else{
+            }
+          }
+        }
+        if(key == "disable"){
+          for(var tag in envConfigTags){
+            if(values.contains(tag)){
+              logMessages = false;
+            }
+          }
+        }
+      }
+    }
   }
 
   AcLogger _writeToFile({required String message, required String type}) {
