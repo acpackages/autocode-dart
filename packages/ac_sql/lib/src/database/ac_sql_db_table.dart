@@ -546,10 +546,14 @@ class AcSqlDbTable extends AcSqlDbBase {
                 if(value is String){
                   try {
                     DateTime dateTimeValue = DateTime.parse(value);
-                    String format = (type == AcEnumDDColumnType.datetime)
-                        ? 'yyyy-MM-dd HH:mm:ss'
-                        : 'yyyy-MM-dd';
-                    value = dateTimeValue.fromFormatted(format);
+                    if(type == AcEnumDDColumnType.date){
+                      String format = 'yyyy-MM-dd';
+                      value = dateTimeValue.fromFormatted(format);
+                    }
+                    else{
+                      value =  dateTimeValue.toIso8601String();
+                    }
+
                   } catch (e) {
                     logger.warn(
                       "Error while setting dateTimeValue for ${column.columnName} in table $tableName with value: $value",
