@@ -757,7 +757,7 @@ class AcSqliteDao extends AcBaseSqlDao {
         (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
             .values
             .toList();
-        logger.log(["Select statement",statement,"parameters",updatedParameterValues]);
+        logger.log(["Select statement",updatedStatement,"parameters",updatedParameterValues]);
         if(_transaction != null){
           final results = await _transaction!.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
           if (mode == AcEnumDDSelectMode.count) {
@@ -774,6 +774,7 @@ class AcSqliteDao extends AcBaseSqlDao {
           if (mode == AcEnumDDSelectMode.count) {
             result.totalRows = results.first['records_count'] as int;
           } else {
+            logger.log(["Total rows",results.length]);
             result.rows = results.map((row) => formatRow(
               row: Map<String, dynamic>.from(row),
               columnFormats: columnFormats,

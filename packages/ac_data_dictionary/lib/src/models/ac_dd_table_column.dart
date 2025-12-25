@@ -228,7 +228,10 @@ class AcDDTableColumn {
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
     if (databaseType == AcEnumSqlDatabaseType.mysql) {
-      return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement()}";
+      return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
+    }
+    else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
     }
     return "";
   }

@@ -1078,8 +1078,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       final differenceResult = await getDatabaseSchemaDifference();
       if (differenceResult.isSuccess()) {
-        final differences =
-            differenceResult.value as Map<String, dynamic>; // Cast the value
+        final differences =             differenceResult.value as Map<String, dynamic>; // Cast the value
         List<String> dropColumnStatements = [];
         List<String> dropTableStatements = [];
         if (differences["missing_tables_in_database"] != null) {
@@ -1116,15 +1115,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         }
 
         if (differences["modified_tables_in_data_dictionary"] != null) {
-          for (final modificationDetails
-              in differences["modified_tables_in_data_dictionary"]) {
+          for (final modificationDetails in differences["modified_tables_in_data_dictionary"]) {
             final tableName = modificationDetails[AcDDTable.keyTableName];
-            final tableDifferenceDetails =
-                modificationDetails["difference_details"]
+            final tableDifferenceDetails =                 modificationDetails["difference_details"]
                     as Map<String, dynamic>; // Cast
             if (tableDifferenceDetails["missing_columns_in_database"] != null) {
-              for (final columnName
-                  in tableDifferenceDetails["missing_columns_in_database"]) {
+              for (final columnName in tableDifferenceDetails["missing_columns_in_database"]) {
                 logger.log("Adding table column $columnName");
                 final acDDTableColumn = AcDDTableColumn.getInstance(
                   tableName: tableName,

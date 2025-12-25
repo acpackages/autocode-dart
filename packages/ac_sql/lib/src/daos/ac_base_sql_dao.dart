@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
@@ -386,17 +388,19 @@ class AcBaseSqlDao {
         while (statement.contains(key)) {
           logger.log("Searching For Key : $key");
           logger.log("SQL Statement : $statement");
-          logger.log("Key Value: ${value.toString()}");
+          logger.log("Key Value: `${value.toString()}`");
           String beforeQueryString = statement.substring(0, statement.indexOf(key));
           logger.log("Before String in Statement Where Key is found: $beforeQueryString");
           int parameterIndex = _countOccurrences(beforeQueryString, '?');
           logger.log("Parameter Index: $parameterIndex");
           logger.log("Values Before: ${statementParametersList.toString()}");
           if (value is List) {
+            logger.log("Value is list");
             String replacement = List.filled(value.length, '?').join(',');
             statement = statement.replaceFirst(RegExp(RegExp.escape(key)), replacement);
             statementParametersList!.insertAll(parameterIndex, value);
           } else {
+            logger.log("Value is not list");
             statement = statement.replaceFirst(RegExp(RegExp.escape(key)), '?');
             statementParametersList!.insert(parameterIndex, value);
           }
@@ -412,7 +416,7 @@ class AcBaseSqlDao {
           parameterKey = "parameter$index";
         }
         logger.log("Searching For Key : $key");
-        logger.log("Key Value: ${value.toString()}");
+        logger.log("Key Value: `${value.toString()}`");
         logger.log("SQL Statement Before: $statement");
         logger.log(["SQL Parameters Before:",statementParametersMap]);
         if (value is List) {
@@ -426,11 +430,12 @@ class AcBaseSqlDao {
           statement = statement.replaceAll(key, listParamKeys.join(","));
         }
         else{
+          logger.log("Value is not list");
           statement = statement.replaceAll(key, ":$parameterKey");
           statementParametersMap[parameterKey] = value;
         }
         logger.log("SQL Statement After: $statement");
-        logger.log(["SQL Parameters After:",statementParametersMap]);
+        logger.log(["SQL Parameters After:",jsonEncode(statementParametersMap)]);
       }
     }
     return {
