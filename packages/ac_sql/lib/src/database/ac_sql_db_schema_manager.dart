@@ -1151,8 +1151,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   TblSchemaLogs.acSchemaOperation: 'modify',
                   TblSchemaLogs.acSchemaOperationResult: createResult.status,
                   TblSchemaLogs.acSchemaOperationStatement: addStatement,
-                  TblSchemaLogs.acSchemaOperationTimestamp:
-                      DateTime.now(),
+                  TblSchemaLogs.acSchemaOperationTimestamp:DateTime.now(),
                 });
               }
             }
