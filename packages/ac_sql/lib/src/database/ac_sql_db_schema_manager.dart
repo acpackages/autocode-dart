@@ -757,14 +757,15 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> getDatabaseSchemaDifference() async {
     final result = AcResult();
     try {
-      Map<String, dynamic> differenceResult = {};
+      // Map<String, dynamic> differenceResult = {};
+      AcSqlSchemaDifference schemaDifference = AcSqlSchemaDifference();
       final getTablesResult = await dao!.getDatabaseTables();
       if (getTablesResult.isSuccess()) {
         List<String> currentDataDictionaryTables =
             acDataDictionary.tables.keys.toList();
         List<String> foundTables = [];
-        List<Map<String, dynamic>> modifiedTables = [];
-        List<String> missingInDataDictionaryTables = [];
+        // List<Map<String, dynamic>> modifiedTables = [];
+        // List<String> missingInDataDictionaryTables = [];
         for (final tableRow in getTablesResult.rows) {
           if (tableRow[AcDDTable.keyTableName] !=
                   AcSchemaManagerTables.schemaDetails &&
@@ -773,7 +774,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             if (currentDataDictionaryTables.contains(
               tableRow[AcDDTable.keyTableName],
             )) {
-              Map<String, dynamic> tableDifferenceResult = {};
+              AcSqlSchemaTableDifference tableDifference = AcSqlSchemaTableDifference(tableName:tableRow[AcDDTable.keyTableName]);
+              // Map<String, dynamic> tableDifferenceResult = {};
               foundTables.add(tableRow[AcDDTable.keyTableName]);
               final getTableColumnsResult = await dao!.getTableColumns(
                 tableName: tableRow[AcDDTable.keyTableName],
@@ -784,26 +786,25 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                       tableName: tableRow[AcDDTable.keyTableName],
                     );
                 List<String> foundColumns = [];
-                List<String> missingInDataDictionaryColumns = [];
                 for (final columnRow in getTableColumnsResult.rows) {
                   if (currentDataDictionaryColumns.contains(
                     columnRow[AcDDTableColumn.keyColumnName],
                   )) {
-                    foundColumns.add(
-                      columnRow[AcDDTableColumn.keyColumnName],
+                    foundColumns.add(columnRow[AcDDTableColumn.keyColumnName],
                     );
                   } else {
-                    missingInDataDictionaryColumns.add(
+                    tableDifference.missingColumnsInDataDictionary.add(
                       columnRow[AcDDTableColumn.keyColumnName],
                     );
                   }
                 }
-                tableDifferenceResult["missing_columns_in_database"] =
-                    currentDataDictionaryColumns
-                        .where((element) => !foundColumns.contains(element))
-                        .toList();
-                tableDifferenceResult["missing_columns_in_data_dictionary"] =
-                    missingInDataDictionaryColumns;
+                tableDifference.missingColumnsInDatabase.addAll(currentDataDictionaryColumns.where((element) => !foundColumns.contains(element)));
+                // tableDifferenceResult["missing_columns_in_database"] =
+                //     currentDataDictionaryColumns
+                //         .where((element) => !foundColumns.contains(element))
+                //         .toList();
+                // tableDifferenceResult["missing_columns_in_data_dictionary"] =
+                //     missingInDataDictionaryColumns;
               } else {
                 return result.setFromResult(
                   result: getTableColumnsResult,
@@ -812,32 +813,33 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   logger: logger,
                 );
               }
-              if (tableDifferenceResult['missing_columns_in_database'].length >
-                      0 ||
-                  tableDifferenceResult["missing_columns_in_data_dictionary"]
-                          .length >
-                      0) {
-                modifiedTables.add({
-                  AcDDTable.keyTableName: tableRow[AcDDTable.keyTableName],
-                  "difference_details": tableDifferenceResult,
-                });
+              if(tableDifference.missingColumnsInDataDictionary.isNotEmpty || tableDifference.missingColumnsInDatabase.isNotEmpty){
+                schemaDifference.modifiedTables.add(tableDifference);
               }
+              // if (tableDifferenceResult['missing_columns_in_database'].length >
+              //         0 ||
+              //     tableDifferenceResult["missing_columns_in_data_dictionary"]
+              //             .length >
+              //         0) {
+              //   modifiedTables.add({
+              //     AcDDTable.keyTableName: tableRow[AcDDTable.keyTableName],
+              //     "difference_List<>details": tableDifferenceResult,
+              //   });
+              // }
             } else {
-              missingInDataDictionaryTables.add(
+              schemaDifference.missingTablesInDataDictionary.add(
                 tableRow[AcDDTable.keyTableName],
               );
             }
           }
         }
-        differenceResult["missing_tables_in_database"] =
-            currentDataDictionaryTables
-                .where((element) => !foundTables.contains(element))
-                .toList();
-        differenceResult["missing_tables_in_data_dictionary"] =
-            missingInDataDictionaryTables;
-        differenceResult["modified_tables_in_data_dictionary"] = modifiedTables;
+        schemaDifference.missingTablesInDatabase.addAll(currentDataDictionaryTables.where((element) => !foundTables.contains(element)));
+        // schemaDifference.missingTablesInDataDictionary.addAll(missingInDataDictionaryTables);
+        // differenceResult["missing_tables_in_database"] =  currentDataDictionaryTables.where((element) => !foundTables.contains(element)).toList();
+        // differenceResult["missing_tables_in_data_dictionary"] = missingInDataDictionaryTables;
+        // differenceResult["modified_tables_in_data_dictionary"] = modifiedTables;
         result.setSuccess();
-        result.value = differenceResult;
+        result.value = schemaDifference;
       } else {
         return result.setFromResult(
           result: getTablesResult,
@@ -1078,11 +1080,11 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       final differenceResult = await getDatabaseSchemaDifference();
       if (differenceResult.isSuccess()) {
-        final differences =             differenceResult.value as Map<String, dynamic>; // Cast the value
+        AcSqlSchemaDifference differences =  differenceResult.value; // Cast the value
         List<String> dropColumnStatements = [];
         List<String> dropTableStatements = [];
-        if (differences["missing_tables_in_database"] != null) {
-          for (final tableName in differences["missing_tables_in_database"]) {
+        if (differences.missingTablesInDatabase.isNotEmpty) {
+          for (final tableName in differences.missingTablesInDatabase) {
             logger.log("Creating table $tableName");
             final acDDTable = AcDDTable.getInstance(
               tableName: tableName,
@@ -1114,13 +1116,11 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           }
         }
 
-        if (differences["modified_tables_in_data_dictionary"] != null) {
-          for (final modificationDetails in differences["modified_tables_in_data_dictionary"]) {
-            final tableName = modificationDetails[AcDDTable.keyTableName];
-            final tableDifferenceDetails =                 modificationDetails["difference_details"]
-                    as Map<String, dynamic>; // Cast
-            if (tableDifferenceDetails["missing_columns_in_database"] != null) {
-              for (final columnName in tableDifferenceDetails["missing_columns_in_database"]) {
+        if (differences.modifiedTables.isNotEmpty) {
+          for (final modificationDetails in differences.modifiedTables) {
+            final tableName = modificationDetails.tableName;
+            if (modificationDetails.missingColumnsInDatabase.isNotEmpty) {
+              for (final columnName in modificationDetails.missingColumnsInDatabase) {
                 logger.log("Adding table column $columnName");
                 final acDDTableColumn = AcDDTableColumn.getInstance(
                   tableName: tableName,
@@ -1155,10 +1155,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 });
               }
             }
-            if (tableDifferenceDetails["missing_columns_in_data_dictionary"] !=
-                null) {
-              for (final columnName
-                  in tableDifferenceDetails["missing_columns_in_data_dictionary"]) {
+            if (modificationDetails.missingColumnsInDataDictionary.isNotEmpty) {
+              for (final columnName in modificationDetails.missingColumnsInDataDictionary) {
                 String dropColumnStatement =
                     AcDDTableColumn.getDropColumnStatement(
                       tableName: tableName,
@@ -1172,9 +1170,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             }
           }
         }
-        if (differences["missing_tables_in_data_dictionary"] != null) {
-          for (final tableName
-              in differences["missing_tables_in_data_dictionary"]) {
+        if (differences.missingTablesInDataDictionary.isNotEmpty) {
+          for (final tableName in differences.missingTablesInDataDictionary) {
             dropTableStatements.add(
               AcDDTable.getDropTableStatement(
                 tableName: tableName,
