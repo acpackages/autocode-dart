@@ -439,6 +439,21 @@
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/wakelock_plus/example/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/wakelock_plus/example/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/wakelock_plus/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/build" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/fullscreen_window/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/build" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/webview_win_floating/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_printing/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_printing/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_printing/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />
