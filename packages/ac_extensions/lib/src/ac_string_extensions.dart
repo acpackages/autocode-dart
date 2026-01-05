@@ -127,4 +127,18 @@ extension AcStringExtensions on String {
 
   String toTrainCase() =>
       words().map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('-');
+
+  String padWithChar({
+    required String char,
+    required int toLength,
+  }) {
+    String result = this;
+    if (toLength > 0) {
+      int currentLength = result.length;
+      if (currentLength < toLength) {
+        result = char * (toLength - currentLength) + result;
+      }
+    }
+    return result;
+  }
 }

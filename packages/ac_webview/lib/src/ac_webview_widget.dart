@@ -30,8 +30,7 @@ class AcWebview extends StatefulWidget {
   }
 
   void sendDataToWebview(dynamic data) {
-    final String evalCode =
-        "acWebviewChannel.receive({data:${jsonEncode(data)}});";
+    final String evalCode = "acWebviewChannel.receive({data:${jsonEncode(data)}});";
     _AcWebviewState.instance?.runJavascript(evalCode);
   }
 
@@ -95,15 +94,14 @@ class _AcWebviewState extends State<AcWebview> {
 
   Future<void> messageFromWebview(Map<String, dynamic> data) async {
     log("Received message from webview");
-    AcWebviewChannelAction channelAction =
-    await widget.actionManager.performAction(actionJson: data);
+    AcWebviewChannelAction channelAction = await widget.actionManager.performAction(actionJson: data);
 
     if (channelAction.callbackId != null &&
         channelAction.callbackId!.isNotEmpty) {
       log("Channel action has valid callback id");
       Map<String, dynamic> response = {
         "callbackId": channelAction.callbackId,
-        "actionResponse": channelAction.response
+        "actionResponse": AcJsonUtils.getJsonDataFromInstance(instance: channelAction.response)
       };
       widget.sendDataToWebview(response);
     } else {
@@ -120,26 +118,17 @@ class _AcWebviewState extends State<AcWebview> {
   Widget build(BuildContext context) {
     return InAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(url)),
+
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         isInspectable: true,
         disableContextMenu: true,
 
       ),
-      onWebViewCreated: (InAppWebViewController ctrl) {
-        controller = ctrl;
-        ctrl.addJavaScriptHandler(
-          handlerName: "acWebviewJavascriptChannel",
-          callback: (List<dynamic> arguments) {
-            print(arguments);
-            final message = arguments.first;
-
-            final Map<String, dynamic> data =
-            jsonDecode(message).cast<String, dynamic>();
-            messageFromWebview(data);
-          },
-        );
-      },
+        onConsoleMessage: (controller, consoleMessage) {
+          // DO NOTHING → disables console output
+          return;
+        },
       onLoadStop: (InAppWebViewController ctrl, WebUri? url) async {
         // Inject the compatibility wrapper
         await ctrl.evaluateJavascript(source: '''
@@ -165,9 +154,19 @@ class _AcWebviewState extends State<AcWebview> {
       onLoadStart: (controller, url) {
         // Optional: handle load events if needed
       },
-      androidOnPermissionRequest: (controller, origin, resources) async {
-        return PermissionRequestResponse(
-            resources: resources, action: PermissionRequestResponseAction.GRANT);
+      onWebViewCreated: (InAppWebViewController ctrl) {
+        controller = ctrl;
+        ctrl.addJavaScriptHandler(
+          handlerName: "acWebviewJavascriptChannel",
+          callback: (List<dynamic> arguments) {
+            print(arguments);
+            final message = arguments.first;
+
+            final Map<String, dynamic> data =
+            jsonDecode(message).cast<String, dynamic>();
+            messageFromWebview(data);
+          },
+        );
       },
     );
   }

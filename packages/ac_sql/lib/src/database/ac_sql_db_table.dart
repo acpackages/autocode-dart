@@ -17,6 +17,8 @@ class AcSqlDbTable extends AcSqlDbBase {
   /* AcDoc({"summary": "The loaded data dictionary definition for the table."}) */
   late AcDDTable acDDTable;
 
+  static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert})? onFormat;
+
   /* AcDoc({
     "summary": "Creates a service handler for a specific database table.",
     "description": "Initializes the base database service and loads the definition for the specified table from the data dictionary.",
@@ -175,8 +177,10 @@ class AcSqlDbTable extends AcSqlDbBase {
         for (final name in selectColumnsList) {
           String columnGetRows = "";
           if (databaseType == AcEnumSqlDatabaseType.mysql) {
-            columnGetRows =
-                "SELECT CONCAT('{\"$name\":',IF(MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED)) IS NULL,0,MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED))),'}') AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition";
+            columnGetRows = "SELECT CONCAT('{\"$name\":',IF(MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED)) IS NULL,0,MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED))),'}') AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition";
+          }
+          else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+            columnGetRows = "SELECT '{\"$name\":' || COALESCE( MAX( CAST( SUBSTR( $name, ${autoNumberColumns[name]!["prefix_length"]} + 1 ) AS INTEGER ) ),0 ) || '}' AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition;";
           }
           if (columnGetRows.isNotEmpty) {
             getRowsStatements.add(columnGetRows);
@@ -601,6 +605,20 @@ class AcSqlDbTable extends AcSqlDbBase {
         continueOperation = false;
       }
     }
+    
+    if(continueOperation){
+      if(AcSqlDbTable.onFormat != null){
+        var afterResult = await AcSqlDbTable.onFormat!(acDDTable: acDDTable,row: row,isInsert: insertMode);
+        if(afterResult.isSuccess()){
+          row = afterResult.value;
+        }
+        else{
+          result.setFromResult(result: afterResult);
+          continueOperation = false;
+        }
+      }
+    }
+    
     if (continueOperation) {
       result.setSuccess(value: row);
     }
