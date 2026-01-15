@@ -1,3 +1,4 @@
+import 'package:ac_data_dictionary/src/models/ac_dd_config.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
@@ -130,6 +131,15 @@ class AcDDTable {
         databaseType: databaseType,
       ),
     ).where((def) => def.isNotEmpty).toList();
+    if(acDDConfig.insertTimestampColumnKey.isNotEmpty){
+      columnDefinitions.add("${acDDConfig.insertTimestampColumnKey} TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+    }
+    if(acDDConfig.updateTimestampColumnKey.isNotEmpty){
+      columnDefinitions.add("${acDDConfig.updateTimestampColumnKey} TEXT");
+    }
+    if(acDDConfig.deleteTimestampColumnKey.isNotEmpty){
+      columnDefinitions.add("${acDDConfig.deleteTimestampColumnKey} TEXT");
+    }
     for(var property in tableProperties){
       if(property.propertyName == AcEnumDDTableProperty.constraints){
         for(var constraint in property.propertyValue){
@@ -275,6 +285,17 @@ class AcDDTable {
     return result;
   }
 
+  bool hasColumn({required String columnName}) {
+    bool result = false;
+    for(var col in tableColumns){
+      if(col.columnName == columnName){
+        result = true;
+        break;
+      }
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Populates the instance from a JSON map.",
     "description": "This method manually deserializes the nested `tableColumns` and `tableProperties` lists before using a reflection utility for the remaining properties.",
@@ -331,4 +352,5 @@ class AcDDTable {
   String toString() {
     return AcJsonUtils.prettyEncode(toJson());
   }
+
 }

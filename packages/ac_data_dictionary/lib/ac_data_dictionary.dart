@@ -16,6 +16,7 @@ export './src/enums/ac_enum_dd_table_property.dart';
 export './src/models/ac_data_dictionary.dart';
 export './src/models/ac_dd_condition.dart';
 export './src/models/ac_dd_condition_group.dart';
+export './src/models/ac_dd_config.dart';
 export './src/models/ac_dd_function.dart';
 export './src/models/ac_dd_relationship.dart';
 export './src/models/ac_dd_select_statement.dart';

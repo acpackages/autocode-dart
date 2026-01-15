@@ -449,66 +449,73 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     final result = AcResult();
     try {
       logger.log('Creating triggers...');
-      for (final acDDTrigger
-          in AcDataDictionary.getTriggers(
-            dataDictionaryName: dataDictionaryName,
-          ).values) {
-        logger.log('Creating trigger ${acDDTrigger.triggerName}');
-        final dropStatement = AcDDTrigger.getDropTriggerStatement(
-          triggerName: acDDTrigger.triggerName,
-          databaseType: databaseType,
-        );
-        logger.log('Executing drop trigger statement: $dropStatement');
-        final dropResult = await dao!.executeStatement(
-          statement: dropStatement,
-        );
-        if (dropResult.isSuccess()) {
-          logger.log('Drop statement executed successfully.');
-        } else {
-          return result.setFromResult(
-            result: dropResult,
-            message: 'Error executing drop statement',
-            logger: logger,
-          );
-        }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
-          TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
-          TblSchemaLogs.acSchemaOperation: 'drop',
-          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
+      AcResult timestampTriggers = await createUpdateTimestampTriggers();
 
-        final createStatement = acDDTrigger.getCreateTriggerStatement(
-          databaseType: databaseType,
-        );
-        logger.log('Create statement: $createStatement');
-        final createResult = await dao!.executeStatement(
-          statement: createStatement,
-        );
-        if (createResult.isSuccess()) {
-          logger.log('Trigger created successfully.');
-        } else {
-          return result.setFromResult(
-            result: createResult,
-            message: 'Error creating trigger',
-            logger: logger,
+      if(timestampTriggers.isSuccess()){
+        for (final acDDTrigger
+        in AcDataDictionary.getTriggers(
+          dataDictionaryName: dataDictionaryName,
+        ).values) {
+          logger.log('Creating trigger ${acDDTrigger.triggerName}');
+          final dropStatement = AcDDTrigger.getDropTriggerStatement(
+            triggerName: acDDTrigger.triggerName,
+            databaseType: databaseType,
           );
+          logger.log('Executing drop trigger statement: $dropStatement');
+          final dropResult = await dao!.executeStatement(
+            statement: dropStatement,
+          );
+          if (dropResult.isSuccess()) {
+            logger.log('Drop statement executed successfully.');
+          } else {
+            return result.setFromResult(
+              result: dropResult,
+              message: 'Error executing drop statement',
+              logger: logger,
+            );
+          }
+          await saveSchemaLogEntry({
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+            TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
+            TblSchemaLogs.acSchemaOperation: 'drop',
+            TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+            TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          });
+
+          final createStatement = acDDTrigger.getCreateTriggerStatement(
+            databaseType: databaseType,
+          );
+          logger.log('Create statement: $createStatement');
+          final createResult = await dao!.executeStatement(
+            statement: createStatement,
+          );
+          if (createResult.isSuccess()) {
+            logger.log('Trigger created successfully.');
+          } else {
+            return result.setFromResult(
+              result: createResult,
+              message: 'Error creating trigger',
+              logger: logger,
+            );
+          }
+          await saveSchemaLogEntry({
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+            TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
+            TblSchemaLogs.acSchemaOperation: 'create',
+            TblSchemaLogs.acSchemaOperationResult: createResult.status,
+            TblSchemaLogs.acSchemaOperationStatement: createStatement,
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          });
         }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
-          TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
-          TblSchemaLogs.acSchemaOperation: 'create',
-          TblSchemaLogs.acSchemaOperationResult: createResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: createStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
+        result.setSuccess(
+          message: 'Triggers created successfully',
+          logger: logger,
+        );
       }
-      result.setSuccess(
-        message: 'Triggers created successfully',
-        logger: logger,
-      );
+      else{
+        result.setFromResult(result: timestampTriggers);
+      }
     } on Exception catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
@@ -746,6 +753,123 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
     return result;
+  }
+
+  Future<AcResult> createUpdateTimestampTriggers() async {
+    final result = AcResult();
+    try {
+      bool continueOperation = true;
+      String columnName = acDDConfig.updateTimestampColumnKey;
+      if(columnName.isNotEmpty){
+        // Optional: same foreign key enabling block as in your table creation
+        if (databaseType == AcEnumSqlDatabaseType.sqlite &&
+            dataDictionaryName == AcSMDataDictionary.dataDictionaryName) {
+          logger.log("Enabling foreign keys for sqlite (triggers phase)");
+          final enableForeignKeyResult = await dao!.executeStatement(
+            statement: 'PRAGMA foreign_keys = ON;',
+          );
+          if (enableForeignKeyResult.isFailure()) {
+            continueOperation = false;
+            logger.log("Error setting foreign keys on");
+            result.setFromResult(result: enableForeignKeyResult);
+          }
+        }
+
+        if (continueOperation) {
+          // Get only tables that have updated_at column
+          final tablesWithUpdatedAt = AcDataDictionary.getTables(
+            dataDictionaryName: dataDictionaryName,
+            foreignKeysSorted: dataDictionaryName != AcSMDataDictionary.dataDictionaryName,
+          ).values.toList();
+
+          for (final acDDTable in tablesWithUpdatedAt) {
+            if (!continueOperation) break;
+
+            final tableName = acDDTable.tableName;
+            final triggerName = 'ac_tr_${tableName}_set_upd_ts';
+
+            logger.log('Creating update trigger for $tableName → $triggerName');
+
+            final createTriggerStmt = '''
+                CREATE TRIGGER IF NOT EXISTS $triggerName
+                BEFORE UPDATE ON $tableName
+                FOR EACH ROW
+                WHEN NEW.$columnName IS NULL
+                BEGIN
+                  UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+                END;
+              ''';
+
+            logger.log('Executing trigger statement:\n$createTriggerStmt');
+
+            final triggerResult = await dao!.executeStatement(
+              statement: createTriggerStmt,
+            );
+
+            if (triggerResult.isSuccess()) {
+              logger.log('Trigger $triggerName created successfully.');
+            } else {
+              continueOperation = false;
+              result.setFromResult(
+                result: triggerResult,
+                message: 'Error creating trigger for table $tableName',
+                logger: logger,
+              );
+              break;
+            }
+
+            // Optional: log schema change (same as your table creation)
+            if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+                TblSchemaLogs.acSchemaEntityName: triggerName,
+                TblSchemaLogs.acSchemaOperation: 'create',
+                TblSchemaLogs.acSchemaOperationResult: triggerResult.status,
+                TblSchemaLogs.acSchemaOperationStatement: createTriggerStmt,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              });
+            }
+          }
+        }
+
+        if (continueOperation) {
+          result.setSuccess(
+            message: 'All update timestamp triggers created successfully',
+            logger: logger,
+          );
+        }
+      }
+      else{
+        result.setSuccess();
+      }
+
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+
+    return result;
+  }
+
+// Helper method - generates the actual trigger SQL
+  String _generateUpdateAtTriggerSql({
+    required String tableName,
+    required String columnName,
+    required String triggerName,
+    required AcEnumSqlDatabaseType databaseType,
+  }) {
+    if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      return '''
+        CREATE TRIGGER IF NOT EXISTS $triggerName
+        BEFORE UPDATE ON $tableName
+        FOR EACH ROW
+        WHEN NEW.$columnName IS NULL
+        BEGIN
+          SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+        END;
+      ''';
+    } else {
+      return '';
+    }
   }
 
   /* AcDoc({

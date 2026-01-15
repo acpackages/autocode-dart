@@ -6,15 +6,19 @@ class AcSqlConfig {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
   static const String keyCascadeDeleteDestinationRows = 'cascadeDeleteDestinationRows';
   static const String keyCascadeDeleteSourceRows = 'cascadeDeleteSourceRows';
+  static const String keySqliteConf = 'sqliteConfig';
+
 
   @AcBindJsonProperty(key: keyCascadeDeleteDestinationRows)
-  final  bool cascadeDeleteDestinationRows;
+  final bool cascadeDeleteDestinationRows;
 
   @AcBindJsonProperty(key: keyCascadeDeleteSourceRows)
   final bool cascadeDeleteSourceRows;
 
-  @AcBindJsonProperty(key: keyCascadeDeleteSourceRows)
+  @AcBindJsonProperty(key: keySqliteConf)
   final AcSqliteConfig sqliteConfig;
+
+
 
   const AcSqlConfig({
     this.cascadeDeleteDestinationRows = false,
