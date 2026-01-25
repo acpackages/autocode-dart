@@ -1,3 +1,4 @@
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
@@ -29,9 +30,13 @@ class AcDDSelectStatement {
   String condition = "";
   late AcDDConditionGroup conditionGroup;
   List<AcDDConditionGroup> groupStack = [];
-  Map<String, dynamic> parameters = {};
+  Map<String, dynamic> parameters = Map.from({});
+  String selectFrom = "";
   String selectStatement = "";
   String sqlStatement = "";
+  bool _isDefaultConditionValuesSet = false;
+  String _condition = "";
+  Map<String, dynamic> _defaultParameters = Map.from({});
   AcLogger logger = AcLogger(logMessages: false);
 
   /* AcDoc({"summary": "The target database type for SQL dialect generation."}) */
@@ -83,7 +88,7 @@ class AcDDSelectStatement {
     AcLogger? logger
   }) {
     if(logger!=null){
-      this.logger = logger;
+      // this.logger = logger;
       this.logger.log('Custom logger provided and set');
     }
     conditionGroup = AcDDConditionGroup();
@@ -275,7 +280,7 @@ class AcDDSelectStatement {
   String getSqlStatement({
     bool skipCondition = false,
     bool skipSelectStatement = false,
-    bool skipLimit = false,
+    bool skipLimit = false
   }) {
     logger.log('getSqlStatement called: skipCondition=$skipCondition, skipSelectStatement=$skipSelectStatement, skipLimit=$skipLimit');
     logger.log('Current tableName: $tableName, viewName:$viewName includeColumns: $includeColumns, excludeColumns: $excludeColumns');
@@ -284,21 +289,29 @@ class AcDDSelectStatement {
       logger.log('Generating SELECT...FROM clause');
       List<String> columns = getColumns();
       var columnsList = columns.join(",");
-      String selectFrom = '';
-      if(tableName.isNotEmpty){
-        selectFrom = tableName;
+      if(selectFrom.isEmpty){
+        if(tableName.isNotEmpty){
+          selectFrom = tableName;
+        }
+        else if(viewName.isNotEmpty){
+          selectFrom = viewName;
+        }
       }
-      else if(viewName.isNotEmpty){
-        selectFrom = viewName;
-      }
+
       selectStatement = "SELECT $columnsList FROM $selectFrom";
       logger.log('SELECT statement generated: $selectStatement');
     }
 
     if (!skipCondition) {
       logger.log('Generating WHERE clause and parameters');
-      condition = "";
-      parameters = {};
+
+      if(!_isDefaultConditionValuesSet){
+        _isDefaultConditionValuesSet = true;
+        _defaultParameters = Map.from(parameters);
+        _condition = condition;
+      }
+      condition = _condition;
+      parameters = Map.from(_defaultParameters);
       logger.log('Reset condition and parameters');
       setSqlConditionGroup(
         acDDConditionGroup: conditionGroup,
@@ -512,7 +525,8 @@ class AcDDSelectStatement {
       }
       if(continueOperation){
         index++;
-        if (index > 0) {
+        String currCon = condition.trim().toUpperCase();
+        if(currCon.isNotEmpty && !currCon.equalsIgnoreCase("AND") && !currCon.equalsIgnoreCase("OR") && !currCon.endsWith(" AND") && !currCon.endsWith(" OR")){
           condition += " ${acDDConditionGroup.operator} ";
           logger.log('Added operator ${acDDConditionGroup.operator} before condition $index');
         }
