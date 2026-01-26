@@ -20,6 +20,9 @@ class AcWeb {
   /* AcDoc({"summary": "A list of routes for serving static files."}) */
   final List<Map<String, dynamic>> staticFilesRoutes = [];
 
+  /* AcDoc({"summary": "A list of routes for serving static files."}) */
+  final List<Map<String, dynamic>> assetFilesRoutes = [];
+
   /* AcDoc({"summary": "The logger instance for the web server."}) */
   AcLogger logger = AcLogger(
     logMessages: true,
@@ -407,6 +410,12 @@ class AcWeb {
   /* AcDoc({"summary": "Adds a server URL to the API documentation."}) */
   AcWeb addHostUrl({required String url}) {
     acApiDoc.addServer(server: AcApiDocServer(url: url));
+    return this;
+  }
+
+  AcWeb assetFiles({required String assetDirectory, String prefix = ""}) {
+    logger.log("Registering static files directory : $assetDirectory");
+    assetFilesRoutes.add({'prefix': prefix, 'directory': assetDirectory});
     return this;
   }
 

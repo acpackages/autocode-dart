@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
@@ -84,6 +85,38 @@ class AcWebOnJaguar extends AcWeb {
       logger.log(
         "Registered jaguar route for route : $routeKey >>>> Url : ${routeDefinition.url}!",
       );
+    }
+    for (var assetDirectory in assetFilesRoutes){
+      String prefix = assetDirectory['prefix'];
+      String assetsPrefix = assetDirectory['directory'];
+      Route route = Route.get(prefix, (context) async {
+        dynamic body = "";
+        String? mimeType = 'text/html';
+        try {
+          String routePath = context.path;
+          if (routePath.startsWith("/")) {
+            routePath = routePath.substring(1);
+          }
+          logger.log("Loading Asset File for path $routePath");
+          body = (await rootBundle.load('$assetsPrefix$routePath')).buffer.asUint8List();
+          String extension=AcFileUtils.getExtensionFromPath(routePath);
+          mimeType = AcFileUtils.getMimeTypeFromExt(extension);
+          print("path" + extension + " => "+mimeType);
+          context.response = ByteResponse(body: body, mimeType: mimeType);
+        } catch (ex,stack) {
+          logger.error(ex);
+          logger.error(stack);
+          context.response = Response(statusCode: HttpStatus.notFound);
+          // if (errorFunction != null) {
+          //   dynamic errorResponse =
+          //   errorFunction(Simplify.getExceptionMessage(ex,stack: stack));
+          //   if (errorResponse != null) {
+          //     context.response = Response.html(errorResponse);
+          //   }
+          // }
+        }
+      });
+      jaguarInstance!.addRoute(route);
     }
     for (var staticDirectory in staticFilesRoutes){
       String url = staticDirectory['prefix']+staticDirectory['directory'];
