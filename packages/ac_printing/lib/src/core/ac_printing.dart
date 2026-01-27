@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:autocode/autocode.dart';
+import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import '../../ac_printing.dart';
 
@@ -79,7 +80,7 @@ class AcPrinting {
     }
     if(printerToUse!=null){
       if(printerToUse.isAvailable){
-        var success = await Printing.directPrintPdf(printer: printerToUse, onLayout: (_)=>pdfBytes);
+        var success = await Printing.directPrintPdf(printer: printerToUse, onLayout: (_)=>pdfBytes,format:pageFormat == null?PdfPageFormat.a4:pageFormat.toPdfPageFormat() );
         if(success){
           result.setSuccess();
         }

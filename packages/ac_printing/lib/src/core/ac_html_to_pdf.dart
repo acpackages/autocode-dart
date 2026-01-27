@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_printing/ac_printing.dart';
 import 'package:autocode/autocode.dart';
+import 'package:pdf/pdf.dart';
 import 'package:puppeteer/puppeteer.dart';
 class AcHtmlToPdf {
   late Browser browser;
@@ -106,8 +107,14 @@ class AcHtmlToPdf {
   Future<Uint8List?> pagePdf(Page page,{Function? callback,AcPageFormat? pageFormat})async{
     PaperFormat paperFormat=PaperFormat.a4;
     if(pageFormat != null){
-      paperFormat = PaperFormat.mm(width:pageFormat.width, height:pageFormat.height);
+      if(pageFormat.isPortrait){
+        paperFormat = PaperFormat.mm(width: pageFormat.width, height: pageFormat.height);
+      }
+      else{
+        paperFormat = PaperFormat.mm(width: pageFormat.height, height: pageFormat.width);
+      }
     }
+    print("Paper format => Height : ${paperFormat.height} , Width : ${paperFormat.width}");
     Uint8List? pdfData=await page.pdf(format: paperFormat,printBackground: true);
     if(callback!=null){
       callback(pdfData);
