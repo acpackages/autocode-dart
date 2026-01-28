@@ -94,10 +94,11 @@ class _AcWebviewState extends State<AcWebview> {
 
   Future<void> messageFromWebview(Map<String, dynamic> data) async {
     log("Received message from webview");
+    log(data);
     AcWebviewChannelAction channelAction = await widget.actionManager.performAction(actionJson: data);
 
     if (channelAction.callbackId != null &&
-        channelAction.callbackId!.isNotEmpty) {
+        channelAction.callbackId!.isNotEmpty && channelAction.response != null) {
       log("Channel action has valid callback id");
       Map<String, dynamic> response = {
         "callbackId": channelAction.callbackId,
