@@ -94,17 +94,23 @@ class AcDataDictionaryAutoUpdate {
     return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          final post = acWebRequest.post;
 
-        final post = acWebRequest.post;
-
-        if (post.containsKey('row')) {
-          response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: post['row']));
-        } else if (post.containsKey('rows')) {
-          response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: post['rows']));
-        } else {
-          response.message = 'parameters missing';
+          if (post.containsKey('row')) {
+            response.setFromSqlDaoResult(result: await acSqlDbTable.updateRow(row: post['row']));
+          } else if (post.containsKey('rows')) {
+            response.setFromSqlDaoResult(result: await acSqlDbTable.updateRows(rows: post['rows']));
+          } else {
+            response.message = 'parameters missing';
+          }
         }
+        else{
+          response.setFromResult(result: sqlDbTableResult);
+        }
+        return response.toWebResponse();
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);

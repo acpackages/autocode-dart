@@ -1,3 +1,4 @@
+import 'package:ac_sql/ac_sql.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_web/ac_web.dart';
@@ -27,6 +28,18 @@ class AcDataDictionaryAutoApi {
 
   /* AcDoc({"summary": "The logger instance for the generator."}) */
   AcLogger logger = AcLogger(logType: AcEnumLogType.console,logMessages: true);
+
+  Future<AcResult> Function({
+  required AcWebRequest request,
+  required AcDDTable acDDTable,
+  }) getAcSqlDbTable = ({
+    required AcWebRequest request,
+    required AcDDTable acDDTable,
+  }) async {
+    AcResult result = AcResult();
+    result.setSuccess(value: AcSqlDbTable(tableName: acDDTable.tableName));
+    return result;
+  };
 
   /* AcDoc({
     "summary": "Creates a new instance of the automatic API generator.",

@@ -458,6 +458,10 @@ class AcWeb {
   }) */
   AcWeb staticFilesDirectory({required String directory, String prefix = ""}) {
     logger.log("Registering static files directory : $directory");
+    Directory d = Directory(directory);
+    if(!d.existsSync()){
+      d.createSync(recursive: true);
+    }
     staticFilesRoutes.add({'prefix': prefix, 'directory': directory});
     return this;
   }

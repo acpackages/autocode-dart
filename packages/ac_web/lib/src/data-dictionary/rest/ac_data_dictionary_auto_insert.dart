@@ -94,17 +94,25 @@ class AcDataDictionaryAutoInsert {
     return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try {
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        if (acWebRequest.post.containsKey('row')) {
-          return response.setFromSqlDaoResult(
-              result: await acSqlDbTable.insertRow(
-                  row: acWebRequest.post['row'])).toWebResponse();
-        } else if (acWebRequest.post.containsKey('rows')) {
-          response.setFromSqlDaoResult(result: await acSqlDbTable.insertRows(
-              rows: acWebRequest.post['rows'])).toWebResponse();
-        } else {
-          response.message = 'parameters missing';
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          if (acWebRequest.post.containsKey('row')) {
+            return response.setFromSqlDaoResult(
+                result: await acSqlDbTable.insertRow(
+                    row: acWebRequest.post['row'])).toWebResponse();
+          } else if (acWebRequest.post.containsKey('rows')) {
+            response.setFromSqlDaoResult(result: await acSqlDbTable.insertRows(
+                rows: acWebRequest.post['rows'])).toWebResponse();
+          } else {
+            response.message = 'parameters missing';
+          }
         }
+        else{
+          response.setFromResult(result: sqlDbTableResult);
+        }
+        return response.toWebResponse();
+
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);

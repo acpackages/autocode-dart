@@ -107,11 +107,18 @@ class AcDataDictionaryAutoSelectDistinct {
 
       final response = AcWebApiResponse();
       try{
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        final getResponse = await acSqlDbTable.getDistinctColumnValues(
-          columnName: acDDTableColumn.columnName,
-        );
-        response.setFromSqlDaoResult(result: getResponse);
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          final getResponse = await acSqlDbTable.getDistinctColumnValues(
+            columnName: acDDTableColumn.columnName,
+          );
+          response.setFromSqlDaoResult(result: getResponse);
+        }
+        else{
+          response.setFromResult(result: sqlDbTableResult);
+        }
+        return response.toWebResponse();
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);

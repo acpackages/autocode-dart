@@ -88,10 +88,17 @@ class AcDataDictionaryAutoDelete {
       final response = AcWebApiResponse();
       final key = acDDTable.getPrimaryKeyColumnName();
       if (acWebRequest.pathParameters.containsKey(key)) {
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
             primaryKeyValue: acWebRequest.pathParameters[key],
-          )).toWebResponse();
+          ));
+        }
+        else{
+          response.setFromResult(result: sqlDbTableResult);
+        }
+        return response.toWebResponse();
       } else {
         response.message = 'parameters missing';
         return AcWebResponse.json(data: response);
@@ -156,10 +163,17 @@ class AcDataDictionaryAutoDelete {
         logger.log("Deleting for primary key field ${key}");
         if (acWebRequest.post.containsKey(key)) {
           logger.log("Found primary key field ${key}");
-          final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-          return response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
-            primaryKeyValue: acWebRequest.post[key],
-          )).toWebResponse();
+          AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+          if(sqlDbTableResult.isSuccess()){
+            AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+            response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
+              primaryKeyValue: acWebRequest.post[key],
+            )).toWebResponse();
+          }
+          else{
+            response.setFromResult(result: sqlDbTableResult);
+          }
+          return response.toWebResponse();
         } else {
           logger.log(["Primary key field is missing in post",acWebRequest.post]);
           response.message = 'parameters missing';

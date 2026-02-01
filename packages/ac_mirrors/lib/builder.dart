@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/constant/value.dart';
+import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart';
 import 'package:glob/glob.dart';
@@ -403,7 +404,10 @@ class AcMirrorsAggregatingBuilder implements Builder {
     final metadata = _generateMetadataSource(declaration.metadata);
 
     String getReturnTypeLine(ExecutableElement e) {
-      final typeString = e.returnType.isVoid ? 'dynamic' : e.returnType.getDisplayString(withNullability: false);
+      String typeString = e.returnType.isVoid ? 'dynamic' : e.returnType.getDisplayString(withNullability: false);
+      if(typeString.contains("Function")){
+        typeString = "Function";
+      }
       return '  @override Type get returnType => $typeString;';
     }
 
@@ -413,6 +417,23 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
     String getNameLine(Element e) {
       return "  @override String getName() => '${e.name}';";
+    }
+
+    String getTypeLine({DartType? type,ParameterElement? parameter,FieldElement? declaration}) {
+      String typeString = "void";
+      if(type != null){
+        typeString  = type.isDartCoreNull ? 'void' : type.getDisplayString(withNullability: false);
+      }
+      if(parameter != null){
+        typeString = parameter.type.getDisplayString(withNullability: false);
+      }
+      if(declaration != null){
+        typeString = declaration.type.getDisplayString(withNullability: false);
+      }
+      if(typeString.contains("Function")){
+        typeString = "Function";
+      }
+      return '  @override Type get type => $typeString;';
     }
 
     // Generate parameter mirrors for methods, constructors, setters
@@ -426,7 +447,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
         buffer.writeln('  const $parameterClassName();');
         buffer.writeln(getSimpleNameLine(parameter));
         buffer.writeln(getNameLine(declaration));
-        buffer.writeln('  @override Type get type => ${parameter.type.getDisplayString(withNullability: false)};');
+        buffer.writeln('  ${getTypeLine(parameter: parameter)}');
         buffer.writeln('  @override bool get isOptional => ${parameter.isOptional};');
         buffer.writeln('  @override List<Object> get metadata => const [$metadata];');
         buffer.writeln('  @override bool get isNamed => ${parameter.isNamed};');
@@ -500,7 +521,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       buffer.writeln('  @override bool get isStatic => ${declaration.isStatic};');
       buffer.writeln('  @override bool get isPrivate => ${declaration.isPrivate};');
       buffer.writeln('  @override List<Object> get metadata => const [${_generateMetadataSource(declaration.metadata)}];');
-      buffer.writeln('  @override Type get type => ${declaration.type.getDisplayString(withNullability: false)};');
+      buffer.writeln('  ${getTypeLine(declaration: declaration)}');
       buffer.writeln('  @override bool get isFinal => ${declaration.isFinal};');
       buffer.writeln('  @override bool get isConst => ${declaration.isConst};');
       buffer.writeln('}');

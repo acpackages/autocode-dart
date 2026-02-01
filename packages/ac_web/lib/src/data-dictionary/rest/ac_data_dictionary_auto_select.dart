@@ -140,62 +140,69 @@ class AcDataDictionaryAutoSelect {
     return (AcWebRequest acWebRequest, AcLogger logger) async {
       final response = AcWebApiResponse();
       try{
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        final acDDSelectStatement = AcDDSelectStatement(
-          tableName: acDDTable.getSelectQueryFromName(),
-        );
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          final acDDSelectStatement = AcDDSelectStatement(
+            tableName: acDDTable.getSelectQueryFromName(),
+          );
 
-        if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
-          final queryColumns = acDDTable.getSearchQueryColumnNames();
-          acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
-          for (final columnName in queryColumns) {
-            acDDSelectStatement.addCondition(
-              key: columnName,
-              operator: AcEnumConditionOperator.contains,
-              value: acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
-            );
+          if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
+            final queryColumns = acDDTable.getSearchQueryColumnNames();
+            acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
+            for (final columnName in queryColumns) {
+              acDDSelectStatement.addCondition(
+                key: columnName,
+                operator: AcEnumConditionOperator.contains,
+                value: acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
+              );
+            }
+            acDDSelectStatement.endGroup();
           }
-          acDDSelectStatement.endGroup();
-        }
 
-        for (final col in acDDTable.tableColumns) {
-          if (acWebRequest.get.containsKey(col.columnName)) {
-            acDDSelectStatement.addCondition(
-              key: col.columnName,
-              operator: AcEnumConditionOperator.contains,
-              value: acWebRequest.get[col.columnName],
-            );
+          for (final col in acDDTable.tableColumns) {
+            if (acWebRequest.get.containsKey(col.columnName)) {
+              acDDSelectStatement.addCondition(
+                key: col.columnName,
+                operator: AcEnumConditionOperator.contains,
+                value: acWebRequest.get[col.columnName],
+              );
+            }
           }
-        }
 
-        bool allRows = false;
+          bool allRows = false;
 
-        if(acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
-          if(acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
-            allRows = true;
+          if(acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
+            if(acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.get.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
+              allRows = true;
+            }
           }
+
+          if(!allRows){
+            acDDSelectStatement.pageNumber =
+            acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
+                ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
+                : 1;
+            acDDSelectStatement.pageSize =
+            acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)
+                ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] ?? '') ?? 50
+                : 50;
+          }
+
+          if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
+            acDDSelectStatement.orderBy = acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
+          }
+
+          final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
+              acDDSelectStatement: acDDSelectStatement
+          );
+
+          response.setFromSqlDaoResult(result: getResponse);
         }
-
-        if(!allRows){
-          acDDSelectStatement.pageNumber =
-          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
-              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
-              : 1;
-          acDDSelectStatement.pageSize =
-          acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)
-              ? int.tryParse(acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] ?? '') ?? 50
-              : 50;
+        else{
+          response.setFromResult(result: sqlDbTableResult);
         }
-
-        if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
-          acDDSelectStatement.orderBy = acWebRequest.get[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
-        }
-
-        final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
-          acDDSelectStatement: acDDSelectStatement
-        );
-
-        response.setFromSqlDaoResult(result: getResponse);
+        return response.toWebResponse();
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);
@@ -250,17 +257,23 @@ class AcDataDictionaryAutoSelect {
     return (AcWebRequest acWebRequest, AcLogger logger) async{
       final response = AcWebApiResponse();
       try{
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
+          final pkName = acDDTable.getPrimaryKeyColumnName();
+          final primaryKeyValue = acWebRequest.pathParameters[pkName];
 
-        final pkName = acDDTable.getPrimaryKeyColumnName();
-        final primaryKeyValue = acWebRequest.pathParameters[pkName];
+          final getResponse = await acSqlDbTable.getRows(
+            condition: '$pkName = @primaryKeyValue',
+            parameters: {'@primaryKeyValue': primaryKeyValue},
+          );
 
-        final getResponse = await acSqlDbTable.getRows(
-          condition: '$pkName = @primaryKeyValue',
-          parameters: {'@primaryKeyValue': primaryKeyValue},
-        );
-
-        response.setFromSqlDaoResult(result: getResponse);
+          response.setFromSqlDaoResult(result: getResponse);
+        }
+        else{
+          response.setFromResult(result: sqlDbTableResult);
+        }
+        return response.toWebResponse();
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);
@@ -342,88 +355,126 @@ class AcDataDictionaryAutoSelect {
       try{
         logger.log("Getting rows for table ${acDDTable.tableName} using post method...");
         logger.log(["Request : ",acWebRequest]);
-        final acSqlDbTable = AcSqlDbTable(tableName: acDDTable.tableName);
-        final String fromName = acDDTable.getSelectQueryFromName();
-        final acDDSelectStatement = AcDDSelectStatement(
-          tableName: acDDTable.tableName == fromName?fromName:'',
-          viewName: acDDTable.tableName != fromName?fromName:'',
-          logger: logger
-        );
+        AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
+        if(sqlDbTableResult.isSuccess()){
+          AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
 
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
-          logger.log("Found include columns key");
-          acDDSelectStatement.includeColumns = List<String>.from(
-            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey],
+
+          final String fromName = acDDTable.getSelectQueryFromName();
+          final acDDSelectStatement = AcDDSelectStatement(
+              tableName: acDDTable.tableName == fromName?fromName:'',
+              viewName: acDDTable.tableName != fromName?fromName:'',
+              logger: logger
           );
-        }
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey)) {
-          logger.log("Found exclude columns key");
-          acDDSelectStatement.excludeColumns = List<String>.from(
-            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey],
-          );
-        }
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
-          logger.log("Found select query key");
-          final queryColumns = acDDTable.getSearchQueryColumnNames();
-          acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
-          for (final columnName in queryColumns) {
-            logger.log("Using column name for select query contains operation");
-            acDDSelectStatement.addCondition(
-              key: columnName,
-              operator: AcEnumConditionOperator.contains,
-              value: acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
+
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
+            logger.log("Found include columns key");
+            acDDSelectStatement.includeColumns = List<String>.from(
+              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey],
             );
           }
-          acDDSelectStatement.endGroup();
-        }
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterFiltersKey)) {
-          logger.log("Found filter key");
-          final filters = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
-          acDDSelectStatement.setConditionsFromFilters(filters: filters);
-        }
-
-        bool allRows = false;
-
-        if(acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
-          if(acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
-            allRows = true;
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey)) {
+            logger.log("Found exclude columns key");
+            acDDSelectStatement.excludeColumns = List<String>.from(
+              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey],
+            );
           }
-        }
-
-        if(!allRows){
-          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
-            logger.log("Found page number key");
-            acDDSelectStatement.pageNumber =
-            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
-                ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
-                : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey].toString()) ??
-                1;
-          } else {
-            acDDSelectStatement.pageNumber = 1;
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
+            logger.log("Found select query key");
+            final queryColumns = acDDTable.getSearchQueryColumnNames();
+            acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
+            for (final columnName in queryColumns) {
+              logger.log("Using column name for select query contains operation");
+              acDDSelectStatement.addCondition(
+                key: columnName,
+                operator: AcEnumConditionOperator.contains,
+                value: acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterQueryKey],
+              );
+            }
+            acDDSelectStatement.endGroup();
           }
-          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
-            logger.log("Found page size key");
-            acDDSelectStatement.pageSize =
-            acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
-                ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
-                : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey].toString()) ?? 50;
-          } else {
-            acDDSelectStatement.pageSize = 50;
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterFiltersKey)) {
+            logger.log("Found filter key");
+            final filters = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
+            acDDSelectStatement.setConditionsFromFilters(filters: filters);
           }
+
+          bool allRows = false;
+
+          if(acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
+            if(acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('yes') || acWebRequest.post.getString(AcDataDictionaryAutoApiConfig.selectParameterAllRows).equalsIgnoreCase('true')){
+              allRows = true;
+            }
+          }
+
+          if(acDDSelectStatement.tableName.isNotEmpty){
+            var acDDTable = AcDataDictionary.getTable(
+              tableName: acDDSelectStatement.tableName,
+              dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+            );
+            if(acDDTable!=null){
+              for (var columnName in acDDTable.getColumnNames()) {
+                logger.log('Checking request for column $columnName');
+                if(acWebRequest.post.containsKey(columnName)){
+                  acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: acWebRequest.post.get(columnName));
+                }
+              }
+            }
+          }
+          else if(acDDSelectStatement.viewName.isNotEmpty){
+            var acDDView = AcDataDictionary.getView(
+              viewName: acDDSelectStatement.viewName,
+              dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+            );
+            if(acDDView!=null){
+              for (var columnName in acDDView.getColumnNames()) {
+                logger.log('Checking request for column $columnName');
+                if(acWebRequest.post.containsKey(columnName)){
+                  acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: acWebRequest.post.get(columnName));
+                }
+              }
+            }
+          }
+
+          if(!allRows){
+            if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
+              logger.log("Found page number key");
+              acDDSelectStatement.pageNumber =
+              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
+                  ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
+                  : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey].toString()) ??
+                  1;
+            } else {
+              acDDSelectStatement.pageNumber = 1;
+            }
+            if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
+              logger.log("Found page size key");
+              acDDSelectStatement.pageSize =
+              acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
+                  ? acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
+                  : int.tryParse(acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey].toString()) ?? 50;
+            } else {
+              acDDSelectStatement.pageSize = 50;
+            }
+          }
+
+          if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
+            logger.log("Found order by key");
+            acDDSelectStatement.orderBy = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
+          }
+
+          logger.log(["Getting response from database for sql statement",acDDSelectStatement]);
+          final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
+              acDDSelectStatement: acDDSelectStatement
+          );
+          logger.log(["Response : ",getResponse]);
+
+          response.setFromSqlDaoResult(result: getResponse);
         }
-
-        if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
-          logger.log("Found order by key");
-          acDDSelectStatement.orderBy = acWebRequest.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
+        else{
+          response.setFromResult(result: sqlDbTableResult);
         }
-
-        logger.log(["Getting response from database for sql statement",acDDSelectStatement]);
-        final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
-            acDDSelectStatement: acDDSelectStatement
-        );
-        logger.log(["Response : ",getResponse]);
-
-        response.setFromSqlDaoResult(result: getResponse);
+        return response.toWebResponse();
       }
       catch(ex,stack){
         response.setException(exception: ex,stackTrace: stack);

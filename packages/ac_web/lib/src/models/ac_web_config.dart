@@ -1,4 +1,5 @@
 import 'package:ac_mirrors/annotations.dart';
+import 'package:ac_web/ac_web.dart';
 import 'package:autocode/autocode.dart';
 
 @AcReflectable()
@@ -45,9 +46,9 @@ class AcFilesControllerConfig {
   factory AcFilesControllerConfig() => _instance;
   AcFilesControllerConfig._internal();
 
-  Function? _afterUploadCallback;
-  Function? get afterUploadCallback => _afterUploadCallback;
-  set afterUploadCallback(Function? v) => _afterUploadCallback = v;
+  Future<AcResult> Function({required AcResult savedResult,required AcWebRequest request})? _afterUploadCallback;
+  Future<AcResult> Function({required AcResult savedResult,required AcWebRequest request})? get afterUploadCallback => _afterUploadCallback;
+  set afterUploadCallback(Future<AcResult> Function({required AcResult savedResult,required AcWebRequest request})? v) => _afterUploadCallback = v;
 
   bool _generateDifferentSizeImages = true;
   bool get generateDifferentSizeImages => _generateDifferentSizeImages;

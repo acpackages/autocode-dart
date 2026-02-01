@@ -21,7 +21,7 @@ class AcFilesController {
     if(request.files.containsKey(acWebConfig.filesControllerConfig.uploadFormKey)){
       AcResult result = await saveFile(webFile: request.files[acWebConfig.filesControllerConfig.uploadFormKey]!);
       if(acWebConfig.filesControllerConfig.afterUploadCallback != null){
-        apiResponse.setFromResult(result: await acWebConfig.filesControllerConfig.afterUploadCallback!(result),logger: logger);
+        apiResponse.setFromResult(result: await acWebConfig.filesControllerConfig.afterUploadCallback!(savedResult:result, request: request),logger: logger);
       }
       else{
         apiResponse.setFromResult(result: result,logger: logger);

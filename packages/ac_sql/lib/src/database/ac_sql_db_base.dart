@@ -50,13 +50,14 @@ class AcSqlDbBase {
     if(dao == null) {
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
         dao = AcMysqlDao();
-        // The force-unwrap `!` implies AcSqlDatabase.sqlConnection must be configured before creating this class.
-        dao.setSqlConnection(sqlConnection: sqlConnection!);
-        dao.logger = logger;
       }
       else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         dao = AcSqliteDao();
-        dao.setSqlConnection(sqlConnection: sqlConnection!);
+      }
+      if(dao!=null){
+        if(sqlConnection!=null){
+          dao.setSqlConnection(sqlConnection: sqlConnection!);
+        }
         dao.logger = logger;
       }
     }

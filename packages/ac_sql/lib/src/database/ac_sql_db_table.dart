@@ -17,7 +17,7 @@ class AcSqlDbTable extends AcSqlDbBase {
   /* AcDoc({"summary": "The loaded data dictionary definition for the table."}) */
   late AcDDTable acDDTable;
 
-  static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert})? onFormat;
+  static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert, required AcSqlDbTable sqlDbTable})? onFormat;
 
   /* AcDoc({
     "summary": "Creates a service handler for a specific database table.",
@@ -608,7 +608,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     
     if(continueOperation){
       if(AcSqlDbTable.onFormat != null){
-        var afterResult = await AcSqlDbTable.onFormat!(acDDTable: acDDTable,row: row,isInsert: insertMode);
+        var afterResult = await AcSqlDbTable.onFormat!(acDDTable: acDDTable,row: row,isInsert: insertMode,sqlDbTable: this);
         if(afterResult.isSuccess()){
           row = afterResult.value;
         }
