@@ -162,6 +162,21 @@ class AcDDView {
     return viewColumns.map((column) => column.columnName).toList();
   }
 
+  List<String> getSearchQueryColumnNames() {
+    return getSearchQueryColumns().map((column) => column.columnName).toList();
+  }
+
+  /* AcDoc({
+    "summary": "Gets all column objects designated for search queries.",
+    "returns": "A list of columns marked for inclusion in searches.",
+    "returns_type": "List<AcDDViewColumn>"
+  }) */
+  List<AcDDViewColumn> getSearchQueryColumns() {
+    return viewColumns
+        .where((column) => column.isUseForRowLikeFilter())
+        .toList();
+  }
+
   /* AcDoc({
     "summary": "Serializes the current view instance to a JSON map.",
     "returns": "A JSON map representation of the view.",

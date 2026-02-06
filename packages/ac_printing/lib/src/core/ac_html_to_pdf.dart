@@ -13,7 +13,7 @@ class AcHtmlToPdf {
   _debug(dynamic message){
     logger.log(message);
   }
-  destroy()async{
+  destroy() async {
     available=false;
     await browser.close();
   }

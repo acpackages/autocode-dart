@@ -148,7 +148,25 @@ class AcDataDictionaryAutoSelect {
           );
 
           if (acWebRequest.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
-            final queryColumns = acDDTable.getSearchQueryColumnNames();
+            List<String> queryColumns = List.empty(growable: true);
+            if(acDDSelectStatement.tableName.isNotEmpty){
+              var acDDTable = AcDataDictionary.getTable(
+                tableName: acDDSelectStatement.tableName,
+                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+              );
+              if(acDDTable!=null){
+                queryColumns = acDDTable.getSearchQueryColumnNames();
+              }
+            }
+            else if(acDDSelectStatement.viewName.isNotEmpty){
+              var acDDView = AcDataDictionary.getView(
+                viewName: acDDSelectStatement.viewName,
+                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+              );
+              if(acDDView!=null){
+                queryColumns = acDDView.getSearchQueryColumnNames();
+              }
+            }
             acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
             for (final columnName in queryColumns) {
               acDDSelectStatement.addCondition(
@@ -381,7 +399,25 @@ class AcDataDictionaryAutoSelect {
           }
           if (acWebRequest.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
             logger.log("Found select query key");
-            final queryColumns = acDDTable.getSearchQueryColumnNames();
+            List<String> queryColumns = List.empty(growable: true);
+            if(acDDSelectStatement.tableName.isNotEmpty){
+              var acDDTable = AcDataDictionary.getTable(
+                tableName: acDDSelectStatement.tableName,
+                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+              );
+              if(acDDTable!=null){
+                queryColumns = acDDTable.getSearchQueryColumnNames();
+              }
+            }
+            else if(acDDSelectStatement.viewName.isNotEmpty){
+              var acDDView = AcDataDictionary.getView(
+                viewName: acDDSelectStatement.viewName,
+                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
+              );
+              if(acDDView!=null){
+                queryColumns = acDDView.getSearchQueryColumnNames();
+              }
+            }
             acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
             for (final columnName in queryColumns) {
               logger.log("Using column name for select query contains operation");
