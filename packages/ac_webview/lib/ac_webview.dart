@@ -4,6 +4,7 @@
 library;
 
 export 'src/ac_webview_widget.dart';
+export 'src/ac_webview_widget_floating.dart';
 export 'src/models/ac_webview_action_manager.dart';
 export 'src/models/ac_webview_channel_action.dart';
 
