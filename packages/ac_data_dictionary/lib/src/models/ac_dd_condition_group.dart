@@ -138,8 +138,6 @@ class AcDDConditionGroup {
         AcDDConditionGroup.keyOperator: operator,
       },
     );
-    print("Add condition group");
-    print(group);
     this.conditions.add(group);
     return this;
   }
@@ -176,8 +174,6 @@ class AcDDConditionGroup {
     if (json.containsKey(keyConditions)) {
       final conditionList = json[keyConditions] as List;
       for (final condition in conditionList) {
-        print("Setting condition in from json");
-        print(condition);
         if (condition is Map<String, dynamic>) {
           // If it has a 'conditions' key, it's a nested group.
           if (condition.containsKey(keyConditions)) {

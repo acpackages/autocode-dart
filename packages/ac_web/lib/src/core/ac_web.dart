@@ -23,6 +23,8 @@ class AcWeb {
   /* AcDoc({"summary": "A list of routes for serving static files."}) */
   final List<Map<String, dynamic>> assetFilesRoutes = [];
 
+  final List<Map<String, dynamic>> rawContentMaps = [];
+
   /* AcDoc({"summary": "The logger instance for the web server."}) */
   AcLogger logger = AcLogger(
     logMessages: true,
@@ -416,6 +418,13 @@ class AcWeb {
   AcWeb assetFiles({required String assetDirectory, String prefix = ""}) {
     logger.log("Registering static files directory : $assetDirectory");
     assetFilesRoutes.add({'prefix': prefix, 'directory': assetDirectory});
+    return this;
+  }
+
+  AcWeb rawContentMap({required Map<String,dynamic> map, String prefix = "",String fallbackUrl = ""}) {
+    // logger.log("Registering raw files map : $map");
+    Map<String,dynamic> valueMap = {'prefix': prefix, 'map': map,'fallbackUrl':fallbackUrl};
+    rawContentMaps.add(valueMap);
     return this;
   }
 

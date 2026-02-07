@@ -13,9 +13,10 @@ dependencies:
   autocode:
     path: './../autocode'
   flutter_inappwebview: ^6.1.5
-  webview_flutter: ^4.13.0
+#  flutter_inappwebview: ^6.2.0-beta.3
+  webview_flutter: ^4.13.1
   webview_flutter_android: ^4.4.0
-  webview_win_floating: ^2.3.1
+  webview_win_floating: ^3.0.2
 
 dev_dependencies:
   lints: ^5.0.0

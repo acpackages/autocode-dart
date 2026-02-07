@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:ac_extensions/ac_extensions.dart';
@@ -8,8 +9,8 @@ import 'package:jaguar/jaguar.dart';
 import 'package:jaguar_cors/jaguar_cors.dart';
 
 class RoutePathInfo {
-  final String path; // Final path (possibly converted)
-  final List<String> params; // Any path parameter names
+  final String path;
+  final List<String> params;
 
   RoutePathInfo(this.path, this.params);
 }
@@ -97,12 +98,61 @@ class AcWebOnJaguar extends AcWeb {
           if (routePath.startsWith("/")) {
             routePath = routePath.substring(1);
           }
-          logger.log("Loading Asset File for path $routePath");
-          body = (await rootBundle.load('$assetsPrefix$routePath')).buffer.asUint8List();
           String extension=AcFileUtils.getExtensionFromPath(routePath);
           mimeType = AcFileUtils.getMimeTypeFromExt(extension);
-          print("path" + extension + " => "+mimeType);
+          logger.log("Loading Asset File for path $routePath");
+          body = (await rootBundle.load('$assetsPrefix$routePath')).buffer.asUint8List();
+
           context.response = ByteResponse(body: body, mimeType: mimeType);
+        } catch (ex,stack) {
+          logger.error(ex);
+          logger.error(stack);
+          context.response = Response(statusCode: HttpStatus.notFound);
+          // if (errorFunction != null) {
+          //   dynamic errorResponse =
+          //   errorFunction(Simplify.getExceptionMessage(ex,stack: stack));
+          //   if (errorResponse != null) {
+          //     context.response = Response.html(errorResponse);
+          //   }
+          // }
+        }
+      });
+      jaguarInstance!.addRoute(route);
+    }
+    for (var rawMap in rawContentMaps){
+      String prefix = rawMap['prefix'];
+      String fallbackUrl = rawMap['fallbackUrl'];
+      Map<String,dynamic> filesMap = rawMap['map'];
+      Route route = Route.get(prefix, (context) async {
+        dynamic body = "";
+        String? mimeType = 'text/html';
+        try {
+          String routePath = context.path;
+          if (routePath.startsWith("/")) {
+            routePath = routePath.substring(1);
+          }
+          String extension=AcFileUtils.getExtensionFromPath(routePath);
+          mimeType = AcFileUtils.getMimeTypeFromExt(extension);
+          logger.log("Loading Asset File for path $routePath");
+          if (!filesMap.containsKey(routePath)) {
+            routePath = fallbackUrl;
+          }
+
+          if(filesMap.containsKey(routePath)){
+            final content = filesMap[routePath]!;
+            if (content.startsWith('base64:')) {
+              final bytes = base64Decode(content.substring(7));
+              return ByteResponse(
+                body: Uint8List.fromList(bytes),mimeType: mimeType,
+              );
+            }
+            return Response(
+              body: content,mimeType: mimeType,
+            );
+          }
+          else{
+            context.response = Response(statusCode: HttpStatus.notFound);
+          }
         } catch (ex,stack) {
           logger.error(ex);
           logger.error(stack);

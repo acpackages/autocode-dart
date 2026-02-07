@@ -364,20 +364,16 @@ class AcDataDictionary {
       Map<String, AcDDTable> sortedResult = <String, AcDDTable>{};
       while(sortedResult.length < result.length){
         int pendingTablesCount = result.length - sortedResult.length;
-        print("Sorted tables ${sortedResult.length} : Actual tables : ${result.length}" );
         for(var table in result.values){
           if(!sortedResult.containsKey(table.tableName)){
-            // print("Checking table : ${table.tableName} for foreign keys" );
             bool foundAllRelatedTables = true;
             var relationships = table.getForeignKeyRelationships();
-            // print("Relationships in table ${table.tableName} : ${relationships.length}" );
             for(var relationship in relationships){
               if(!sortedResult.containsKey(relationship.sourceTable) && relationship.sourceTable != table.tableName){
                 foundAllRelatedTables = false;
               }
             }
             if(foundAllRelatedTables){
-              print("Adding table : ${table.tableName} to sorted list" );
               sortedResult[table.tableName] = table;
             }
           }
@@ -386,7 +382,6 @@ class AcDataDictionary {
           sortedSuccessfully = false;
           for(var table in result.values){
             if(!sortedResult.containsKey(table.tableName)){
-              print("Table ${table.tableName} not added to sorted list" );
             }
           }
           break;
@@ -394,7 +389,6 @@ class AcDataDictionary {
       }
       if(sortedSuccessfully){
         result = sortedResult;
-        print("Sorted all tables in order for foreign keys" );
       }
     }
     return result;

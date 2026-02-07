@@ -740,10 +740,6 @@ class AcSqliteDao extends AcBaseSqlDao {
     try {
       db = await _getConnection();
       if(db != null){
-        if (mode == AcEnumDDSelectMode.count) {
-          statement =
-          "SELECT COUNT(*) AS records_count FROM ($statement) AS records_list";
-        }
         String updatedStatement = statement;
         if (condition.isNotEmpty) {
           updatedStatement += " WHERE $condition";
@@ -757,6 +753,9 @@ class AcSqliteDao extends AcBaseSqlDao {
         (setParametersResult['statementParametersMap'] as Map<String, dynamic>)
             .values
             .toList();
+        if (mode == AcEnumDDSelectMode.count) {
+          updatedStatement = "SELECT COUNT(*) AS records_count FROM ($updatedStatement) AS records_list";
+        }
         logger.log(["Select statement",updatedStatement,"parameters",updatedParameterValues]);
         if(_transaction != null){
           final results = await _transaction!.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
