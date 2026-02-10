@@ -15,7 +15,7 @@ class AcWebviewWinFloating   extends StatefulWidget {
   final String url;
   final Color? backgroundColor;
   final bool? allowDebugging;
-
+  final bool? keepCache;
   // You should inject this from outside or make it injectable
   final AcWebviewActionManager actionManager = AcWebviewActionManager();
 
@@ -23,6 +23,7 @@ class AcWebviewWinFloating   extends StatefulWidget {
     required this.url,
     this.backgroundColor,
     this.allowDebugging = false,
+    this.keepCache = true,
     super.key,
   });
 
@@ -82,7 +83,6 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
       _controller = WebViewController();
     }
     _controller
-      ..clearCache()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(widget.backgroundColor ?? Colors.white)
       ..setNavigationDelegate(
@@ -95,6 +95,9 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
           },
         ),
       );
+    if(widget.keepCache!=true){
+      _controller.clearCache();
+    }
     // Add JavaScript channel for communication from web → Flutter
     _controller.addJavaScriptChannel(
       'acWinFloatingWebviewChannel',

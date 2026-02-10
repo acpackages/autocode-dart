@@ -160,42 +160,49 @@ class AcDDViewColumn {
 
   /* AcDoc({"summary": "Checks if the column should be included in default search queries."}) */
   bool isUseForRowLikeFilter() {
-    bool result = false;
-    if (columnProperties.containsKey(
-      AcEnumDDColumnProperty.useForRowLikeFilter.value,
-    )) {
-      result =
-          (columnProperties[AcEnumDDColumnProperty.useForRowLikeFilter.value]
-              ?.propertyValue ??
-              false) ==
-              true;
+
+    // 1. Check explicit property first
+    final explicitProp = columnProperties[AcEnumDDColumnProperty.useForRowLikeFilter.value]?.propertyValue;
+
+    if (explicitProp == true) {
+      return true;
     }
 
-    if(result == false){
-      if (columnSource == 'table') {
-        if (columnSourceName.isNotEmpty && columnSourceOriginalColumn.isNotEmpty) {
-          final ddTableColumn = AcDDTableColumn.getInstance(
-            tableName: columnSourceName,
-            columnName: columnSourceOriginalColumn,
-          );
+    // 2. No explicit true → check source column
 
-          result = ddTableColumn.isUseForRowLikeFilter();
+    if (columnSource == 'table') {
+      if (columnSourceName.isNotEmpty && columnSourceOriginalColumn.isNotEmpty) {
+        final ddTableColumn = AcDataDictionary.getTableColumn(
+          tableName: columnSourceName,
+          columnName: columnSourceOriginalColumn,
+        );
+
+        if(ddTableColumn != null){
+          final result = ddTableColumn.isUseForRowLikeFilter();
+          return result;
         }
-      }
-
-      // For view source
-      else if (columnSource == 'view') {
-        if (columnSourceName .isNotEmpty && columnSourceOriginalColumn.isNotEmpty) {
-          final ddViewColumn = AcDDViewColumn.getInstance(
-            viewName: columnSourceName,
-            columnName: columnSourceOriginalColumn,
-          );
-
-          result = ddViewColumn.isUseForRowLikeFilter();
-        }
+      } else {
       }
     }
-    return result;
+    else if (columnSource == 'view') {
+      if (columnSourceName.isNotEmpty && columnSourceOriginalColumn.isNotEmpty) {
+        final ddViewColumn = AcDataDictionary.getViewColumn(
+          viewName: columnSourceName,
+          columnName: columnSourceOriginalColumn,
+        );
+
+        if(ddViewColumn != null){
+          final result = ddViewColumn.isUseForRowLikeFilter();
+          return result;
+        }
+
+      } else {
+      }
+    }
+    else {
+    }
+
+    return false;
   }
 
   /* AcDoc({
@@ -218,64 +225,3 @@ class AcDDViewColumn {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
-// import 'dart:convert';
-// import 'package:ac_mirrors/ac_mirrors.dart';
-// import 'package:autocode/autocode.dart';
-// import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-// @AcReflectable()
-// class AcDDViewColumn {
-//   static const String KEY_COLUMN_NAME = "column_name";
-//   static const String KEY_COLUMN_PROPERTIES = "column_properties";
-//   static const String KEY_COLUMN_TYPE = "column_type";
-//   static const String KEY_COLUMN_VALUE = "column_value";
-//   static const String KEY_COLUMN_SOURCE = "column_source";
-//   static const String KEY_COLUMN_SOURCE_NAME = "column_source_name";
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_NAME)
-//   String columnName = "";
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_PROPERTIES)
-//   Map<String, AcDDTableColumnProperty> columnProperties = {};
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_TYPE)
-//   String columnType = "text";
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_VALUE)
-//   dynamic columnValue;
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_SOURCE)
-//   String columnSource = "";
-//
-//   @AcBindJsonProperty(key: KEY_COLUMN_SOURCE_NAME)
-//   String columnSourceName = "";
-//
-//   AcDDViewColumn();
-//
-//   static AcDDViewColumn instanceFromJson({required Map<String, dynamic> jsonData}) {
-//     final instance = AcDDViewColumn();
-//     instance.fromJson(jsonData:jsonData);
-//     return instance;
-//   }
-//
-//   AcDDViewColumn fromJson({required Map<String, dynamic> jsonData}) {
-//     Map<String,dynamic> json = Map.from(jsonData);
-//     if (json.containsKey(KEY_COLUMN_PROPERTIES)) {
-//       final props = json[KEY_COLUMN_PROPERTIES] as Map<String, dynamic>;
-//       for (final entry in props.entries) {
-//         columnProperties[entry.key] = AcDDTableColumnProperty.instanceFromJson(jsonData:entry.value);
-//       }
-//       json.remove(KEY_COLUMN_PROPERTIES);
-//     }
-//     AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: json);
-//     return this;
-//   }
-//
-//   Map<String, dynamic> toJson() {
-//     return AcJsonUtils.getJsonDataFromInstance(instance: this);
-//   }
-//
-//   @override
-//   String toString() {
-//     return JsonEncoder.withIndent('  ').convert(toJson());
-//   }
-// }

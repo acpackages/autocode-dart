@@ -11,11 +11,13 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 class AcWebview extends StatefulWidget {
   final String url;
   final Color? backgroundColor;
+  final bool? allowDebugging;
+  final bool? keepCache;
 
   final AcLogger logger = AcLogger();
   final AcWebviewActionManager actionManager = AcWebviewActionManager();
 
-  AcWebview({required this.url, this.backgroundColor, super.key});
+  AcWebview({required this.url, this.backgroundColor,this.allowDebugging = false,this.keepCache = true, super.key});
 
   String onAction({required String name, required Function callback}) {
     return actionManager.on(action: name, callback: callback);

@@ -67,7 +67,7 @@ enum AcEnumDDColumnProperty {
   uniqueKey("UNIQUE_KEY"),
 
   /* AcDoc({"description": "Unknown property"}) */
-  unknown("unknown"),
+  unknown("UNKNOWN"),
 
   /* AcDoc({"description": "Marks the column to be included in search queries."}) */
   useForRowLikeFilter("USE_FOR_ROW_LIKE_FILTER");

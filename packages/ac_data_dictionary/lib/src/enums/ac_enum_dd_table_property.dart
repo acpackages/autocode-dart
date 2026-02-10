@@ -34,7 +34,7 @@ enum AcEnumDDTableProperty {
   tags("TAGS"),
 
   /* AcDoc({"description": "Unknown property."}) */
-  unknown("unknown");
+  unknown("UNKNOWN");
 
   /* AcDoc({"description": "The string representation of the table property."}) */
   final String value;
