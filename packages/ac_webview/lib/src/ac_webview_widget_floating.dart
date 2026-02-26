@@ -139,7 +139,7 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
       };
 
       // Optional: signal ready
-      // window.dispatchEvent(new Event('acWebviewChannelReady'));
+      window.dispatchEvent(new Event('acWebviewChannelReady'));
     })();
     ''';
 

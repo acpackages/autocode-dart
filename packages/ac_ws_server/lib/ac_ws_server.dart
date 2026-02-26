@@ -1,8 +1,3 @@
-/// Support for doing something awesome.
-///
-/// More dartdocs go here.
-library;
+library ac_ws_server;
 
-export 'src/ac_ws_server_base.dart';
-
-// TODO: Export any libraries intended for clients of this package.
+export 'src/ac_ws_server_base.dart' show AcWsServer, AcWsSocket, EventHandler;

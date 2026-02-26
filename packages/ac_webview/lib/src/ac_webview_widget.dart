@@ -149,8 +149,7 @@ class _AcWebviewState extends State<AcWebview> {
       };
 
       // Optional: trigger a ready event if your web code waits for it
-      // const event = new Event('acWebviewChannelReady');
-      // window.dispatchEvent(event);
+      window.dispatchEvent(new Event('acWebviewChannelReady'));
     })();
   ''');
       },
