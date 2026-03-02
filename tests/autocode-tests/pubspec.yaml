@@ -26,6 +26,10 @@ dependencies:
     path: './../../packages/ac_web'
   ac_web_on_jaguar:
     path: './../../packages/ac_web_on_jaguar'
+  ac_ws_client:
+    path: './../../packages/ac_ws_client'
+  ac_ws_server:
+    path: './../../packages/ac_ws_server'
   autocode:
     path: './../../packages/autocode'
   # path: ^1.8.0

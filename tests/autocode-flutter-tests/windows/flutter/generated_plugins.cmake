@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   desktop_drop
   file_selector_windows
+  flutter_inappwebview_windows
   fullscreen_window
   gal
   media_kit_video

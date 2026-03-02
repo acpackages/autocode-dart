@@ -13,6 +13,7 @@
 #include <sqlite3_flutter_libs/sqlite3_flutter_libs_plugin.h>
 #include <url_launcher_linux/url_launcher_plugin.h>
 #include <volume_controller/volume_controller_plugin.h>
+#include <webview_win_floating/webview_win_floating_plugin.h>
 
 void fl_register_plugins(FlPluginRegistry* registry) {
   g_autoptr(FlPluginRegistrar) desktop_drop_registrar =
@@ -36,4 +37,7 @@ void fl_register_plugins(FlPluginRegistry* registry) {
   g_autoptr(FlPluginRegistrar) volume_controller_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "VolumeControllerPlugin");
   volume_controller_plugin_register_with_registrar(volume_controller_registrar);
+  g_autoptr(FlPluginRegistrar) webview_win_floating_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "WebviewWinFloatingPlugin");
+  webview_win_floating_plugin_register_with_registrar(webview_win_floating_registrar);
 }
