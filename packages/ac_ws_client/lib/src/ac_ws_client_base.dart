@@ -9,6 +9,9 @@ class AcWsClient {
   final String url;
   final String nsp;
   final Map<String, String> query;
+  final SecurityContext? securityContext;
+  final bool acceptBadCertificates;
+
   WebSocket? _webSocket;
   bool _isConnected = false;
   final Map<String, List<EventHandler>> _eventHandlers = {};
@@ -17,17 +20,51 @@ class AcWsClient {
   int _ackCounter = 0;
   final Map<int, Completer<dynamic>> _pendingAcks = {};
 
-  AcWsClient(this.url, {this.nsp = '/', this.query = const {}});
+  AcWsClient(
+    this.url, {
+    this.nsp = '/',
+    this.query = const {},
+    this.securityContext,
+    this.acceptBadCertificates = false,
+  });
 
   Future<void> connect() async {
     _shouldReconnect = true;
-    final uri = Uri.parse(url).replace(queryParameters: {
+    
+    // Auto-convert http(s) to ws(s)
+    String wsUrl = url;
+    if (wsUrl.startsWith('https://')) {
+      wsUrl = 'wss://${wsUrl.substring(8)}';
+    } else if (wsUrl.startsWith('http://')) {
+      wsUrl = 'ws://${wsUrl.substring(7)}';
+    }
+
+    final uri = Uri.parse(wsUrl).replace(queryParameters: {
       ...query,
       'nsp': nsp,
     });
 
     try {
-      _webSocket = await WebSocket.connect(uri.toString());
+      if (uri.scheme == 'wss' || uri.scheme == 'https') {
+        final client = HttpClient(context: securityContext);
+        if (acceptBadCertificates) {
+          client.badCertificateCallback = (cert, host, port) => true;
+        }
+        
+        // WebSocket.connect doesn't easily support custom HttpClient settings in all versions,
+        // so we manually upgrade the request.
+        final request = await client.openUrl('GET', uri.replace(scheme: 'https'));
+        request.headers.set('upgrade', 'websocket');
+        request.headers.set('connection', 'upgrade');
+        request.headers.set('sec-websocket-version', '13');
+        request.headers.set('sec-websocket-key', base64.encode(Uint8List.fromList(List.generate(16, (_) => (DateTime.now().microsecondsSinceEpoch % 256)))));
+        
+        final response = await request.close();
+        _webSocket = await WebSocket.fromUpgradedHttpRequest(response, serverSide: false);
+      } else {
+        _webSocket = await WebSocket.connect(uri.toString());
+      }
+      
       _isConnected = true;
       _handleEvent('connect', null, null);
 
@@ -63,6 +100,7 @@ class AcWsClient {
         onError: (e) => _handleDisconnect(),
       );
     } catch (e) {
+      print('AcWsClient: Connection error: $e');
       _handleDisconnect();
     }
   }

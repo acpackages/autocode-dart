@@ -22,11 +22,9 @@ class AcWsOnWeb {
 
   void _setupWsHandlers() {
     this.socket.on(eventName, (data, [ack]) async {
-      print("Handling $eventName from socket ${socket.id}: $data");
       logger.log("Handling $eventName from socket ${socket.id}: $data");
       try {
         final requestData = data is String ? jsonDecode(data) : data as Map<String, dynamic>;
-        print(data);
         final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
         final url = (requestData['url'] ?? '').toString();
         final cleanUrl = url.startsWith('/') ? url.substring(1) : url;

@@ -12,7 +12,17 @@ import 'package:ac_web/ac_web.dart';
 class AcWeb {
   /* AcDoc({"summary": "The master API documentation object that accumulates all route docs."}) */
   AcApiDoc acApiDoc;
-  AcWebConfig webConfig = AcWebConfig();
+  AcWebConfig _webConfig = AcWebConfig();
+  AcWebConfig get webConfig {
+    return _webConfig;
+  }
+  set webConfig(AcWebConfig value) {
+    _webConfig = value;
+    if(value.exposeFilesController){
+      registerController(controllerClass: AcFilesController,routePrefix: webConfig.filesControllerConfig.routePrefix);
+      staticFilesDirectory(directory: webConfig.filesControllerConfig.uploadDirectory);
+    }
+  }
 
   /* AcDoc({"summary": "A map of all registered routes, keyed by 'METHOD>url_path'."}) */
   final Map<String, AcWebRouteDefinition> routeDefinitions = {};
@@ -24,6 +34,18 @@ class AcWeb {
   final List<Map<String, dynamic>> assetFilesRoutes = [];
 
   final List<Map<String, dynamic>> rawContentMaps = [];
+
+  /* AcDoc({"summary": "The port number for the HTTP server."}) */
+  int port = 0;
+
+  /* AcDoc({"summary": "The port number for the HTTPS/SSL server."}) */
+  int sslPort = 0;
+
+  /* AcDoc({"summary": "The file system path to the SSL certificate chain file (.pem)."}) */
+  String sslCertificateChainPath = "";
+
+  /* AcDoc({"summary": "The file system path to the SSL private key file (.key)."}) */
+  String sslPrivateKeyPath = "";
 
   /* AcDoc({"summary": "The logger instance for the web server."}) */
   AcLogger logger = AcLogger(
@@ -101,10 +123,7 @@ class AcWeb {
       );
     }
 
-    if(webConfig.exposeFilesController){
-      registerController(controllerClass: AcFilesController,routePrefix: webConfig.filesControllerConfig.routePrefix);
-      staticFilesDirectory(directory: webConfig.filesControllerConfig.uploadDirectory);
-    }
+
   }
 
   /* AcDoc({"summary": "Extracts named parameters from a URL path based on a route template."}) */

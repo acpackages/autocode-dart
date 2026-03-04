@@ -243,7 +243,19 @@ class AcWsRoomNamespace {
 
 class AcWsServer {
   HttpServer? _server;
+  HttpServer? _secureServer;
   final Map<String, AcWsNamespace> _namespaces = {};
+
+  int port = 0;
+
+  /* AcDoc({"summary": "The port number for the HTTPS/SSL server."}) */
+  int sslPort = 0;
+
+  /* AcDoc({"summary": "The file system path to the SSL certificate chain file (.pem)."}) */
+  String sslCertificateChainPath = "";
+
+  /* AcDoc({"summary": "The file system path to the SSL private key file (.key)."}) */
+  String sslPrivateKeyPath = "";
 
   AcWsServer() {
     _namespaces['/'] = AcWsNamespace('/', this);
@@ -257,9 +269,26 @@ class AcWsServer {
     of('/').onConnection(handler);
   }
 
-  Future<void> listen(int port) async {
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
-    _server!.listen((HttpRequest request) async {
+  Future<void> start() async {
+    if(port > 0){
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+      _server!.listen(_handleHttpRequest);
+    }
+    if(sslPort > 0 && sslCertificateChainPath.isNotEmpty && sslPrivateKeyPath.isNotEmpty){
+      SecurityContext securityContext = SecurityContext();
+      if (sslCertificateChainPath.isNotEmpty) {
+        securityContext.useCertificateChain(sslCertificateChainPath);
+      }
+      if (sslPrivateKeyPath.isNotEmpty) {
+        securityContext.usePrivateKey(sslPrivateKeyPath);
+      }
+      _secureServer = await HttpServer.bindSecure(InternetAddress.anyIPv4, sslPort, securityContext);
+      _secureServer!.listen(_handleHttpRequest);
+    }
+  }
+
+  void _handleHttpRequest(HttpRequest request) async {
+    try {
       if (WebSocketTransformer.isUpgradeRequest(request)) {
         final webSocket = await WebSocketTransformer.upgrade(request);
         
@@ -276,11 +305,20 @@ class AcWsServer {
         final socket = AcWsSocket(webSocket, socketId, this, nspName, handshake);
         socket._listen();
         of(nspName)._addSocket(socket);
+        print('AcWsServer: Successfully upgraded connection $socketId to namespace $nspName');
       } else {
+        print('AcWsServer: Rejecting non-WebSocket request to ${request.uri.path}');
         request.response.statusCode = HttpStatus.forbidden;
         request.response.close();
       }
-    });
+    } catch (e, stack) {
+      print('AcWsServer Error in _handleHttpRequest: $e');
+      print(stack);
+      try {
+        request.response.statusCode = HttpStatus.internalServerError;
+        request.response.close();
+      } catch (_) {}
+    }
   }
 
   void _handleDisconnect(AcWsSocket socket) {
@@ -296,8 +334,13 @@ class AcWsServer {
     of('/').emit(event, data);
   }
 
-  Future<void> close() async {
-    await _server?.close(force: true);
+  Future<void> stop() async {
+    if(_server != null){
+      await _server?.close(force: true);
+    }
+    if(_secureServer != null){
+      await _secureServer?.close(force: true);
+    }
     for (final nsp in _namespaces.values) {
       for (final socket in nsp._sockets) {
         socket.disconnect();
