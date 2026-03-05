@@ -47,7 +47,7 @@ class AcWebOnJaguar extends AcWeb {
   AcWebOnJaguar({super.paths});
 
   /* AcDoc({"summary": "Iterates through defined routes and registers them with the Jaguar instance."}) */
-  void _addRoutesToJaguar() {
+  void _addRoutesToJaguarInstance(Jaguar instance) {
     for (var routeKey in routeDefinitions.keys) {
       AcWebRouteDefinition routeDefinition = routeDefinitions[routeKey]!;
       logger.log(
@@ -70,7 +70,7 @@ class AcWebOnJaguar extends AcWeb {
         },
         before: [cors(corsOptions)],
       );
-      jaguarInstance!.addRoute(route);
+      instance.addRoute(route);
       logger.log(
         "Registered jaguar route for route : $routeKey >>>> Url : ${routeDefinition.url}!",
       );
@@ -105,7 +105,7 @@ class AcWebOnJaguar extends AcWeb {
           // }
         }
       });
-      jaguarInstance!.addRoute(route);
+      instance.addRoute(route);
     }
     for (var rawMap in rawContentMaps){
       String prefix = rawMap['prefix'];
@@ -154,7 +154,7 @@ class AcWebOnJaguar extends AcWeb {
           // }
         }
       });
-      jaguarInstance!.addRoute(route);
+      instance.addRoute(route);
     }
     for (var staticDirectory in staticFilesRoutes){
       String url = staticDirectory['prefix']+staticDirectory['directory'];
@@ -165,40 +165,7 @@ class AcWebOnJaguar extends AcWeb {
       String directory = staticDirectory['directory'];
       logger.log("Registering jaguar route for static files directory : Path : $url >>>> Directory : ${directory}...",
       );
-      jaguarInstance!.staticFiles(url,directory);
-    }
-  }
-
-  /* AcDoc({"summary": "Registers routes on the HTTPS Jaguar instance, mirroring the HTTP routes."}) */
-  void _addRoutesToJaguarSecure() {
-    if (jaguarSecureInstance == null) return;
-    for (var routeKey in routeDefinitions.keys) {
-      AcWebRouteDefinition routeDefinition = routeDefinitions[routeKey]!;
-      var routeDetails = _normalizeRoutePath(routeDefinition.url);
-      Route route = Route(
-        routeDetails.path,
-        methods: [routeDefinition.method.toUpperCase()],
-        (context) async {
-          final request = await _createAcWebRequestFromJaguarContext(context);
-          logger.log("Handling secure jaguar request for : ${context.path}");
-          AcWebResponse webResponse = await handleWebRequest(
-            request,
-            routeDefinition,
-          );
-          await _createJaguarResponseFromAcWebResponse(webResponse, context);
-        },
-        before: [cors(corsOptions)],
-      );
-      jaguarSecureInstance!.addRoute(route);
-    }
-    for (var staticDirectory in staticFilesRoutes) {
-      String url = staticDirectory['prefix'] + staticDirectory['directory'];
-      if (!url.startsWith("/")) {
-        url = "/$url";
-      }
-      url = "$url/*";
-      String directory = staticDirectory['directory'];
-      jaguarSecureInstance!.staticFiles(url, directory);
+      instance.staticFiles(url,directory);
     }
   }
 
@@ -456,7 +423,6 @@ class AcWebOnJaguar extends AcWeb {
       }
       logger.log("Starting jaguar server on port $port...");
       jaguarInstance = Jaguar(port: port, errorWriter: _customErrorWriter);
-      if (jaguarInstance != null) {}
       if (forceHttps) {
         Route redirectRoute = Route("*", (context) async {
           try {
@@ -490,7 +456,7 @@ class AcWebOnJaguar extends AcWeb {
         }, before: [cors(corsOptions)]);
         jaguarInstance!.addRoute(redirectRoute);
       } else {
-        _addRoutesToJaguar();
+        _addRoutesToJaguarInstance(jaguarInstance!);
       }
       jaguarInstance!.onException.add(
         (ctx, temp, trace) => logger.error(
@@ -499,7 +465,6 @@ class AcWebOnJaguar extends AcWeb {
       );
       await jaguarInstance?.serve();
       logger.log("Jaguar server running on port $port");
-
 
       if (sslPort > 0) {
         SecurityContext securityContext = SecurityContext();
@@ -514,17 +479,7 @@ class AcWebOnJaguar extends AcWeb {
           errorWriter: _customErrorWriter,
           securityContext: securityContext,
         );
-        if (jaguarSecureInstance != null) {}
-        // jaguarSecureInstance!.add(routes);
-        // staticPaths.forEach((key, value) {
-        //   jaguarSecureInstance?.staticFiles(key, value);
-        // });
-        jaguarSecureInstance!.onException.add(
-          (ctx, temp, trace) => logger.log(
-            "After Path in Exception ${ctx.path} Response = ${ctx.response.statusCode}",
-          ),
-        );
-        _addRoutesToJaguarSecure();
+        _addRoutesToJaguarInstance(jaguarSecureInstance!);
         jaguarSecureInstance!.onException.add(
               (ctx, temp, trace) => logger.error(
             "After Path in Exception ${ctx.path} Response = ${ctx.response.statusCode}",
