@@ -652,6 +652,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       final staticMembers = <Symbol, Element>{};
       for (final member in getAllDeclarations(element)) {
         if (member.isSynthetic) continue;
+        if (member.isPrivate) continue;
         if (_isStatic(member)) {
           staticMembers.putIfAbsent(Symbol(member.name!), () => member);
         } else if (member is! ConstructorElement) {
