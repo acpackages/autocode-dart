@@ -102,6 +102,31 @@ class AcWebResponse {
   }
 
   /* AcDoc({
+    "summary": "Creates a response for downloading a file.",
+    "description": "Configures the response to trigger a file download in the client's browser with the specified filename and content.",
+    "params": [
+      {"name": "content", "description": "The content of the file to be downloaded (e.g., String or bytes)."},
+      {"name": "filename", "description": "The name of the file as it should appear in the download."},
+      {"name": "responseCode", "description": "The HTTP status code. Defaults to 200 OK."}
+    ],
+    "returns": "A configured `AcWebResponse` for file download.",
+    "returns_type": "AcWebResponse"
+  }) */
+  static AcWebResponse download({
+    required dynamic content,
+    required String filename,
+    AcEnumHttpResponseCode responseCode = AcEnumHttpResponseCode.ok,
+  }) {
+    final response = AcWebResponse();
+    response.responseCode = responseCode;
+    response.responseType = AcEnumWebResponseType.download;
+    response.content = content;
+    response.headers['Content-Disposition'] = 'attachment; filename="$filename"';
+    response.headers['Content-Type'] = 'application/octet-stream';
+    return response;
+  }
+
+  /* AcDoc({
     "summary": "Creates a standard Not Found (404) response.",
     "returns": "A configured `AcWebResponse` with a 404 status code.",
     "returns_type": "AcWebResponse"

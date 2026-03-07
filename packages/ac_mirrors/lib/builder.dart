@@ -84,20 +84,24 @@ class AcMirrorsAggregatingBuilder implements Builder {
         }
 
         for (final metadata in classElement.metadata) {
-          final annotationElement = metadata.element;
-          if (annotationElement == null) continue;
+          try {
+            final annotationElement = metadata.element;
+            if (annotationElement == null) continue;
 
-          Element? elementToInspectForAnnotation;
-          if (annotationElement is ConstructorElement) {
-            elementToInspectForAnnotation = annotationElement.enclosingElement;
-          } else if (annotationElement is PropertyAccessorElement) {
-            elementToInspectForAnnotation = annotationElement.variable;
-          }
+            Element? elementToInspectForAnnotation;
+            if (annotationElement is ConstructorElement) {
+              elementToInspectForAnnotation = annotationElement.enclosingElement;
+            } else if (annotationElement is PropertyAccessorElement) {
+              elementToInspectForAnnotation = annotationElement.variable;
+            }
 
-          if (elementToInspectForAnnotation != null && reflectableChecker.hasAnnotationOfExact(elementToInspectForAnnotation)) {
-            log("    > Found meta-annotation on class: ${classElement.name} via ${elementToInspectForAnnotation.name}");
-            uniqueElements.add(classElement);
-            break;
+            if (elementToInspectForAnnotation != null && reflectableChecker.hasAnnotationOfExact(elementToInspectForAnnotation)) {
+              log("    > Found meta-annotation on class: ${classElement.name} via ${elementToInspectForAnnotation.name}");
+              uniqueElements.add(classElement);
+              break;
+            }
+          } catch (e) {
+            log("    > WARNING: Could not resolve annotation on class ${classElement.name}. Skipping. Error: $e");
           }
         }
       }
@@ -110,20 +114,24 @@ class AcMirrorsAggregatingBuilder implements Builder {
         }
 
         for (final metadata in enumElement.metadata) {
-          final annotationElement = metadata.element;
-          if (annotationElement == null) continue;
+          try {
+            final annotationElement = metadata.element;
+            if (annotationElement == null) continue;
 
-          Element? elementToInspectForAnnotation;
-          if (annotationElement is ConstructorElement) {
-            elementToInspectForAnnotation = annotationElement.enclosingElement;
-          } else if (annotationElement is PropertyAccessorElement) {
-            elementToInspectForAnnotation = annotationElement.variable;
-          }
+            Element? elementToInspectForAnnotation;
+            if (annotationElement is ConstructorElement) {
+              elementToInspectForAnnotation = annotationElement.enclosingElement;
+            } else if (annotationElement is PropertyAccessorElement) {
+              elementToInspectForAnnotation = annotationElement.variable;
+            }
 
-          if (elementToInspectForAnnotation != null && reflectableChecker.hasAnnotationOfExact(elementToInspectForAnnotation)) {
-            log("    > Found meta-annotation on enum: ${enumElement.name} via ${elementToInspectForAnnotation.name}");
-            uniqueElements.add(enumElement);
-            break;
+            if (elementToInspectForAnnotation != null && reflectableChecker.hasAnnotationOfExact(elementToInspectForAnnotation)) {
+              log("    > Found meta-annotation on enum: ${enumElement.name} via ${elementToInspectForAnnotation.name}");
+              uniqueElements.add(enumElement);
+              break;
+            }
+          } catch (e) {
+            log("    > WARNING: Could not resolve annotation on enum ${enumElement.name}. Skipping. Error: $e");
           }
         }
       }
@@ -196,10 +204,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
       log("Found uri : ${current.library.source.uri} ");
       for (final member in getAllDeclarations(current)) {
         for (final meta in member.metadata) {
-          final metaElement = meta.element;
-          if (metaElement?.library?.source.uri != null) {
-            log("Found member meta uri : ${metaElement!.library!.source.uri} ");
-            uris.add(metaElement!.library!.source.uri);
+          try {
+            final metaElement = meta.element;
+            if (metaElement?.library?.source.uri != null) {
+              log("Found member meta uri : ${metaElement!.library!.source.uri} ");
+              uris.add(metaElement!.library!.source.uri);
+            }
+          } catch (e) {
+            log("    > WARNING: Could not resolve metadata element for member ${member.name}. Error: $e");
           }
         }
         if (member is FieldElement) {
@@ -225,10 +237,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
       }
       // Collect URIs for metadata on the class itself
       for (final meta in current.metadata) {
-        final metaElement = meta.element;
-        if (metaElement?.library?.source.uri != null) {
-          uris.add(metaElement!.library!.source.uri);
-          log("Found class meta uri : ${metaElement!.library!.source.uri} ");
+        try {
+          final metaElement = meta.element;
+          if (metaElement?.library?.source.uri != null) {
+            uris.add(metaElement!.library!.source.uri);
+            log("Found class meta uri : ${metaElement!.library!.source.uri} ");
+          }
+        } catch (e) {
+          log("    > WARNING: Could not resolve metadata element for class ${current.name}. Error: $e");
         }
         try {
           final constant = meta.computeConstantValue();
@@ -248,10 +264,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
     uris.add(enumEl.library.source.uri);
     for (final member in enumEl.fields.where((f) => f.isEnumConstant)) {
       for (final meta in member.metadata) {
-        final metaElement = meta.element;
-        if (metaElement?.library?.source.uri != null) {
-          log("Found member meta uri : ${metaElement!.library!.source.uri} ");
-          uris.add(metaElement!.library!.source.uri);
+        try {
+          final metaElement = meta.element;
+          if (metaElement?.library?.source.uri != null) {
+            log("Found member meta uri : ${metaElement!.library!.source.uri} ");
+            uris.add(metaElement!.library!.source.uri);
+          }
+        } catch (e) {
+          log("    > WARNING: Could not resolve metadata element for enum member ${member.name}. Error: $e");
         }
       }
       final typeElement = member.type.element;
@@ -262,10 +282,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
     }
     // Collect URIs for metadata on the enum itself
     for (final meta in enumEl.metadata) {
-      final metaElement = meta.element;
-      if (metaElement?.library?.source.uri != null) {
-        log("Found enum meta uri : ${metaElement!.library!.source.uri} ");
-        uris.add(metaElement!.library!.source.uri);
+      try {
+        final metaElement = meta.element;
+        if (metaElement?.library?.source.uri != null) {
+          log("Found enum meta uri : ${metaElement!.library!.source.uri} ");
+          uris.add(metaElement!.library!.source.uri);
+        }
+      } catch (e) {
+        log("    > WARNING: Could not resolve metadata element for enum ${enumEl.name}. Error: $e");
       }
     }
     // Collect URIs for types used in annotations
@@ -301,10 +325,14 @@ class AcMirrorsAggregatingBuilder implements Builder {
       if (variable?.library?.source.uri != null) {
         uris.add(variable!.library!.source.uri);
       }
-      final revived = reader.revive();
-      // if (revived.source.library?.source.uri != null) {
-      //   uris.add(revived.source.library!.source.uri);
-      // }
+      try {
+        final revived = reader.revive();
+        // if (revived.source.library?.source.uri != null) {
+        //   uris.add(revived.source.library!.source.uri);
+        // }
+      } catch (e) {
+        log("    > WARNING: Could not revive object for URI collection. Error: $e");
+      }
     }
   }
 
@@ -382,15 +410,20 @@ class AcMirrorsAggregatingBuilder implements Builder {
       return variable.name ?? '';
     }
 
-    final revived = reader.revive();
-    final typeName = revived.source.fragment.isEmpty ? revived.accessor : revived.source.fragment;
-    final accessor = revived.accessor.isNotEmpty && revived.accessor != typeName ? '.${revived.accessor}' : '';
+    try {
+      final revived = reader.revive();
+      final typeName = revived.source.fragment.isEmpty ? revived.accessor : revived.source.fragment;
+      final accessor = revived.accessor.isNotEmpty && revived.accessor != typeName ? '.${revived.accessor}' : '';
 
-    final positionalArgs = revived.positionalArguments.map(_dartObjectToSource).join(', ');
-    final namedArgs = revived.namedArguments.entries.map((e) => '${e.key}: ${_dartObjectToSource(e.value)}').join(', ');
-    final allArgs = [positionalArgs, namedArgs].where((s) => s.isNotEmpty).join(', ');
+      final positionalArgs = revived.positionalArguments.map(_dartObjectToSource).join(', ');
+      final namedArgs = revived.namedArguments.entries.map((e) => '${e.key}: ${_dartObjectToSource(e.value)}').join(', ');
+      final allArgs = [positionalArgs, namedArgs].where((s) => s.isNotEmpty).join(', ');
 
-    return 'const $typeName$accessor($allArgs)';
+      return 'const $typeName$accessor($allArgs)';
+    } catch (e) {
+      log("    > WARNING: Could not revive object for source generation. Falling back to empty string. Error: $e");
+      return '';
+    }
   }
 
   

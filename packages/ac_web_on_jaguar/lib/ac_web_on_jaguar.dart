@@ -391,6 +391,11 @@ class AcWebOnJaguar extends AcWeb {
             headers: acWebResponse.headers,
             mimeType: AcFileUtils.getMimeTypeFromPath(context.path),
           );
+        } else if (acWebResponse.responseType == AcEnumWebResponseType.download) {
+          response = Response(
+            body: acWebResponse.content,
+            headers: acWebResponse.headers,
+          );
         }
       } else {
         if (acWebResponse.responseType == AcEnumWebResponseType.redirect) {
