@@ -26,11 +26,6 @@ class AcWebOnJaguar extends AcWeb {
   final CustomErrorWriter _customErrorWriter = CustomErrorWriter();
 
   /* AcDoc({"summary": "Configuration options for Cross-Origin Resource Sharing (CORS)."}) */
-  CorsOptions corsOptions = const CorsOptions(
-    allowAllOrigins: true,
-    allowAllHeaders: true,
-    allowAllMethods: true,
-  );
   /* AcDoc({"summary": "If true, all HTTP requests will be redirected to their HTTPS equivalent."}) */
   bool forceHttps = false;
 
@@ -67,8 +62,7 @@ class AcWebOnJaguar extends AcWeb {
             routeDefinition,
           );
           await _createJaguarResponseFromAcWebResponse(webResponse, context);
-        },
-        before: [cors(corsOptions)],
+        }
       );
       instance.addRoute(route);
       logger.log(
@@ -167,6 +161,11 @@ class AcWebOnJaguar extends AcWeb {
       );
       instance.staticFiles(url,directory);
     }
+    instance.after.add((ctx) async {
+      ctx.response.headers.add('Access-Control-Allow-Origin', '*');
+      ctx.response.headers.add('Access-Control-Allow-Methods', '*');
+      ctx.response.headers.add('Access-Control-Allow-Headers', '*');
+    });
   }
 
   _addStaticFilesRoute(String path, String directory,{Function? errorFunction,ResponseProcessor? responseProcessor,}) {
@@ -207,7 +206,7 @@ class AcWebOnJaguar extends AcWeb {
           }
         }
       }
-    }, responseProcessor: responseProcessor,before:[cors(corsOptions)]);
+    }, responseProcessor: responseProcessor);
     jaguarInstance!.addRoute(route);
   }
 
@@ -283,71 +282,6 @@ class AcWebOnJaguar extends AcWeb {
             }
             acWebRequest.post[key] = value;
           }
-          // for (var entry in formData.entries) {
-          //   final key = entry.key;
-          //   final value = entry.value.value;
-          //
-          //   // Parse key: accountee[accountee_name] => ["accountee", "accountee_name"]
-          //   final regex = RegExp(r'([^\[\]]+)|\[(.*?)\]');
-          //   final matches = regex.allMatches(key);
-          //   final parts = matches.map((m) => m.group(1) ?? m.group(2)!).toList();
-          //
-          //   Map<String, dynamic> current = acWebRequest.post;
-          //   for (int i = 0; i < parts.length; i++) {
-          //     final part = parts[i];
-          //
-          //     if (i == parts.length - 1) {
-          //       current[part] = value;
-          //     } else {
-          //       if (current[part] == null || current[part] is! Map<String, dynamic>) {
-          //         current[part] = {};
-          //       }
-          //       current = current[part];
-          //     }
-          //   }
-          // }
-          // for (var key in formData.keys) {
-          //   FormField value = formData[key]!;
-          //   logger.log(
-          //     "Found File Field : $key = ${formData[key] is FileFormField}",
-          //   );
-          //   logger.log("$key = ${value}");
-          //   if (formData[key] is FileFormField ||
-          //       formData[key] is BinaryFileFormField) {
-          //     ContentType? type = value.contentType;
-          //     // UploadFile uploadFile=UploadFile();
-          //     // Simplify.debug("Found file");
-          //     // if(formData[key] is TextFileFormField){
-          //     //   // Simplify.debug("Found text file form field");
-          //     //   TextFileFormField textFile=formData[key] as TextFileFormField;
-          //     //
-          //     //   Simplify.debug(textFile.toString());
-          //     //   Simplify.debug(textFile);
-          //     //   uploadFile.filename=textFile.filename!;
-          //     //   uploadFile.contentStream=textFile.value.cast();
-          //     // }
-          //     // else{
-          //     //   Simplify.debug("Found Binary file form field");
-          //     //   BinaryFileFormField binaryFile=formData[key] as BinaryFileFormField;
-          //     //   uploadFile.filename=binaryFile.filename!;
-          //     //   uploadFile.contentStream=binaryFile.value;
-          //     // }
-          //     // FileFormField? fileFormField = await context.getFile(key);
-          //     // if (fileFormField != null) {
-          //     //   uploadFile.field=fileFormField;
-          //     //   acWebRequest.putFile(key, uploadFile);
-          //     // }
-          //   } else {
-          //     if (key.indexOf("[") > 0) {
-          //       FormField formField=formData[key] as FormField;
-          //       foundNested = true;
-          //       acWebRequest.putPostUrlEncodedMap(formField.name, formField.value);
-          //     } else {
-          //       FormField formField = formData[key] as FormField;
-          //       acWebRequest.post[formField.name] = formField.value;
-          //     }
-          //   }
-          // }
         } else if (context.isJson) {
           Map<String, dynamic> formData =
               (await context.bodyAsJsonMap()).cast<String, dynamic>();
@@ -458,7 +392,7 @@ class AcWebOnJaguar extends AcWeb {
               Autocode.getExceptionMessage(exception: ex, stackTrace: stack),
             );
           }
-        }, before: [cors(corsOptions)]);
+        });
         jaguarInstance!.addRoute(redirectRoute);
       } else {
         _addRoutesToJaguarInstance(jaguarInstance!);

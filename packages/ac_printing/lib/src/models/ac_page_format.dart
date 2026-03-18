@@ -2,6 +2,7 @@ import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:pdf/pdf.dart';
+import 'package:puppeteer/puppeteer.dart';
 
 const Map<String,Map<String,dynamic>> acPageFormats = {
 // ISO A Series (existing, fixed)
@@ -164,6 +165,15 @@ class AcPageFormat {
     return instance;
   }
 
+  factory AcPageFormat.instanceFromPaperFormat({
+    required PaperFormat format,
+  }) {
+    final instance = AcPageFormat();
+    instance.height = format.height * 25.4;
+    instance.width = format.width * 25.4;
+    return instance;
+  }
+
 
   AcPageFormat fromJson({required Map<String, dynamic> jsonData}) {
     AcJsonUtils.setInstancePropertiesFromJsonData(
@@ -173,6 +183,7 @@ class AcPageFormat {
     return this;
   }
 
+
   Map<String, dynamic> toJson() {
     var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
     return result;
@@ -180,12 +191,19 @@ class AcPageFormat {
 
   PdfPageFormat toPdfPageFormat() {
     return PdfPageFormat(
-      (isPortrait?width:height) * PdfPageFormat.mm,
-      (isPortrait?height:width) * PdfPageFormat.mm,  // null = roll / auto-length
+      (isPortrait?(width > 0?width * PdfPageFormat.mm:double.infinity):(height > 0?height * PdfPageFormat.mm:double.infinity)),
+      (isPortrait?(height > 0?height * PdfPageFormat.mm:double.infinity):(width > 0?width * PdfPageFormat.mm:double.infinity)),  // null = roll / auto-length
       marginLeft:   marginLeft * PdfPageFormat.mm,
       marginRight:  marginRight * PdfPageFormat.mm,
       marginTop:    marginTop * PdfPageFormat.mm,
       marginBottom: marginBottom * PdfPageFormat.mm,
+    );
+  }
+
+  PaperFormat toPaperFormat() {
+    return PaperFormat.mm(
+      width:(isPortrait?(width > 0?width:double.infinity):(height > 0?height.ceilToDouble():double.infinity)),
+      height:(isPortrait?(height > 0?height:double.infinity):(width > 0?width.ceilToDouble():double.infinity)),
     );
   }
 

@@ -17,8 +17,8 @@ void main() async {
       return AcWebResponse.json(data: {'message': 'Hello, $name!'});
     },
   );
-
-  await wsServer.listen(8080);
+  wsServer.port = 8080;
+  await wsServer.start();
   print('WebSocket Server listening on port 8080');
   print('Send a "web_request" event with { "url": "hello", "method": "GET", "query": { "name": "User" } }');
 }

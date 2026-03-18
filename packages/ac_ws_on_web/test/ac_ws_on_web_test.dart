@@ -25,15 +25,15 @@ void main() {
           return AcWebResponse.json(data: {'success': true});
         },
       );
-
-      await wsServer.listen(port);
+      wsServer.port = 8081;
+      await wsServer.start();
       client = AcWsClient('ws://localhost:$port');
       await client.connect();
     });
 
     tearDown(() async {
       client.disconnect();
-      await wsServer.close();
+      await wsServer.stop();
     });
 
     test('should handle web_request and return response via ack', () async {
@@ -61,8 +61,8 @@ void main() {
       // AcWsOnWeb(customWsServer, customApp, eventName: 'custom_event');
       
       customApp.get(url: 'custom', handler: (r, l) async => AcWebResponse.json(data: 'ok'));
-      
-      await customWsServer.listen(8082);
+      customWsServer.port = 8082;
+      await customWsServer.start();
       final customClient = AcWsClient('ws://localhost:8082');
       await customClient.connect();
       
@@ -73,8 +73,8 @@ void main() {
       
       expect(response['content'], equals('ok'));
       
-      await customClient.disconnect();
-      await customWsServer.close();
+      customClient.disconnect();
+      await customWsServer.stop();
     });
   });
 }

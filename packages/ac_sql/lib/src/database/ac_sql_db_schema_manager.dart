@@ -871,6 +871,26 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
+  Future<AcResult> dropDatabaseTriggers() async {
+    final result = AcResult();
+    try {
+      logger.log('Dropping triggers...');
+      if(databaseType == AcEnumSqlDatabaseType.sqlite){
+        AcSqlDaoResult selectResult = await dao!.getRows(statement: "SELECT 'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';");
+        if(selectResult.isSuccess()){
+          List<Map<String,dynamic>> rows = selectResult.rows;
+          for(var row in rows){
+            await dao!.executeStatement(statement: row.getString('drop_statement'));
+          }
+        }
+        result.setFromResult(result: selectResult);
+      }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+    return result;
+  }
+
   // Helper method - generates the actual trigger SQL
   String _generateUpdateAtTriggerSql({
     required String tableName,

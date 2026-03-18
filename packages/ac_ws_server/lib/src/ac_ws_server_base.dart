@@ -67,6 +67,7 @@ class AcWsSocket {
       for (final handler in handlers) {
         if (ackId != null) {
           handler(data, (response) {
+            print("Sending ack response");
             _send({'r': ackId, 'd': response, 'n': nsp});
           });
         } else {
@@ -305,9 +306,7 @@ class AcWsServer {
         final socket = AcWsSocket(webSocket, socketId, this, nspName, handshake);
         socket._listen();
         of(nspName)._addSocket(socket);
-        print('AcWsServer: Successfully upgraded connection $socketId to namespace $nspName');
       } else {
-        print('AcWsServer: Rejecting non-WebSocket request to ${request.uri.path}');
         request.response.statusCode = HttpStatus.forbidden;
         request.response.close();
       }

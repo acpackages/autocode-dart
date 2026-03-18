@@ -279,6 +279,7 @@ class AcMysqlDao extends AcBaseSqlDao {
   Future<AcSqlDaoResult> executeMultipleSqlStatements({
     required List<String> statements,
     Map<String, dynamic> parameters = const {},
+    Function? perStatementCallback
   }) async {
     final result = AcSqlDaoResult();
     MySQLConnection? db;

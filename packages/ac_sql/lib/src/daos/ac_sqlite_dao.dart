@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
@@ -241,33 +242,54 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<AcSqlDaoResult> executeMultipleSqlStatements({
     required List<String> statements,
     Map<String, dynamic> parameters = const {},
+    Function(AcSqlCallbackArgs)? perStatementCallback
   }) async {
     final result = AcSqlDaoResult();
-   Database? db;
+    Database? db;
+    dynamic lastSqlStatment;
+    dynamic lastParameters;
     try {
       db = await _getConnection();
       if(db != null){
+        int totalCount = statements.length;
+        int completedCount = 0;
         if(_transaction != null){
           for (final statement in statements) {
-            final setParametersResult = setSqlStatementParameters(
-              statement: statement,
-              passedParameters: parameters,
-            );
-            final updatedStatement = setParametersResult['statement'];
-            final updatedParameterValues = (setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList();
-            await _transaction!.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
-          }
-        }
-        else{
-          await db.transaction((txn) async {
-            for (final statement in statements) {
+            completedCount++;
+            if(statement.trim().isNotEmpty){
               final setParametersResult = setSqlStatementParameters(
                 statement: statement,
                 passedParameters: parameters,
               );
               final updatedStatement = setParametersResult['statement'];
-              final updatedParameterValues = (setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList();
-              await txn.rawQuery(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+              final updatedParameterValues = ensureValidParamsType(params:(setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList());
+              lastSqlStatment = updatedStatement;
+              lastParameters = updatedParameterValues;
+              final response = await _transaction!.rawQuery(updatedStatement, updatedParameterValues);
+              if(perStatementCallback!=null){
+                perStatementCallback(AcSqlCallbackArgs(totalCount:totalCount,completedCount:completedCount));
+              }
+            }
+          }
+        }
+        else{
+          await db.transaction((txn) async {
+            for (final statement in statements) {
+              completedCount++;
+              if(statement.trim().isNotEmpty){
+                final setParametersResult = setSqlStatementParameters(
+                  statement: statement,
+                  passedParameters: parameters,
+                );
+                final updatedStatement = setParametersResult['statement'];
+                final updatedParameterValues = ensureValidParamsType(params:(setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList());
+                lastSqlStatment = updatedStatement;
+                lastParameters = updatedParameterValues;
+                final response = await txn.rawQuery(updatedStatement, updatedParameterValues);
+                if(perStatementCallback!=null){
+                  perStatementCallback(AcSqlCallbackArgs(totalCount:totalCount,completedCount:completedCount));
+                }
+              }
             }
           });
         }
@@ -278,6 +300,7 @@ class AcSqliteDao extends AcBaseSqlDao {
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+      result.value = {'last_sql_statement':lastSqlStatment,'last_sql_parameters':lastParameters};
     } finally {
       if (sqlConnection.database != inMemoryDatabasePath && autoCloseAfterExecution) {
         await db?.close();
@@ -289,6 +312,7 @@ class AcSqliteDao extends AcBaseSqlDao {
   @override
   Future<AcResult> executeSqlOperations({
     required List<AcSqlOperation> operations,
+    Function(AcSqlCallbackArgs)? perOperationCallback
   }) async {
     final result = AcSqlDaoResult();
     Database? db;
@@ -304,10 +328,13 @@ class AcSqliteDao extends AcBaseSqlDao {
 
         result.value = await db.transaction((txn) async {
           List<dynamic> operationResults = List.empty(growable: true);
+          int totalCount = operations.length;
+          int completedCount = 0;
 
           logger.log('Transaction started. Processing ${operations.length} SQL operation(s)');
 
           for (int i = 0; i < operations.length; i++) {
+            completedCount++;
             final sqlOperation = operations[i];
             logger.log('--- Processing Operation ${i + 1}/${operations.length} ---');
             logger.log('Type: ${sqlOperation.operation}');
@@ -396,6 +423,9 @@ class AcSqliteDao extends AcBaseSqlDao {
               logger.log('UNKNOWN/UNSUPPORTED Operation Type: ${sqlOperation.operation} - Skipping');
               operationResults.add(null);
             }
+            if(perOperationCallback != null){
+              perOperationCallback(AcSqlCallbackArgs(totalCount:totalCount,completedCount:completedCount));
+            }
 
             logger.log('--- End Operation ${i + 1} ---\n');
           }
@@ -463,11 +493,24 @@ class AcSqliteDao extends AcBaseSqlDao {
             .toList();
         if(_transaction != null){
           await _transaction!.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+          result.setSuccess();
+          if([AcEnumDDRowOperation.insert,AcEnumDDRowOperation.update,AcEnumDDRowOperation.delete].contains(operation)){
+            var rows = await _transaction!.rawQuery('SELECT changes() as rows_count;');
+            if(rows.length > 0){
+              result.affectedRowsCount = rows.first.getInt('rows_count');
+            }
+          }
         }
         else{
           await db.execute(updatedStatement, ensureValidParamsType(params: updatedParameterValues));
+          result.setSuccess();
+          if([AcEnumDDRowOperation.insert,AcEnumDDRowOperation.update,AcEnumDDRowOperation.delete].contains(operation)){
+            var rows = await db.rawQuery('SELECT changes() as rows_count;');
+            if(rows.length > 0){
+              result.affectedRowsCount = rows.first.getInt('rows_count');
+            }
+          }
         }
-        result.setSuccess();
       }
       else{
         result.setFailure(message: 'Error connecting database');

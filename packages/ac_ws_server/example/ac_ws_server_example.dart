@@ -53,6 +53,7 @@ void main() async {
   });
 
   print('Starting server on port $port...');
-  await server.listen(port);
+  server.port = 8080;
+  await server.start();
   print('Server listening on port $port');
 }

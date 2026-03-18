@@ -16,6 +16,7 @@ class AcWebRequest {
   static const String keyFiles = 'files';
   static const String keyQueryParameters = 'get'; // Renamed for clarity in docs
   static const String keyHeaders = 'headers';
+  static const String keyInternalParams = 'internalParams';
   static const String keyMethod = 'method';
   static const String keyPathParameters = 'pathParameters';
   static const String keyFormFields = 'post'; // Renamed for clarity in docs
@@ -51,6 +52,9 @@ class AcWebRequest {
   /* AcDoc({"summary": "A map of HTTP headers sent with the request."}) */
   @AcBindJsonProperty(key: keyHeaders)
   Map<String, dynamic> headers = {};
+
+  @AcBindJsonProperty(key: keyInternalParams)
+  Map<String, dynamic> internalParams = {};
 
   /* AcDoc({"summary": "The HTTP method of the request (e.g., 'GET', 'POST')."}) */
   @AcBindJsonProperty(key: keyMethod)

@@ -137,11 +137,12 @@ class AcBaseSqlDao {
   Future<AcSqlDaoResult> executeMultipleSqlStatements({
     required List<String> statements,
     Map<String, dynamic> parameters = const {},
+    Function(AcSqlCallbackArgs)? perStatementCallback
   }) async {
     return AcSqlDaoResult();
   }
 
-  Future<AcResult> executeSqlOperations({required List<AcSqlOperation> operations}) async {
+  Future<AcResult> executeSqlOperations({required List<AcSqlOperation> operations,Function(AcSqlCallbackArgs)? perOperationCallback}) async {
     return AcResult();
   }
 
