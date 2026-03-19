@@ -44,6 +44,7 @@ void testAcWebSocketServer() async {
   });
 
   print('Server: Starting ac_ws demo server on port $port...');
-  await server.listen(port);
+  server.port = port;
+  await server.start();
   print('Server: Listening on $port');
 }

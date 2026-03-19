@@ -50,17 +50,11 @@ class AcWsClient {
         if (acceptBadCertificates) {
           client.badCertificateCallback = (cert, host, port) => true;
         }
-        
-        // WebSocket.connect doesn't easily support custom HttpClient settings in all versions,
-        // so we manually upgrade the request.
-        final request = await client.openUrl('GET', uri.replace(scheme: 'https'));
-        request.headers.set('upgrade', 'websocket');
-        request.headers.set('connection', 'upgrade');
-        request.headers.set('sec-websocket-version', '13');
-        request.headers.set('sec-websocket-key', base64.encode(Uint8List.fromList(List.generate(16, (_) => (DateTime.now().microsecondsSinceEpoch % 256)))));
-        
-        final response = await request.close();
-        _webSocket = await WebSocket.fromUpgradedHttpRequest(response, serverSide: false);
+
+        _webSocket = await WebSocket.connect(
+          uri.replace(scheme: uri.scheme == 'https' ? 'wss' : uri.scheme).toString(),
+          customClient: client,
+        );
       } else {
         _webSocket = await WebSocket.connect(uri.toString());
       }

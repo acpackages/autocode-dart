@@ -15,6 +15,7 @@ class AcWebDataDictionaryUtils {
   static Future<AcDataDictionaryWebAutoExecuteResult> handleAutoSelectWebRequest({
     required AcLogger logger,required AcWebRequest request,
     String tableName = "",String viewName = "", String dataDictionaryName = "default",
+    String selectFrom = "",
     required AcBaseSqlDao dao,
   }) async {
     final result = AcDataDictionaryWebAutoExecuteResult();
@@ -38,6 +39,9 @@ class AcWebDataDictionaryUtils {
             logger: logger,
           dataDictionaryName: dataDictionaryName
         );
+        if(selectFrom.isNotEmpty){
+          acDDSelectStatement.selectFrom = selectFrom;
+        }
 
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
           logger.log("Found include columns key");
