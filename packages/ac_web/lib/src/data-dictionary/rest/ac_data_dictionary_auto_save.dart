@@ -89,8 +89,9 @@ class AcDataDictionaryAutoSave {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Function getHandler() {
-    return (AcWebRequest acWebRequest, AcLogger logger) async {
+  Function(AcWebRequestHandlerArgs args) getHandler() {
+    return (AcWebRequestHandlerArgs args) async {
+      var acWebRequest = args.request;
       final response = AcWebApiResponse();
       try {
 

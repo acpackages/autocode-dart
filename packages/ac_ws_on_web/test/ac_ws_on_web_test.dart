@@ -21,7 +21,7 @@ void main() {
       
       app.get(
         url: 'test',
-        handler: (req, logger) async {
+        handler: (r) async {
           return AcWebResponse.json(data: {'success': true});
         },
       );
@@ -60,7 +60,7 @@ void main() {
       final customApp = AcWeb();
       // AcWsOnWeb(customWsServer, customApp, eventName: 'custom_event');
       
-      customApp.get(url: 'custom', handler: (r, l) async => AcWebResponse.json(data: 'ok'));
+      customApp.get(url: 'custom', handler: (r) async => AcWebResponse.json(data: 'ok'));
       customWsServer.port = 8082;
       await customWsServer.start();
       final customClient = AcWsClient('ws://localhost:8082');

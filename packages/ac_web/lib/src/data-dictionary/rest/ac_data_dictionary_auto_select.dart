@@ -136,8 +136,9 @@ class AcDataDictionaryAutoSelect {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Function getHandler() {
-    return (AcWebRequest acWebRequest, AcLogger logger) async {
+  Function(AcWebRequestHandlerArgs args) getHandler() {
+    return (AcWebRequestHandlerArgs args) async {
+      var acWebRequest = args.request;
       final response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
@@ -271,8 +272,9 @@ class AcDataDictionaryAutoSelect {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Function getByIdHandler() {
-    return (AcWebRequest acWebRequest, AcLogger logger) async{
+  Function(AcWebRequestHandlerArgs args) getByIdHandler() {
+    return (AcWebRequestHandlerArgs args) async{
+      var acWebRequest = args.request;
       final response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
@@ -367,8 +369,10 @@ class AcDataDictionaryAutoSelect {
     "returns": "The request handler function.",
     "returns_type": "Future<AcWebResponse> Function(AcWebRequest)"
   }) */
-  Function postHandler() {
-    return (AcWebRequest acWebRequest, AcLogger logger) async {
+  Function(AcWebRequestHandlerArgs args) postHandler() {
+    return (AcWebRequestHandlerArgs args) async {
+      var logger = args.logger;
+      var acWebRequest = args.request;
       final response = AcWebApiResponse();
       try{
         logger.log("Getting rows for table ${acDDTable.tableName} using post method...");

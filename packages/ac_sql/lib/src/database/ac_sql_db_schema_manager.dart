@@ -734,7 +734,6 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       //     logger: logger,
       //   );
       // }
-
       final createTriggersResult = await createDatabaseTriggers();
       if (createTriggersResult.isSuccess()) {
         logger.log('Triggers created successfully');
@@ -876,11 +875,20 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       logger.log('Dropping triggers...');
       if(databaseType == AcEnumSqlDatabaseType.sqlite){
-        AcSqlDaoResult selectResult = await dao!.getRows(statement: "SELECT 'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';");
+        AcSqlDaoResult selectResult = await dao!.getRows(statement: "SELECT name,'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';");
         if(selectResult.isSuccess()){
           List<Map<String,dynamic>> rows = selectResult.rows;
           for(var row in rows){
-            await dao!.executeStatement(statement: row.getString('drop_statement'));
+            String dropStatement = row.getString('drop_statement');
+            var dropResult = await dao!.executeStatement(statement: dropStatement);
+            await saveSchemaLogEntry({
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+              TblSchemaLogs.acSchemaEntityName: row.getString('name'),
+              TblSchemaLogs.acSchemaOperation: 'drop',
+              TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+            });
           }
         }
         result.setFromResult(result: selectResult);
@@ -1424,6 +1432,19 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         result.setFromResult(
           result: createViewsResult,
           message: 'Error updating schema database views',
+          logger: logger,
+        );
+      }
+    }
+    if (continueOperation) {
+      var dropTriggersResult = await dropDatabaseTriggers();
+      if (dropTriggersResult.isSuccess()) {
+        logger.log('Triggers dropped successfully');
+      } else {
+        continueOperation = false;
+        result.setFromResult(
+          result: dropTriggersResult,
+          message: 'Error dropping schema database triggers',
           logger: logger,
         );
       }

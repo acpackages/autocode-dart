@@ -12,7 +12,8 @@ void main() async {
 
   app.get(
     url: 'hello',
-    handler: (AcWebRequest request, AcLogger logger) async {
+    handler: (AcWebRequestHandlerArgs args) async {
+      var request = args.request;
       final name = request.get['name'] ?? 'World';
       return AcWebResponse.json(data: {'message': 'Hello, $name!'});
     },

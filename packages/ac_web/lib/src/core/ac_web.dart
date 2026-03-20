@@ -71,7 +71,7 @@ class AcWeb {
     // Register the route that generates the main swagger.json file.
     get(
       url: '/swagger/swagger.json',
-      handler: (AcWebRequest req) {
+      handler: (AcWebRequestHandlerArgs args) {
         var acApiSwagger = AcApiSwagger();
         acApiDoc.paths.clear();
         final paths = <String, AcApiDocPath>{};
@@ -110,7 +110,7 @@ class AcWeb {
     for (var swaggerFileName in AcSwaggerResources.files.keys) {
       get(
         url: '/swagger$swaggerFileName',
-        handler: (AcWebRequest req) {
+        handler: (AcWebRequestHandlerArgs args) {
           logger.log("Handling Swagger File : $swaggerFileName");
           var fileContent = AcSwaggerResources.files[swaggerFileName];
           String mimeType = AcFileUtils.getMimeTypeFromPath(swaggerFileName);
@@ -336,7 +336,8 @@ class AcWeb {
     else if (routeDefinition.handler is Function) {
       try {
         logger.log("Handing function route...");
-        return await (routeDefinition.handler as Function)(request,requestLogger);
+        AcWebRequestHandlerArgs args = AcWebRequestHandlerArgs(request: request,logger: requestLogger);
+        return await (routeDefinition.handler as Function)(args);
       } catch (e) {
         return AcWebResponse.internalError(data: e.toString());
       }
@@ -412,7 +413,7 @@ class AcWeb {
   }) */
   AcWeb route({
     required String url,
-    required Function handler,
+    required Function(AcWebRequestHandlerArgs args) handler,
     required String method,
     AcApiDocRoute? acApiDocRoute,
   }) {
@@ -448,31 +449,31 @@ class AcWeb {
   }
 
   /* AcDoc({"summary": "Registers a route for the CONNECT HTTP method."}) */
-  AcWeb connect({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'CONNECT', acApiDocRoute: acApiDocRoute);
+  AcWeb connect({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'CONNECT', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the DELETE HTTP method."}) */
-  AcWeb delete({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'DELETE', acApiDocRoute: acApiDocRoute);
+  AcWeb delete({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'DELETE', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the GET HTTP method."}) */
-  AcWeb get({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'GET', acApiDocRoute: acApiDocRoute);
+  AcWeb get({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'GET', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the HEAD HTTP method."}) */
-  AcWeb head({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'HEAD', acApiDocRoute: acApiDocRoute);
+  AcWeb head({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'HEAD', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the OPTIONS HTTP method."}) */
-  AcWeb options({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'OPTIONS', acApiDocRoute: acApiDocRoute);
+  AcWeb options({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'OPTIONS', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the PATCH HTTP method."}) */
-  AcWeb patch({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'PATCH', acApiDocRoute: acApiDocRoute);
+  AcWeb patch({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'PATCH', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the POST HTTP method."}) */
-  AcWeb post({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'POST', acApiDocRoute: acApiDocRoute);
+  AcWeb post({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'POST', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the PUT HTTP method."}) */
-  AcWeb put({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'PUT', acApiDocRoute: acApiDocRoute);
+  AcWeb put({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'PUT', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({"summary": "Registers a route for the TRACE HTTP method."}) */
-  AcWeb trace({required String url, required Function handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'TRACE', acApiDocRoute: acApiDocRoute);
+  AcWeb trace({required String url, required Function(AcWebRequestHandlerArgs args) handler, AcApiDocRoute? acApiDocRoute}) => route(url: url, handler: handler, method: 'TRACE', acApiDocRoute: acApiDocRoute);
 
   /* AcDoc({
     "summary": "Configures a route to serve static files from a directory.",

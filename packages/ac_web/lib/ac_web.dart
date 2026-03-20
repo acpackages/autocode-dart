@@ -71,6 +71,7 @@ export './src/models/ac_web_config.dart';
 export './src/models/ac_web_file.dart';
 export './src/models/ac_web_hook_created_args.dart';
 export './src/models/ac_web_request.dart';
+export './src/models/ac_web_request_handler_args.dart';
 export './src/models/ac_web_response.dart';
 export './src/models/ac_web_route_definition.dart';
 
