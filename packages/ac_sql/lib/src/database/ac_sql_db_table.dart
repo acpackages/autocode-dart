@@ -6,22 +6,15 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 
-/* AcDoc({
-  "summary": "A high-level database service handler focused on a single database table.",
-  "description": "This class extends `AcSqlDbBase` to provide a rich set of business logic and data manipulation methods for a specific table. It handles complex operations like validation, event firing (before/after operations), cascade deletes, auto-number generation, and provides a simplified interface for CRUD (Create, Read, Update, Delete) and 'upsert' (save) actions.",
-  "example": "// Prerequisite: Global AcSqlDatabase settings are configured.\n\n// 1. Create a service handler for the 'users' table.\n final userTableService = AcSqlDbTable(tableName: 'users');\n\n// 2. Save a row. This will either insert a new record or update an existing one.\n final result = await userTableService.saveRow(row: {\n  'id': 1,\n  'name': 'John Doe',\n  'email': 'john.doe@example.com'\n});\n\nif (result.isSuccess()) {\n  print('User saved successfully!');\n}"
-}) */
 class AcSqlDbTable extends AcSqlDbBase {
   /* AcDoc({"summary": "The name of the table this service handler manages."}) */
   final String tableName;
 
-  /* AcDoc({"summary": "The loaded data dictionary definition for the table."}) */
   late AcDDTable acDDTable;
 
   static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert, required AcSqlDbTable sqlDbTable})? onFormat;
   static final Map<String,AcSqlEventHandlerDefinition> _tableEventHandlers = Map.from({});
   static bool _autoDetectedHandlers = false;
-  // static Map<String>
 
   /* AcDoc({
     "summary": "Creates a service handler for a specific database table.",
@@ -51,24 +44,26 @@ class AcSqlDbTable extends AcSqlDbBase {
           tableName = meta.tableName;
         }
       }
-      for (var member in classMirror.instanceMembers.values) {
-        if (member is! AcMethodMirror) continue;
 
-        for (var meta in member.metadata) {
-          if (meta is AcSqlEventCallback) {
-            AcEnumDDRowEvent event = meta.event;
+      if(tableName.isNotEmpty){
+        print("[AcSqlEventHandling] Adding event handler methods for table $tableName");
+        for (var member in classMirror.instanceMembers.values) {
+          if (member is! AcMethodMirror) continue;
 
-            if(!_tableEventHandlers.containsKey(tableName)){
-              _tableEventHandlers[tableName] = AcSqlEventHandlerDefinition();
-              _tableEventHandlers[tableName]!.handler = handlerClass;
-            }
+          for (var meta in member.metadata) {
+            if (meta is AcSqlEventCallback) {
+              AcEnumDDRowEvent event = meta.event;
 
-            if(event == AcEnumDDRowEvent.afterDelete){
+              if(!_tableEventHandlers.containsKey(tableName)){
+                _tableEventHandlers[tableName] = AcSqlEventHandlerDefinition();
+                _tableEventHandlers[tableName]!.handler = handlerClass;
+              }
               _tableEventHandlers[tableName]!.registerEventHandlerMethod(event: event,methodName: member.simpleName.getName());
             }
           }
         }
       }
+
     }
     List<Type> handlers =  acGetClassTypesWithAnnotation(AcSqlEventHandler);
     for(var handler in handlers){
@@ -405,32 +400,6 @@ class AcSqlDbTable extends AcSqlDbBase {
             " $primaryKeyColumnName  IN (SELECT $primaryKeyColumnName FROM $tableName WHERE $condition)";
       }
       if (continueOperation) {
-        if (executeBeforeEvent) {
-          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeDelete)){
-            var args = AcSqlEventArgs(
-              sqlDbTableInstance: this,
-              condition: condition,
-              parameters: parameters
-            );
-            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeDelete, args: args);
-            if (eventResult.isSuccess()) {
-              if(eventResult.condition != null){
-                condition = eventResult.condition!;
-              }
-              if(eventResult.parameters != null){
-                parameters = eventResult.parameters!;
-              }
-            } else {
-              continueOperation = false;
-              result.setFromResult(
-                result: eventResult,
-                message: "Aborted from before delete row events",
-              );
-            }
-          }
-        }
-      }
-      if (continueOperation) {
         logger.log([
           "",
           "",
@@ -445,6 +414,33 @@ class AcSqlDbTable extends AcSqlDbBase {
         );
         if (getResult.isSuccess()) {
           result.rows = getResult.rows;
+          if (continueOperation) {
+            if (executeBeforeEvent) {
+              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeDelete)){
+                var args = AcSqlEventArgs(
+                    sqlDbTableInstance: this,
+                    condition: condition,
+                    parameters: parameters,
+                    rows:getResult.rows
+                );
+                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeDelete, args: args);
+                if (eventResult.isSuccess()) {
+                  if(eventResult.condition != null){
+                    condition = eventResult.condition!;
+                  }
+                  if(eventResult.parameters != null){
+                    parameters = eventResult.parameters!;
+                  }
+                } else {
+                  continueOperation = false;
+                  result.setFromResult(
+                    result: eventResult,
+                    message: "Aborted from before delete row events",
+                  );
+                }
+              }
+            }
+          }
           final setNullResult = await setValuesNullBeforeDelete(
             condition: condition,
             parameters: parameters,
@@ -498,7 +494,8 @@ class AcSqlDbTable extends AcSqlDbBase {
               sqlDbTableInstance: this,
               condition: condition,
               parameters: parameters,
-              result:result
+              result:result,
+              rows:result.rows
           );
           var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterDelete, args: args);
           if (eventResult.isSuccess()) {
@@ -1413,7 +1410,9 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
 
         if (continueOperation && executeAfterEvent) {
+          print("Calling after save in save row");
           if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+            print("Called after save in save row");
             var args = AcSqlEventArgs(
               sqlDbTableInstance: this,
               result: result,
@@ -1430,6 +1429,9 @@ class AcSqlDbTable extends AcSqlDbBase {
                 message: "Aborted from before save row events",
               );
             }
+          }
+          else{
+            print("_tableEventHandlers does not have event handler for after save for ${tableName}");
           }
         }
       }
@@ -1592,7 +1594,9 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
 
       if (executeBeforeEvent) {
+        print("Calling after save in save rows");
         if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+          print("Called after save in save rows");
           var args = AcSqlEventArgs(
             sqlDbTableInstance: this,
             result: result,

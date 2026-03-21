@@ -339,8 +339,22 @@ class AcSqliteDao extends AcBaseSqlDao {
             logger.log('--- Processing Operation ${i + 1}/${operations.length} ---');
             logger.log('Type: ${sqlOperation.operation}');
             logger.log('Table: ${sqlOperation.table}');
+            if (sqlOperation.rawSql != null) {
+              try {
+                final setParametersResult = setSqlStatementParameters(
+                  statement: sqlOperation.rawSql!,
+                  passedParameters: sqlOperation.parameters == null?{}:sqlOperation.parameters!,
+                );
+                final updatedStatement = setParametersResult['statement'];
+                final updatedParameterValues = ensureValidParamsType(params:(setParametersResult['statementParametersMap'] as Map<String, dynamic>).values.toList());
+                final response = await txn.rawQuery(updatedStatement, updatedParameterValues);
+              } catch (insertEx) {
+                logger.log('INSERT FAILED - Exception: $insertEx');
+                rethrow;
+              }
+            }
 
-            if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
+            else if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
               var row = sqlOperation.row!;
               final columns = row.keys.toList();
               final placeholders = List.generate(columns.length, (i) => '?').join(', ');

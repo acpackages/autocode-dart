@@ -16,6 +16,7 @@ class AcSqlOperation {
   static const String keyParameters = 'parameters';
   static const String keyRow = 'row';
   static const String keyTable = 'table';
+  static const String keyRawSql = 'rawSql';
 
   /* AcDoc({"summary": "The username for authenticating with the database."}) */
   @AcBindJsonProperty(key: keyCondition)
@@ -36,8 +37,11 @@ class AcSqlOperation {
   /* AcDoc({"summary": "The username for authenticating with the database."}) */
   @AcBindJsonProperty(key: keyTable)
   String table = "";
+
+  @AcBindJsonProperty(key: keyRawSql)
+  String? rawSql;
   
-  AcSqlOperation({AcEnumDDRowOperation? operation,Map<String,dynamic>? row,String? table,String? condition,Map<String,dynamic>? parameters}) {
+  AcSqlOperation({AcEnumDDRowOperation? operation,Map<String,dynamic>? row,String? table,String? condition,Map<String,dynamic>? parameters,String? rawSql}) {
     if(operation!=null){
       this.operation = operation;
     }
@@ -52,6 +56,9 @@ class AcSqlOperation {
     }
     if(parameters!=null){
       this.parameters = parameters;
+    }
+    if(rawSql!=null){
+      this.rawSql = rawSql;
     }
   }
 
