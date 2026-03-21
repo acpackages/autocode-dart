@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:ac_mirrors/annotations.dart';
+import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
@@ -8,7 +9,7 @@ import 'package:ac_sql/ac_sql.dart';
 /* AcDoc({
   "summary": "A high-level database service handler focused on a single database table.",
   "description": "This class extends `AcSqlDbBase` to provide a rich set of business logic and data manipulation methods for a specific table. It handles complex operations like validation, event firing (before/after operations), cascade deletes, auto-number generation, and provides a simplified interface for CRUD (Create, Read, Update, Delete) and 'upsert' (save) actions.",
-  "example": "// Prerequisite: Global AcSqlDatabase settings are configured.\n\n// 1. Create a service handler for the 'users' table.\nfinal userTableService = AcSqlDbTable(tableName: 'users');\n\n// 2. Save a row. This will either insert a new record or update an existing one.\nfinal result = await userTableService.saveRow(row: {\n  'id': 1,\n  'name': 'John Doe',\n  'email': 'john.doe@example.com'\n});\n\nif (result.isSuccess()) {\n  print('User saved successfully!');\n}"
+  "example": "// Prerequisite: Global AcSqlDatabase settings are configured.\n\n// 1. Create a service handler for the 'users' table.\n final userTableService = AcSqlDbTable(tableName: 'users');\n\n// 2. Save a row. This will either insert a new record or update an existing one.\n final result = await userTableService.saveRow(row: {\n  'id': 1,\n  'name': 'John Doe',\n  'email': 'john.doe@example.com'\n});\n\nif (result.isSuccess()) {\n  print('User saved successfully!');\n}"
 }) */
 class AcSqlDbTable extends AcSqlDbBase {
   /* AcDoc({"summary": "The name of the table this service handler manages."}) */
@@ -18,6 +19,9 @@ class AcSqlDbTable extends AcSqlDbBase {
   late AcDDTable acDDTable;
 
   static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert, required AcSqlDbTable sqlDbTable})? onFormat;
+  static final Map<String,AcSqlEventHandlerDefinition> _tableEventHandlers = Map.from({});
+  static bool _autoDetectedHandlers = false;
+  // static Map<String>
 
   /* AcDoc({
     "summary": "Creates a service handler for a specific database table.",
@@ -28,10 +32,53 @@ class AcSqlDbTable extends AcSqlDbBase {
     ]
   }) */
   AcSqlDbTable({required this.tableName, super.dataDictionaryName,super.logger,super.dao}){
+    if(!AcSqlDbTable._autoDetectedHandlers){
+      AcSqlDbTable._autoDetectedHandlers = true;
+      AcSqlDbTable._autoRegisterHandlers();
+    }
     acDDTable = AcDDTable.getInstance(
       tableName: tableName,
       dataDictionaryName: dataDictionaryName,
     );
+  }
+
+  static void _autoRegisterHandlers(){
+    registerHandler({required Type handlerClass}) {
+      final classMirror = acReflectClass(handlerClass);
+      print("Registering sql event handler class : ${classMirror.getName()}");
+      print("Checking class meta...");
+      String tableName = "";
+      for (var meta in classMirror.metadata) {
+        if (meta is AcSqlEventHandler) {
+          tableName = meta.tableName;
+        }
+      }
+      for (var member in classMirror.instanceMembers.values) {
+        if (member is! AcMethodMirror) continue;
+        print("Found method mirror.");
+
+        for (var meta in member.metadata) {
+          print("Checking method meta...");
+          if (meta is AcSqlEventCallback) {
+            AcEnumDDRowEvent event = meta.event;
+
+            if(!_tableEventHandlers.containsKey(tableName)){
+              _tableEventHandlers[tableName] = AcSqlEventHandlerDefinition();
+              _tableEventHandlers[tableName]!.handler = handlerClass;
+            }
+
+            if(event == AcEnumDDRowEvent.afterDelete){
+              _tableEventHandlers[tableName]!.registerEventHandlerMethod(event: event,methodName: member.simpleName.getName());
+            }
+          }
+        }
+      }
+      print("Handler registered.");
+    }
+    List<Type> handlers =  acGetClassTypesWithAnnotation(AcSqlEventHandler);
+    for(var handler in handlers){
+      registerHandler(handlerClass: handler);
+    }
   }
 
   /* AcDoc({
@@ -364,23 +411,27 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
       if (continueOperation) {
         if (executeBeforeEvent) {
-          final rowEvent = AcSqlDbRowEvent(
-            tableName: tableName,
-            dataDictionaryName: dataDictionaryName,
-          );
-          rowEvent.condition = condition;
-          rowEvent.parameters = parameters;
-          rowEvent.eventType = AcEnumDDRowEvent.beforeDelete;
-          final eventResult = await rowEvent.execute();
-          if (eventResult.isSuccess()) {
-            condition = rowEvent.condition;
-            parameters = rowEvent.parameters;
-          } else {
-            continueOperation = false;
-            result.setFromResult(
-              result: eventResult,
-              message: "Aborted from before delete row events",
+          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeDelete)){
+            var args = AcSqlEventArgs(
+              sqlDbTableInstance: this,
+              condition: condition,
+              parameters: parameters
             );
+            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeDelete, args: args);
+            if (eventResult.isSuccess()) {
+              if(eventResult.condition != null){
+                condition = eventResult.condition!;
+              }
+              if(eventResult.parameters != null){
+                parameters = eventResult.parameters!;
+              }
+            } else {
+              continueOperation = false;
+              result.setFromResult(
+                result: eventResult,
+                message: "Aborted from before delete row events",
+              );
+            }
           }
         }
       }
@@ -447,20 +498,25 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
       }
       if (continueOperation && executeAfterEvent) {
-        final rowEvent = AcSqlDbRowEvent(
-          tableName: tableName,
-          dataDictionaryName: dataDictionaryName,
-        );
-        rowEvent.eventType = AcEnumDDRowEvent.afterDelete;
-        rowEvent.condition = condition;
-        rowEvent.parameters = parameters;
-        rowEvent.result = result;
-        final eventResult = await rowEvent.execute();
-        if (eventResult.isSuccess()) {
-          result = rowEvent.result;
-        } else {
-          continueOperation=false;
-          result.setFromResult(result: eventResult);
+        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterDelete)){
+          var args = AcSqlEventArgs(
+              sqlDbTableInstance: this,
+              condition: condition,
+              parameters: parameters,
+              result:result
+          );
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterDelete, args: args);
+          if (eventResult.isSuccess()) {
+            if(eventResult.result != null){
+              result = eventResult.result! as AcSqlDaoResult;
+            }
+          } else {
+            continueOperation = false;
+            result.setFromResult(
+              result: eventResult,
+              message: "Aborted from before delete row events",
+            );
+          }
         }
       }
       if(continueOperation){
@@ -494,19 +550,26 @@ class AcSqlDbTable extends AcSqlDbBase {
     row = Map.from(row);
     final result = AcResult();
     bool continueOperation = true;
-    final rowEvent = AcSqlDbRowEvent(
-      tableName: tableName,
-      dataDictionaryName: dataDictionaryName,
-    );
-    rowEvent.row = row;
-    rowEvent.eventType = AcEnumDDRowEvent.beforeFormat;
-    final eventResult = await rowEvent.execute();
-    if (eventResult.isSuccess()) {
-      row = rowEvent.row;
-    } else {
-      result.setFromResult(result: eventResult);
-      continueOperation = false;
+
+    if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeFormat)){
+      var args = AcSqlEventArgs(
+          sqlDbTableInstance: this,
+          row: row,
+      );
+      var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeFormat, args: args);
+      if (eventResult.isSuccess()) {
+        if(eventResult.row != null){
+          row = eventResult.row!;
+        }
+      } else {
+        continueOperation = false;
+        result.setFromResult(
+          result: eventResult,
+        );
+      }
     }
+
+
     if (continueOperation) {
       List<String> tableColumnNames = List.empty(growable: true);
       for (final column in acDDTable.tableColumns) {
@@ -591,18 +654,22 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
     }
     if (continueOperation) {
-      final rowEvent = AcSqlDbRowEvent(
-        tableName: tableName,
-        dataDictionaryName: dataDictionaryName,
-      );
-      rowEvent.row = row;
-      rowEvent.eventType = AcEnumDDRowEvent.afterFormat;
-      final eventResult = await rowEvent.execute();
-      if (eventResult.isSuccess()) {
-        row = rowEvent.row;
-      } else {
-        result.setFromResult(result: eventResult);
-        continueOperation = false;
+      if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterFormat)){
+        var args = AcSqlEventArgs(
+          sqlDbTableInstance: this,
+          row: row,
+        );
+        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterFormat, args: args);
+        if (eventResult.isSuccess()) {
+          if(eventResult.row != null){
+            row = eventResult.row!;
+          }
+        } else {
+          continueOperation = false;
+          result.setFromResult(
+            result: eventResult,
+          );
+        }
       }
     }
     
@@ -977,22 +1044,23 @@ class AcSqlDbTable extends AcSqlDbBase {
           if (continueOperation) {
             if (executeBeforeEvent) {
               logger.log("Executing before insert event");
-              final rowEvent = AcSqlDbRowEvent(
-                tableName: tableName,
-                dataDictionaryName: dataDictionaryName,
-              );
-              rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.beforeInsert;
-              final eventResult = await rowEvent.execute();
-              logger.log(["Before insert result", eventResult]);
-              if (eventResult.isSuccess()) {
-                row = rowEvent.row;
-              } else {
-                continueOperation = false;
-                result.setFromResult(
-                  result: eventResult,
-                  message: "Aborted from before insert row events",
+              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeInsert)){
+                var args = AcSqlEventArgs(
+                  sqlDbTableInstance: this,
+                  row: row,
                 );
+                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeInsert, args: args);
+                if (eventResult.isSuccess()) {
+                  if(eventResult.row != null){
+                    row = eventResult.row!;
+                  }
+                } else {
+                  continueOperation = false;
+                  result.setFromResult(
+                    result: eventResult,
+                    message: "Aborted from before insert row events",
+                  );
+                }
               }
             }
           }
@@ -1036,18 +1104,22 @@ class AcSqlDbTable extends AcSqlDbBase {
                 result.setFromResult(result: selectResult,logger: logger);
               }
               if (continueOperation && executeAfterEvent) {
-                final rowEvent = AcSqlDbRowEvent(
-                  tableName: tableName,
-                  dataDictionaryName: dataDictionaryName,
-                );
-                rowEvent.eventType = AcEnumDDRowEvent.afterInsert;
-                rowEvent.result = result;
-                final eventResult = await rowEvent.execute();
-                if (eventResult.isSuccess()) {
-                  // result = eventResult;
-                } else {
-                  continueOperation=false;
-                  result.setFromResult(result: eventResult,logger: logger);
+                if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterInsert)){
+                  var args = AcSqlEventArgs(
+                    sqlDbTableInstance: this,
+                    result: result,
+                  );
+                  var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterInsert, args: args);
+                  if (eventResult.isSuccess()) {
+                    if(eventResult.result != null){
+                      result = eventResult.result! as AcSqlDaoResult;
+                    }
+                  } else {
+                    continueOperation = false;
+                    result.setFromResult(
+                      result: eventResult,
+                    );
+                  }
                 }
               }
             } else {
@@ -1099,52 +1171,54 @@ class AcSqlDbTable extends AcSqlDbBase {
       List<Map<String, dynamic>> rowsToInsert = [];
       List<dynamic> primaryKeyValues = [];
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
-      for (var row in rows) {
-        if (continueOperation) {
-          final formatResult = await formatValues(row: row,insertMode: true);
-          if (formatResult.isSuccess()) {
-            row = formatResult.value;
-          } else {
-            continueOperation = false;
-          }
 
-          final validateResult = await validateValues(row: row, isInsert: true);
-          if (validateResult.isSuccess()) {
-            if (row.containsKey(primaryKeyColumn)) {
-              primaryKeyValues.add(row[primaryKeyColumn]);
+      if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeInsert)){
+        var args = AcSqlEventArgs(
+          sqlDbTableInstance: this,
+          rows: rows,
+        );
+        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeInsert, args: args);
+        if (eventResult.isSuccess()) {
+          if(eventResult.rows != null){
+            rows = eventResult.rows!;
+          }
+        } else {
+          continueOperation = false;
+          result.setFromResult(
+            result: eventResult,
+            message: "Aborted from before insert row events",
+          );
+        }
+      }
+
+      if(continueOperation) {
+        for (var row in rows) {
+          if (continueOperation) {
+            final formatResult = await formatValues(row: row, insertMode: true);
+            if (formatResult.isSuccess()) {
+              row = formatResult.value;
+            } else {
+              continueOperation = false;
             }
-            if (row.isNotEmpty) {
-              if (continueOperation) {
-                if (executeBeforeEvent) {
-                  logger.log("Executing before insert event");
-                  final rowEvent = AcSqlDbRowEvent(
-                    tableName: tableName,
-                    dataDictionaryName: dataDictionaryName,
-                  );
-                  rowEvent.row = row;
-                  rowEvent.eventType = AcEnumDDRowEvent.beforeInsert;
-                  final eventResult = await rowEvent.execute();
-                  logger.log(["Before insert result", eventResult]);
-                  if (eventResult.isSuccess()) {
-                    row = rowEvent.row;
-                  } else {
-                    continueOperation = false;
-                    result.setFromResult(
-                      result: eventResult,
-                      message: "Aborted from before insert row events",
-                    );
-                  }
-                }
+
+            final validateResult = await validateValues(
+                row: row, isInsert: true);
+            if (validateResult.isSuccess()) {
+              if (row.containsKey(primaryKeyColumn)) {
+                primaryKeyValues.add(row[primaryKeyColumn]);
               }
-              if (continueOperation) {
-                rowsToInsert.add(row);
+              if (row.isNotEmpty) {
+                if (continueOperation) {}
+                if (continueOperation) {
+                  rowsToInsert.add(row);
+                }
+              } else {
+                result.message = 'No values for new row';
               }
             } else {
-              result.message = 'No values for new row';
+              result.setFromResult(result: validateResult);
+              continueOperation = false;
             }
-          } else {
-            result.setFromResult(result: validateResult);
-            continueOperation = false;
           }
         }
       }
@@ -1174,21 +1248,21 @@ class AcSqlDbTable extends AcSqlDbBase {
                 'Error getting inserted rows : ${selectResult.message}';
           }
           if (continueOperation && executeAfterEvent) {
-            for (final row in result.rows) {
-              // Changed to result.rows
-              final rowEvent = AcSqlDbRowEvent(
-                tableName: tableName,
-                dataDictionaryName: dataDictionaryName,
+            if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterInsert)){
+              var args = AcSqlEventArgs(
+                sqlDbTableInstance: this,
+                result: result,
               );
-              rowEvent.eventType = AcEnumDDRowEvent.afterInsert;
-              rowEvent.result = result;
-              rowEvent.row = row;
-              final eventResult = await rowEvent.execute();
-              if (!eventResult.isSuccess()) {
-                // check for failure
+              var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterInsert, args: args);
+              if (eventResult.isSuccess()) {
+                if(eventResult.result != null){
+                  result = eventResult.result! as AcSqlDaoResult;
+                }
+              } else {
                 continueOperation = false;
-                result.setFromResult(result: eventResult); // set the error
-                break; // exit loop on error
+                result.setFromResult(
+                  result: eventResult,
+                );
               }
             }
           }
@@ -1298,22 +1372,23 @@ class AcSqlDbTable extends AcSqlDbBase {
       if (continueOperation) {
         logger.log("Executing operation $operation in save.");
         if (executeBeforeEvent) {
-          final rowEvent = AcSqlDbRowEvent(
-            tableName: tableName,
-            dataDictionaryName: dataDictionaryName,
-          );
-          rowEvent.row = row;
-          rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
-          final eventResult = await rowEvent.execute();
-          if (eventResult.isSuccess()) {
-            row = rowEvent.row;
-          } else {
-            continueOperation = false;
-            result.setFromResult(
-              result: eventResult,
-              message: "Aborted from before update row events",
-              logger: logger,
+          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeSave)){
+            var args = AcSqlEventArgs(
+              sqlDbTableInstance: this,
+              row: row,
             );
+            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeSave, args: args);
+            if (eventResult.isSuccess()) {
+              if(eventResult.row != null){
+                row = eventResult.row!;
+              }
+            } else {
+              continueOperation = false;
+              result.setFromResult(
+                result: eventResult,
+                message: "Aborted from before insert row events",
+              );
+            }
           }
         }
         if (operation == AcEnumDDRowOperation.insert) {
@@ -1343,18 +1418,23 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
 
         if (continueOperation && executeAfterEvent) {
-          final rowEvent = AcSqlDbRowEvent(
-            tableName: tableName,
-            dataDictionaryName: dataDictionaryName,
-          );
-          rowEvent.eventType = AcEnumDDRowEvent.afterSave;
-          rowEvent.result = result;
-          final eventResult = await rowEvent.execute();
-          if (eventResult.isSuccess()) {
-            // result.setFromResult(eventResult.result);
-          } else {
-            continueOperation = false;
-            result.setFromResult(result: eventResult);
+          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+            var args = AcSqlEventArgs(
+              sqlDbTableInstance: this,
+              result: result,
+            );
+            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterSave, args: args);
+            if (eventResult.isSuccess()) {
+              if(eventResult.result != null){
+                result = eventResult.result! as AcSqlDaoResult;
+              }
+            } else {
+              continueOperation = false;
+              result.setFromResult(
+                result: eventResult,
+                message: "Aborted from before save row events",
+              );
+            }
           }
         }
       }
@@ -1391,12 +1471,33 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.unknown);
     try {
       bool continueOperation = true;
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
       List<Map<String, dynamic>> rowsToInsert = [];
       List<Map<String, dynamic>> rowsToUpdate = [];
+
+      if (executeBeforeEvent) {
+        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeSave)){
+          var args = AcSqlEventArgs(
+            sqlDbTableInstance: this,
+            rows: rows,
+          );
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeSave, args: args);
+          if (eventResult.isSuccess()) {
+            if(eventResult.rows != null){
+              rows = eventResult.rows!;
+            }
+          } else {
+            continueOperation = false;
+            result.setFromResult(
+              result: eventResult,
+              message: "Aborted from before save row events",
+            );
+          }
+        }
+      }
 
       for (final row in rows) {
         if (continueOperation) {
@@ -1467,50 +1568,6 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
 
       if (continueOperation) {
-        if (executeBeforeEvent) {
-          for (var row in rowsToInsert) {
-            if (continueOperation) {
-              final rowEvent = AcSqlDbRowEvent(
-                tableName: tableName,
-                dataDictionaryName: dataDictionaryName,
-              );
-              rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
-              final eventResult = await rowEvent.execute();
-              if (eventResult.isSuccess()) {
-                row = rowEvent.row;
-              } else {
-                continueOperation = false;
-                result.setFromResult(
-                  result: eventResult,
-                  message: "Aborted from before save row events",
-                  logger: logger,
-                );
-              }
-            }
-          }
-          for (var row in rowsToUpdate) {
-            if (continueOperation) {
-              final rowEvent = AcSqlDbRowEvent(
-                tableName: tableName,
-                dataDictionaryName: dataDictionaryName,
-              );
-              rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.beforeSave;
-              final eventResult = await rowEvent.execute();
-              if (eventResult.isSuccess()) {
-                row = rowEvent.row;
-              } else {
-                continueOperation = false;
-                result.setFromResult(
-                  result: eventResult,
-                  message: "Aborted from before save row events",
-                  logger: logger,
-                );
-              }
-            }
-          }
-        }
         List<Map<String, dynamic>> combinedRows = [];
         if (continueOperation) {
           final insertResult = await insertRows(rows: rowsToInsert);
@@ -1536,6 +1593,27 @@ class AcSqlDbTable extends AcSqlDbBase {
             combinedRows.addAll(result.rows);
           }
           result.rows = combinedRows;
+        }
+      }
+
+      if (executeBeforeEvent) {
+        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+          var args = AcSqlEventArgs(
+            sqlDbTableInstance: this,
+            result: result,
+          );
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterSave, args: args);
+          if (eventResult.isSuccess()) {
+            if(eventResult.result != null){
+              result = eventResult.result! as AcSqlDaoResult;
+            }
+          } else {
+            continueOperation = false;
+            result.setFromResult(
+              result: eventResult,
+              message: "Aborted from before save row events",
+            );
+          }
         }
       }
     } on Exception catch (ex, stack) {
@@ -1638,7 +1716,7 @@ class AcSqlDbTable extends AcSqlDbBase {
   }) async {
     parameters = Map.from(parameters);
     logger.log(["Updating row with data : ", row]);
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
       bool continueOperation = true;
 
@@ -1668,24 +1746,23 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (row.isNotEmpty) {
           if (continueOperation) {
             if (executeBeforeEvent) {
-              logger.log("Executing before update event");
-              final rowEvent = AcSqlDbRowEvent(
-                tableName: tableName,
-                dataDictionaryName: dataDictionaryName,
-              );
-              rowEvent.row = row;
-              rowEvent.eventType = AcEnumDDRowEvent.beforeUpdate;
-              final eventResult = await rowEvent.execute();
-              if (eventResult.isSuccess()) {
-                logger.log(["Before event result", eventResult]);
-                row = rowEvent.row;
-              } else {
-                logger.error(["Before event result", eventResult]);
-                continueOperation = false;
-                result.setFromResult(
-                  result: eventResult,
-                  message: "Aborted from before update row events",
+              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeUpdate)){
+                var args = AcSqlEventArgs(
+                  sqlDbTableInstance: this,
+                  row: row,
                 );
+                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeUpdate, args: args);
+                if (eventResult.isSuccess()) {
+                  if(eventResult.row != null){
+                    row = eventResult.row!;
+                  }
+                } else {
+                  continueOperation = false;
+                  result.setFromResult(
+                    result: eventResult,
+                    message: "Aborted from before update row events",
+                  );
+                }
               }
             } else {
               logger.log("Skipping before update event");
@@ -1720,20 +1797,23 @@ class AcSqlDbTable extends AcSqlDbBase {
                     'Error getting updated row : ${selectResult.message}';
               }
               if (continueOperation && executeAfterEvent) {
-                final rowEvent = AcSqlDbRowEvent(
-                  tableName: tableName,
-                  dataDictionaryName: dataDictionaryName,
-                );
-                rowEvent.eventType = AcEnumDDRowEvent.afterUpdate;
-                rowEvent.result = result;
-                final eventResult = await rowEvent.execute();
-                if (eventResult.isSuccess()) {
-                  logger.log(["After event result", eventResult]);
-                  // result.setFromResult(eventResult.result);
-                } else {
-                  logger.error(["After event result", eventResult]);
-                  continueOperation = false;
-                  result.setFromResult(result: eventResult);
+                if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterUpdate)){
+                  var args = AcSqlEventArgs(
+                    sqlDbTableInstance: this,
+                    result: result,
+                  );
+                  var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterUpdate, args: args);
+                  if (eventResult.isSuccess()) {
+                    if(eventResult.result != null){
+                      result = eventResult.result! as AcSqlDaoResult;
+                    }
+                  } else {
+                    continueOperation = false;
+                    result.setFromResult(
+                      result: eventResult,
+                      message: "Aborted from before update row events",
+                    );
+                  }
                 }
               }
             } else {
@@ -1780,13 +1860,14 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool executeAfterEvent = true,
     bool executeBeforeEvent = true,
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
+    var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
     try {
       bool continueOperation = true;
       List<Map<String, dynamic>> rowsWithConditions = [];
       List<dynamic> primaryKeyValues = [];
       int index = -1;
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
+
       for (var row in rows) {
         index++;
         if (continueOperation) {
@@ -1827,22 +1908,17 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (rowsWithConditions.isNotEmpty) {
           if (executeBeforeEvent) {
             if (continueOperation) {
-              for (var rowDetails in rowsWithConditions) {
-                logger.log("Executing before update event");
-                final rowEvent = AcSqlDbRowEvent(
-                  tableName: tableName,
-                  dataDictionaryName: dataDictionaryName,
+              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeUpdate)){
+                var args = AcSqlEventArgs(
+                  sqlDbTableInstance: this,
+                  rowsWithConditions: rowsWithConditions,
                 );
-                rowEvent.row = rowDetails["row"];
-                rowEvent.condition = rowDetails["condition"];
-                rowEvent.parameters = rowDetails["parameters"];
-                rowEvent.eventType = AcEnumDDRowEvent.beforeUpdate;
-                final eventResult = await rowEvent.execute();
+                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeUpdate, args: args);
                 if (eventResult.isSuccess()) {
-                  logger.log(["Before event result", eventResult]);
-                  // row = rowEvent.row;
+                  if(eventResult.rowsWithConditions != null){
+                    rowsWithConditions = eventResult.rowsWithConditions!;
+                  }
                 } else {
-                  logger.error(["Before event result", eventResult]);
                   continueOperation = false;
                   result.setFromResult(
                     result: eventResult,
@@ -1879,26 +1955,28 @@ class AcSqlDbTable extends AcSqlDbBase {
                 result.message =
                     'Error getting updated row : ${selectResult.message}';
               }
-              if (continueOperation && executeAfterEvent) {
-                final rowEvent = AcSqlDbRowEvent(
-                  tableName: tableName,
-                  dataDictionaryName: dataDictionaryName,
-                );
-                rowEvent.eventType = AcEnumDDRowEvent.afterUpdate;
-                rowEvent.result = result;
-                final eventResult = await rowEvent.execute();
-                if (eventResult.isSuccess()) {
-                  logger.log(["After event result", eventResult]);
-                  // result.setFromResult(result.eventResult.result);
-                } else {
-                  logger.error(["After event result", eventResult]);
-                  continueOperation = false;
-                  result.setFromResult(result: eventResult);
-                }
-              }
             } else {
               continueOperation = false;
               result.setFromResult(result: updateResult, logger: logger);
+            }
+
+            if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterUpdate)){
+              var args = AcSqlEventArgs(
+                sqlDbTableInstance: this,
+                result: result,
+              );
+              var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterUpdate, args: args);
+              if (eventResult.isSuccess()) {
+                if(eventResult.result != null){
+                  result = eventResult.result! as AcSqlDaoResult;
+                }
+              } else {
+                continueOperation = false;
+                result.setFromResult(
+                  result: eventResult,
+                  message: "Aborted from before update row events",
+                );
+              }
             }
           }
         } else {
@@ -2025,6 +2103,63 @@ class AcSqlDbTable extends AcSqlDbBase {
         logger: logger,
         logException: true,
       );
+    }
+    return result;
+  }
+}
+
+class AcSqlEventHandlerDefinition {
+  Type? handler;
+  final Map<AcEnumDDRowEvent,String> _eventMethods = Map.from({});
+
+  registerEventHandlerMethod({required AcEnumDDRowEvent event,required String methodName}){
+    _eventMethods[event] = methodName;
+  }
+
+  bool hasMethodForEvent({required AcEnumDDRowEvent event}){
+    return _eventMethods.containsKey(event);
+  }
+
+  Future<AcSqlEventResult> handleEvent({required AcEnumDDRowEvent event,required AcSqlEventArgs args}) async{
+    AcSqlEventResult result = AcSqlEventResult();
+    if(_eventMethods.containsKey(event) && handler != null){
+      print("Genreating event handler...");
+      final controllerClassMirror = acReflectClass(handler!);
+      // Create a new instance of the controller for each request.
+      final controllerInstance = controllerClassMirror.newInstance('', []);
+      print("Instance class name is : ${controllerClassMirror.getName()}");
+      final controllerInstanceMirror = acReflect(controllerInstance);
+
+      final methodName = Symbol(_eventMethods[event]!);
+      print("Handler method name is : ${methodName.getName()}");
+      final methodMirror = controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
+
+      final positionalArgs = <dynamic>[];
+      final namedArgs = <Symbol, dynamic>{};
+      print("Looking for arguments of method : ${methodName.getName()}");
+      for (final parameter in methodMirror.parameters) {
+        dynamic argValue;
+        bool valueSet = false;
+        print("Found parameter : ${parameter.getName()}");
+
+        if (parameter.type == AcSqlEventArgs) {
+          print("Parameter type is AcSqlEventArgs");
+          argValue = args;
+          valueSet = true;
+        }
+        if (!valueSet) {
+          print("Value is not set");
+          argValue = null;
+        }
+        if(parameter.isNamed){
+          print("Parameter is named");
+          namedArgs[parameter.simpleName] = argValue;
+        } else {
+          print("Parameter is not named");
+          positionalArgs.add(argValue);
+        }
+      }
+      return await controllerInstanceMirror.invoke(methodName, positionalArgs, namedArgs);
     }
     return result;
   }

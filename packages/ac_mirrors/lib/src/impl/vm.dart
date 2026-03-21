@@ -116,7 +116,7 @@ class AcClassMirrorImpl<T> implements AcClassMirror<T> {
 
   @override Map<String, AcMethodMirror> get constructors {
     final result = <String, AcMethodMirror>{};
-    _mirror.declarations.values.whereType<mirrors.MethodMirror>().where((m) => m.isConstructor && !_isSynthetic(m)).forEach((m) {
+    _mirror.declarations.values.whereType<mirrors.MethodMirror>().where((m) => m.isConstructor && (!_isSynthetic(m) || !m.isPrivate)).forEach((m) {
       final name = mirrors.MirrorSystem.getName(m.constructorName);
       result[name] = AcMethodMirrorImpl(m);
     });

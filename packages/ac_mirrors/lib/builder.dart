@@ -35,7 +35,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
   @override
   final buildExtensions = const {
-    r'$lib$': ['_ac_generated/ac_mirrors_generated_code.acg.dart']
+    r'$lib$': ['_ac_generated/ac_mirrors_generated.dart']
   };
 
   @override
@@ -139,7 +139,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
     if (uniqueElements.isNotEmpty) {
       log("Found ${uniqueElements.length} reflectable elements (classes and enums). Generating mirrors file...");
-      final outputId = AssetId(buildStep.inputId.package, 'lib/_ac_generated/ac_mirrors_generated_code.acg.dart');
+      final outputId = AssetId(buildStep.inputId.package, 'lib/_ac_generated/ac_mirrors_generated.dart');
       final buffer = StringBuffer();
       generateFileContent(buffer, uniqueElements);
 
@@ -172,7 +172,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
     for (final element in elements) {
       if (element is ClassElement) {
         // Generate declaration mirrors, skipping duplicates
-        for (final declaration in getAllDeclarations(element).where((d) => !d.isSynthetic)) {
+        for (final declaration in getAllDeclarations(element).where((d) => !d.isSynthetic || (d is ConstructorElement && d.isPublic))) {
           final mirrorName = generateMirrorName(declaration);
           if (generatedMirrors.contains(mirrorName)) {
             log(" -> Skipping duplicate declaration mirror '$mirrorName' for '${declaration.name}'");
@@ -340,7 +340,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
     log("Writing file header and imports.");
     buffer.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
     buffer.writeln('// ignore_for_file: constant_identifier_names, non_constant_identifier_names, unnecessary_brace_in_string_interps, unused_import, unnecessary_lambdas, prefer_const_constructors, prefer_const_literals_to_create_immutables');
-    buffer.writeln("import 'package:ac_mirrors/ac_mirrors.dart';");
+    buffer.writeln("import 'package:ac_mirrors/ac_mirrors.dart' hide initializeAcMirrors;");
     buffer.writeln("import 'package:ac_mirrors/src/impl/generated.dart';");
     bool foundIo = false;
     bool foundConvert = false;
@@ -404,8 +404,9 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
     final variable = object.variable;
     if (variable != null) {
-      if (variable.enclosingElement is ClassElement) {
-        return '${variable.enclosingElement!.name}.${variable.name}';
+      final enclosing = variable.enclosingElement;
+      if (enclosing is ClassElement || enclosing is EnumElement) {
+        return '${enclosing!.name}.${variable.name}';
       }
       return variable.name ?? '';
     }
@@ -713,9 +714,9 @@ class AcMirrorsAggregatingBuilder implements Builder {
 
       buffer.writeln('  @override Map<String, AcMethodMirror> get constructors => const {');
       if (!element.isAbstract) {
-        final nonSyntheticConstructors = element.constructors.where((c) => !c.isSynthetic);
-        log("  -> Found ${nonSyntheticConstructors.length} non-synthetic constructors for '$className'.");
-        for (final member in nonSyntheticConstructors) {
+        final publicConstructors = element.constructors.where((c) => c.isPublic);
+        log("  -> Found ${publicConstructors.length} public constructors for '$className'.");
+        for (final member in publicConstructors) {
           final memberName = member.name.isEmpty ? "" : member.name;
           final mirrorName = generateMirrorName(member);
           log("    -> Mapping constructor '${memberName.isEmpty ? '(default)' : memberName}' to its mirror '$mirrorName'.");
@@ -732,7 +733,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
         buffer.writeln('    throw UnimplementedError("Cannot instantiate an abstract class \\"$className\\".");');
       } else {
         buffer.writeln('    switch(constructorName) {');
-        for (final ctor in element.constructors.where((c) => c.isPublic && !c.isSynthetic)) {
+        for (final ctor in element.constructors.where((c) => c.isPublic)) {
           final positionalParams = ctor.parameters.where((p) => !p.isNamed);
           final namedParams = ctor.parameters.where((p) => p.isNamed);
           final positionalArgsString = List.generate(positionalParams.length, (i) => 'positionalArgs[$i]').join(', ');

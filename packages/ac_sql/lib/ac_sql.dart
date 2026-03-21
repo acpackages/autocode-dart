@@ -3,6 +3,9 @@
 /// More dartdocs go here.
 library;
 
+export './src/annotations/ac_sql_event_callback.dart';
+export './src/annotations/ac_sql_event_handler.dart';
+
 export './src/config/ac_sql_config.dart';
 
 export './src/daos/ac_base_sql_dao.dart';
@@ -17,7 +20,6 @@ export './src/database/ac_sql_database.dart';
 export './src/database/ac_sql_db_base.dart';
 export './src/database/ac_sql_db_function.dart';
 export './src/database/ac_sql_db_relationship.dart';
-export './src/database/ac_sql_db_row_event.dart';
 export './src/database/ac_sql_db_schema_manager.dart';
 export './src/database/ac_sql_db_stored_procedure.dart';
 export './src/database/ac_sql_db_table.dart';
@@ -29,6 +31,8 @@ export './src/models/ac_sql_callback_args.dart';
 export './src/models/ac_sql_config.dart';
 export './src/models/ac_sql_connection.dart';
 export './src/models/ac_sql_dao_result.dart';
+export './src/models/ac_sql_event_args.dart';
+export './src/models/ac_sql_event_result.dart';
 export './src/models/ac_sql_operation.dart';
 export './src/models/ac_sql_schema_difference.dart';
 export './src/models/ac_sql_statement.dart';

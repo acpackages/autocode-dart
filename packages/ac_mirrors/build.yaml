@@ -8,6 +8,6 @@ builders:
   ac_mirrors_builder:
     import: "package:ac_mirrors/builder.dart"
     builder_factories: ["acMirrorsBuilder"]
-    build_extensions: { r'$lib$': ["ac_generated_mirrors.dart"] }
+    build_extensions: { r'$lib$': ["_ac_generated/ac_mirrors_generated.dart"] }
     auto_apply: root_package
     build_to: source
