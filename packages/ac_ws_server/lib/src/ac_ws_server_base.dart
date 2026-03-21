@@ -67,7 +67,6 @@ class AcWsSocket {
       for (final handler in handlers) {
         if (ackId != null) {
           handler(data, (response) {
-            print("Sending ack response");
             _send({'r': ackId, 'd': response, 'n': nsp});
           });
         } else {

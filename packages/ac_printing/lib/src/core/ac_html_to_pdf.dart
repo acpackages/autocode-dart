@@ -9,7 +9,7 @@ class AcHtmlToPdf {
   late Browser browser;
   bool available=false;
   bool launching=false;
-  AcLogger logger = AcLogger(logMessages: true,logType: AcEnumLogType.text,logDirectory: "logs/html-to-pdf",envConfigTags: ['html-to-pdf']);
+  AcLogger logger = AcLogger(logMessages: true,logType: AcEnumLogType.text,logDirectory: "logs/html-to-pdf",envConfigTags: const["logs",'html-to-pdf']);
   _debug(dynamic message){
     logger.log(message);
   }
@@ -20,7 +20,6 @@ class AcHtmlToPdf {
   Future<AcResult> init() async{
     AcResult result = AcResult();
     try {
-      print("Initializing puppeteer");
       _debug("Initializing puppeteer...");
       if (!available && !launching) {
         launching = true;
@@ -85,7 +84,6 @@ class AcHtmlToPdf {
       if(viewportHeight > 0 && viewportWidth > 0){
         viewportHeight = 1440;
         viewportWidth = 2560;
-        print("Setting viewport height: ${viewportHeight} & width:${viewportWidth} & ratio : ${deviceScaleFactor}");
         await page.setViewport(DeviceViewport(height: viewportHeight, width: viewportWidth,deviceScaleFactor:deviceScaleFactor,isLandscape: true ));
         await page.reload();
       }
@@ -140,11 +138,9 @@ class AcHtmlToPdf {
     AcResult result = AcResult();
     PaperFormat paperFormat=PaperFormat.a4;
     if(heightPX > 0 && widthPX > 0){
-      print("Setting paper format from px height : ${heightPX} & width : ${widthPX}");
       paperFormat = PaperFormat.px(width: widthPX, height: heightPX);
     }
     else if(pageFormat != null){
-      print("Setting paper format from page format");
       paperFormat = pageFormat.toPaperFormat();
       // print(pageFormat.toJson());
       // if(pageFormat.isPortrait){
@@ -155,7 +151,6 @@ class AcHtmlToPdf {
       // }
     }
     // else
-    print("Paper format => Height : ${paperFormat.height} , Width : ${paperFormat.width}");
     Uint8List? pdfData=await page.pdf(
         format: paperFormat,
         printBackground: true,

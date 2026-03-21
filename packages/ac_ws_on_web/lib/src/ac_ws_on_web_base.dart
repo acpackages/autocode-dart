@@ -22,7 +22,6 @@ class AcWsOnWeb {
 
   void _setupWsHandlers() {
     this.socket.on(eventName, (data, [ack]) async {
-      print("Handling $eventName from socket ${socket.id}");
       try {
         final requestData = data is String ? jsonDecode(data) : data as Map<String, dynamic>;
         final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
@@ -66,14 +65,11 @@ class AcWsOnWeb {
         final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
         acWebRequest.pathParameters = pathParams;
         acWebRequest.internalParams['socket'] = this.socket;
-        print("Handling web request start in socket");
         final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
-        print("Handling web request end in socket");
         if (ack != null) {
           ack(_createWsResponseFromAcWebResponse(webResponse));
         }
       } catch (e, stack) {
-        print("Error handling $eventName: $e");
         logger.error("Error handling $eventName: $e");
         logger.error(stack);
         if (ack != null) {

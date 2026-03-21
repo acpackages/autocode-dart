@@ -45,8 +45,6 @@ class AcSqlDbTable extends AcSqlDbBase {
   static void _autoRegisterHandlers(){
     registerHandler({required Type handlerClass}) {
       final classMirror = acReflectClass(handlerClass);
-      print("Registering sql event handler class : ${classMirror.getName()}");
-      print("Checking class meta...");
       String tableName = "";
       for (var meta in classMirror.metadata) {
         if (meta is AcSqlEventHandler) {
@@ -55,10 +53,8 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
       for (var member in classMirror.instanceMembers.values) {
         if (member is! AcMethodMirror) continue;
-        print("Found method mirror.");
 
         for (var meta in member.metadata) {
-          print("Checking method meta...");
           if (meta is AcSqlEventCallback) {
             AcEnumDDRowEvent event = meta.event;
 
@@ -73,7 +69,6 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
         }
       }
-      print("Handler registered.");
     }
     List<Type> handlers =  acGetClassTypesWithAnnotation(AcSqlEventHandler);
     for(var handler in handlers){
@@ -2123,39 +2118,30 @@ class AcSqlEventHandlerDefinition {
   Future<AcSqlEventResult> handleEvent({required AcEnumDDRowEvent event,required AcSqlEventArgs args}) async{
     AcSqlEventResult result = AcSqlEventResult();
     if(_eventMethods.containsKey(event) && handler != null){
-      print("Genreating event handler...");
       final controllerClassMirror = acReflectClass(handler!);
       // Create a new instance of the controller for each request.
       final controllerInstance = controllerClassMirror.newInstance('', []);
-      print("Instance class name is : ${controllerClassMirror.getName()}");
       final controllerInstanceMirror = acReflect(controllerInstance);
 
       final methodName = Symbol(_eventMethods[event]!);
-      print("Handler method name is : ${methodName.getName()}");
       final methodMirror = controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
 
       final positionalArgs = <dynamic>[];
       final namedArgs = <Symbol, dynamic>{};
-      print("Looking for arguments of method : ${methodName.getName()}");
       for (final parameter in methodMirror.parameters) {
         dynamic argValue;
         bool valueSet = false;
-        print("Found parameter : ${parameter.getName()}");
 
         if (parameter.type == AcSqlEventArgs) {
-          print("Parameter type is AcSqlEventArgs");
           argValue = args;
           valueSet = true;
         }
         if (!valueSet) {
-          print("Value is not set");
           argValue = null;
         }
         if(parameter.isNamed){
-          print("Parameter is named");
           namedArgs[parameter.simpleName] = argValue;
         } else {
-          print("Parameter is not named");
           positionalArgs.add(argValue);
         }
       }

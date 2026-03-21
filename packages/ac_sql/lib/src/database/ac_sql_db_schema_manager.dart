@@ -59,7 +59,6 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
 
       if (versionResult.isSuccess()) {
         if (versionResult.rows.isNotEmpty) {
-          print(versionResult.rows[0]);
           final databaseVersion = versionResult.rows.first.getDouble(
             TblSchemaDetails.acSchemaDetailNumericValue,
           );
@@ -1243,12 +1242,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns_type": "Future<AcSqlDaoResult>"
   }) */
   Future<AcSqlDaoResult> saveSchemaLogEntry(Map<String, dynamic> row) async {
-    print(row);
     AcSqlDaoResult result = await acSqlDDTableSchemaLogs.saveRow(row: row);
     if (result.isFailure()) {
-      print(result.toJson());
     }
-    print(result);
     return result;
   }
 
@@ -1262,7 +1258,6 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcSqlDaoResult> saveSchemaDetail(Map<String, dynamic> row) async {
     AcSqlDaoResult result = await acSqlDDTableSchemaDetails.saveRow(row: row);
     if (result.isFailure()) {
-      print(result.toJson());
     }
     return result;
   }
@@ -1289,7 +1284,6 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               tableName: tableName,
               dataDictionaryName: dataDictionaryName,
             );
-            print(acDDTable.tableColumns.length);
             final createStatement = acDDTable.getCreateTableStatement(
               databaseType: databaseType,
             );

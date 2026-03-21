@@ -161,7 +161,6 @@ class _AcWebviewState extends State<AcWebview> {
         ctrl.addJavaScriptHandler(
           handlerName: "acWebviewJavascriptChannel",
           callback: (List<dynamic> arguments) {
-            print(arguments);
             final message = arguments.first;
 
             final Map<String, dynamic> data =
