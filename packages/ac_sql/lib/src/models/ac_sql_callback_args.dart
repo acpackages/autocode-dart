@@ -23,14 +23,13 @@ class AcSqlCallbackArgs extends AcResult {
 
   int get pendingCount => (totalCount - completedCount);
 
-  AcSqlCallbackArgs({int? completedCount,int? totalCount}){
-    if(completedCount!=null){
+  AcSqlCallbackArgs({int? completedCount, int? totalCount}) {
+    if (completedCount != null) {
       this.completedCount = completedCount;
     }
 
-    if(totalCount!=null){
+    if (totalCount != null) {
       this.totalCount = totalCount;
     }
   }
 }
-

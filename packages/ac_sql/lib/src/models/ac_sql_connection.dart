@@ -72,7 +72,9 @@ class AcSqlConnection {
     "returns": "A new, populated AcSqlConnection instance.",
     "returns_type": "AcSqlConnection"
   }) */
-  factory AcSqlConnection.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqlConnection.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlConnection();
     return instance.fromJson(jsonData: jsonData);
   }
@@ -87,7 +89,10 @@ class AcSqlConnection {
     "returns_type": "AcSqlConnection"
   }) */
   AcSqlConnection fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -111,6 +116,7 @@ class AcSqlConnection {
     return AcJsonUtils.prettyEncode(toJson());
   }
 }
+
 // import 'dart:convert';
 // import 'package:ac_mirrors/ac_mirrors.dart';
 // import 'package:autocode/autocode.dart';

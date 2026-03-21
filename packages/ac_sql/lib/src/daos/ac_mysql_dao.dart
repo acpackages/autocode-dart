@@ -197,7 +197,7 @@ class AcMysqlDao extends AcBaseSqlDao {
     final result = AcResult();
     MySQLConnection? db;
     try {
-      bool continueOperation =true;
+      bool continueOperation = true;
       const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
       logger.log('Executing disable check statement: $disableCheckStatement');
       final setCheckResult = await executeStatement(
@@ -215,9 +215,10 @@ class AcMysqlDao extends AcBaseSqlDao {
         logger.log('Disabled foreign key checks.');
       }
 
-      if(continueOperation){
+      if (continueOperation) {
         logger.log('Getting and dropping existing relationships...');
-        const getDropRelationshipsStatements = "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
+        const getDropRelationshipsStatements =
+            "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
         final getResult = await getRows(
           statement: getDropRelationshipsStatements,
           parameters: {"@databaseName": sqlConnection.database},
@@ -254,7 +255,7 @@ class AcMysqlDao extends AcBaseSqlDao {
         }
       }
 
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess();
       }
     } catch (ex, stack) {
@@ -279,7 +280,7 @@ class AcMysqlDao extends AcBaseSqlDao {
   Future<AcSqlDaoResult> executeMultipleSqlStatements({
     required List<String> statements,
     Map<String, dynamic> parameters = const {},
-    Function? perStatementCallback
+    Function? perStatementCallback,
   }) async {
     final result = AcSqlDaoResult();
     MySQLConnection? db;
@@ -509,9 +510,7 @@ class AcMysqlDao extends AcBaseSqlDao {
         updatedParameterValues,
       );
       for (final row in results.rows) {
-        result.rows.add({
-          AcDDTable.keyTableName: row.colByName('TABLE_NAME'),
-        });
+        result.rows.add({AcDDTable.keyTableName: row.colByName('TABLE_NAME')});
       }
       result.setSuccess();
     } catch (ex, stack) {

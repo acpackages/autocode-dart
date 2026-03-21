@@ -480,6 +480,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           logger.log('Creating trigger ${acDDTrigger.triggerName}');
           final dropStatement = AcDDTrigger.getDropTriggerStatement(
             triggerName: acDDTrigger.triggerName,
+            tableName: acDDTrigger.tableName,
             databaseType: databaseType,
           );
           logger.log('Executing drop trigger statement: $dropStatement');
@@ -811,15 +812,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
 
             logger.log('Creating update trigger for $tableName → $triggerName');
 
-            final createTriggerStmt = '''
-                CREATE TRIGGER IF NOT EXISTS $triggerName
-                BEFORE UPDATE ON $tableName
-                FOR EACH ROW
-                WHEN NEW.$columnName IS NULL
-                BEGIN
-                  UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
-                END;
-              ''';
+            final createTriggerStmt = _generateUpdateAtTriggerSql(
+              tableName: tableName,
+              columnName: columnName,
+              triggerName: triggerName,
+              databaseType: databaseType,
+            );
 
             logger.log('Executing trigger statement:\n$createTriggerStmt');
 
@@ -873,13 +871,18 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     final result = AcResult();
     try {
       logger.log('Dropping triggers...');
-      if(databaseType == AcEnumSqlDatabaseType.sqlite){
-        AcSqlDaoResult selectResult = await dao!.getRows(statement: "SELECT name,'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';");
-        if(selectResult.isSuccess()){
-          List<Map<String,dynamic>> rows = selectResult.rows;
-          for(var row in rows){
+      if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        AcSqlDaoResult selectResult = await dao!.getRows(
+          statement:
+              "SELECT name,'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';",
+        );
+        if (selectResult.isSuccess()) {
+          List<Map<String, dynamic>> rows = selectResult.rows;
+          for (var row in rows) {
             String dropStatement = row.getString('drop_statement');
-            var dropResult = await dao!.executeStatement(statement: dropStatement);
+            var dropResult = await dao!.executeStatement(
+              statement: dropStatement,
+            );
             await saveSchemaLogEntry({
               TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
               TblSchemaLogs.acSchemaEntityName: row.getString('name'),
@@ -912,8 +915,23 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         FOR EACH ROW
         WHEN NEW.$columnName IS NULL
         BEGIN
-          SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+          UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
         END;
+      ''';
+    } else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+      String functionName = '${triggerName}_func';
+      return '''
+        CREATE OR REPLACE FUNCTION $functionName() RETURNS TRIGGER AS \$\$ 
+        BEGIN 
+          IF NEW."$columnName" IS NULL THEN
+            NEW."$columnName" = CURRENT_TIMESTAMP; 
+          END IF;
+          RETURN NEW; 
+        END; \$\$ LANGUAGE plpgsql;
+        CREATE TRIGGER $triggerName
+        BEFORE UPDATE ON "$tableName"
+        FOR EACH ROW
+        EXECUTE FUNCTION $functionName();
       ''';
     } else {
       return '';
@@ -1184,11 +1202,10 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> initSchemaDataDictionary() async {
     final result = AcResult();
     try {
-      if(skipSchema){
+      if (skipSchema) {
         result.setSuccess();
         return result;
-      }
-      else{
+      } else {
         logger.log("Registering schema data dictionary...");
         AcDataDictionary.registerDataDictionary(
           jsonData: AcSMDataDictionary.dataDictionary,
@@ -1215,7 +1232,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         // acSchemaManager.acDataDictionary = acDataDictionary;
-        final initSchemaResult = await acSchemaManager.initDatabase(dao:dao);
+        final initSchemaResult = await acSchemaManager.initDatabase(dao: dao);
         if (initSchemaResult.isSuccess()) {
           result.setSuccess(
             message: 'Schema data dictionary initialized successfully',
@@ -1243,8 +1260,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   }) */
   Future<AcSqlDaoResult> saveSchemaLogEntry(Map<String, dynamic> row) async {
     AcSqlDaoResult result = await acSqlDDTableSchemaLogs.saveRow(row: row);
-    if (result.isFailure()) {
-    }
+    if (result.isFailure()) {}
     return result;
   }
 
@@ -1257,8 +1273,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   }) */
   Future<AcSqlDaoResult> saveSchemaDetail(Map<String, dynamic> row) async {
     AcSqlDaoResult result = await acSqlDDTableSchemaDetails.saveRow(row: row);
-    if (result.isFailure()) {
-    }
+    if (result.isFailure()) {}
     return result;
   }
 

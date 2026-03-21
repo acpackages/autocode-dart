@@ -16,8 +16,10 @@ class TblSchemaDetails {
   // Renamed constants to follow lowerCamelCase Dart naming conventions.
   static const String acSchemaDetailId = "ac_schema_detail_id";
   static const String acSchemaDetailKey = "ac_schema_detail_key";
-  static const String acSchemaDetailStringValue = "ac_schema_detail_string_value";
-  static const String acSchemaDetailNumericValue = "ac_schema_detail_numeric_value";
+  static const String acSchemaDetailStringValue =
+      "ac_schema_detail_string_value";
+  static const String acSchemaDetailNumericValue =
+      "ac_schema_detail_numeric_value";
 }
 
 /* AcDoc({
@@ -29,9 +31,11 @@ class TblSchemaLogs {
   static const String acSchemaOperation = "ac_schema_operation";
   static const String acSchemaEntityType = "ac_schema_entity_type";
   static const String acSchemaEntityName = "ac_schema_entity_name";
-  static const String acSchemaOperationStatement = "ac_schema_operation_statement";
+  static const String acSchemaOperationStatement =
+      "ac_schema_operation_statement";
   static const String acSchemaOperationResult = "ac_schema_operation_result";
-  static const String acSchemaOperationTimestamp = "ac_schema_operation_timestamp";
+  static const String acSchemaOperationTimestamp =
+      "ac_schema_operation_timestamp";
 }
 
 /* AcDoc({
@@ -55,7 +59,7 @@ class AcSMDataDictionary {
     "summary": "The static data dictionary definition for the schema manager.",
     "description": "This map defines the structure of the internal tables (`_ac_schema_details` and `_ac_schema_logs`) that the schema manager uses to track its own version and migration operations. It follows the standard `AcDataDictionary` format."
   }) */
-  static Map<String,dynamic> dataDictionary = {
+  static Map<String, dynamic> dataDictionary = {
     // Assumes external constants have also been refactored to lowerCamelCase
     AcDataDictionary.keyVersion: 1,
     AcDataDictionary.keyTables: {
@@ -67,32 +71,36 @@ class AcSMDataDictionary {
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.autoIncrement,
             AcDDTableColumn.keyColumnProperties: {
               AcEnumDDColumnProperty.primaryKey: {
-                AcDDTableColumnProperty.keyPropertyName: AcEnumDDColumnProperty.primaryKey,
+                AcDDTableColumnProperty.keyPropertyName:
+                    AcEnumDDColumnProperty.primaryKey,
                 AcDDTableColumnProperty.keyPropertyValue: true,
-              }
-            }
+              },
+            },
           },
           TblSchemaDetails.acSchemaDetailKey: {
             AcDDTableColumn.keyColumnName: TblSchemaDetails.acSchemaDetailKey,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.string,
             AcDDTableColumn.keyColumnProperties: {
               AcEnumDDColumnProperty.checkInSave: {
-                AcDDTableColumnProperty.keyPropertyName: AcEnumDDColumnProperty.checkInSave,
+                AcDDTableColumnProperty.keyPropertyName:
+                    AcEnumDDColumnProperty.checkInSave,
                 AcDDTableColumnProperty.keyPropertyValue: true,
-              }
-            }
+              },
+            },
           },
           TblSchemaDetails.acSchemaDetailStringValue: {
-            AcDDTableColumn.keyColumnName: TblSchemaDetails.acSchemaDetailStringValue,
+            AcDDTableColumn.keyColumnName:
+                TblSchemaDetails.acSchemaDetailStringValue,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.text,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaDetails.acSchemaDetailNumericValue: {
-            AcDDTableColumn.keyColumnName: TblSchemaDetails.acSchemaDetailNumericValue,
+            AcDDTableColumn.keyColumnName:
+                TblSchemaDetails.acSchemaDetailNumericValue,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.double_,
-            AcDDTableColumn.keyColumnProperties: {}
-          }
-        }
+            AcDDTableColumn.keyColumnProperties: {},
+          },
+        },
       },
       AcSchemaManagerTables.schemaLogs: {
         AcDDTable.keyTableName: AcSchemaManagerTables.schemaLogs,
@@ -102,46 +110,51 @@ class AcSMDataDictionary {
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.autoIncrement,
             AcDDTableColumn.keyColumnProperties: {
               AcEnumDDColumnProperty.primaryKey: {
-                AcDDTableColumnProperty.keyPropertyName: AcEnumDDColumnProperty.primaryKey,
+                AcDDTableColumnProperty.keyPropertyName:
+                    AcEnumDDColumnProperty.primaryKey,
                 AcDDTableColumnProperty.keyPropertyValue: true,
-              }
-            }
+              },
+            },
           },
           TblSchemaLogs.acSchemaOperation: {
             AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaOperation,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.string,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaLogs.acSchemaEntityType: {
             AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaEntityType,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.text,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaLogs.acSchemaEntityName: {
             AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaEntityName,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.text,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaLogs.acSchemaOperationStatement: {
-            AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaOperationStatement,
+            AcDDTableColumn.keyColumnName:
+                TblSchemaLogs.acSchemaOperationStatement,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.text,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaLogs.acSchemaOperationResult: {
-            AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaOperationResult,
+            AcDDTableColumn.keyColumnName:
+                TblSchemaLogs.acSchemaOperationResult,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.text,
-            AcDDTableColumn.keyColumnProperties: {}
+            AcDDTableColumn.keyColumnProperties: {},
           },
           TblSchemaLogs.acSchemaOperationTimestamp: {
-            AcDDTableColumn.keyColumnName: TblSchemaLogs.acSchemaOperationTimestamp,
+            AcDDTableColumn.keyColumnName:
+                TblSchemaLogs.acSchemaOperationTimestamp,
             AcDDTableColumn.keyColumnType: AcEnumDDColumnType.timestamp,
-            AcDDTableColumn.keyColumnProperties: {}
-          }
-        }
-      }
-    }
+            AcDDTableColumn.keyColumnProperties: {},
+          },
+        },
+      },
+    },
   };
 }
+
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 //
 // class AcSchemaManagerTables {

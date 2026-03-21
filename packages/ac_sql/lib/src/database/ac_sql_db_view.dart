@@ -27,18 +27,19 @@ class AcSqlDbView extends AcSqlDbBase {
     ]
   }) */
   AcSqlDbView({required String viewName, String dataDictionaryName = 'default'})
-      : super(dataDictionaryName: dataDictionaryName) {
+    : super(dataDictionaryName: dataDictionaryName) {
     // Correctly assign the instance field from the parameter.
     this.viewName = viewName;
 
     // Warning: The force-unwrap operator `!` will cause an error if the view is not found.
     acDDView =
-    AcDataDictionary.getView(
-      viewName: viewName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getView(
+          viewName: viewName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
   }
 }
+
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';

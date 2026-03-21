@@ -28,11 +28,11 @@ class AcSqlOperation {
 
   /* AcDoc({"summary": "The hostname or IP address of the database server."}) */
   @AcBindJsonProperty(key: keyRow)
-  Map<String,dynamic>? row;
+  Map<String, dynamic>? row;
 
   /* AcDoc({"summary": "The hostname or IP address of the database server."}) */
   @AcBindJsonProperty(key: keyParameters)
-  Map<String,dynamic>? parameters;
+  Map<String, dynamic>? parameters;
 
   /* AcDoc({"summary": "The username for authenticating with the database."}) */
   @AcBindJsonProperty(key: keyTable)
@@ -40,24 +40,31 @@ class AcSqlOperation {
 
   @AcBindJsonProperty(key: keyRawSql)
   String? rawSql;
-  
-  AcSqlOperation({AcEnumDDRowOperation? operation,Map<String,dynamic>? row,String? table,String? condition,Map<String,dynamic>? parameters,String? rawSql}) {
-    if(operation!=null){
+
+  AcSqlOperation({
+    AcEnumDDRowOperation? operation,
+    Map<String, dynamic>? row,
+    String? table,
+    String? condition,
+    Map<String, dynamic>? parameters,
+    String? rawSql,
+  }) {
+    if (operation != null) {
       this.operation = operation;
     }
-    if(row!=null){
+    if (row != null) {
       this.row = row;
     }
-    if(table!=null){
+    if (table != null) {
       this.table = table;
     }
-    if(condition!=null){
+    if (condition != null) {
       this.condition = condition;
     }
-    if(parameters!=null){
+    if (parameters != null) {
       this.parameters = parameters;
     }
-    if(rawSql!=null){
+    if (rawSql != null) {
       this.rawSql = rawSql;
     }
   }
@@ -70,7 +77,9 @@ class AcSqlOperation {
     "returns": "A new, populated AcSqlOperation instance.",
     "returns_type": "AcSqlOperation"
   }) */
-  factory AcSqlOperation.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqlOperation.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlOperation();
     return instance.fromJson(jsonData: jsonData);
   }
@@ -85,10 +94,13 @@ class AcSqlOperation {
     "returns_type": "AcSqlOperation"
   }) */
   AcSqlOperation fromJson({Map<String, dynamic> jsonData = const {}}) {
-    if(jsonData.containsKey(keyOperation)){
+    if (jsonData.containsKey(keyOperation)) {
       operation = AcEnumDDRowOperation.fromValue(jsonData[keyOperation]);
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -98,7 +110,9 @@ class AcSqlOperation {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
+      instance: this,
+    );
     result[keyOperation] = operation.value;
     return result;
   }

@@ -35,12 +35,13 @@ class AcSqlDbTrigger extends AcSqlDbBase {
 
     // Warning: The force-unwrap operator `!` will cause an error if the trigger is not found.
     acDDTrigger =
-    AcDataDictionary.getTrigger(
-      triggerName: triggerName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getTrigger(
+          triggerName: triggerName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
   }
 }
+
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';

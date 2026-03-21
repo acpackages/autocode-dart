@@ -12,34 +12,43 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 @AcReflectable()
 class AcSqlEventArgs {
   late AcSqlDbTable sqlDbTableInstance;
-  Map<String,dynamic>? row;
-  List<Map<String,dynamic>>? rows;
-  List<Map<String,dynamic>>? rowsWithConditions;
-  Map<String,dynamic>? parameters;
+  Map<String, dynamic>? row;
+  List<Map<String, dynamic>>? rows;
+  List<Map<String, dynamic>>? rowsWithConditions;
+  Map<String, dynamic>? parameters;
   String? condition;
   AcResult? result;
 
-  AcSqlEventArgs({AcSqlDbTable? sqlDbTableInstance ,Map<String,dynamic>? row,String? table,String? condition,Map<String,dynamic>? parameters,AcResult? result,List<Map<String,dynamic>>? rows,List<Map<String,dynamic>>? rowsWithConditions}) {
-    if(sqlDbTableInstance!=null){
+  AcSqlEventArgs({
+    AcSqlDbTable? sqlDbTableInstance,
+    Map<String, dynamic>? row,
+    String? table,
+    String? condition,
+    Map<String, dynamic>? parameters,
+    AcResult? result,
+    List<Map<String, dynamic>>? rows,
+    List<Map<String, dynamic>>? rowsWithConditions,
+  }) {
+    if (sqlDbTableInstance != null) {
       this.sqlDbTableInstance = sqlDbTableInstance;
     }
-    if(row!=null){
+    if (row != null) {
       this.row = row;
     }
 
-    if(rows!=null){
+    if (rows != null) {
       this.rows = rows;
     }
-    if(condition!=null){
+    if (condition != null) {
       this.condition = condition;
     }
-    if(parameters!=null){
+    if (parameters != null) {
       this.parameters = parameters;
     }
-    if(result!=null){
+    if (result != null) {
       this.result = result;
     }
-    if(rowsWithConditions != null){
+    if (rowsWithConditions != null) {
       this.rowsWithConditions = rowsWithConditions;
     }
   }
@@ -52,7 +61,9 @@ class AcSqlEventArgs {
     "returns": "A new, populated AcSqlEventArgs instance.",
     "returns_type": "AcSqlEventArgs"
   }) */
-  factory AcSqlEventArgs.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqlEventArgs.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlEventArgs();
     return instance.fromJson(jsonData: jsonData);
   }
@@ -67,7 +78,10 @@ class AcSqlEventArgs {
     "returns_type": "AcSqlEventArgs"
   }) */
   AcSqlEventArgs fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -77,7 +91,9 @@ class AcSqlEventArgs {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
+      instance: this,
+    );
     return result;
   }
 

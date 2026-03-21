@@ -27,13 +27,13 @@ class AcSqlEventResult extends AcResult {
 
   /* AcDoc({"summary": "The hostname or IP address of the database server."}) */
   @AcBindJsonProperty(key: keyRow)
-  Map<String,dynamic>? row;
-  List<Map<String,dynamic>>? rows;
-  List<Map<String,dynamic>>? rowsWithConditions;
+  Map<String, dynamic>? row;
+  List<Map<String, dynamic>>? rows;
+  List<Map<String, dynamic>>? rowsWithConditions;
 
   /* AcDoc({"summary": "The hostname or IP address of the database server."}) */
   @AcBindJsonProperty(key: keyParameters)
-  Map<String,dynamic>? parameters;
+  Map<String, dynamic>? parameters;
 
   AcResult? result;
 
@@ -41,29 +41,38 @@ class AcSqlEventResult extends AcResult {
   @AcBindJsonProperty(key: keyTable)
   String table = "";
 
-  AcSqlEventResult({AcEnumDDRowOperation? operation,Map<String,dynamic>? row,String? table,String? condition,Map<String,dynamic>? parameters,AcResult? result,List<Map<String,dynamic>>? rows,List<Map<String,dynamic>>? rowsWithConditions}) {
-    if(operation!=null){
+  AcSqlEventResult({
+    AcEnumDDRowOperation? operation,
+    Map<String, dynamic>? row,
+    String? table,
+    String? condition,
+    Map<String, dynamic>? parameters,
+    AcResult? result,
+    List<Map<String, dynamic>>? rows,
+    List<Map<String, dynamic>>? rowsWithConditions,
+  }) {
+    if (operation != null) {
       this.operation = operation;
     }
-    if(row!=null){
+    if (row != null) {
       this.row = row;
     }
-    if(rows!=null){
+    if (rows != null) {
       this.rows = rows;
     }
-    if(table!=null){
+    if (table != null) {
       this.table = table;
     }
-    if(condition!=null){
+    if (condition != null) {
       this.condition = condition;
     }
-    if(parameters!=null){
+    if (parameters != null) {
       this.parameters = parameters;
     }
-    if(result!=null){
+    if (result != null) {
       this.result = result;
     }
-    if(rowsWithConditions != null){
+    if (rowsWithConditions != null) {
       this.rowsWithConditions = rowsWithConditions;
     }
   }
@@ -76,7 +85,9 @@ class AcSqlEventResult extends AcResult {
     "returns": "A new, populated AcSqlOperation instance.",
     "returns_type": "AcSqlOperation"
   }) */
-  factory AcSqlEventResult.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqlEventResult.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlEventResult();
     return instance.fromJson(jsonData: jsonData);
   }
@@ -91,10 +102,13 @@ class AcSqlEventResult extends AcResult {
     "returns_type": "AcSqlOperation"
   }) */
   AcSqlEventResult fromJson({Map<String, dynamic> jsonData = const {}}) {
-    if(jsonData.containsKey(keyOperation)){
+    if (jsonData.containsKey(keyOperation)) {
       operation = AcEnumDDRowOperation.fromValue(jsonData[keyOperation]);
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -104,7 +118,9 @@ class AcSqlEventResult extends AcResult {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
+      instance: this,
+    );
     result[keyOperation] = operation.value;
     return result;
   }

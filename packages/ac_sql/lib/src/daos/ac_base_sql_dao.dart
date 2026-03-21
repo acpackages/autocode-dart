@@ -18,7 +18,12 @@ class AcBaseSqlDao {
 
   /* AcDoc({"summary": "Initializes a new instance of the base DAO."}) */
   AcBaseSqlDao() {
-    logger = AcLogger(logType: AcEnumLogType.html, logMessages: false,logDirectory: 'logs',logFileName: 'ac_sql_dao.html');
+    logger = AcLogger(
+      logType: AcEnumLogType.html,
+      logMessages: false,
+      logDirectory: 'logs',
+      logFileName: 'ac_sql_dao.html',
+    );
     sqlConnection = AcSqlConnection();
   }
 
@@ -137,12 +142,15 @@ class AcBaseSqlDao {
   Future<AcSqlDaoResult> executeMultipleSqlStatements({
     required List<String> statements,
     Map<String, dynamic> parameters = const {},
-    Function(AcSqlCallbackArgs)? perStatementCallback
+    Function(AcSqlCallbackArgs)? perStatementCallback,
   }) async {
     return AcSqlDaoResult();
   }
 
-  Future<AcResult> executeSqlOperations({required List<AcSqlOperation> operations,Function(AcSqlCallbackArgs)? perOperationCallback}) async {
+  Future<AcResult> executeSqlOperations({
+    required List<AcSqlOperation> operations,
+    Function(AcSqlCallbackArgs)? perOperationCallback,
+  }) async {
     return AcResult();
   }
 
@@ -376,29 +384,36 @@ class AcBaseSqlDao {
     required Map<String, dynamic> passedParameters,
     bool returnMap = true,
   }) {
-    if(returnMap){
+    if (returnMap) {
       statementParametersMap ??= {};
-    }
-    else {
+    } else {
       statementParametersList ??= List.empty(growable: true);
     }
     List<String> keys = passedParameters.keys.toList();
     for (String key in keys) {
       var value = passedParameters[key];
-      if(!returnMap){
+      if (!returnMap) {
         while (statement.contains(key)) {
           logger.log("Searching For Key : $key");
           logger.log("SQL Statement : $statement");
           logger.log("Key Value: `${value.toString()}`");
-          String beforeQueryString = statement.substring(0, statement.indexOf(key));
-          logger.log("Before String in Statement Where Key is found: $beforeQueryString");
+          String beforeQueryString = statement.substring(
+            0,
+            statement.indexOf(key),
+          );
+          logger.log(
+            "Before String in Statement Where Key is found: $beforeQueryString",
+          );
           int parameterIndex = _countOccurrences(beforeQueryString, '?');
           logger.log("Parameter Index: $parameterIndex");
           logger.log("Values Before: ${statementParametersList.toString()}");
           if (value is List) {
             logger.log("Value is list");
             String replacement = List.filled(value.length, '?').join(',');
-            statement = statement.replaceFirst(RegExp(RegExp.escape(key)), replacement);
+            statement = statement.replaceFirst(
+              RegExp(RegExp.escape(key)),
+              replacement,
+            );
             statementParametersList!.insertAll(parameterIndex, value);
           } else {
             logger.log("Value is not list");
@@ -408,42 +423,45 @@ class AcBaseSqlDao {
           logger.log("Statement : $statement");
           logger.log("Values After: ${statementParametersList.toString()}");
         }
-      }
-      else{
+      } else {
         int index = statementParametersMap!.keys.length;
         String parameterKey = "parameter$index";
-        while(statementParametersMap.keys.contains(parameterKey)){
+        while (statementParametersMap.keys.contains(parameterKey)) {
           index++;
           parameterKey = "parameter$index";
         }
         logger.log("Searching For Key : $key");
         logger.log("Key Value: `${value.toString()}`");
         logger.log("SQL Statement Before: $statement");
-        logger.log(["SQL Parameters Before:",statementParametersMap]);
+        logger.log(["SQL Parameters Before:", statementParametersMap]);
         if (value is List) {
-          logger.log("Value is List so converting to individual values: ${value.toString()}");
+          logger.log(
+            "Value is List so converting to individual values: ${value.toString()}",
+          );
           List<String> listParamKeys = List.empty(growable: true);
-          for(int i =0;i<value.length;i++){
+          for (int i = 0; i < value.length; i++) {
             final listParameterKey = ":${parameterKey}_$i";
             listParamKeys.add(listParameterKey);
             statementParametersMap[listParameterKey] = value[i];
           }
           statement = statement.replaceAll(key, listParamKeys.join(","));
-        }
-        else{
+        } else {
           logger.log("Value is not list");
           statement = statement.replaceAll(key, ":$parameterKey");
           statementParametersMap[parameterKey] = value;
         }
         logger.log("SQL Statement After: $statement");
-        logger.log(["SQL Parameters After:",jsonEncode(statementParametersMap)]);
+        logger.log([
+          "SQL Parameters After:",
+          jsonEncode(statementParametersMap),
+        ]);
       }
     }
     return {
       'statement': statement,
       'statementParametersList': statementParametersList,
       'statementParametersMap': statementParametersMap,
-      'passedParameters': passedParameters
+      'passedParameters': passedParameters,
     };
   }
 
@@ -489,6 +507,7 @@ class AcBaseSqlDao {
     return RegExp(RegExp.escape(pattern)).allMatches(source).length;
   }
 }
+
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';

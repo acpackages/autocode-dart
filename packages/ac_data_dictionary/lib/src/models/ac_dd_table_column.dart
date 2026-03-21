@@ -233,6 +233,9 @@ class AcDDTableColumn {
     else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
       return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
     }
+    else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+      return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
+    }
     return "";
   }
 
@@ -349,6 +352,65 @@ class AcDDTableColumn {
         result += " NOT NULL";
       }
       // Default value logic can be added as needed.
+    } else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+      switch (columnType) {
+        case AcEnumDDColumnType.autoIncrement:
+          sqlType = 'SERIAL PRIMARY KEY';
+          isAutoIncrementSet = true;
+          isPrimaryKeySet = true;
+          break;
+        case AcEnumDDColumnType.blob:
+          sqlType = 'BYTEA';
+          break;
+        case AcEnumDDColumnType.date:
+          sqlType = 'DATE';
+          break;
+        case AcEnumDDColumnType.datetime:
+          sqlType = 'TIMESTAMP';
+          break;
+        case AcEnumDDColumnType.double_:
+          sqlType = 'DOUBLE PRECISION';
+          break;
+        case AcEnumDDColumnType.uuid:
+          sqlType = 'UUID';
+          break;
+        case AcEnumDDColumnType.integer:
+        case AcEnumDDColumnType.autoIndex:
+          sqlType = 'BIGINT';
+          break;
+        case AcEnumDDColumnType.yesNo:
+          sqlType = 'BOOLEAN';
+          break;
+        case AcEnumDDColumnType.json:
+          sqlType = 'JSONB';
+          break;
+        case AcEnumDDColumnType.string:
+          if (size == 0) size = 255;
+          sqlType = 'VARCHAR($size)';
+          break;
+        case AcEnumDDColumnType.text:
+          sqlType = 'TEXT';
+          break;
+        case AcEnumDDColumnType.time:
+          sqlType = 'TIME';
+          break;
+        case AcEnumDDColumnType.timestamp:
+          sqlType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';
+          break;
+        default:
+          sqlType = 'TEXT';
+      }
+
+      result = '"$columnName" $sqlType';
+      if (isPrimaryKey() && !isPrimaryKeySet) {
+        result += " PRIMARY KEY";
+      }
+      if (isUniqueKey()) {
+        result += " UNIQUE";
+      }
+      if (isNotNull()) {
+        result += " NOT NULL";
+      }
     }
 
     return result;

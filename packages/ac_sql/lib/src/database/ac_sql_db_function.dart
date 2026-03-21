@@ -35,12 +35,13 @@ class AcSqlDbFunction extends AcSqlDbBase {
 
     // Warning: The force-unwrap operator `!` will cause an error if the function is not found.
     acDDFunction =
-    AcDataDictionary.getFunction(
-      functionName: functionName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getFunction(
+          functionName: functionName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
   }
 }
+
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';

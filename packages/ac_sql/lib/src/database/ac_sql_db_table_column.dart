@@ -39,20 +39,21 @@ class AcSqlDbTableColumn extends AcSqlDbBase {
 
     // Warning: The force-unwrap operator `!` will cause an error if the table is not found.
     acDDTable =
-    AcDataDictionary.getTable(
-      tableName: tableName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getTable(
+          tableName: tableName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
 
     // Warning: The force-unwrap operator `!` will cause an error if the column is not found.
     acDDTableColumn =
-    AcDataDictionary.getTableColumn(
-      tableName: tableName,
-      columnName: columnName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getTableColumn(
+          tableName: tableName,
+          columnName: columnName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
   }
 }
+
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';
 //

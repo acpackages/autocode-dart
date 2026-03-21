@@ -12,8 +12,15 @@ class AcSqlDbTable extends AcSqlDbBase {
 
   late AcDDTable acDDTable;
 
-  static Future<AcResult> Function({required Map<String, dynamic> row,required AcDDTable acDDTable,required bool isInsert, required AcSqlDbTable sqlDbTable})? onFormat;
-  static final Map<String,AcSqlEventHandlerDefinition> _tableEventHandlers = Map.from({});
+  static Future<AcResult> Function({
+    required Map<String, dynamic> row,
+    required AcDDTable acDDTable,
+    required bool isInsert,
+    required AcSqlDbTable sqlDbTable,
+  })?
+  onFormat;
+  static final Map<String, AcSqlEventHandlerDefinition> _tableEventHandlers =
+      Map.from({});
   static bool _autoDetectedHandlers = false;
 
   /* AcDoc({
@@ -24,8 +31,13 @@ class AcSqlDbTable extends AcSqlDbBase {
       {"name": "dataDictionaryName", "description": "The data dictionary to use. Defaults to 'default'."}
     ]
   }) */
-  AcSqlDbTable({required this.tableName, super.dataDictionaryName,super.logger,super.dao}){
-    if(!AcSqlDbTable._autoDetectedHandlers){
+  AcSqlDbTable({
+    required this.tableName,
+    super.dataDictionaryName,
+    super.logger,
+    super.dao,
+  }) {
+    if (!AcSqlDbTable._autoDetectedHandlers) {
       AcSqlDbTable._autoDetectedHandlers = true;
       AcSqlDbTable._autoRegisterHandlers();
     }
@@ -35,7 +47,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     );
   }
 
-  static void _autoRegisterHandlers(){
+  static void _autoRegisterHandlers() {
     registerHandler({required Type handlerClass}) {
       final classMirror = acReflectClass(handlerClass);
       String tableName = "";
@@ -45,8 +57,10 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
       }
 
-      if(tableName.isNotEmpty){
-        print("[AcSqlEventHandling] Adding event handler methods for table $tableName");
+      if (tableName.isNotEmpty) {
+        print(
+          "[AcSqlEventHandling] Adding event handler methods for table $tableName",
+        );
         for (var member in classMirror.instanceMembers.values) {
           if (member is! AcMethodMirror) continue;
 
@@ -54,19 +68,22 @@ class AcSqlDbTable extends AcSqlDbBase {
             if (meta is AcSqlEventCallback) {
               AcEnumDDRowEvent event = meta.event;
 
-              if(!_tableEventHandlers.containsKey(tableName)){
+              if (!_tableEventHandlers.containsKey(tableName)) {
                 _tableEventHandlers[tableName] = AcSqlEventHandlerDefinition();
                 _tableEventHandlers[tableName]!.handler = handlerClass;
               }
-              _tableEventHandlers[tableName]!.registerEventHandlerMethod(event: event,methodName: member.simpleName.getName());
+              _tableEventHandlers[tableName]!.registerEventHandlerMethod(
+                event: event,
+                methodName: member.simpleName.getName(),
+              );
             }
           }
         }
       }
-
     }
-    List<Type> handlers =  acGetClassTypesWithAnnotation(AcSqlEventHandler);
-    for(var handler in handlers){
+
+    List<Type> handlers = acGetClassTypesWithAnnotation(AcSqlEventHandler);
+    for (var handler in handlers) {
       registerHandler(handlerClass: handler);
     }
   }
@@ -101,7 +118,8 @@ class AcSqlDbTable extends AcSqlDbBase {
             "Checking cascade delete for relationship : ",
             acRelationship,
           ]);
-          if (acRelationship.sourceTable == tableName && acRelationship.cascadeDeleteDestination == true ) {
+          if (acRelationship.sourceTable == tableName &&
+              acRelationship.cascadeDeleteDestination == true) {
             deleteTableName = acRelationship.destinationTable;
             deleteColumnName = acRelationship.destinationColumn;
             deleteColumnValue = row[acRelationship.sourceColumn];
@@ -214,10 +232,11 @@ class AcSqlDbTable extends AcSqlDbBase {
         for (final name in selectColumnsList) {
           String columnGetRows = "";
           if (databaseType == AcEnumSqlDatabaseType.mysql) {
-            columnGetRows = "SELECT CONCAT('{\"$name\":',IF(MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED)) IS NULL,0,MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED))),'}') AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition";
-          }
-          else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
-            columnGetRows = "SELECT '{\"$name\":' || COALESCE( MAX( CAST( SUBSTR( $name, ${autoNumberColumns[name]!["prefix_length"]} + 1 ) AS INTEGER ) ),0 ) || '}' AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition;";
+            columnGetRows =
+                "SELECT CONCAT('{\"$name\":',IF(MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED)) IS NULL,0,MAX(CAST(SUBSTRING($name, ${autoNumberColumns[name]!["prefix_length"]} + 1) AS UNSIGNED))),'}') AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition";
+          } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+            columnGetRows =
+                "SELECT '{\"$name\":' || COALESCE( MAX( CAST( SUBSTR( $name, ${autoNumberColumns[name]!["prefix_length"]} + 1 ) AS INTEGER ) ),0 ) || '}' AS max_json FROM $tableName WHERE $name LIKE '${autoNumberColumns[name]!["prefix"]}%' $checkCondition;";
           }
           if (columnGetRows.isNotEmpty) {
             getRowsStatements.add(columnGetRows);
@@ -253,7 +272,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
         }
       }
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess(value: row);
       }
     } on Exception catch (ex, stack) {
@@ -388,7 +407,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       if (condition.isEmpty) {
         if (primaryKeyValue.isNotEmpty && primaryKeyColumnName.isNotEmpty) {
           condition = "$primaryKeyColumnName = :primaryKeyValue";
-          parameters[":primaryKeyValue"]= primaryKeyValue;
+          parameters[":primaryKeyValue"] = primaryKeyValue;
         } else {
           continueOperation = false;
           result.setFailure(
@@ -416,19 +435,26 @@ class AcSqlDbTable extends AcSqlDbBase {
           result.rows = getResult.rows;
           if (continueOperation) {
             if (executeBeforeEvent) {
-              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeDelete)){
+              if (_tableEventHandlers.containsKey(tableName) &&
+                  _tableEventHandlers[tableName]!.hasMethodForEvent(
+                    event: AcEnumDDRowEvent.beforeDelete,
+                  )) {
                 var args = AcSqlEventArgs(
-                    sqlDbTableInstance: this,
-                    condition: condition,
-                    parameters: parameters,
-                    rows:getResult.rows
+                  sqlDbTableInstance: this,
+                  condition: condition,
+                  parameters: parameters,
+                  rows: getResult.rows,
                 );
-                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeDelete, args: args);
+                var eventResult = await _tableEventHandlers[tableName]!
+                    .handleEvent(
+                      event: AcEnumDDRowEvent.beforeDelete,
+                      args: args,
+                    );
                 if (eventResult.isSuccess()) {
-                  if(eventResult.condition != null){
+                  if (eventResult.condition != null) {
                     condition = eventResult.condition!;
                   }
-                  if(eventResult.parameters != null){
+                  if (eventResult.parameters != null) {
                     parameters = eventResult.parameters!;
                   }
                 } else {
@@ -475,7 +501,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                     "${deleteResult.affectedRowsCount} row(s) deleted successfully",
               );
             } else {
-              continueOperation=false;
+              continueOperation = false;
               result.setFromResult(result: deleteResult);
               if (deleteResult.message.contains("foreign key")) {
                 result.message =
@@ -484,22 +510,28 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
           }
         } else {
-          continueOperation=false;
+          continueOperation = false;
           result.setFromResult(result: getResult, logger: logger);
         }
       }
       if (continueOperation && executeAfterEvent) {
-        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterDelete)){
+        if (_tableEventHandlers.containsKey(tableName) &&
+            _tableEventHandlers[tableName]!.hasMethodForEvent(
+              event: AcEnumDDRowEvent.afterDelete,
+            )) {
           var args = AcSqlEventArgs(
-              sqlDbTableInstance: this,
-              condition: condition,
-              parameters: parameters,
-              result:result,
-              rows:result.rows
+            sqlDbTableInstance: this,
+            condition: condition,
+            parameters: parameters,
+            result: result,
+            rows: result.rows,
           );
-          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterDelete, args: args);
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+            event: AcEnumDDRowEvent.afterDelete,
+            args: args,
+          );
           if (eventResult.isSuccess()) {
-            if(eventResult.result != null){
+            if (eventResult.result != null) {
               result = eventResult.result! as AcSqlDaoResult;
             }
           } else {
@@ -511,7 +543,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           }
         }
       }
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess();
       }
     } on Exception catch (ex, stack) {
@@ -543,24 +575,24 @@ class AcSqlDbTable extends AcSqlDbBase {
     final result = AcResult();
     bool continueOperation = true;
 
-    if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeFormat)){
-      var args = AcSqlEventArgs(
-          sqlDbTableInstance: this,
-          row: row,
+    if (_tableEventHandlers.containsKey(tableName) &&
+        _tableEventHandlers[tableName]!.hasMethodForEvent(
+          event: AcEnumDDRowEvent.beforeFormat,
+        )) {
+      var args = AcSqlEventArgs(sqlDbTableInstance: this, row: row);
+      var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+        event: AcEnumDDRowEvent.beforeFormat,
+        args: args,
       );
-      var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeFormat, args: args);
       if (eventResult.isSuccess()) {
-        if(eventResult.row != null){
+        if (eventResult.row != null) {
           row = eventResult.row!;
         }
       } else {
         continueOperation = false;
-        result.setFromResult(
-          result: eventResult,
-        );
+        result.setFromResult(result: eventResult);
       }
     }
-
 
     if (continueOperation) {
       List<String> tableColumnNames = List.empty(growable: true);
@@ -571,13 +603,17 @@ class AcSqlDbTable extends AcSqlDbBase {
           List<String> formats = column.getColumnFormats();
           AcEnumDDColumnType type = column.columnType;
           dynamic value = row[column.columnName];
-          logger.log("Formatting value for ${column.columnName} with value type ${value.runtimeType} and value : $value");
+          logger.log(
+            "Formatting value for ${column.columnName} with value type ${value.runtimeType} and value : $value",
+          );
           if (value == null && insertMode) {
-            if(column.getDefaultValue() != null){
+            if (column.getDefaultValue() != null) {
               value = column.getDefaultValue();
               setColumnValue = true;
-            }
-            else if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && insertMode && column.isPrimaryKey()) {
+            } else if ((type == AcEnumDDColumnType.uuid ||
+                    type == AcEnumDDColumnType.string) &&
+                insertMode &&
+                column.isPrimaryKey()) {
               setColumnValue = true;
             }
           }
@@ -597,22 +633,19 @@ class AcSqlDbTable extends AcSqlDbBase {
                 if (formats.contains(AcEnumDDColumnFormat.encrypt.value)) {
                   value = AcEncryption.encrypt(plainText: value);
                 }
-              }
-              else if ([
-                    AcEnumDDColumnType.datetime,
-                    AcEnumDDColumnType.date,
-                  ].contains(type)) {
-                if(value is String){
+              } else if ([
+                AcEnumDDColumnType.datetime,
+                AcEnumDDColumnType.date,
+              ].contains(type)) {
+                if (value is String) {
                   try {
                     DateTime dateTimeValue = DateTime.parse(value);
-                    if(type == AcEnumDDColumnType.date){
+                    if (type == AcEnumDDColumnType.date) {
                       String format = 'yyyy-MM-dd';
                       value = dateTimeValue.fromFormatted(format);
+                    } else {
+                      value = dateTimeValue.toIso8601String();
                     }
-                    else{
-                      value =  dateTimeValue.toIso8601String();
-                    }
-
                   } catch (e) {
                     logger.warn(
                       "Error while setting dateTimeValue for ${column.columnName} in table $tableName with value: $value",
@@ -620,64 +653,79 @@ class AcSqlDbTable extends AcSqlDbBase {
                   }
                 }
               }
-            } else if ([AcEnumDDColumnType.json].contains(type) && value != null) {
+            } else if ([AcEnumDDColumnType.json].contains(type) &&
+                value != null) {
               value = value is String ? value : json.encode(value);
             } else if (type == AcEnumDDColumnType.password && value is String) {
               value = AcEncryption.encrypt(plainText: value);
-            }
-            else if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && insertMode && column.isPrimaryKey()) {
-              if(value == '' || value == null){
+            } else if ((type == AcEnumDDColumnType.uuid ||
+                    type == AcEnumDDColumnType.string) &&
+                insertMode &&
+                column.isPrimaryKey()) {
+              if (value == '' || value == null) {
                 value = Autocode.uuid();
               }
             }
-            if ((type == AcEnumDDColumnType.uuid || type == AcEnumDDColumnType.string) && column.isForeignKey() && value is String && value.isEmpty) {
+            if ((type == AcEnumDDColumnType.uuid ||
+                    type == AcEnumDDColumnType.string) &&
+                column.isForeignKey() &&
+                value is String &&
+                value.isEmpty) {
               value = null;
             }
-            logger.log("Formatted value for ${column.columnName} with value type ${value.runtimeType} and value : $value");
+            logger.log(
+              "Formatted value for ${column.columnName} with value type ${value.runtimeType} and value : $value",
+            );
             row[column.columnName] = value;
           }
         }
       }
-      List<String> invalidKeys = row.keys.where((key){
-        return !tableColumnNames.contains(key);
-      }).toList();
-      for(var key in invalidKeys){
+      List<String> invalidKeys =
+          row.keys.where((key) {
+            return !tableColumnNames.contains(key);
+          }).toList();
+      for (var key in invalidKeys) {
         row.remove(key);
       }
     }
     if (continueOperation) {
-      if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterFormat)){
-        var args = AcSqlEventArgs(
-          sqlDbTableInstance: this,
-          row: row,
+      if (_tableEventHandlers.containsKey(tableName) &&
+          _tableEventHandlers[tableName]!.hasMethodForEvent(
+            event: AcEnumDDRowEvent.afterFormat,
+          )) {
+        var args = AcSqlEventArgs(sqlDbTableInstance: this, row: row);
+        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+          event: AcEnumDDRowEvent.afterFormat,
+          args: args,
         );
-        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterFormat, args: args);
         if (eventResult.isSuccess()) {
-          if(eventResult.row != null){
+          if (eventResult.row != null) {
             row = eventResult.row!;
           }
         } else {
           continueOperation = false;
-          result.setFromResult(
-            result: eventResult,
-          );
+          result.setFromResult(result: eventResult);
         }
       }
     }
-    
-    if(continueOperation){
-      if(AcSqlDbTable.onFormat != null){
-        var afterResult = await AcSqlDbTable.onFormat!(acDDTable: acDDTable,row: row,isInsert: insertMode,sqlDbTable: this);
-        if(afterResult.isSuccess()){
+
+    if (continueOperation) {
+      if (AcSqlDbTable.onFormat != null) {
+        var afterResult = await AcSqlDbTable.onFormat!(
+          acDDTable: acDDTable,
+          row: row,
+          isInsert: insertMode,
+          sqlDbTable: this,
+        );
+        if (afterResult.isSuccess()) {
           row = afterResult.value;
-        }
-        else{
+        } else {
           result.setFromResult(result: afterResult);
           continueOperation = false;
         }
       }
     }
-    
+
     if (continueOperation) {
       result.setSuccess(value: row);
     }
@@ -699,9 +747,12 @@ class AcSqlDbTable extends AcSqlDbBase {
     Map<String, List<AcEnumDDColumnFormat>> result = {};
     dynamic columns = acDDTable.tableColumns;
     String viewName = acDDTable.getSqlViewName();
-    if(viewName.isNotEmpty){
-      var acDDView = AcDataDictionary.getView(viewName: viewName,dataDictionaryName: dataDictionaryName);
-      if(acDDView != null){
+    if (viewName.isNotEmpty) {
+      var acDDView = AcDataDictionary.getView(
+        viewName: viewName,
+        dataDictionaryName: dataDictionaryName,
+      );
+      if (acDDView != null) {
         columns = acDDView.viewColumns;
       }
     }
@@ -711,7 +762,8 @@ class AcSqlDbTable extends AcSqlDbBase {
         columnFormats.add(AcEnumDDColumnFormat.json);
       } else if (acDDTableColumn.columnType == AcEnumDDColumnType.date) {
         columnFormats.add(AcEnumDDColumnFormat.date);
-      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.password && !getPasswordColumns) {
+      } else if (acDDTableColumn.columnType == AcEnumDDColumnType.password &&
+          !getPasswordColumns) {
         columnFormats.add(AcEnumDDColumnFormat.hideColumn);
       } else if (acDDTableColumn.columnType == AcEnumDDColumnType.encrypted) {
         columnFormats.add(AcEnumDDColumnFormat.encrypt);
@@ -818,13 +870,13 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> getInsertRowData({required Map<String, dynamic> row}) async{
+  Future<AcResult> getInsertRowData({required Map<String, dynamic> row}) async {
     AcResult result = AcResult();
-    final formatResult = await formatValues(row: row,insertMode: true);
+    final formatResult = await formatValues(row: row, insertMode: true);
     if (formatResult.isSuccess()) {
-      result.setSuccess(value:formatResult.value);
+      result.setSuccess(value: formatResult.value);
     } else {
-      result.setFromResult(result:result);
+      result.setFromResult(result: result);
     }
     return result;
   }
@@ -856,7 +908,8 @@ class AcSqlDbTable extends AcSqlDbBase {
     parameters = Map.from(parameters);
     var result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
     try {
-      String actualSelectStatement = selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
+      String actualSelectStatement =
+          selectStatement.isNotEmpty ? selectStatement : getSelectStatement();
       final sqlStatement = AcDDSelectStatement.generateSqlStatement(
         selectStatement: actualSelectStatement,
         condition: condition,
@@ -910,7 +963,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         var countResult = await dao!.getRows(
           statement: countSqlStatement,
           parameters: sqlParameters,
-          mode: AcEnumDDSelectMode.count
+          mode: AcEnumDDSelectMode.count,
         );
         if (countResult.isSuccess()) {
           result.totalRows = countResult.totalRows;
@@ -929,69 +982,73 @@ class AcSqlDbTable extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> getSaveSqlOperation({required Map<String, dynamic> row,bool checkRowExist = true}) async{
+  Future<AcResult> getSaveSqlOperation({
+    required Map<String, dynamic> row,
+    bool checkRowExist = true,
+  }) async {
     AcResult result = AcResult();
-    Map<String,dynamic> operationRow = Map.from(row);
+    Map<String, dynamic> operationRow = Map.from(row);
     AcSqlOperation operation = AcSqlOperation(table: acDDTable.tableName);
     String primaryKeyName = acDDTable.getPrimaryKeyColumnName();
-    bool isExisting = false,continueOperation = true;
-    if(operationRow.containsKey(primaryKeyName) && operationRow[primaryKeyName] != null){
-      if(checkRowExist){
-        var getRowsResult = await getRows(condition: "$primaryKeyName = @primaryKeyValue",parameters: {"@primaryKeyValue":operationRow[primaryKeyName]});
-        if(getRowsResult.isSuccess()){
-          if(getRowsResult.rows.isNotEmpty){
+    bool isExisting = false, continueOperation = true;
+    if (operationRow.containsKey(primaryKeyName) &&
+        operationRow[primaryKeyName] != null) {
+      if (checkRowExist) {
+        var getRowsResult = await getRows(
+          condition: "$primaryKeyName = @primaryKeyValue",
+          parameters: {"@primaryKeyValue": operationRow[primaryKeyName]},
+        );
+        if (getRowsResult.isSuccess()) {
+          if (getRowsResult.rows.isNotEmpty) {
             isExisting = true;
           }
-        }
-        else{
+        } else {
           continueOperation = false;
           result.setFromResult(result: result);
         }
-      }
-      else{
+      } else {
         isExisting = true;
       }
     }
-    if(continueOperation){
-      if(isExisting){
+    if (continueOperation) {
+      if (isExisting) {
         operation.operation = AcEnumDDRowOperation.update;
         operation.condition = "$primaryKeyName = @primaryKeyValue";
-        operation.parameters = {"@primaryKeyValue":operationRow[primaryKeyName]};
+        operation.parameters = {
+          "@primaryKeyValue": operationRow[primaryKeyName],
+        };
         var getOperationDataResult = await getUpdateRowData(row: operationRow);
-        if(getOperationDataResult.isSuccess()){
+        if (getOperationDataResult.isSuccess()) {
           operation.row = getOperationDataResult.value;
-        }
-        else{
+        } else {
           continueOperation = false;
           result.setFromResult(result: result);
         }
-      }
-      else{
+      } else {
         operation.operation = AcEnumDDRowOperation.insert;
         var getOperationDataResult = await getInsertRowData(row: operationRow);
-        if(getOperationDataResult.isSuccess()){
+        if (getOperationDataResult.isSuccess()) {
           operation.row = getOperationDataResult.value;
-        }
-        else{
+        } else {
           continueOperation = false;
           result.setFromResult(result: result);
         }
       }
     }
-    if(continueOperation){
+    if (continueOperation) {
       result.setSuccess();
       result.value = operation;
     }
     return result;
   }
 
-  Future<AcResult> getUpdateRowData({required Map<String, dynamic> row}) async{
+  Future<AcResult> getUpdateRowData({required Map<String, dynamic> row}) async {
     AcResult result = AcResult();
-    final formatResult = await formatValues(row: row,insertMode: false);
+    final formatResult = await formatValues(row: row, insertMode: false);
     if (formatResult.isSuccess()) {
-      result.setSuccess(value:formatResult.value);
+      result.setSuccess(value: formatResult.value);
     } else {
-      result.setFromResult(result:result);
+      result.setFromResult(result: result);
     }
     return result;
   }
@@ -1019,7 +1076,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       logger.log(["Inserting row with data : ", row]);
 
       bool continueOperation = true;
-      final formatResult = await formatValues(row: row,insertMode: true);
+      final formatResult = await formatValues(row: row, insertMode: true);
       if (formatResult.isSuccess()) {
         row = formatResult.value;
       } else {
@@ -1029,21 +1086,24 @@ class AcSqlDbTable extends AcSqlDbBase {
       validateResult ??= await validateValues(row: row, isInsert: true);
       logger.log(["Validation result : ", validateResult]);
       if (validateResult.isSuccess()) {
-
         final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
         dynamic primaryKeyValue = row[primaryKeyColumn];
         if (row.isNotEmpty) {
           if (continueOperation) {
             if (executeBeforeEvent) {
               logger.log("Executing before insert event");
-              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeInsert)){
-                var args = AcSqlEventArgs(
-                  sqlDbTableInstance: this,
-                  row: row,
-                );
-                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeInsert, args: args);
+              if (_tableEventHandlers.containsKey(tableName) &&
+                  _tableEventHandlers[tableName]!.hasMethodForEvent(
+                    event: AcEnumDDRowEvent.beforeInsert,
+                  )) {
+                var args = AcSqlEventArgs(sqlDbTableInstance: this, row: row);
+                var eventResult = await _tableEventHandlers[tableName]!
+                    .handleEvent(
+                      event: AcEnumDDRowEvent.beforeInsert,
+                      args: args,
+                    );
                 if (eventResult.isSuccess()) {
-                  if(eventResult.row != null){
+                  if (eventResult.row != null) {
                     row = eventResult.row!;
                   }
                 } else {
@@ -1082,51 +1142,58 @@ class AcSqlDbTable extends AcSqlDbBase {
                 parameters: parameters,
               );
               if (selectResult.isSuccess()) {
-                logger.log(["Select executed successfully",selectResult]);
+                logger.log(["Select executed successfully", selectResult]);
                 if (selectResult.hasRows()) {
                   result.rows = selectResult.rows;
-                }
-                else{
+                } else {
                   continueOperation = false;
-                  result.setFailure(message: 'Row inserted but cannot get inserted row',logger: logger);
+                  result.setFailure(
+                    message: 'Row inserted but cannot get inserted row',
+                    logger: logger,
+                  );
                 }
               } else {
                 logger.error(["Error executing select statement"]);
                 continueOperation = false;
-                result.setFromResult(result: selectResult,logger: logger);
+                result.setFromResult(result: selectResult, logger: logger);
               }
               if (continueOperation && executeAfterEvent) {
-                if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterInsert)){
+                if (_tableEventHandlers.containsKey(tableName) &&
+                    _tableEventHandlers[tableName]!.hasMethodForEvent(
+                      event: AcEnumDDRowEvent.afterInsert,
+                    )) {
                   var args = AcSqlEventArgs(
                     sqlDbTableInstance: this,
                     result: result,
                   );
-                  var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterInsert, args: args);
+                  var eventResult = await _tableEventHandlers[tableName]!
+                      .handleEvent(
+                        event: AcEnumDDRowEvent.afterInsert,
+                        args: args,
+                      );
                   if (eventResult.isSuccess()) {
-                    if(eventResult.result != null){
+                    if (eventResult.result != null) {
                       result = eventResult.result! as AcSqlDaoResult;
                     }
                   } else {
                     continueOperation = false;
-                    result.setFromResult(
-                      result: eventResult,
-                    );
+                    result.setFromResult(result: eventResult);
                   }
                 }
               }
             } else {
-              continueOperation=false;
-              result.setFromResult(result: insertResult,logger: logger);
+              continueOperation = false;
+              result.setFromResult(result: insertResult, logger: logger);
             }
           }
         } else {
           result.message = 'No values for new row';
         }
       } else {
-        continueOperation=false;
-        result.setFromResult(result: validateResult,logger: logger);
+        continueOperation = false;
+        result.setFromResult(result: validateResult, logger: logger);
       }
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess(message: "Row inserted successfully");
       }
     } catch (ex, stack) {
@@ -1164,14 +1231,17 @@ class AcSqlDbTable extends AcSqlDbBase {
       List<dynamic> primaryKeyValues = [];
       final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
 
-      if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeInsert)){
-        var args = AcSqlEventArgs(
-          sqlDbTableInstance: this,
-          rows: rows,
+      if (_tableEventHandlers.containsKey(tableName) &&
+          _tableEventHandlers[tableName]!.hasMethodForEvent(
+            event: AcEnumDDRowEvent.beforeInsert,
+          )) {
+        var args = AcSqlEventArgs(sqlDbTableInstance: this, rows: rows);
+        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+          event: AcEnumDDRowEvent.beforeInsert,
+          args: args,
         );
-        var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeInsert, args: args);
         if (eventResult.isSuccess()) {
-          if(eventResult.rows != null){
+          if (eventResult.rows != null) {
             rows = eventResult.rows!;
           }
         } else {
@@ -1183,7 +1253,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
       }
 
-      if(continueOperation) {
+      if (continueOperation) {
         for (var row in rows) {
           if (continueOperation) {
             final formatResult = await formatValues(row: row, insertMode: true);
@@ -1194,7 +1264,9 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
 
             final validateResult = await validateValues(
-                row: row, isInsert: true);
+              row: row,
+              isInsert: true,
+            );
             if (validateResult.isSuccess()) {
               if (row.containsKey(primaryKeyColumn)) {
                 primaryKeyValues.add(row[primaryKeyColumn]);
@@ -1240,21 +1312,23 @@ class AcSqlDbTable extends AcSqlDbBase {
                 'Error getting inserted rows : ${selectResult.message}';
           }
           if (continueOperation && executeAfterEvent) {
-            if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterInsert)){
+            if (_tableEventHandlers.containsKey(tableName) &&
+                _tableEventHandlers[tableName]!.hasMethodForEvent(
+                  event: AcEnumDDRowEvent.afterInsert,
+                )) {
               var args = AcSqlEventArgs(
                 sqlDbTableInstance: this,
                 result: result,
               );
-              var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterInsert, args: args);
+              var eventResult = await _tableEventHandlers[tableName]!
+                  .handleEvent(event: AcEnumDDRowEvent.afterInsert, args: args);
               if (eventResult.isSuccess()) {
-                if(eventResult.result != null){
+                if (eventResult.result != null) {
                   result = eventResult.result! as AcSqlDaoResult;
                 }
               } else {
                 continueOperation = false;
-                result.setFromResult(
-                  result: eventResult,
-                );
+                result.setFromResult(result: eventResult);
               }
             }
           }
@@ -1364,14 +1438,17 @@ class AcSqlDbTable extends AcSqlDbBase {
       if (continueOperation) {
         logger.log("Executing operation $operation in save.");
         if (executeBeforeEvent) {
-          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeSave)){
-            var args = AcSqlEventArgs(
-              sqlDbTableInstance: this,
-              row: row,
+          if (_tableEventHandlers.containsKey(tableName) &&
+              _tableEventHandlers[tableName]!.hasMethodForEvent(
+                event: AcEnumDDRowEvent.beforeSave,
+              )) {
+            var args = AcSqlEventArgs(sqlDbTableInstance: this, row: row);
+            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+              event: AcEnumDDRowEvent.beforeSave,
+              args: args,
             );
-            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeSave, args: args);
             if (eventResult.isSuccess()) {
-              if(eventResult.row != null){
+              if (eventResult.row != null) {
                 row = eventResult.row!;
               }
             } else {
@@ -1385,23 +1462,21 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
         if (operation == AcEnumDDRowOperation.insert) {
           AcSqlDaoResult insertResult = await insertRow(row: row);
-          logger.log(["Insert result",insertResult]);
-          if(insertResult.isFailure()){
+          logger.log(["Insert result", insertResult]);
+          if (insertResult.isFailure()) {
             result.setFromResult(result: insertResult);
             continueOperation = false;
-          }
-          else{
+          } else {
             logger.log(["Setting insert result as result of save operation"]);
             result = insertResult;
           }
         } else if (operation == AcEnumDDRowOperation.update) {
           AcSqlDaoResult updateResult = await updateRow(row: row);
-          logger.log(["Update result",updateResult]);
-          if(updateResult.isFailure()){
+          logger.log(["Update result", updateResult]);
+          if (updateResult.isFailure()) {
             result.setFromResult(result: updateResult);
             continueOperation = false;
-          }
-          else{
+          } else {
             logger.log(["Setting update result as result of save operation"]);
             result = updateResult;
           }
@@ -1411,15 +1486,18 @@ class AcSqlDbTable extends AcSqlDbBase {
 
         if (continueOperation && executeAfterEvent) {
           print("Calling after save in save row");
-          if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+          if (_tableEventHandlers.containsKey(tableName) &&
+              _tableEventHandlers[tableName]!.hasMethodForEvent(
+                event: AcEnumDDRowEvent.afterSave,
+              )) {
             print("Called after save in save row");
-            var args = AcSqlEventArgs(
-              sqlDbTableInstance: this,
-              result: result,
+            var args = AcSqlEventArgs(sqlDbTableInstance: this, result: result);
+            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+              event: AcEnumDDRowEvent.afterSave,
+              args: args,
             );
-            var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterSave, args: args);
             if (eventResult.isSuccess()) {
-              if(eventResult.result != null){
+              if (eventResult.result != null) {
                 result = eventResult.result! as AcSqlDaoResult;
               }
             } else {
@@ -1429,18 +1507,19 @@ class AcSqlDbTable extends AcSqlDbBase {
                 message: "Aborted from before save row events",
               );
             }
-          }
-          else{
-            print("_tableEventHandlers does not have event handler for after save for ${tableName}");
+          } else {
+            print(
+              "_tableEventHandlers does not have event handler for after save for ${tableName}",
+            );
           }
         }
       }
 
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess();
       }
 
-      logger.log(["Final save result",result]);
+      logger.log(["Final save result", result]);
     } on Exception catch (ex, stack) {
       result.setException(
         exception: ex,
@@ -1476,14 +1555,17 @@ class AcSqlDbTable extends AcSqlDbBase {
       List<Map<String, dynamic>> rowsToUpdate = [];
 
       if (executeBeforeEvent) {
-        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeSave)){
-          var args = AcSqlEventArgs(
-            sqlDbTableInstance: this,
-            rows: rows,
+        if (_tableEventHandlers.containsKey(tableName) &&
+            _tableEventHandlers[tableName]!.hasMethodForEvent(
+              event: AcEnumDDRowEvent.beforeSave,
+            )) {
+          var args = AcSqlEventArgs(sqlDbTableInstance: this, rows: rows);
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+            event: AcEnumDDRowEvent.beforeSave,
+            args: args,
           );
-          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeSave, args: args);
           if (eventResult.isSuccess()) {
-            if(eventResult.rows != null){
+            if (eventResult.rows != null) {
               rows = eventResult.rows!;
             }
           } else {
@@ -1595,15 +1677,18 @@ class AcSqlDbTable extends AcSqlDbBase {
 
       if (executeBeforeEvent) {
         print("Calling after save in save rows");
-        if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterSave)){
+        if (_tableEventHandlers.containsKey(tableName) &&
+            _tableEventHandlers[tableName]!.hasMethodForEvent(
+              event: AcEnumDDRowEvent.afterSave,
+            )) {
           print("Called after save in save rows");
-          var args = AcSqlEventArgs(
-            sqlDbTableInstance: this,
-            result: result,
+          var args = AcSqlEventArgs(sqlDbTableInstance: this, result: result);
+          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
+            event: AcEnumDDRowEvent.afterSave,
+            args: args,
           );
-          var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterSave, args: args);
           if (eventResult.isSuccess()) {
-            if(eventResult.result != null){
+            if (eventResult.result != null) {
               result = eventResult.result! as AcSqlDaoResult;
             }
           } else {
@@ -1733,7 +1818,6 @@ class AcSqlDbTable extends AcSqlDbBase {
         final primaryKeyColumn = acDDTable.getPrimaryKeyColumnName();
         final primaryKeyValue = row[primaryKeyColumn];
 
-
         logger.log(["Formatted data : ", row]);
 
         if (condition.isEmpty && Autocode.validPrimaryKey(primaryKeyValue)) {
@@ -1745,14 +1829,18 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (row.isNotEmpty) {
           if (continueOperation) {
             if (executeBeforeEvent) {
-              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeUpdate)){
-                var args = AcSqlEventArgs(
-                  sqlDbTableInstance: this,
-                  row: row,
-                );
-                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeUpdate, args: args);
+              if (_tableEventHandlers.containsKey(tableName) &&
+                  _tableEventHandlers[tableName]!.hasMethodForEvent(
+                    event: AcEnumDDRowEvent.beforeUpdate,
+                  )) {
+                var args = AcSqlEventArgs(sqlDbTableInstance: this, row: row);
+                var eventResult = await _tableEventHandlers[tableName]!
+                    .handleEvent(
+                      event: AcEnumDDRowEvent.beforeUpdate,
+                      args: args,
+                    );
                 if (eventResult.isSuccess()) {
-                  if(eventResult.row != null){
+                  if (eventResult.row != null) {
                     row = eventResult.row!;
                   }
                 } else {
@@ -1796,14 +1884,21 @@ class AcSqlDbTable extends AcSqlDbBase {
                     'Error getting updated row : ${selectResult.message}';
               }
               if (continueOperation && executeAfterEvent) {
-                if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterUpdate)){
+                if (_tableEventHandlers.containsKey(tableName) &&
+                    _tableEventHandlers[tableName]!.hasMethodForEvent(
+                      event: AcEnumDDRowEvent.afterUpdate,
+                    )) {
                   var args = AcSqlEventArgs(
                     sqlDbTableInstance: this,
                     result: result,
                   );
-                  var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterUpdate, args: args);
+                  var eventResult = await _tableEventHandlers[tableName]!
+                      .handleEvent(
+                        event: AcEnumDDRowEvent.afterUpdate,
+                        args: args,
+                      );
                   if (eventResult.isSuccess()) {
-                    if(eventResult.result != null){
+                    if (eventResult.result != null) {
                       result = eventResult.result! as AcSqlDaoResult;
                     }
                   } else {
@@ -1829,7 +1924,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         result.setFromResult(result: validateResult);
         continueOperation = false;
       }
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess();
       }
     } on Exception catch (ex, stack) {
@@ -1907,14 +2002,21 @@ class AcSqlDbTable extends AcSqlDbBase {
         if (rowsWithConditions.isNotEmpty) {
           if (executeBeforeEvent) {
             if (continueOperation) {
-              if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.beforeUpdate)){
+              if (_tableEventHandlers.containsKey(tableName) &&
+                  _tableEventHandlers[tableName]!.hasMethodForEvent(
+                    event: AcEnumDDRowEvent.beforeUpdate,
+                  )) {
                 var args = AcSqlEventArgs(
                   sqlDbTableInstance: this,
                   rowsWithConditions: rowsWithConditions,
                 );
-                var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.beforeUpdate, args: args);
+                var eventResult = await _tableEventHandlers[tableName]!
+                    .handleEvent(
+                      event: AcEnumDDRowEvent.beforeUpdate,
+                      args: args,
+                    );
                 if (eventResult.isSuccess()) {
-                  if(eventResult.rowsWithConditions != null){
+                  if (eventResult.rowsWithConditions != null) {
                     rowsWithConditions = eventResult.rowsWithConditions!;
                   }
                 } else {
@@ -1959,14 +2061,18 @@ class AcSqlDbTable extends AcSqlDbBase {
               result.setFromResult(result: updateResult, logger: logger);
             }
 
-            if(_tableEventHandlers.containsKey(tableName) && _tableEventHandlers[tableName]!.hasMethodForEvent(event:AcEnumDDRowEvent.afterUpdate)){
+            if (_tableEventHandlers.containsKey(tableName) &&
+                _tableEventHandlers[tableName]!.hasMethodForEvent(
+                  event: AcEnumDDRowEvent.afterUpdate,
+                )) {
               var args = AcSqlEventArgs(
                 sqlDbTableInstance: this,
                 result: result,
               );
-              var eventResult = await _tableEventHandlers[tableName]!.handleEvent(event: AcEnumDDRowEvent.afterUpdate, args: args);
+              var eventResult = await _tableEventHandlers[tableName]!
+                  .handleEvent(event: AcEnumDDRowEvent.afterUpdate, args: args);
               if (eventResult.isSuccess()) {
-                if(eventResult.result != null){
+                if (eventResult.result != null) {
                   result = eventResult.result! as AcSqlDaoResult;
                 }
               } else {
@@ -1982,7 +2088,7 @@ class AcSqlDbTable extends AcSqlDbBase {
           result.message = "Nothing to update";
         }
       }
-      if(continueOperation){
+      if (continueOperation) {
         result.setSuccess();
       }
     } on Exception catch (ex, stack) {
@@ -2052,7 +2158,9 @@ class AcSqlDbTable extends AcSqlDbBase {
             }
             if (!validRequired) {
               continueOperation = false;
-              result.setFailure(message: "${column.columnName} value is missing");
+              result.setFailure(
+                message: "${column.columnName} value is missing",
+              );
             }
           }
         }
@@ -2069,7 +2177,8 @@ class AcSqlDbTable extends AcSqlDbBase {
           } else if (column.columnType == AcEnumDDColumnType.date ||
               column.columnType == AcEnumDDColumnType.datetime ||
               column.columnType == AcEnumDDColumnType.time) {
-            if (value != null && (value is String && value != "null" && value != "NOW")) {
+            if (value != null &&
+                (value is String && value != "null" && value != "NOW")) {
               try {
                 DateTime.parse(value);
               } catch (ex, stack) {
@@ -2109,26 +2218,33 @@ class AcSqlDbTable extends AcSqlDbBase {
 
 class AcSqlEventHandlerDefinition {
   Type? handler;
-  final Map<AcEnumDDRowEvent,String> _eventMethods = Map.from({});
+  final Map<AcEnumDDRowEvent, String> _eventMethods = Map.from({});
 
-  registerEventHandlerMethod({required AcEnumDDRowEvent event,required String methodName}){
+  registerEventHandlerMethod({
+    required AcEnumDDRowEvent event,
+    required String methodName,
+  }) {
     _eventMethods[event] = methodName;
   }
 
-  bool hasMethodForEvent({required AcEnumDDRowEvent event}){
+  bool hasMethodForEvent({required AcEnumDDRowEvent event}) {
     return _eventMethods.containsKey(event);
   }
 
-  Future<AcSqlEventResult> handleEvent({required AcEnumDDRowEvent event,required AcSqlEventArgs args}) async{
+  Future<AcSqlEventResult> handleEvent({
+    required AcEnumDDRowEvent event,
+    required AcSqlEventArgs args,
+  }) async {
     AcSqlEventResult result = AcSqlEventResult();
-    if(_eventMethods.containsKey(event) && handler != null){
+    if (_eventMethods.containsKey(event) && handler != null) {
       final controllerClassMirror = acReflectClass(handler!);
       // Create a new instance of the controller for each request.
       final controllerInstance = controllerClassMirror.newInstance('', []);
       final controllerInstanceMirror = acReflect(controllerInstance);
 
       final methodName = Symbol(_eventMethods[event]!);
-      final methodMirror = controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
+      final methodMirror =
+          controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
 
       final positionalArgs = <dynamic>[];
       final namedArgs = <Symbol, dynamic>{};
@@ -2143,13 +2259,17 @@ class AcSqlEventHandlerDefinition {
         if (!valueSet) {
           argValue = null;
         }
-        if(parameter.isNamed){
+        if (parameter.isNamed) {
           namedArgs[parameter.simpleName] = argValue;
         } else {
           positionalArgs.add(argValue);
         }
       }
-      return await controllerInstanceMirror.invoke(methodName, positionalArgs, namedArgs);
+      return await controllerInstanceMirror.invoke(
+        methodName,
+        positionalArgs,
+        namedArgs,
+      );
     }
     return result;
   }

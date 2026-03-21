@@ -36,13 +36,13 @@ class AcSqlSchemaDifference {
 }
 
 @AcReflectable()
-class AcSqlSchemaTableDifference{
+class AcSqlSchemaTableDifference {
   String tableName = "";
   List<String> missingColumnsInDatabase = List.empty(growable: true);
   List<String> missingColumnsInDataDictionary = List.empty(growable: true);
 
-  AcSqlSchemaTableDifference({String? tableName}){
-    if(tableName!=null){
+  AcSqlSchemaTableDifference({String? tableName}) {
+    if (tableName != null) {
       this.tableName = tableName;
     }
   }

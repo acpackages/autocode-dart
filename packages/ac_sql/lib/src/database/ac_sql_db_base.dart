@@ -39,29 +39,37 @@ class AcSqlDbBase {
       {"name": "dataDictionaryName", "description": "The name of the data dictionary to load initially. Defaults to 'default'."}
     ]
   }) */
-  AcSqlDbBase({String dataDictionaryName = "default",AcLogger? logger,AcBaseSqlDao? dao}) {
+  AcSqlDbBase({
+    String dataDictionaryName = "default",
+    AcLogger? logger,
+    AcBaseSqlDao? dao,
+  }) {
     databaseType = AcSqlDatabase.databaseType;
     sqlConnection = AcSqlDatabase.sqlConnection;
     useDataDictionary(dataDictionaryName: dataDictionaryName);
-    logger ??= AcLogger(logType: AcEnumLogType.html, logMessages: true,logFileName: 'ac_sql_log.html',logDirectory: 'logs/ac-sql');
+    logger ??= AcLogger(
+      logType: AcEnumLogType.html,
+      logMessages: true,
+      logFileName: 'ac_sql_log.html',
+      logDirectory: 'logs/ac-sql',
+    );
     this.logger = logger;
     events = AcEvents(); // Initialized to prevent LateInitializationError.
 
-    if(dao == null) {
+    if (dao == null) {
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
         dao = AcMysqlDao();
-      }
-      else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         dao = AcSqliteDao();
       }
-      if(dao!=null){
-        if(sqlConnection!=null){
+      if (dao != null) {
+        if (sqlConnection != null) {
           dao.setSqlConnection(sqlConnection: sqlConnection!);
         }
         dao.logger = logger;
       }
     }
-    if(dao!=null){
+    if (dao != null) {
       this.dao = dao;
     }
     // Other database types like SQLite or PostgreSQL could be handled here.
@@ -81,6 +89,7 @@ class AcSqlDbBase {
     );
   }
 }
+
 // import 'package:autocode/autocode.dart';
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';

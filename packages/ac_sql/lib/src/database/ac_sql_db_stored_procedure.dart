@@ -28,18 +28,20 @@ class AcSqlDbStoredProcedure extends AcSqlDbBase {
   AcSqlDbStoredProcedure({
     required String storedProcedureName,
     String dataDictionaryName = "default",
-  }) : super(dataDictionaryName: dataDictionaryName) { // Correctly pass the parameter to the super constructor.
+  }) : super(dataDictionaryName: dataDictionaryName) {
+    // Correctly pass the parameter to the super constructor.
     // Correctly assign the instance field from the parameter.
     this.storedProcedureName = storedProcedureName;
 
     // Warning: The force-unwrap operator `!` will cause an error if the stored procedure is not found.
     acDDStoredProcedure =
-    AcDataDictionary.getStoredProcedure(
-      storedProcedureName: storedProcedureName,
-      dataDictionaryName: dataDictionaryName,
-    )!;
+        AcDataDictionary.getStoredProcedure(
+          storedProcedureName: storedProcedureName,
+          dataDictionaryName: dataDictionaryName,
+        )!;
   }
 }
+
 // import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 // import 'package:ac_sql/ac_sql.dart';
 //

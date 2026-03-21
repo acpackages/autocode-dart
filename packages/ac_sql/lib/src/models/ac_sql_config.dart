@@ -4,10 +4,10 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcSqlConfig {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyCascadeDeleteDestinationRows = 'cascadeDeleteDestinationRows';
+  static const String keyCascadeDeleteDestinationRows =
+      'cascadeDeleteDestinationRows';
   static const String keyCascadeDeleteSourceRows = 'cascadeDeleteSourceRows';
   static const String keySqliteConf = 'sqliteConfig';
-
 
   @AcBindJsonProperty(key: keyCascadeDeleteDestinationRows)
   final bool cascadeDeleteDestinationRows;
@@ -18,21 +18,24 @@ class AcSqlConfig {
   @AcBindJsonProperty(key: keySqliteConf)
   final AcSqliteConfig sqliteConfig;
 
-
-
   const AcSqlConfig({
     this.cascadeDeleteDestinationRows = false,
     this.cascadeDeleteSourceRows = false,
-    this.sqliteConfig = const AcSqliteConfig()
+    this.sqliteConfig = const AcSqliteConfig(),
   });
 
-    factory AcSqlConfig.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqlConfig.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlConfig();
     return instance.fromJson(jsonData: jsonData);
   }
 
   AcSqlConfig fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
@@ -121,13 +124,18 @@ class AcSqliteConfig {
   });
 
   // 🧩 Factory + JSON serialization
-  factory AcSqliteConfig.instanceFromJson({required Map<String, dynamic> jsonData}) {
+  factory AcSqliteConfig.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqliteConfig();
     return instance.fromJson(jsonData: jsonData);
   }
 
   AcSqliteConfig fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 

@@ -11,24 +11,28 @@ class AcSqlStatement {
   String sql = "";
 
   @AcBindJsonProperty(key: keyParameters)
-  Map<String,dynamic> parameters =  Map.from({});
+  Map<String, dynamic> parameters = Map.from({});
 
   AcSqlStatement();
-  
-  factory AcSqlStatement.instanceFromJson({required Map<String, dynamic> jsonData}) {
+
+  factory AcSqlStatement.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
     var instance = AcSqlStatement();
     return instance.fromJson(jsonData: jsonData);
   }
 
   AcSqlStatement fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    AcJsonUtils.setInstancePropertiesFromJsonData(
+      instance: this,
+      jsonData: jsonData,
+    );
     return this;
   }
 
   Map<String, dynamic> toJson() {
     return AcJsonUtils.getJsonDataFromInstance(instance: this);
   }
-
 
   @override
   String toString() {
