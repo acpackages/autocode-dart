@@ -849,7 +849,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   TblSchemaLogs.acSchemaEntityName: triggerName,
                   TblSchemaLogs.acSchemaOperation: 'create',
                   TblSchemaLogs.acSchemaOperationResult: triggerResult.status,
-                  TblSchemaLogs.acSchemaOperationStatement: createTriggerStmt,
+                  TblSchemaLogs.acSchemaOperationStatement: stmt,
                   TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
                 });
               }

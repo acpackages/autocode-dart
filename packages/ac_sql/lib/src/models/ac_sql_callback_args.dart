@@ -14,6 +14,7 @@ class AcSqlCallbackArgs extends AcResult {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
   static const String keyCompletedCount = 'completedCount';
   static const String keyTotalCount = 'totalCount';
+  static const String keyDescription = 'description';
 
   @AcBindJsonProperty(key: keyCompletedCount)
   int completedCount = 0;
@@ -21,15 +22,21 @@ class AcSqlCallbackArgs extends AcResult {
   @AcBindJsonProperty(key: keyTotalCount)
   int totalCount = 0;
 
+  String description = "";
+
   int get pendingCount => (totalCount - completedCount);
 
-  AcSqlCallbackArgs({int? completedCount, int? totalCount}) {
+  AcSqlCallbackArgs({int? completedCount, int? totalCount,String? description}) {
     if (completedCount != null) {
       this.completedCount = completedCount;
     }
 
     if (totalCount != null) {
       this.totalCount = totalCount;
+    }
+
+    if (description != null) {
+      this.description = description;
     }
   }
 }

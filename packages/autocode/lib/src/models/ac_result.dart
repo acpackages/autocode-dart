@@ -104,6 +104,7 @@ class AcResult {
     status = result.status;
     this.message = result.message;
     code = result.code;
+    value = result.value;
     if(logger!=null) {
       logger.log(this.message);
     }
@@ -116,8 +117,6 @@ class AcResult {
           logger.error(stackTrace);
         }
       }
-    } else if (isSuccess()) {
-      value = result.value;
     }
 
     return this;
