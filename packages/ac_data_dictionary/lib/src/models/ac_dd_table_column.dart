@@ -233,7 +233,7 @@ class AcDDTableColumn {
     else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
       return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
     }
-    else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+    else if (databaseType == AcEnumSqlDatabaseType.postgres) {
       return "ALTER TABLE $tableName ADD COLUMN ${getColumnDefinitionForStatement(databaseType:databaseType)}";
     }
     return "";
@@ -352,7 +352,7 @@ class AcDDTableColumn {
         result += " NOT NULL";
       }
       // Default value logic can be added as needed.
-    } else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+    } else if (databaseType == AcEnumSqlDatabaseType.postgres) {
       switch (columnType) {
         case AcEnumDDColumnType.autoIncrement:
           sqlType = 'SERIAL PRIMARY KEY';

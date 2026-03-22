@@ -100,7 +100,7 @@ class AcDDTrigger {
     String? tableName,
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
-    if (databaseType == AcEnumSqlDatabaseType.postgreSql && tableName != null && tableName.isNotEmpty) {
+    if (databaseType == AcEnumSqlDatabaseType.postgres && tableName != null && tableName.isNotEmpty) {
       return 'DROP TRIGGER IF EXISTS $triggerName ON $tableName;';
     }
     return 'DROP TRIGGER IF EXISTS $triggerName;';
@@ -125,7 +125,7 @@ class AcDDTrigger {
     ].contains(databaseType)) {
       result =
           'CREATE TRIGGER $triggerName $triggerExecution $rowOperation ON $tableName FOR EACH ROW BEGIN $triggerCode END;';
-    } else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+    } else if (databaseType == AcEnumSqlDatabaseType.postgres) {
       String functionName = '${triggerName}_func';
       result = 'CREATE OR REPLACE FUNCTION $functionName() RETURNS TRIGGER AS \$\$ BEGIN $triggerCode RETURN NEW; END; \$\$ LANGUAGE plpgsql; '
                'CREATE TRIGGER $triggerName $triggerExecution $rowOperation ON $tableName FOR EACH ROW EXECUTE FUNCTION $functionName();';

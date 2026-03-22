@@ -20,7 +20,7 @@ enum AcEnumSqlDatabaseType {
   oracle('ORACLE'),
 
   /* AcDoc({"description": "PostgreSQL SQL database type."}) */
-  postgreSql('POSTGRE_SQL'),
+  postgres('POSTGRES'),
 
   /* AcDoc({"description": "SQLite SQL database type."}) */
   sqlite('SQLITE'),

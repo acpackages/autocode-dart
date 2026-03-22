@@ -33,6 +33,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       acSqlDDTableSchemaDetails.dao = dao;
       acSqlDDTableSchemaLogs.dao = dao;
     }
+    logger.logMessages = true;
+    logger.logType = AcEnumLogType.console;
   }
 
   /* AcDoc({
@@ -699,8 +701,14 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       logger.log(
         'Creating schema in database for data dictionary $dataDictionaryName...',
       );
+      if(databaseType == AcEnumSqlDatabaseType.sqlite){
+        logger.log("Database type is sqlite");
+      }
+      if(databaseType == AcEnumSqlDatabaseType.postgres){
+        logger.log("Database type is postgres");
+      }
       logger.log(
-        'Creating tables in database for data dictionary $dataDictionaryName...',
+        'Creating tables in database for data dictionary $dataDictionaryName...}',
       );
       final createTablesResult = await createDatabaseTables();
       if (createTablesResult.isSuccess()) {
@@ -819,35 +827,39 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               databaseType: databaseType,
             );
 
-            logger.log('Executing trigger statement:\n$createTriggerStmt');
-
-            final triggerResult = await dao!.executeStatement(
-              statement: createTriggerStmt,
-            );
-
-            if (triggerResult.isSuccess()) {
-              logger.log('Trigger $triggerName created successfully.');
-            } else {
-              continueOperation = false;
-              result.setFromResult(
-                result: triggerResult,
-                message: 'Error creating trigger for table $tableName',
-                logger: logger,
+            logger.log(['Executing trigger statements :',createTriggerStmt]);
+            for(var stmt in createTriggerStmt){
+              final triggerResult = await dao!.executeStatement(
+                statement: stmt,
               );
-              break;
+              if (triggerResult.isSuccess()) {
+                logger.log('Trigger $triggerName created successfully.');
+              } else {
+                continueOperation = false;
+                result.setFromResult(
+                  result: triggerResult,
+                  message: 'Error creating trigger for table $tableName',
+                  logger: logger,
+                );
+                break;
+              }
+              if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
+                await saveSchemaLogEntry({
+                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+                  TblSchemaLogs.acSchemaEntityName: triggerName,
+                  TblSchemaLogs.acSchemaOperation: 'create',
+                  TblSchemaLogs.acSchemaOperationResult: triggerResult.status,
+                  TblSchemaLogs.acSchemaOperationStatement: createTriggerStmt,
+                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+                });
+              }
             }
+
+
+
 
             // Optional: log schema change (same as your table creation)
-            if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
-              await saveSchemaLogEntry({
-                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
-                TblSchemaLogs.acSchemaEntityName: triggerName,
-                TblSchemaLogs.acSchemaOperation: 'create',
-                TblSchemaLogs.acSchemaOperationResult: triggerResult.status,
-                TblSchemaLogs.acSchemaOperationStatement: createTriggerStmt,
-                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-              });
-            }
+
           }
         }
 
@@ -902,14 +914,14 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   }
 
   // Helper method - generates the actual trigger SQL
-  String _generateUpdateAtTriggerSql({
+  List<String> _generateUpdateAtTriggerSql({
     required String tableName,
     required String columnName,
     required String triggerName,
     required AcEnumSqlDatabaseType databaseType,
   }) {
     if (databaseType == AcEnumSqlDatabaseType.sqlite) {
-      return '''
+      return ['''
         CREATE TRIGGER IF NOT EXISTS $triggerName
         BEFORE UPDATE ON $tableName
         FOR EACH ROW
@@ -917,24 +929,25 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         BEGIN
           UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
         END;
-      ''';
-    } else if (databaseType == AcEnumSqlDatabaseType.postgreSql) {
+      '''];
+    } else if (databaseType == AcEnumSqlDatabaseType.postgres) {
       String functionName = '${triggerName}_func';
-      return '''
+      return ['''
         CREATE OR REPLACE FUNCTION $functionName() RETURNS TRIGGER AS \$\$ 
         BEGIN 
           IF NEW."$columnName" IS NULL THEN
             NEW."$columnName" = CURRENT_TIMESTAMP; 
           END IF;
           RETURN NEW; 
-        END; \$\$ LANGUAGE plpgsql;
+        END; \$\$ LANGUAGE plpgsql;''',
+    '''
         CREATE TRIGGER $triggerName
         BEFORE UPDATE ON "$tableName"
         FOR EACH ROW
         EXECUTE FUNCTION $functionName();
-      ''';
+      '''];
     } else {
-      return '';
+      return [''];
     }
   }
 
@@ -1071,11 +1084,12 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       logger.log(
         "Initializing database for data dictionary $dataDictionaryName...",
       );
-      final checkResult = await dao!.checkDatabaseExist();
-      if (checkResult.isSuccess()) {
-        final schemaResult = await initSchemaDataDictionary();
-        if (schemaResult.isSuccess()) {
+      final schemaResult = await initSchemaDataDictionary();
+      if (schemaResult.isSuccess()) {
+        final checkResult = await dao!.checkDatabaseExist();
+        if (checkResult.isSuccess()) {
           bool updateDataDictionaryVersion = false;
+          print("Database Exixts : ${checkResult.value}");
           if (checkResult.value == false) {
             logger.log("Creating database...");
             final createDbResult = await dao!.createDatabase();
@@ -1090,7 +1104,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 );
                 var createdOnResponse = await saveSchemaDetail({
                   TblSchemaDetails.acSchemaDetailKey:
-                      SchemaDetails.keyCreatedOn,
+                  SchemaDetails.keyCreatedOn,
                   TblSchemaDetails.acSchemaDetailStringValue: DateTime.now(),
                 });
                 if (createdOnResponse.isFailure()) {
@@ -1103,7 +1117,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 return result.setFromResult(
                   result: createSchemaResult,
                   message:
-                      "Error creating database schema from data dictionary",
+                  "Error creating database schema from data dictionary",
                   logger: logger,
                 );
               }
@@ -1115,8 +1129,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               );
             }
           } else {
-            final checkUpdateResult =
-                await checkSchemaUpdateAvailableFromVersion();
+            final checkUpdateResult = await checkSchemaUpdateAvailableFromVersion();
             if (checkUpdateResult.isSuccess()) {
               if (checkUpdateResult.value == true) {
                 final updateSchemaResult = await updateSchema();
@@ -1128,7 +1141,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   );
                   var updatedOnResponse = await saveSchemaDetail({
                     TblSchemaDetails.acSchemaDetailKey:
-                        SchemaDetails.keyLastUpdatedOn,
+                    SchemaDetails.keyLastUpdatedOn,
                     TblSchemaDetails.acSchemaDetailStringValue: DateTime.now(),
                   });
                   if (updatedOnResponse.isFailure()) {
@@ -1141,7 +1154,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   return result.setFromResult(
                     result: updateSchemaResult,
                     message:
-                        "Error updating database schema from data dictionary",
+                    "Error updating database schema from data dictionary",
                     logger: logger,
                   );
                 }
@@ -1162,9 +1175,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           if (updateDataDictionaryVersion) {
             var versionLogResponse = await saveSchemaDetail({
               TblSchemaDetails.acSchemaDetailKey:
-                  "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
+              "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
               TblSchemaDetails.acSchemaDetailNumericValue:
-                  acDataDictionary.version,
+              acDataDictionary.version,
             });
             if (versionLogResponse.isFailure()) {
               result.setFromResult(
@@ -1175,18 +1188,19 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           }
         } else {
           return result.setFromResult(
-            result: schemaResult,
-            message: "Error initializing schema data dictionary",
+            result: checkResult,
+            message: "Error checking if database exists",
             logger: logger,
           );
         }
       } else {
         return result.setFromResult(
-          result: checkResult,
-          message: "Error checking if database exists",
+          result: schemaResult,
+          message: "Error initializing schema data dictionary",
           logger: logger,
         );
       }
+
     } on Exception catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
@@ -1226,6 +1240,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           dao: dao,
         );
         acSchemaManager.dao = dao;
+        acSchemaManager.databaseType = databaseType;
         acSchemaManager.skipSchema = true;
         acSchemaManager.logger = logger;
         acSchemaManager.useDataDictionary(

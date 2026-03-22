@@ -383,6 +383,7 @@ class AcBaseSqlDao {
     Map<String, dynamic>? statementParametersMap,
     required Map<String, dynamic> passedParameters,
     bool returnMap = true,
+    String? parameterPrefix = ":"
   }) {
     if (returnMap) {
       statementParametersMap ??= {};

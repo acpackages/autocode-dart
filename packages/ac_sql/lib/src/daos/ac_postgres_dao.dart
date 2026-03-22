@@ -11,25 +11,11 @@ import 'dart:convert';
   "example": "final postgresConfig = AcSqlConnection(\n  host: 'localhost',\n  database: 'my_app_db',\n  username: 'postgres',\n  password: 'password'\n);\n\nfinal dao = AcPostgresDao();\nawait dao.setSqlConnection(sqlConnection: postgresConfig);\n\nfinal result = await dao.getRows(statement: 'SELECT * FROM users');\nprint(result.rows);"
 }) */
 class AcPostgresDao extends AcBaseSqlDao {
-  static final Map<String, Connection?> _databaseInstances = {};
-  Connection? _database;
   Session? _transaction;
-
-  Session get _session => _transaction ?? _database!;
 
   /* AcDoc({"summary": "Creates and opens a new PostgreSQL database connection."}) */
   Future<Connection?> _getConnection() async {
-    if (_database != null && _database!.isOpen) {
-      return _database!;
-    }
-    final databasePath = "\${sqlConnection.hostname}:\${sqlConnection.port}/\${sqlConnection.database}";
-    if (_databaseInstances.containsKey(databasePath)) {
-      if (_databaseInstances[databasePath] != null && _databaseInstances[databasePath]!.isOpen) {
-        return _databaseInstances[databasePath]!;
-      }
-    }
-    
-    _database = await Connection.open(
+    var database = await Connection.open(
       Endpoint(
         host: sqlConnection.hostname,
         port: sqlConnection.port,
@@ -41,8 +27,7 @@ class AcPostgresDao extends AcBaseSqlDao {
         sslMode: SslMode.disable,
       ),
     );
-    _databaseInstances[databasePath] = _database;
-    return _database;
+    return database;
   }
 
   /* AcDoc({"summary": "Creates and opens a new PostgreSQL connection without specifying a particular database (connects to 'postgres')."}) */
@@ -72,9 +57,12 @@ class AcPostgresDao extends AcBaseSqlDao {
     Connection? db;
     try {
       db = await _getConnectionWithoutDatabase();
-      final statement = "SELECT 1 FROM pg_database WHERE datname = @dbName";
+      final statement = "SELECT COUNT(*) AS count FROM pg_database WHERE datname = @dbName";
       final results = await db.execute(Sql.named(statement), parameters: {'dbName': sqlConnection.database});
-      final exists = results.isNotEmpty;
+      final count = results.first.first as int;
+      final exists = count > 0;
+      print(exists);
+      print(results.first.toList());
       result.setSuccess(
         value: exists,
         message: exists ? 'Database exists' : 'Database does not exist',
@@ -98,17 +86,24 @@ class AcPostgresDao extends AcBaseSqlDao {
   @override
   Future<AcResult> checkTableExist({required String tableName}) async {
     final result = AcResult();
+    Connection? db;
     try {
-      await _getConnection();
-      final statement = "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @tableName";
-      final results = await _session.execute(Sql.named(statement), parameters: {'tableName': tableName});
-      final exists = results.isNotEmpty;
+      db = await _getConnection();
+      final statement = "SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @tableName";
+      final results = await db!.execute(Sql.named(statement), parameters: {'tableName': tableName});
+      final count = results.first.first as int;
+      final exists = count > 0;
       result.setSuccess(
         value: exists,
         message: exists ? 'Table exists' : 'Table does not exist',
       );
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -124,7 +119,7 @@ class AcPostgresDao extends AcBaseSqlDao {
     Connection? db;
     try {
       db = await _getConnectionWithoutDatabase();
-      final statement = "CREATE DATABASE \"\${sqlConnection.database}\"";
+      final statement = "CREATE DATABASE \"${sqlConnection.database}\"";
       await db.execute(statement);
       result.setSuccess(value: true, message: 'Database created');
     } catch (ex, stack) {
@@ -144,21 +139,54 @@ class AcPostgresDao extends AcBaseSqlDao {
     Map<String, dynamic>? statementParametersMap,
     required Map<String, dynamic> passedParameters,
     bool returnMap = true,
+    String? parameterPrefix = ":"
   }) {
-    var result = super.setSqlStatementParameters(
-      statement: statement,
-      statementParametersList: statementParametersList,
-      statementParametersMap: statementParametersMap,
-      passedParameters: passedParameters,
-      returnMap: returnMap, 
-    );
     if (returnMap) {
-      var newStatement = result['statement'] as String;
-      // Convert SQLite/MySQL specific parameter notation to Postgres specific parameter notation
-      newStatement = newStatement.replaceAll(RegExp(r':(parameter\d+(?:_\d+)?)'), r'@$1');
-      result['statement'] = newStatement;
+      statementParametersMap ??= {};
+    } else {
+      statementParametersList ??= List.empty(growable: true);
     }
-    return result;
+    List<String> keys = passedParameters.keys.toList();
+    for (String key in keys) {
+      var value = passedParameters[key];
+        int index = statementParametersMap!.keys.length;
+        String parameterKey = "parameter$index";
+        while (statementParametersMap.keys.contains(parameterKey)) {
+          index++;
+          parameterKey = "parameter$index";
+        }
+        logger.log("Searching For Key : $key");
+        logger.log("Key Value: `${value.toString()}`");
+        logger.log("SQL Statement Before: $statement");
+        logger.log(["SQL Parameters Before:", statementParametersMap]);
+        if (value is List) {
+          logger.log(
+            "Value is List so converting to individual values: ${value.toString()}",
+          );
+          List<String> listParamKeys = List.empty(growable: true);
+          for (int i = 0; i < value.length; i++) {
+            final listParameterKey = "@${parameterKey}_$i";
+            listParamKeys.add(listParameterKey);
+            statementParametersMap[listParameterKey.replaceAll("@","")] = value[i];
+          }
+          statement = statement.replaceAll(key, listParamKeys.join(","));
+        } else {
+          logger.log("Value is not list");
+          statement = statement.replaceAll(key, "@$parameterKey");
+          statementParametersMap[parameterKey] = value;
+        }
+        logger.log("SQL Statement After: $statement");
+        logger.log([
+          "SQL Parameters After:",
+          jsonEncode(statementParametersMap),
+        ]);
+    }
+    return {
+      'statement': statement,
+      'statementParametersList': statementParametersList,
+      'statementParametersMap': statementParametersMap,
+      'passedParameters': passedParameters,
+    };
   }
 
   dynamic ensureValidParamsType({required dynamic param}) {
@@ -193,9 +221,10 @@ class AcPostgresDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.delete);
+    Connection? db;
     try {
-      await _getConnection();
-      final statement = 'DELETE FROM \$tableName \${condition.isNotEmpty ? "WHERE \$condition" : ""}';
+      db = await _getConnection();
+      final statement = 'DELETE FROM $tableName ${condition.isNotEmpty ? "WHERE $condition" : ""}';
       final setParametersResult = setSqlStatementParameters(
         statement: statement,
         passedParameters: parameters,
@@ -203,11 +232,16 @@ class AcPostgresDao extends AcBaseSqlDao {
       final updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValuesMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
       
-      final results = await _session.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
+      final results = await db!.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
       result.affectedRowsCount = results.affectedRows;
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -226,8 +260,9 @@ class AcPostgresDao extends AcBaseSqlDao {
     final result = AcSqlDaoResult();
     dynamic lastSqlStatement;
     dynamic lastParameters;
+    Connection? db;
     try {
-      final db = await _getConnection();
+      db = await _getConnection();
       if (db != null) {
         int totalCount = statements.length;
         int completedCount = 0;
@@ -269,6 +304,11 @@ class AcPostgresDao extends AcBaseSqlDao {
       result.setException(exception: ex, stackTrace: stack);
       result.value = {'last_sql_statement': lastSqlStatement, 'last_sql_parameters': lastParameters};
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
@@ -278,8 +318,9 @@ class AcPostgresDao extends AcBaseSqlDao {
     Function(AcSqlCallbackArgs)? perOperationCallback
   }) async {
     final result = AcSqlDaoResult();
+    Connection? db;
     try {
-      final db = await _getConnection();
+      db = await _getConnection();
 
       if (db != null) {
         Future<List<dynamic>> runOperations(Session session) async {
@@ -303,11 +344,11 @@ class AcPostgresDao extends AcBaseSqlDao {
             } else if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
               var row = sqlOperation.row!;
               final columns = row.keys.toList();
-              final placeholders = List.generate(columns.length, (i) => '@parameter\$i').join(', ');
-              final statement = "INSERT INTO \${sqlOperation.table} (\${columns.join(', ')}) VALUES (\$placeholders) RETURNING *";
+              final placeholders = List.generate(columns.length, (i) => '@parameter$i').join(', ');
+              final statement = "INSERT INTO ${sqlOperation.table} (${columns.join(', ')}) VALUES ($placeholders) RETURNING *";
               var params = <String, dynamic>{};
               for (int j = 0; j < columns.length; j++) {
-                params['parameter\$j'] = ensureValidParamsType(param: row[columns[j]]);
+                params['parameter$j'] = ensureValidParamsType(param: row[columns[j]]);
               }
               final executionResult = await session.execute(Sql.named(statement), parameters: params);
               operationResults.add(executionResult.isNotEmpty ? executionResult.first[0] : null);
@@ -315,20 +356,20 @@ class AcPostgresDao extends AcBaseSqlDao {
               var row = sqlOperation.row!;
               int paramIndex = 0;
               final setValues = row.keys.map((key) {
-                final p = '@parameter\$paramIndex';
+                final p = '@parameter$paramIndex';
                 paramIndex++;
-                return "\$key = \$p";
+                return "$key = $p";
               }).join(", ");
               
               var params = <String, dynamic>{};
               paramIndex = 0;
               for (var key in row.keys) {
-                params['parameter\$paramIndex'] = ensureValidParamsType(param: row[key]);
+                params['parameter$paramIndex'] = ensureValidParamsType(param: row[key]);
                 paramIndex++;
               }
               
               final conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty
-                  ? "WHERE \${sqlOperation.condition}"
+                  ? "WHERE ${sqlOperation.condition}"
                   : "";
                   
               final setParametersResult = setSqlStatementParameters(
@@ -339,14 +380,14 @@ class AcPostgresDao extends AcBaseSqlDao {
               final updatedCondition = setParametersResult['statement'] as String;
               final updatedParameterMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
               
-              final statement = "UPDATE \${sqlOperation.table} SET \$setValues \$updatedCondition";
+              final statement = "UPDATE ${sqlOperation.table} SET $setValues $updatedCondition";
               final executionResult = await session.execute(Sql.named(statement), parameters: updatedParameterMap);
               operationResults.add(executionResult.affectedRows);
             } else if (sqlOperation.operation == AcEnumDDRowOperation.delete) {
               final conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty
-                  ? "WHERE \${sqlOperation.condition}"
+                  ? "WHERE ${sqlOperation.condition}"
                   : "";
-              final baseStatement = "DELETE FROM \${sqlOperation.table} \$conditionClause";
+              final baseStatement = "DELETE FROM ${sqlOperation.table} $conditionClause";
 
               final setParametersResult = setSqlStatementParameters(
                 statement: baseStatement,
@@ -381,6 +422,11 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
@@ -396,8 +442,9 @@ class AcPostgresDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: operation!);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final setParametersResult = setSqlStatementParameters(
         statement: statement,
         passedParameters: parameters,
@@ -405,13 +452,18 @@ class AcPostgresDao extends AcBaseSqlDao {
       final updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValuesMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
       
-      final results = await _session.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
+      final results = await db!.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
       result.setSuccess();
       if ([AcEnumDDRowOperation.insert, AcEnumDDRowOperation.update, AcEnumDDRowOperation.delete].contains(operation)) {
         result.affectedRowsCount = results.affectedRows;
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -465,10 +517,11 @@ class AcPostgresDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getDatabaseFunctions() async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT routine_name FROM information_schema.routines WHERE routine_type='FUNCTION' AND specific_schema='public'";
-      final results = await _session.execute(statement);
+      final results = await db!.execute(statement);
       for (final row in results) {
         result.rows.add({
           "routine_name": row[0],
@@ -477,6 +530,11 @@ class AcPostgresDao extends AcBaseSqlDao {
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -484,10 +542,11 @@ class AcPostgresDao extends AcBaseSqlDao {
   @override
   Future<AcSqlDaoResult> getDatabaseStoredProcedures() async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT routine_name FROM information_schema.routines WHERE routine_type='PROCEDURE' AND specific_schema='public'";
-      final results = await _session.execute(statement);
+      final results = await db!.execute(statement);
       for (final row in results) {
         result.rows.add({
           "routine_name": row[0],
@@ -497,16 +556,22 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
   @override
   Future<AcSqlDaoResult> getDatabaseTables() async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT table_name AS \"TABLE_NAME\" FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'";
-      final results = await _session.execute(statement);
+      final results = await db!.execute(statement);
       for (final row in results) {
         result.rows.add({
           AcDDTable.keyTableName: row[0],
@@ -516,16 +581,22 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
   @override
   Future<AcSqlDaoResult> getDatabaseTriggers() async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT trigger_name AS \"TRIGGER_NAME\" FROM information_schema.triggers WHERE trigger_schema='public'";
-      final results = await _session.execute(statement);
+      final results = await db!.execute(statement);
       for (final row in results) {
         result.rows.add({
           AcDDTrigger.keyTriggerName: row[0],
@@ -535,16 +606,22 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
   @override
   Future<AcSqlDaoResult> getDatabaseViews() async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT table_name AS \"TABLE_NAME\" FROM information_schema.views WHERE table_schema='public'";
-      final results = await _session.execute(statement);
+      final results = await db!.execute(statement);
       for (final row in results) {
         result.rows.add({
           AcDDView.keyViewName: row[0],
@@ -553,6 +630,11 @@ class AcPostgresDao extends AcBaseSqlDao {
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -566,11 +648,12 @@ class AcPostgresDao extends AcBaseSqlDao {
     Map<String, List<AcEnumDDColumnFormat>> columnFormats = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       String updatedStatement = statement;
       if (condition.isNotEmpty) {
-        updatedStatement += " WHERE \$condition";
+        updatedStatement += " WHERE $condition";
       }
       final setParametersResult = setSqlStatementParameters(
         statement: updatedStatement,
@@ -580,10 +663,11 @@ class AcPostgresDao extends AcBaseSqlDao {
       final updatedParameterValuesMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
       
       if (mode == AcEnumDDSelectMode.count) {
-        updatedStatement = "SELECT COUNT(*) AS records_count FROM (\$updatedStatement) AS records_list";
+        updatedStatement = "SELECT COUNT(*) AS records_count FROM ($updatedStatement) AS records_list";
       }
-      
-      final results = await _session.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
+      print(updatedStatement);
+      print(updatedParameterValuesMap);
+      final results = await db!.execute(Sql.named(updatedStatement), parameters: updatedParameterValuesMap);
       
       if (mode == AcEnumDDSelectMode.count) {
         result.totalRows = int.parse(results.first[0].toString());
@@ -601,16 +685,22 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
   @override
   Future<AcSqlDaoResult> getTableColumns({required String tableName}) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.select);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final statement = "SELECT column_name, data_type, column_default, is_nullable FROM information_schema.columns WHERE table_name = @tableName AND table_schema = 'public'";
-      final results = await _session.execute(Sql.named(statement), parameters: {'tableName': tableName});
+      final results = await db!.execute(Sql.named(statement), parameters: {'tableName': tableName});
       
       final pkStatement = """
         SELECT kcu.column_name
@@ -620,7 +710,7 @@ class AcPostgresDao extends AcBaseSqlDao {
           AND kcu.constraint_schema = tco.constraint_schema
         WHERE tco.constraint_type = 'PRIMARY KEY' AND tco.table_name = @tableName
       """;
-      final pkResults = await _session.execute(Sql.named(pkStatement), parameters: {'tableName': tableName});
+      final pkResults = await db!.execute(Sql.named(pkStatement), parameters: {'tableName': tableName});
       final pkColumns = pkResults.map((r) => r[0] as String).toList();
 
       for (final row in results) {
@@ -644,6 +734,11 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
@@ -658,22 +753,28 @@ class AcPostgresDao extends AcBaseSqlDao {
     required Map<String, dynamic> row,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       final columns = row.keys.toList();
-      final placeholders = List.generate(columns.length, (i) => '@parameter\$i').join(', ');
-      final statement = "INSERT INTO \$tableName (\${columns.join(', ')}) VALUES (\$placeholders) RETURNING *";
+      final placeholders = List.generate(columns.length, (i) => '@parameter$i').join(', ');
+      final statement = "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders) RETURNING *";
       var params = <String, dynamic>{};
       for (int i = 0; i < columns.length; i++) {
-        params['parameter\$i'] = ensureValidParamsType(param: row[columns[i]]);
+        params['parameter$i'] = ensureValidParamsType(param: row[columns[i]]);
       }
-      final results = await _session.execute(Sql.named(statement), parameters: params);
+      final results = await db!.execute(Sql.named(statement), parameters: params);
       if (results.isNotEmpty) {
         result.lastInsertedId = results.first[0];
       }
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -684,18 +785,19 @@ class AcPostgresDao extends AcBaseSqlDao {
     required List<Map<String, dynamic>> rows,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.insert);
+    Connection? db;
     try {
-      final db = await _getConnection();
+      db = await _getConnection();
       if (db != null) {
         if (rows.isNotEmpty) {
           Future<void> runInsert(Session session) async {
             for (final rowData in rows) {
               final columns = rowData.keys.toList();
-              final placeholders = List.generate(columns.length, (i) => '@parameter\$i').join(', ');
-              final statement = "INSERT INTO \$tableName (\${columns.join(', ')}) VALUES (\$placeholders)";
+              final placeholders = List.generate(columns.length, (i) => '@parameter$i').join(', ');
+              final statement = "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
               var params = <String, dynamic>{};
               for (int i = 0; i < columns.length; i++) {
-                params['parameter\$i'] = ensureValidParamsType(param: rowData[columns[i]]);
+                params['parameter$i'] = ensureValidParamsType(param: rowData[columns[i]]);
               }
               await session.execute(Sql.named(statement), parameters: params);
             }
@@ -715,6 +817,11 @@ class AcPostgresDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
+    }
     return result;
   }
 
@@ -726,23 +833,24 @@ class AcPostgresDao extends AcBaseSqlDao {
     Map<String, dynamic> parameters = const {},
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
+    Connection? db;
     try {
-      await _getConnection();
+      db = await _getConnection();
       int paramIndex = 0;
       final setValues = row.keys.map((key) {
-        final p = '@parameter\$paramIndex';
+        final p = '@parameter$paramIndex';
         paramIndex++;
-        return "\$key = \$p";
+        return "$key = $p";
       }).join(", ");
       
       var params = <String, dynamic>{};
       paramIndex = 0;
       for (var key in row.keys) {
-        params['parameter\$paramIndex'] = ensureValidParamsType(param: row[key]);
+        params['parameter$paramIndex'] = ensureValidParamsType(param: row[key]);
         paramIndex++;
       }
       
-      final conditionClause = condition.isNotEmpty ? "WHERE \$condition" : "";
+      final conditionClause = condition.isNotEmpty ? "WHERE $condition" : "";
       final setParametersResult = setSqlStatementParameters(
         statement: conditionClause,
         passedParameters: parameters,
@@ -751,12 +859,17 @@ class AcPostgresDao extends AcBaseSqlDao {
       final updatedCondition = setParametersResult['statement'] as String;
       final updatedParameterMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
       
-      final statement = "UPDATE \$tableName SET \$setValues \$updatedCondition";
-      final executionResult = await _session.execute(Sql.named(statement), parameters: updatedParameterMap);
+      final statement = "UPDATE $tableName SET $setValues $updatedCondition";
+      final executionResult = await db!.execute(Sql.named(statement), parameters: updatedParameterMap);
       result.affectedRowsCount = executionResult.affectedRows;
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }
@@ -767,6 +880,7 @@ class AcPostgresDao extends AcBaseSqlDao {
     required List<Map<String, dynamic>> rowsWithConditions,
   }) async {
     final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.update);
+    Connection? db;
     try {
       final db = await _getConnection();
       if (db != null) {
@@ -782,19 +896,19 @@ class AcPostgresDao extends AcBaseSqlDao {
                   
               int paramIndex = 0;
               final setValues = row.keys.map((key) {
-                final p = '@parameter\$paramIndex';
+                final p = '@parameter$paramIndex';
                 paramIndex++;
-                return "\$key = \$p";
+                return "$key = $p";
               }).join(", ");
               
               var params = <String, dynamic>{};
               paramIndex = 0;
               for (var key in row.keys) {
-                params['parameter\$paramIndex'] = ensureValidParamsType(param: row[key]);
+                params['parameter$paramIndex'] = ensureValidParamsType(param: row[key]);
                 paramIndex++;
               }
               
-              final conditionClause = condition.isNotEmpty ? "WHERE \$condition" : "";
+              final conditionClause = condition.isNotEmpty ? "WHERE $condition" : "";
               final setParametersResult = setSqlStatementParameters(
                 statement: conditionClause,
                 passedParameters: conditionParameters,
@@ -803,7 +917,7 @@ class AcPostgresDao extends AcBaseSqlDao {
               final updatedCondition = setParametersResult['statement'] as String;
               final updatedParameterMap = validateParametersMap(setParametersResult['statementParametersMap'] as Map<String, dynamic>);
               
-              final statement = "UPDATE \$tableName SET \$setValues \$updatedCondition";
+              final statement = "UPDATE $tableName SET $setValues $updatedCondition";
               final executionResult = await session.execute(Sql.named(statement), parameters: updatedParameterMap);
               result.affectedRowsCount = (result.affectedRowsCount ?? 0) + executionResult.affectedRows;
             }
@@ -820,6 +934,11 @@ class AcPostgresDao extends AcBaseSqlDao {
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+    }
+    finally {
+      if (db != null) {
+        await db.close();
+      }
     }
     return result;
   }

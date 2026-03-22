@@ -126,37 +126,105 @@ class AcDDTable {
   String getCreateTableStatement({
     AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown,
   }) {
-    final columnDefinitions = tableColumns.map(
-      (column) => column.getColumnDefinitionForStatement(
-        databaseType: databaseType,
-      ),
-    ).where((def) => def.isNotEmpty).toList();
-    if(acDDConfig.insertTimestampColumnKey.isNotEmpty){
-      columnDefinitions.add("${acDDConfig.insertTimestampColumnKey} TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
-    }
-    if(acDDConfig.updateTimestampColumnKey.isNotEmpty){
-      columnDefinitions.add("${acDDConfig.updateTimestampColumnKey} TEXT");
-    }
-    if(acDDConfig.deleteTimestampColumnKey.isNotEmpty){
-      columnDefinitions.add("${acDDConfig.deleteTimestampColumnKey} TEXT");
-    }
-    for(var property in tableProperties){
-      if(property.propertyName == AcEnumDDTableProperty.constraints){
-        for(var constraint in property.propertyValue){
-          if(constraint['type'] == AcEnumDDTableConstraint.compositeUniqueKey){
-            columnDefinitions.add("UNIQUE (${constraint['value']})");
+    String statement = "";
+
+    if(databaseType == AcEnumSqlDatabaseType.sqlite){
+      final columnDefinitions = tableColumns.map(
+            (column) => column.getColumnDefinitionForStatement(
+          databaseType: databaseType,
+        ),
+      ).where((def) => def.isNotEmpty).toList();
+      if(acDDConfig.insertTimestampColumnKey.isNotEmpty){
+        columnDefinitions.add("${acDDConfig.insertTimestampColumnKey} TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+      }
+      if(acDDConfig.updateTimestampColumnKey.isNotEmpty){
+        columnDefinitions.add("${acDDConfig.updateTimestampColumnKey} TEXT");
+      }
+      if(acDDConfig.deleteTimestampColumnKey.isNotEmpty){
+        columnDefinitions.add("${acDDConfig.deleteTimestampColumnKey} TEXT");
+      }
+      for(var property in tableProperties){
+        if(property.propertyName == AcEnumDDTableProperty.constraints){
+          for(var constraint in property.propertyValue){
+            if(constraint['type'] == AcEnumDDTableConstraint.compositeUniqueKey){
+              columnDefinitions.add("UNIQUE (${constraint['value']})");
+            }
           }
         }
       }
-    }
-    for(var relationship in getForeignKeyRelationships()){
-      String constraintString ="FOREIGN KEY (${relationship.destinationColumn}) REFERENCES ${relationship.sourceTable}(${relationship.sourceColumn})";
-      if(relationship.cascadeDeleteDestination){
-        constraintString+=" ON DELETE CASCADE";
+      for(var relationship in getForeignKeyRelationships()){
+        String constraintString ="FOREIGN KEY (${relationship.destinationColumn}) REFERENCES ${relationship.sourceTable}(${relationship.sourceColumn})";
+        if(relationship.cascadeDeleteDestination){
+          constraintString+=" ON DELETE CASCADE";
+        }
+        columnDefinitions.add(constraintString);
       }
-      columnDefinitions.add(constraintString);
+      statement = "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
     }
-    return "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
+    else if (databaseType == AcEnumSqlDatabaseType.postgres) {
+      final columnDefinitions = tableColumns
+          .map((column) => column.getColumnDefinitionForStatement(
+        databaseType: databaseType,
+      ))
+          .where((def) => def.isNotEmpty)
+          .toList();
+
+      // ✅ Insert timestamp
+      if (acDDConfig.insertTimestampColumnKey.isNotEmpty) {
+        columnDefinitions.add(
+          "${acDDConfig.insertTimestampColumnKey} TIMESTAMPTZ DEFAULT NOW()",
+        );
+      }
+
+      // ✅ Update timestamp
+      if (acDDConfig.updateTimestampColumnKey.isNotEmpty) {
+        columnDefinitions.add(
+          "${acDDConfig.updateTimestampColumnKey} TIMESTAMPTZ",
+        );
+      }
+
+      // ✅ Delete timestamp (soft delete)
+      if (acDDConfig.deleteTimestampColumnKey.isNotEmpty) {
+        columnDefinitions.add(
+          "${acDDConfig.deleteTimestampColumnKey} TIMESTAMPTZ",
+        );
+      }
+
+      // ✅ Constraints
+      for (var property in tableProperties) {
+        if (property.propertyName == AcEnumDDTableProperty.constraints) {
+          for (var constraint in property.propertyValue) {
+            if (constraint['type'] ==
+                AcEnumDDTableConstraint.compositeUniqueKey) {
+              columnDefinitions.add(
+                "UNIQUE (${constraint['value']})",
+              );
+            }
+          }
+        }
+      }
+
+      // ✅ Foreign keys
+      if(databaseType == AcEnumSqlDatabaseType.sqlite){
+        for (var relationship in getForeignKeyRelationships()) {
+          String constraintString =
+              "FOREIGN KEY (${relationship.destinationColumn}) "
+              "REFERENCES ${relationship.sourceTable}(${relationship.sourceColumn})";
+
+          if (relationship.cascadeDeleteDestination) {
+            constraintString += " ON DELETE CASCADE";
+          }
+
+          columnDefinitions.add(constraintString);
+        }
+      }
+
+
+      statement =
+      "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
+    }
+    print("Database type : ${databaseType.value}");
+    return statement;
   }
 
   /* AcDoc({
