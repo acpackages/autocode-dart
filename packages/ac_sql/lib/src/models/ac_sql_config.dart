@@ -115,7 +115,7 @@ class AcSqliteConfig {
     this.cacheSize = -131072, // ~64MB cache (negative means KB)
     this.busyTimeout = 5000, // 5 seconds
     this.autoVacuum = 'NONE',
-    this.recursiveTriggers = true,
+    this.recursiveTriggers = false,
     this.caseSensitiveLike = false,
     this.secureDelete = false,
     this.lockingMode = 'NORMAL',
