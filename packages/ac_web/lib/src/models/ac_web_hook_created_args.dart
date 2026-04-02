@@ -1,5 +1,6 @@
+import '../ac_web_internal.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
-import 'package:ac_web/ac_web.dart';
+import '../core/ac_web.dart';
 
 /* AcDoc({
   "summary": "Represents the arguments for a 'created' webhook.",

@@ -1,7 +1,16 @@
+import '../../ac_web_internal.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-import 'package:ac_web/ac_web.dart';
+import '../../core/ac_web.dart';
+import '../../models/ac_web_request.dart';
+import '../../api-docs/models/ac_api_doc_tag.dart';
+import './ac_data_dictionary_auto_delete.dart';
+import './ac_data_dictionary_auto_insert.dart';
+import './ac_data_dictionary_auto_save.dart';
+import './ac_data_dictionary_auto_select.dart';
+import './ac_data_dictionary_auto_select_distinct.dart';
+import './ac_data_dictionary_auto_update.dart';
 /* AcDoc({
   "summary": "Automatically generates RESTful API endpoints from a data dictionary.",
   "description": "This class provides a fluent builder pattern to automatically create a full set of CRUD (Create, Read, Update, Delete) and other API routes for tables defined in an `AcDataDictionary`. It inspects the dictionary and registers the necessary routes with a provided `AcWeb` instance, dramatically speeding up API development.",

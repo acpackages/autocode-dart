@@ -1,7 +1,7 @@
+import '../../ac_web_internal.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_extensions/ac_extensions.dart';
-import 'package:ac_web/ac_web.dart';
 
 /* AcDoc({
   "summary": "A generator for creating an OpenAPI 3.0 specification from an `AcApiDoc` object.",

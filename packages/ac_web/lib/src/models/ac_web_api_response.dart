@@ -1,6 +1,7 @@
+import '../ac_web_internal.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:ac_sql/ac_sql.dart';
-import 'package:ac_web/ac_web.dart';
+import './ac_web_response.dart';
 import 'package:autocode/autocode.dart'; // Assuming your Dart package imports
 
 /* AcDoc({

@@ -1,7 +1,8 @@
+import '../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
-import 'package:ac_web/ac_web.dart';
 import 'package:autocode/autocode.dart';
+import './ac_web_file.dart';
 
 /* AcDoc({
   "summary": "Represents a deserialized incoming HTTP request.",

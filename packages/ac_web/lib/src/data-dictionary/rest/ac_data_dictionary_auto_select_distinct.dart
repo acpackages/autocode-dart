@@ -1,6 +1,16 @@
+import '../../ac_web_internal.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
-import 'package:ac_web/ac_web.dart';
+import '../../models/ac_web_request.dart';
+import '../../models/ac_web_response.dart';
+import '../../models/ac_web_request_handler_args.dart';
+import '../../models/ac_web_api_response.dart';
+import '../../api-docs/models/ac_api_doc_route.dart';
+import '../../api-docs/models/ac_api_doc_parameter.dart';
+import '../../api-docs/utils/ac_api_doc_utils.dart';
+import '../utils/ac_web_data_dictionary_utils.dart';
+import './ac_data_dictionary_auto_api_config.dart';
+import './ac_data_dictionary_auto_api.dart';
 import 'package:autocode/autocode.dart';
 /* AcDoc({
   "summary": "Automatically generates a 'SELECT DISTINCT' API route for a specific table column.",

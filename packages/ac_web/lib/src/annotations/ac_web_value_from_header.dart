@@ -1,3 +1,4 @@
+import '../ac_web_internal.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 
 /* AcDoc({

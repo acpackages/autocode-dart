@@ -1,7 +1,8 @@
+import '../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-import 'package:ac_web/ac_web.dart';
+import '../enums/ac_enum_web_response_type.dart';
 
 /* AcDoc({
   "summary": "Represents an outgoing HTTP response to be sent to a client.",

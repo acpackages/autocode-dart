@@ -1,6 +1,7 @@
+import '../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
-import 'package:ac_web/ac_web.dart';
+import './ac_web_request.dart';
 import 'package:autocode/autocode.dart';
 
 /* AcDoc({

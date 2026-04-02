@@ -1,7 +1,8 @@
+import '../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-import 'package:ac_web/ac_web.dart';
+import '../api-docs/models/ac_api_doc_operation.dart';
 
 /* AcDoc({
   "summary": "Represents the definition of a single web API route.",
@@ -16,6 +17,7 @@ class AcWebRouteDefinition {
   static const String keyDocumentation = 'documentation';
   static const String keyMethod = 'method';
   static const String keyUrl = 'url';
+  static const String keyInterceptors = 'interceptors';
 
   /* AcDoc({
     "summary": "The controller instance that contains the handler logic.",
@@ -48,6 +50,13 @@ class AcWebRouteDefinition {
   }) */
   @AcBindJsonProperty(key: keyUrl)
   String url = "";
+
+  /* AcDoc({
+    "summary": "Names of interceptors to run for this route.",
+    "description": "Populated automatically from @AcWebUseInterceptor annotations on the controller class or method."
+  }) */
+  @AcBindJsonProperty(key: keyInterceptors)
+  List<String> interceptors = [];
 
   /* AcDoc({
     "summary": "Creates a new, empty instance of a web route definition."

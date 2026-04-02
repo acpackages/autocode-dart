@@ -1,7 +1,7 @@
+import '../../ac_web_internal.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-import 'package:ac_web/ac_web.dart';
 
 /* AcDoc({
   "summary": "A utility class with helper methods for generating OpenAPI documentation components.",

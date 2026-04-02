@@ -1,7 +1,7 @@
+import '../../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-import 'package:ac_web/ac_web.dart';
 
 /* AcDoc({
   "summary": "Represents the root document of an OpenAPI specification.",

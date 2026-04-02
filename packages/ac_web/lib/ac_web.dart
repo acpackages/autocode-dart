@@ -14,6 +14,7 @@ export './src/annotations/ac_web_route_meta.dart';
 export './src/annotations/ac_web_route_meta_parameter.dart';
 export './src/annotations/ac_web_route_produces.dart';
 export './src/annotations/ac_web_service.dart';
+export './src/annotations/ac_web_use_interceptor.dart';
 export './src/annotations/ac_web_value_from_body.dart';
 export './src/annotations/ac_web_value_from_cookie.dart';
 export './src/annotations/ac_web_value_from_form.dart';
@@ -74,5 +75,8 @@ export './src/models/ac_web_request.dart';
 export './src/models/ac_web_request_handler_args.dart';
 export './src/models/ac_web_response.dart';
 export './src/models/ac_web_route_definition.dart';
+
+export './src/interceptors/ac_web_interceptor.dart';
+export './src/interceptors/ac_web_jwt_interceptor.dart';
 
 // TODO: Export any libraries intended for clients of this package.

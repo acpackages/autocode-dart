@@ -1,8 +1,35 @@
+import '../ac_web_internal.dart';
 import 'dart:io';
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_extensions/ac_extensions.dart';
-import 'package:ac_web/ac_web.dart';
+import '../annotations/ac_web_controller.dart';
+import '../annotations/ac_web_route.dart';
+import '../annotations/ac_web_use_interceptor.dart';
+import '../annotations/ac_web_value_from_body.dart';
+import '../annotations/ac_web_value_from_cookie.dart';
+import '../annotations/ac_web_value_from_form.dart';
+import '../annotations/ac_web_value_from_header.dart';
+import '../annotations/ac_web_value_from_path.dart';
+import '../annotations/ac_web_value_from_query.dart';
+import '../api-docs/models/ac_api_doc.dart';
+import '../api-docs/models/ac_api_doc_operation.dart';
+import '../api-docs/models/ac_api_doc_path.dart';
+import '../api-docs/models/ac_api_doc_parameter.dart';
+import '../api-docs/models/ac_api_doc_request_body.dart';
+import '../api-docs/models/ac_api_doc_content.dart';
+import '../api-docs/models/ac_api_doc_server.dart';
+import '../api-docs/swagger/ac_api_swagger.dart';
+import '../api-docs/swagger/ac_swagger_resources.dart';
+import '../api-docs/utils/ac_api_doc_utils.dart';
+import '../controllers/ac_files_controller.dart';
+import '../enums/ac_enum_web_hook.dart';
+import '../models/ac_web_config.dart';
+import '../models/ac_web_request.dart';
+import '../models/ac_web_request_handler_args.dart';
+import '../models/ac_web_response.dart';
+import '../models/ac_web_route_definition.dart';
+import '../interceptors/ac_web_interceptor.dart';
 
 /* AcDoc({
   "summary": "The core class of the web framework, responsible for routing and request handling.",
@@ -57,6 +84,29 @@ class AcWeb {
 
   /* AcDoc({"summary": "An optional global URL prefix for all routes."}) */
   String urlPrefix = "";
+
+  /* AcDoc({"summary": "The list of registered global interceptors."}) */
+  final List<AcWebInterceptor> _interceptors = [];
+
+  /* AcDoc({
+    "summary": "Registers a global interceptor.",
+    "description": "The interceptor's onRequest will be called for every incoming request (in registration order), and onResponse will be called for every outgoing response (in reverse order). The interceptor is also available for lookup by name when using @AcWebUseInterceptor annotations.",
+    "params": [{"name": "interceptor", "description": "The interceptor instance to register."}],
+    "returns": "The current AcWeb instance for chaining.",
+    "returns_type": "AcWeb"
+  }) */
+  AcWeb addInterceptor(AcWebInterceptor interceptor) {
+    _interceptors.add(interceptor);
+    return this;
+  }
+
+  /* AcDoc({"summary": "Finds a registered interceptor by its name."}) */
+  AcWebInterceptor? _findInterceptor(String name) {
+    for (final i in _interceptors) {
+      if (i.name == name) return i;
+    }
+    return null;
+  }
 
   /* AcDoc({
     "summary": "Initializes a new web server instance.",
@@ -206,16 +256,67 @@ class AcWeb {
       AcWebRequest request,
       AcWebRouteDefinition routeDefinition,
       ) async {
-    // request.pathParameters = _extractPathParams(
-    //   routeDefinition.url,
-    //   request.url,
-    // );
-    // Case 1: Handler is a method on a registered controller.
+    // ─── Build the interceptor chain ─────────────────────────────────
+    // 1. Global interceptors (all registered via addInterceptor)
+    // 2. Route-specific interceptors (from @AcWebUseInterceptor annotation)
+    final List<AcWebInterceptor> chain = [..._interceptors];
+    for (final name in routeDefinition.interceptors) {
+      final interceptor = _findInterceptor(name);
+      if (interceptor != null && !chain.contains(interceptor)) {
+        chain.add(interceptor);
+      } else if (interceptor == null) {
+        logger.log("Warning: Interceptor '$name' not found for route ${routeDefinition.method}>${routeDefinition.url}");
+      }
+    }
+
+    // ─── Run onRequest interceptors (in order) ──────────────────────
+    AcWebResponse? shortCircuitResponse;
+    final executedInterceptors = <AcWebInterceptor>[];
+    for (final interceptor in chain) {
+      try {
+        shortCircuitResponse = await interceptor.onRequest(request);
+        executedInterceptors.add(interceptor);
+        if (shortCircuitResponse != null) break;
+      } catch (e) {
+        logger.log("Error in interceptor ${interceptor.name}.onRequest: $e");
+        shortCircuitResponse = AcWebResponse.internalError(data: 'Interceptor error: $e');
+        executedInterceptors.add(interceptor);
+        break;
+      }
+    }
+
+    // ─── Execute handler (unless short-circuited) ───────────────────
+    AcWebResponse response;
+    if (shortCircuitResponse != null) {
+      response = shortCircuitResponse;
+    } else {
+      response = await _executeHandler(request, routeDefinition);
+    }
+
+    // ─── Run onResponse interceptors (reverse order of executed) ────
+    for (final interceptor in executedInterceptors.reversed) {
+      try {
+        response = await interceptor.onResponse(request, response);
+      } catch (e) {
+        logger.log("Error in interceptor ${interceptor.name}.onResponse: $e");
+      }
+    }
+
+    return response;
+  }
+
+  /* AcDoc({
+    "summary": "Executes the actual route handler (controller method or closure).",
+    "description": "This is the original handler dispatch logic, extracted into its own method so the interceptor chain can wrap it."
+  }) */
+  Future<AcWebResponse> _executeHandler(
+      AcWebRequest request,
+      AcWebRouteDefinition routeDefinition,
+      ) async {
     AcLogger requestLogger = AcLogger(logFileName:"${request.url}.log",logDirectory: "logs/ac-web-requests",logMessages: true,logType: AcEnumLogType.text);
     if (routeDefinition.controller != null && routeDefinition.handler is String) {
       logger.log("Handing controller route...");
       final controllerClassMirror = acReflectClass(routeDefinition.controller!);
-      // Create a new instance of the controller for each request.
       final controllerInstance = controllerClassMirror.newInstance('', []);
       logger.log("Instance class name is : ${controllerClassMirror.getName()}");
       final controllerInstanceMirror = acReflect(controllerInstance);
@@ -332,7 +433,6 @@ class AcWeb {
       return await controllerInstanceMirror.invoke(methodName, positionalArgs, namedArgs);
 
     }
-    // Case 2: Handler is a simple closure. Parameter injection is not supported.
     else if (routeDefinition.handler is Function) {
       try {
         logger.log("Handing function route...");
@@ -372,6 +472,14 @@ class AcWeb {
     logger.log("Class meta checked.");
     logger.log("Class route is : $classRoute");
     logger.log("Going through class instance members...");
+    // Collect class-level interceptor names
+    final classInterceptors = <String>[];
+    for (var meta in classMirror.metadata) {
+      if (meta is AcWebUseInterceptor) {
+        classInterceptors.addAll(meta.interceptorNames);
+      }
+    }
+
     for (var member in classMirror.instanceMembers.values) {
       if (member is! AcMethodMirror) continue;
       logger.log("Found method mirror.");
@@ -385,13 +493,23 @@ class AcWeb {
           logger.log("Method route details > Method: $httpMethod, Path : $fullPath, RouteKey : $routeKey ");
           final acApiDocRoute = _getRouteDocFromMethodMirror(methodMirror: member);
 
-          routeDefinitions[routeKey] = AcWebRouteDefinition.instanceFromJson({
+          // Collect method-level interceptor names
+          final methodInterceptors = <String>[];
+          for (var methodMeta in member.metadata) {
+            if (methodMeta is AcWebUseInterceptor) {
+              methodInterceptors.addAll(methodMeta.interceptorNames);
+            }
+          }
+
+          final routeDef = AcWebRouteDefinition.instanceFromJson({
             'url': fullPath,
             'method': httpMethod,
             'controller': controllerClass,
             'handler': member.simpleName.getName(),
             'documentation': acApiDocRoute,
           });
+          routeDef.interceptors = [...classInterceptors, ...methodInterceptors];
+          routeDefinitions[routeKey] = routeDef;
         }
       }
     }
