@@ -41,6 +41,10 @@ export './src/reactivity/ac_reactive_list.dart';
 export './src/reactivity/ac_reactive_model.dart';
 export './src/reactivity/ac_reactive_value.dart';
 
+export './src/utils/ac_directory_utils.dart';
 export './src/utils/ac_file_utils.dart';
 export './src/utils/ac_json_utils.dart';
+export './src/utils/ac_network_utils.dart';
+export './src/utils/ac_process_utils.dart';
+export './src/utils/ac_string_utils.dart';
 
