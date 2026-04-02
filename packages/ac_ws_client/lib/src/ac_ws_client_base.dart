@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 typedef EventHandler = void Function(dynamic data, [Function(dynamic response)? ack]);
+typedef AnyEventHandler = void Function(String event, dynamic data, [Function(dynamic response)? ack]);
 
 class AcWsClient {
   final String url;
@@ -15,6 +16,7 @@ class AcWsClient {
   WebSocket? _webSocket;
   bool _isConnected = false;
   final Map<String, List<EventHandler>> _eventHandlers = {};
+  final List<AnyEventHandler> _anyEventHandlers = [];
   Timer? _reconnectTimer;
   bool _shouldReconnect = true;
   int _ackCounter = 0;
@@ -107,6 +109,10 @@ class AcWsClient {
     _eventHandlers.putIfAbsent(event, () => []).add(handler);
   }
 
+  void onAny(AnyEventHandler handler) {
+    _anyEventHandlers.add(handler);
+  }
+
   void _handleEvent(String event, dynamic data, int? ackId) {
     final handlers = _eventHandlers[event];
     if (handlers != null) {
@@ -118,6 +124,16 @@ class AcWsClient {
         } else {
           handler(data);
         }
+      }
+    }
+
+    for (final handler in _anyEventHandlers) {
+      if (ackId != null) {
+        handler(event, data, (response) {
+          _send({'r': ackId, 'd': response, 'n': nsp});
+        });
+      } else {
+        handler(event, data);
       }
     }
   }
@@ -163,10 +179,10 @@ class AcWsClient {
     }
   }
 
-  void disconnect() {
+  Future<void> disconnect() async {
     _shouldReconnect = false;
     _reconnectTimer?.cancel();
-    _webSocket?.close();
+    await _webSocket?.close();
     _isConnected = false;
   }
 

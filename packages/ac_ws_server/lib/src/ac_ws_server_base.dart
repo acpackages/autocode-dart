@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:ac_ws_client/ac_ws_client.dart';
 
 typedef EventHandler = void Function(dynamic data, [Function(dynamic response)? ack]);
+typedef AnyEventHandler = void Function(String event, dynamic data, [Function(dynamic response)? ack]);
 typedef MiddlewareHandler = void Function(AcWsSocket socket, void Function([dynamic error]) next);
 
 class AcWsSocket {
@@ -13,6 +15,7 @@ class AcWsSocket {
   final String nsp;
   final Map<String, dynamic> handshake;
   final Map<String, List<EventHandler>> _eventHandlers = {};
+  final List<AnyEventHandler> _anyEventHandlers = [];
   int _ackCounter = 0;
   final Map<int, Completer<dynamic>> _pendingAcks = {};
 
@@ -61,6 +64,19 @@ class AcWsSocket {
     _eventHandlers.putIfAbsent(event, () => []).add(handler);
   }
 
+  void onAny(AnyEventHandler handler) {
+    _anyEventHandlers.add(handler);
+  }
+
+  void pipe(AcWsClient client) {
+    onAny((event, data, [ack]) async {
+      final response = await client.emit(event, data);
+      if (ack != null) {
+        ack(response);
+      }
+    });
+  }
+
   void _handleEvent(String event, dynamic data, int? ackId) {
     final handlers = _eventHandlers[event];
     if (handlers != null) {
@@ -72,6 +88,16 @@ class AcWsSocket {
         } else {
           handler(data);
         }
+      }
+    }
+
+    for (final handler in _anyEventHandlers) {
+      if (ackId != null) {
+        handler(event, data, (response) {
+          _send({'r': ackId, 'd': response, 'n': nsp});
+        });
+      } else {
+        handler(event, data);
       }
     }
   }
@@ -107,8 +133,8 @@ class AcWsSocket {
     server.of(nsp)._leaveRoom(room, this);
   }
 
-  void disconnect() {
-    _webSocket.close();
+  Future<void> disconnect() async {
+    await _webSocket.close();
   }
 }
 
