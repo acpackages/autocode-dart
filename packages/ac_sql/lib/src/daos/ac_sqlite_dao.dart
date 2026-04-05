@@ -399,7 +399,7 @@ class AcSqliteDao extends AcBaseSqlDao {
                           .values
                           .toList(),
                 );
-                final response = await txn.rawQuery(
+                final response = await txn.execute(
                   updatedStatement,
                   updatedParameterValues,
                 );
