@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/ac_ai_clients/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ai_clients/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ai_clients/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_blueprints/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_blueprints/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_blueprints/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_cef_flutter/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_chat/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_chat/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_chat/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_data_dictionary/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_data_dictionary/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_data_dictionary/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_documentation/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_documentation/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_documentation/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_extensions/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_extensions/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_extensions/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_mirrors/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_mirrors/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_mirrors/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_printing/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_printing/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_printing/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sql/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sql/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sql/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sync/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sync/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_sync/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web_on_jaguar/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web_on_jaguar/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_web_on_jaguar/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_webview/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_webview/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_webview/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_client/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_client/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_client/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_on_web/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_on_web/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_on_web/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_server/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_server/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_ws_server/build" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/autocode/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

@@ -17,6 +17,8 @@ dependencies:
   webview_flutter: ^4.13.1
   webview_flutter_android: ^4.4.0
   webview_win_floating: ^3.0.2
+#  ac_cef:
+#    path: './../ac_cef'
 
 dev_dependencies:
   lints: ^5.0.0

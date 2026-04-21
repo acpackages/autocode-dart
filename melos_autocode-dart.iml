@@ -469,6 +469,24 @@
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/example/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/example/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/tests/autocode-flutter-tests/windows/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/windows/flutter/ephemeral/.plugin_symlinks/ac_cef/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/windows/flutter/ephemeral/.plugin_symlinks/ac_cef/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef/example/windows/flutter/ephemeral/.plugin_symlinks/ac_cef/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_cef_flutter/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

@@ -1,5 +1,5 @@
-
 import 'dart:math';
+import 'package:unique_device_identifier/unique_device_identifier.dart';
 import 'package:uuid/uuid.dart';
 import 'ac_logger.dart';
 /* AcDoc({
@@ -37,6 +37,9 @@ class Autocode {
     throw UnimplementedError('Enum reflection is limited in Dart. Handle manually for \$mirror.');
   }
 
+  static Future<String?> deviceUniqueId() async {
+    return await UniqueDeviceIdentifier.getUniqueIdentifier();
+  }
   /* AcDoc({"description": "Generates a globally unique ID using timestamp, random parts, and prefix."}) */
   static String uniqueId() {
     // final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;

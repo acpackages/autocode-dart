@@ -12,12 +12,25 @@ Future<String?> acGetIpAddress() async {
   for (var interface in interfaces) {
     final name = interface.name.toLowerCase();
 
-    // ❌ Skip unwanted interfaces
+    // ❌ Skip unwanted/virtual interfaces
     if (name.contains('docker') ||
         name.contains('vbox') ||
         name.contains('vmware') ||
         name.contains('virtual') ||
-        name.contains('loopback')) {
+        name.contains('loopback') ||
+        name.contains('pseudo') ||
+        name.contains('tunnel') ||
+        name.contains('tap') ||
+        name.contains('vpn') ||
+        name.contains('wsl') ||
+        name.contains('hns') || // Windows Host Network Service
+        name.contains('hyper-v') ||
+        name.contains('isatap') ||
+        name.contains('teredo') ||
+        name.contains('utun') || // macOS/Linux tunnel
+        name.contains('awdl') || // macOS Apple Wireless Direct Link
+        name.startsWith('veth') || // Linux virtual ethernet
+        (name.startsWith('v') && name.contains('ethernet'))) { // Windows vEthernet
       continue;
     }
 
@@ -42,13 +55,17 @@ Future<String?> acGetIpAddress() async {
 }
 
 bool _isWifiInterface(String name) {
-  return name.contains('wi') ||   // Windows/Linux (WiFi)
-      name.contains('wlan');   // Linux
+  return name.contains('wi-fi') ||
+      name.contains('wifi') ||
+      name.contains('wlan') ||
+      name.contains('wireless') ||
+      name.contains('wi'); // Fallback for various OS names
 }
 
 bool _isLanInterface(String name) {
-  return name.contains('eth') ||  // Linux
-      name.contains('en');     // macOS (en0)
+  return name.contains('ethernet') ||
+      name.contains('eth') || // Linux
+      name.contains('en'); // macOS (en0), Linux (enp3s0)
 }
 
 bool _isLan(String ip) {

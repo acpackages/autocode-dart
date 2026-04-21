@@ -11,6 +11,7 @@ dependencies:
   crypto: ^3.0.6
   encrypt: ^5.0.3
   intl: ^0.20.2
+  unique_device_identifier: ^2.0.4
   uuid: any
   ac_extensions:
     path: './../../packages/ac_extensions'

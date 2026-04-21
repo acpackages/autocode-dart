@@ -27,7 +27,7 @@ void main() {
       );
       wsServer.port = 8081;
       await wsServer.start();
-      client = AcWsClient('ws://localhost:$port');
+      client = AcWsClient(url:'ws://localhost:$port');
       await client.connect();
     });
 
@@ -37,7 +37,7 @@ void main() {
     });
 
     test('should handle web_request and return response via ack', () async {
-      final response = await client.emit('web_request', {
+      final response = await client.emit(event:'web_request',data:{
         'url': 'test',
         'method': 'GET',
       }) as Map<String, dynamic>;
@@ -47,7 +47,7 @@ void main() {
     });
 
     test('should return 404 for unknown route', () async {
-      final response = await client.emit('web_request', {
+      final response = await client.emit(event:'web_request',data: {
         'url': 'unknown',
         'method': 'GET',
       }) as Map<String, dynamic>;
@@ -63,10 +63,10 @@ void main() {
       customApp.get(url: 'custom', handler: (r) async => AcWebResponse.json(data: 'ok'));
       customWsServer.port = 8082;
       await customWsServer.start();
-      final customClient = AcWsClient('ws://localhost:8082');
+      final customClient = AcWsClient(url:'ws://localhost:8082');
       await customClient.connect();
       
-      final response = await customClient.emit('custom_event', {
+      final response = await customClient.emit(event:'custom_event',data:{
         'url': 'custom',
         'method': 'GET',
       }) as Map<String, dynamic>;

@@ -22,8 +22,8 @@ class AcWsClient {
   int _ackCounter = 0;
   final Map<int, Completer<dynamic>> _pendingAcks = {};
 
-  AcWsClient(
-    this.url, {
+  AcWsClient({
+    required this.url,
     this.nsp = '/',
     this.query = const {},
     this.securityContext,
@@ -105,12 +105,20 @@ class AcWsClient {
     _handleEvent('binary', data, null);
   }
 
-  void on(String event, EventHandler handler) {
+  void on({required String event, required EventHandler handler}) {
     _eventHandlers.putIfAbsent(event, () => []).add(handler);
   }
 
-  void onAny(AnyEventHandler handler) {
+  void onAny({required AnyEventHandler handler}) {
     _anyEventHandlers.add(handler);
+  }
+
+  void onConnect(void Function(dynamic data) handler) {
+    on(event: 'connect', handler: (data, [_]) => handler(data));
+  }
+
+  void onDisconnect(void Function(dynamic data) handler) {
+    on(event: 'disconnect', handler: (data, [_]) => handler(data));
   }
 
   void _handleEvent(String event, dynamic data, int? ackId) {
@@ -140,17 +148,28 @@ class AcWsClient {
 
   AcWsVolatileClient get volatile => AcWsVolatileClient(this);
 
-  Future<dynamic> emit(String event, dynamic data, [bool volatile = false]) {
+  Future<dynamic> emit({
+    required String event,
+    dynamic data,
+    bool volatile = false,
+    void Function(dynamic response)? callback,
+  }) {
     final completer = Completer<dynamic>();
     final ackId = ++_ackCounter;
     _pendingAcks[ackId] = completer;
 
     _send({'e': event, 'd': data, 'a': ackId, 'n': nsp, if (volatile) 'v': true});
 
-    return completer.future.timeout(Duration(seconds: 30), onTimeout: () {
+    final future = completer.future.timeout(Duration(seconds: 30), onTimeout: () {
       _pendingAcks.remove(ackId);
       return null;
     });
+
+    if (callback != null) {
+      future.then(callback);
+    }
+
+    return future;
   }
 
   void _send(Map<String, dynamic> map) {
@@ -159,7 +178,7 @@ class AcWsClient {
     }
   }
 
-  void sendBinary(List<int> bytes) {
+  void sendBinary({required List<int> bytes}) {
     if (_isConnected && _webSocket != null) {
       _webSocket!.add(bytes);
     }
@@ -192,7 +211,7 @@ class AcWsClient {
 class AcWsVolatileClient {
   final AcWsClient _client;
   AcWsVolatileClient(this._client);
-  void emit(String event, dynamic data) {
-    _client.emit(event, data, true);
+  void emit({required String event, dynamic data}) {
+    _client.emit(event: event, data: data, volatile: true);
   }
 }

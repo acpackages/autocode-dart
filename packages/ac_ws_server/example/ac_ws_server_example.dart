@@ -5,7 +5,7 @@ void main() async {
   final port = 3001;
 
   // Middleware example
-  server.of('/chat').use((socket, next) {
+  server.of(name: '/chat').use(handler: (socket, next) {
     print('Middleware for /chat: checking handshake query...');
     if (socket.handshake['query']['token'] == 'secret') {
       next();
@@ -16,38 +16,38 @@ void main() async {
   });
 
   // Default namespace
-  server.onConnection((socket) {
+  server.onConnection(handler: (socket) {
     print('Client connected to /: ${socket.id}');
 
-    socket.on('message', (data, [ack]) {
+    socket.on(event: 'message', handler: (data, [ack]) {
       print('Received message from ${socket.id}: $data');
       if (ack != null) {
         ack('Server received: $data');
       }
     });
 
-    socket.on('join_room', (room, [_]) {
+    socket.on(event: 'join_room', handler: (room, [_]) {
       print('Socket ${socket.id} joining room: $room');
-      socket.join(room as String);
+      socket.join(room: room as String);
     });
   });
 
   // Custom namespace
-  server.of('/chat').onConnection((socket) {
+  server.of(name: '/chat').onConnection(handler: (socket) {
     print('Client connected to /chat: ${socket.id}');
 
-    socket.on('chat_message', (data, [_]) {
+    socket.on(event: 'chat_message', handler: (data, [_]) {
       print('Chat message in /chat from ${socket.id}: $data');
       // Broadcast to everything in the room using the adapter
-      server.of('/chat').to('room1').emit('new_chat', {'from': socket.id, 'msg': data});
+      server.of(name: '/chat').to(room: 'room1').emit(event: 'new_chat', data: {'from': socket.id, 'msg': data});
     });
 
-    socket.on('join', (room, [_]) {
-      socket.join(room as String);
-      socket.emit('joined', room);
+    socket.on(event: 'join', handler: (room, [_]) {
+      socket.join(room: room as String);
+      socket.emit(event: 'joined', data: room);
     });
 
-    socket.on('binary_test', (data, [_]) {
+    socket.on(event: 'binary_test', handler: (data, [_]) {
       print('Received binary data of length: ${data.length}');
     });
   });

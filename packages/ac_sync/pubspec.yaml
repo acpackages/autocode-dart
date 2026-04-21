@@ -1,0 +1,21 @@
+name: ac_sync
+description: A package for synchronizing databases between devices using data dictionaries.
+version: 0.0.1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  uuid: ^4.5.1
+  ac_data_dictionary:
+    path: '../ac_data_dictionary'
+  ac_extensions:
+    path: '../ac_extensions'
+  ac_mirrors:
+    path: '../ac_mirrors'
+  autocode:
+    path: '../autocode'
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0

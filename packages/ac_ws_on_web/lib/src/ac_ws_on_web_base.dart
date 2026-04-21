@@ -21,7 +21,7 @@ class AcWsOnWeb {
   }
 
   void _setupWsHandlers() {
-    this.socket.on(eventName, (data, [ack]) async {
+    this.socket.on(event: eventName, handler: (data, [ack]) async {
       try {
         final requestData = data is String ? jsonDecode(data) : data as Map<String, dynamic>;
         final method = (requestData['method'] ?? 'GET').toString().toLowerCase();

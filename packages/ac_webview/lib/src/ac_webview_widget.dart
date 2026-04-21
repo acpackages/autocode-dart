@@ -36,6 +36,10 @@ class AcWebview extends StatefulWidget {
     _AcWebviewState.instance?.runJavascript(evalCode);
   }
 
+  runJavascript(String javascript) async {
+    _AcWebviewState.instance?.runJavascript(javascript);
+  }
+
   Future<bool> handleBack() async {
     return await _AcWebviewState.instance?.goBack() ?? true;
   }
@@ -113,7 +117,6 @@ class _AcWebviewState extends State<AcWebview> {
   }
 
   void runJavascript(String script) {
-    log("Executing script: $script");
     controller?.evaluateJavascript(source: script);
   }
 

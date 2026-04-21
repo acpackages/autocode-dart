@@ -50,8 +50,14 @@ class AcWsSocket {
           // Ignore malformed messages
         }
       },
-      onDone: () => server._handleDisconnect(this),
-      onError: (e) => server._handleDisconnect(this),
+      onDone: () {
+        _handleEvent('disconnect', null, null);
+        server._handleDisconnect(this);
+      },
+      onError: (e) {
+        _handleEvent('disconnect', e, null);
+        server._handleDisconnect(this);
+      },
     );
   }
 
@@ -60,17 +66,17 @@ class AcWsSocket {
     _handleEvent('binary', data, null);
   }
 
-  void on(String event, EventHandler handler) {
+  void on({required String event, required EventHandler handler}) {
     _eventHandlers.putIfAbsent(event, () => []).add(handler);
   }
 
-  void onAny(AnyEventHandler handler) {
+  void onAny({required AnyEventHandler handler}) {
     _anyEventHandlers.add(handler);
   }
 
-  void pipe(AcWsClient client) {
-    onAny((event, data, [ack]) async {
-      final response = await client.emit(event, data);
+  void pipe({required AcWsClient client}) {
+    onAny(handler: (event, data, [ack]) async {
+      final response = await client.emit(event: event, data: data);
       if (ack != null) {
         ack(response);
       }
@@ -104,33 +110,44 @@ class AcWsSocket {
 
   AcWsVolatileSocket get volatile => AcWsVolatileSocket(this);
 
-  Future<dynamic> emit(String event, dynamic data, [bool volatile = false]) {
+  Future<dynamic> emit({
+    required String event,
+    dynamic data,
+    bool volatile = false,
+    void Function(dynamic response)? onAck,
+  }) {
     final completer = Completer<dynamic>();
     final ackId = ++_ackCounter;
     _pendingAcks[ackId] = completer;
 
     _send({'e': event, 'd': data, 'a': ackId, 'n': nsp, if (volatile) 'v': true});
 
-    return completer.future.timeout(Duration(seconds: 30), onTimeout: () {
+    final future = completer.future.timeout(Duration(seconds: 30), onTimeout: () {
       _pendingAcks.remove(ackId);
       return null;
     });
+
+    if (onAck != null) {
+      future.then(onAck);
+    }
+
+    return future;
   }
 
   void _send(Map<String, dynamic> map) {
     _webSocket.add(jsonEncode(map));
   }
 
-  void sendBinary(List<int> bytes) {
+  void sendBinary({required List<int> bytes}) {
     _webSocket.add(bytes);
   }
 
-  void join(String room) {
-    server.of(nsp)._joinRoom(room, this);
+  void join({required String room}) {
+    server.of(name: nsp)._joinRoom(room, this);
   }
 
-  void leave(String room) {
-    server.of(nsp)._leaveRoom(room, this);
+  void leave({required String room}) {
+    server.of(name: nsp)._leaveRoom(room, this);
   }
 
   Future<void> disconnect() async {
@@ -141,8 +158,8 @@ class AcWsSocket {
 class AcWsVolatileSocket {
   final AcWsSocket _socket;
   AcWsVolatileSocket(this._socket);
-  void emit(String event, dynamic data) {
-    _socket.emit(event, data, true);
+  void emit({required String event, dynamic data}) {
+    _socket.emit(event: event, data: data, volatile: true);
   }
 }
 
@@ -150,17 +167,17 @@ abstract class AcWsAdapter {
   final AcWsNamespace nsp;
   AcWsAdapter(this.nsp);
 
-  void broadcast(String event, dynamic data, {String? room, Set<String>? except});
-  void add(String id, String room);
-  void del(String id, String room);
-  void delAll(String id);
+  void broadcast({required String event, dynamic data, String? room, Set<String>? except});
+  void add({required String id, required String room});
+  void del({required String id, required String room});
+  void delAll({required String id});
 }
 
 class AcWsDefaultAdapter extends AcWsAdapter {
   AcWsDefaultAdapter(super.nsp);
 
   @override
-  void broadcast(String event, dynamic data, {String? room, Set<String>? except}) {
+  void broadcast({required String event, dynamic data, String? room, Set<String>? except}) {
     Set<AcWsSocket>? sockets;
     if (room != null) {
       sockets = nsp._rooms[room];
@@ -171,23 +188,23 @@ class AcWsDefaultAdapter extends AcWsAdapter {
     if (sockets != null) {
       for (final socket in sockets) {
         if (except != null && except.contains(socket.id)) continue;
-        socket.emit(event, data);
+        socket.emit(event: event, data: data);
       }
     }
   }
 
   @override
-  void add(String id, String room) {
+  void add({required String id, required String room}) {
     // Already handled by basic implementation for now
   }
 
   @override
-  void del(String id, String room) {
+  void del({required String id, required String room}) {
     // Already handled by basic implementation for now
   }
 
   @override
-  void delAll(String id) {
+  void delAll({required String id}) {
     // Already handled by basic implementation for now
   }
 }
@@ -205,11 +222,11 @@ class AcWsNamespace {
     adapter = AcWsDefaultAdapter(this);
   }
 
-  void use(MiddlewareHandler handler) {
+  void use({required MiddlewareHandler handler}) {
     _middlewares.add(handler);
   }
 
-  void onConnection(void Function(AcWsSocket socket) handler) {
+  void onConnection({required void Function(AcWsSocket socket) handler}) {
     _connectionHandlers.putIfAbsent('connection', () => []).add(handler);
   }
 
@@ -225,6 +242,10 @@ class AcWsNamespace {
       }
       _runMiddlewares(socket, index + 1, done);
     });
+  }
+
+  void onDisconnect({required void Function(AcWsSocket socket) handler}) {
+    _connectionHandlers.putIfAbsent('disconnect', () => []).add(handler);
   }
 
   void _addSocket(AcWsSocket socket) {
@@ -247,11 +268,11 @@ class AcWsNamespace {
     _rooms[room]?.remove(socket);
   }
 
-  void emit(String event, dynamic data) {
-    adapter.broadcast(event, data);
+  void emit({required String event, dynamic data}) {
+    adapter.broadcast(event: event, data: data);
   }
 
-  AcWsRoomNamespace to(String room) {
+  AcWsRoomNamespace to({required String room}) {
     return AcWsRoomNamespace(this, room);
   }
 }
@@ -262,8 +283,8 @@ class AcWsRoomNamespace {
 
   AcWsRoomNamespace(this.nsp, this.room);
 
-  void emit(String event, dynamic data) {
-    nsp.adapter.broadcast(event, data, room: room);
+  void emit({required String event, dynamic data}) {
+    nsp.adapter.broadcast(event: event, data: data, room: room);
   }
 }
 
@@ -287,12 +308,16 @@ class AcWsServer {
     _namespaces['/'] = AcWsNamespace('/', this);
   }
 
-  AcWsNamespace of(String name) {
+  AcWsNamespace of({required String name}) {
     return _namespaces.putIfAbsent(name, () => AcWsNamespace(name, this));
   }
 
-  void onConnection(void Function(AcWsSocket socket) handler) {
-    of('/').onConnection(handler);
+  void onConnection({required void Function(AcWsSocket socket) handler}) {
+    of(name: '/').onConnection(handler: handler);
+  }
+
+  void onDisconnect({required void Function(AcWsSocket socket) handler}) {
+    of(name: '/').onDisconnect(handler: handler);
   }
 
   Future<void> start() async {
@@ -330,7 +355,7 @@ class AcWsServer {
         final nspName = request.uri.queryParameters['nsp'] ?? '/';
         final socket = AcWsSocket(webSocket, socketId, this, nspName, handshake);
         socket._listen();
-        of(nspName)._addSocket(socket);
+        of(name: nspName)._addSocket(socket);
       } else {
         request.response.statusCode = HttpStatus.forbidden;
         request.response.close();
@@ -347,15 +372,22 @@ class AcWsServer {
 
   void _handleDisconnect(AcWsSocket socket) {
     for (final nsp in _namespaces.values) {
-      nsp._sockets.remove(socket);
-      for (final roomSockets in nsp._rooms.values) {
-        roomSockets.remove(socket);
+      if (nsp._sockets.remove(socket)) {
+        for (final roomSockets in nsp._rooms.values) {
+          roomSockets.remove(socket);
+        }
+        final handlers = nsp._connectionHandlers['disconnect'];
+        if (handlers != null) {
+          for (final handler in handlers) {
+            handler(socket);
+          }
+        }
       }
     }
   }
 
-  void emit(String event, dynamic data) {
-    of('/').emit(event, data);
+  void emit({required String event, dynamic data}) {
+    of(name: '/').emit(event: event, data: data);
   }
 
   Future<void> stop() async {

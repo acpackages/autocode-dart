@@ -1,0 +1,24 @@
+name: ac_cef_flutter
+description: >-
+  Flutter UI layer for ac_cef. Provides CefView — a high-performance browser
+  widget driven by CEF Off-Screen Rendering — and CefController for navigation
+  and scripting.
+version: 0.1.0
+publish_to: none
+homepage: https://github.com/your-org/ac_cef
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_cef:
+    path: ../ac_cef
+  ffi: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^3.0.0

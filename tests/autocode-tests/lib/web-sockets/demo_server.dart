@@ -5,41 +5,41 @@ void testAcWebSocketServer() async {
   const port = 3030;
 
   // Default namespace
-  server.onConnection((socket) {
+  server.onConnection(handler:(socket) {
     print('Server: Client connected to /: ${socket.id}');
 
-    socket.on('hello', (data, [ack]) {
+    socket.on(event:'hello', handler: (data, [ack]) {
       print('Server: Received "hello" from ${socket.id}: $data');
       if (ack != null) {
         ack('Hello from server! You said: $data');
       }
     });
 
-    socket.on('broadcast_request', (data, [_]) {
+    socket.on(event:'broadcast_request', handler: (data, [_]) {
       print('Server: Broadcasting message: $data');
-      server.emit('broadcast_event', 'Broadcast from ${socket.id}: $data');
+      server.emit(event:'broadcast_event', data: 'Broadcast from ${socket.id}: $data');
     });
 
-    socket.on('disconnect', (_, [__]) {
+    socket.on(event:'disconnect', handler: (_, [__]) {
       print('Server: Client disconnected: ${socket.id}');
     });
   });
 
   // Chat namespace
-  server.of('/chat').onConnection((socket) {
+  server.of(name:'/chat').onConnection(handler:(socket) {
     print('Server: Client connected to /chat: ${socket.id}');
 
-    socket.on('join', (room, [_]) {
+    socket.on(event:'join',handler:  (room, [_]) {
       print('Server: Socket ${socket.id} joining room: $room');
-      socket.join(room as String);
-      socket.emit('joined', room);
+      socket.join(room:room as String);
+      socket.emit(event:'joined',data: room);
     });
 
-    socket.on('send_chat', (data, [_]) {
+    socket.on(event:'send_chat',handler:  (data, [_]) {
       final room = data['room'];
       final msg = data['msg'];
       print('Server: Chat in $room: $msg');
-      server.of('/chat').to(room).emit('chat_msg', {'from': socket.id, 'msg': msg});
+      server.of(name:'/chat').to(room: room).emit(event:'chat_msg',data:  {'from': socket.id, 'msg': msg});
     });
   });
 

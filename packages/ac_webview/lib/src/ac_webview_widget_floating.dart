@@ -38,6 +38,11 @@ class AcWebviewWinFloating   extends StatefulWidget {
     return await state?._handleBack() ?? true;
   }
 
+  runJavascript(String javascript) async {
+    final state = _AcWebviewState._instances[this];
+    state?.runJavascript(javascript);
+  }
+
   void sendDataToWebview(Map<String, dynamic> data) {
     final state = _AcWebviewState._instances[this];
     state?._sendToWebView(data);
@@ -195,6 +200,10 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
     }
 
     return true;
+  }
+
+  runJavascript(String javascript) async {
+    await _controller.runJavaScript(javascript);
   }
 
   @override

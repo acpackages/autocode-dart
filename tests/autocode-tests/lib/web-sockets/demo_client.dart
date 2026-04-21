@@ -5,36 +5,36 @@ void testAcWebSocketClient() async {
   const url = 'ws://localhost:3030';
   
   print('Client: Connecting to $url...');
-  final client = AcWsClient(url);
-  final chatClient = AcWsClient(url, nsp: '/chat');
+  final client = AcWsClient(url: url);
+  final chatClient = AcWsClient(url:url, nsp: '/chat');
 
   // Default client listeners
-  client.on('connect', (_, [__]) {
+  client.on(event: 'connect', handler:(_, [__]) {
     print('Client [/]: Connected!');
-    client.emit('hello', 'I am the Dart client').then((response) {
+    client.emit(event:'hello', data:'I am the Dart client').then((response) {
       print('Client [/]: Ack received: $response');
     });
     
     // Request a broadcast
-    client.emit('broadcast_request', 'Hello everyone!');
+    client.emit(event:'broadcast_request',data:'Hello everyone!');
   });
 
-  client.on('broadcast_event', (data, [__]) {
+  client.on(event:'broadcast_event', handler:(data, [__]) {
     print('Client [/]: Received broadcast: $data');
   });
 
   // Chat client listeners
-  chatClient.on('connect', (_, [__]) {
+  chatClient.on(event:'connect',handler: (_, [__]) {
     print('Client [/chat]: Connected!');
-    chatClient.emit('join', 'lobby');
+    chatClient.emit(event:'join',data: 'lobby');
   });
 
-  chatClient.on('joined', (room, [__]) {
+  chatClient.on(event:'joined',handler: (room, [__]) {
     print('Client [/chat]: Joined room $room');
-    chatClient.emit('send_chat', {'room': 'lobby', 'msg': 'Hello chat room!'});
+    chatClient.emit(event:'send_chat', data:{'room': 'lobby', 'msg': 'Hello chat room!'});
   });
 
-  chatClient.on('chat_msg', (data, [__]) {
+  chatClient.on(event:'chat_msg', handler:(data, [__]) {
     print('Client [/chat]: New message: ${data['from']} says "${data['msg']}"');
   });
 

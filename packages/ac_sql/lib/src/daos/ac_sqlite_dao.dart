@@ -3,7 +3,7 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'dart:convert';
 
 /* AcDoc({
@@ -16,40 +16,40 @@ class AcSqliteDao extends AcBaseSqlDao {
   Database? _database;
   static bool autoCloseAfterExecution = false;
   static bool _platformResolved = false;
-  Transaction? _transaction = null;
-  bool _transactionRollback = false;
 
   _initSqlite() {
     if (!_platformResolved) {
-      if (Platform.isWindows) {
-        sqfliteFfiInit();
-        databaseFactory = databaseFactoryFfi;
-      }
-      _platformResolved = true;
+      // if (Platform.isWindows) {
+      //   sqfliteFfiInit();
+      //   databaseFactory = databaseFactoryFfi;
+      // }
+      // _platformResolved = true;
     }
   }
 
   /* AcDoc({"summary": "Creates and opens a new SQLite database connection."}) */
   Future<Database?> _getConnection() async {
-    if (_database != null && _database!.isOpen) {
-      return _database!;
-    }
+    if (_database != null) return _database;
     final databasePath = sqlConnection.database;
     if (_databaseInstances.containsKey(databasePath)) {
-      if (_databaseInstances[databasePath] != null &&
-          _databaseInstances[databasePath]!.isOpen) {
+      if (_databaseInstances[databasePath] != null) {
         return _databaseInstances[databasePath]!;
       }
     }
-    _initSqlite();
-    _database = await openDatabase(databasePath);
+    final path = sqlConnection.database;
+
+    _database = sqlite3.open(path);
+    if(sqlConnection.password.isNotEmpty){
+      _database!.execute("PRAGMA key = '${sqlConnection.password}'");
+      print("Setting password for database");
+    }
     _databaseInstances[databasePath] = _database;
     final pragmaStatements =
         acSqlConfig.sqliteConfig
             .toPragmaStatements(); // or load from your stored settings
     for (final pragma in pragmaStatements) {
       try {
-        await _database!.execute(pragma);
+        _database!.execute(pragma);
       } catch (e) {
         logger.warn('⚠️ Failed to apply PRAGMA: $pragma — $e');
       }
@@ -61,7 +61,13 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<Database> _getConnectionWithoutDatabase() async {
     _initSqlite();
     // SQLite always requires a database file, so we use an in-memory database for operations not requiring a specific database
-    return await openDatabase(inMemoryDatabasePath);
+    // var _database = await openDatabase(inMemoryDatabasePath);
+    _database = sqlite3.open(sqlConnection.database);
+    if(sqlConnection.password.isNotEmpty){
+      _database!.execute("PRAGMA key = '${sqlConnection.password}'");
+      print("Setting password for database");
+    }
+    return _database!;
   }
 
   /* AcDoc({
@@ -76,7 +82,7 @@ class AcSqliteDao extends AcBaseSqlDao {
     try {
       _initSqlite();
       final path = sqlConnection.database;
-      final exists = await databaseExists(path);
+      final exists = File(path).existsSync();
       result.setSuccess(
         value: exists,
         message: exists ? 'Database exists' : 'Database does not exist',
@@ -104,13 +110,8 @@ class AcSqliteDao extends AcBaseSqlDao {
         final statement =
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?";
         bool exists = false;
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement, [tableName]);
-          exists = results.isNotEmpty;
-        } else {
-          final results = await db.rawQuery(statement, [tableName]);
-          exists = results.isNotEmpty;
-        }
+        final results = await db.select(statement, [tableName]);
+        exists = results.isNotEmpty;
         result.setSuccess(
           value: exists,
           message: exists ? 'Table exists' : 'Table does not exist',
@@ -121,9 +122,8 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if (autoCloseAfterExecution) {
+        db?.close();
       }
     }
     return result;
@@ -149,9 +149,8 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if (autoCloseAfterExecution) {
+        db?.close();
       }
     }
     return result;
@@ -191,19 +190,11 @@ class AcSqliteDao extends AcBaseSqlDao {
                     as Map<String, dynamic>)
                 .values
                 .toList();
-        int affectedRows = 0;
-        if (_transaction != null) {
-          affectedRows = await _transaction!.rawDelete(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-        } else {
-          affectedRows = await db.rawDelete(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-        }
-        result.affectedRowsCount = affectedRows;
+        db.execute(
+          updatedStatement,
+          ensureValidParamsType(params: updatedParameterValues),
+        );
+        result.affectedRowsCount = db.select("SELECT changes() as count").first['count'];;
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -211,9 +202,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -258,72 +250,37 @@ class AcSqliteDao extends AcBaseSqlDao {
       if (db != null) {
         int totalCount = statements.length;
         int completedCount = 0;
-        if (_transaction != null) {
-          for (final statement in statements) {
-            completedCount++;
-            if (statement.trim().isNotEmpty) {
-              final setParametersResult = setSqlStatementParameters(
-                statement: statement,
-                passedParameters: parameters,
+        db.execute("BEGIN");
+        for (final statement in statements) {
+          completedCount++;
+          if (statement.trim().isNotEmpty) {
+            final setParametersResult = setSqlStatementParameters(
+              statement: statement,
+              passedParameters: parameters,
+            );
+            final updatedStatement = setParametersResult['statement'];
+            final updatedParameterValues = ensureValidParamsType(
+              params:
+              (setParametersResult['statementParametersMap']
+              as Map<String, dynamic>)
+                  .values
+                  .toList(),
+            );
+            lastSqlStatment = updatedStatement;
+            lastParameters = updatedParameterValues;
+            db.execute(
+              updatedStatement,
+              updatedParameterValues,
+            );
+            if (perStatementCallback != null) {
+              perStatementCallback(
+                AcSqlCallbackArgs(
+                  totalCount: totalCount,
+                  completedCount: completedCount,
+                ),
               );
-              final updatedStatement = setParametersResult['statement'];
-              final updatedParameterValues = ensureValidParamsType(
-                params:
-                    (setParametersResult['statementParametersMap']
-                            as Map<String, dynamic>)
-                        .values
-                        .toList(),
-              );
-              lastSqlStatment = updatedStatement;
-              lastParameters = updatedParameterValues;
-              final response = await _transaction!.rawQuery(
-                updatedStatement,
-                updatedParameterValues,
-              );
-              if (perStatementCallback != null) {
-                perStatementCallback(
-                  AcSqlCallbackArgs(
-                    totalCount: totalCount,
-                    completedCount: completedCount,
-                  ),
-                );
-              }
             }
           }
-        } else {
-          await db.transaction((txn) async {
-            for (final statement in statements) {
-              completedCount++;
-              if (statement.trim().isNotEmpty) {
-                final setParametersResult = setSqlStatementParameters(
-                  statement: statement,
-                  passedParameters: parameters,
-                );
-                final updatedStatement = setParametersResult['statement'];
-                final updatedParameterValues = ensureValidParamsType(
-                  params:
-                      (setParametersResult['statementParametersMap']
-                              as Map<String, dynamic>)
-                          .values
-                          .toList(),
-                );
-                lastSqlStatment = updatedStatement;
-                lastParameters = updatedParameterValues;
-                final response = await txn.rawQuery(
-                  updatedStatement,
-                  updatedParameterValues,
-                );
-                if (perStatementCallback != null) {
-                  perStatementCallback(
-                    AcSqlCallbackArgs(
-                      totalCount: totalCount,
-                      completedCount: completedCount,
-                    ),
-                  );
-                }
-              }
-            }
-          });
         }
         result.setSuccess();
       } else {
@@ -331,14 +288,19 @@ class AcSqliteDao extends AcBaseSqlDao {
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
+      if(db!=null) {
+        db.execute("ROLLBACK");
+      }
       result.value = {
         'last_sql_statement': lastSqlStatment,
         'last_sql_parameters': lastParameters,
       };
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        db.execute("COMMIT");
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -365,170 +327,184 @@ class AcSqliteDao extends AcBaseSqlDao {
           'Database connection acquired successfully. Starting transaction...',
         );
 
-        result.value = await db.transaction((txn) async {
-          List<dynamic> operationResults = List.empty(growable: true);
-          int totalCount = operations.length;
-          int completedCount = 0;
+        List<dynamic> operationResults = List.empty(growable: true);
+        int totalCount = operations.length;
+        int completedCount = 0;
 
+        logger.log(
+          'Transaction started. Processing ${operations.length} SQL operation(s)',
+        );
+        db.execute("BEGIN");
+        for (int i = 0; i < operations.length; i++) {
+          completedCount++;
+          final sqlOperation = operations[i];
           logger.log(
-            'Transaction started. Processing ${operations.length} SQL operation(s)',
+            '--- Processing Operation ${i + 1}/${operations.length} ---',
           );
-
-          for (int i = 0; i < operations.length; i++) {
-            completedCount++;
-            final sqlOperation = operations[i];
-            logger.log(
-              '--- Processing Operation ${i + 1}/${operations.length} ---',
-            );
-            logger.log('Type: ${sqlOperation.operation}');
-            logger.log('Table: ${sqlOperation.table}');
-            if (sqlOperation.rawSql != null) {
-              try {
-                final setParametersResult = setSqlStatementParameters(
-                  statement: sqlOperation.rawSql!,
-                  passedParameters:
-                      sqlOperation.parameters == null
-                          ? {}
-                          : sqlOperation.parameters!,
-                );
-                final updatedStatement = setParametersResult['statement'];
-                final updatedParameterValues = ensureValidParamsType(
-                  params:
-                      (setParametersResult['statementParametersMap']
-                              as Map<String, dynamic>)
-                          .values
-                          .toList(),
-                );
-                final response = await txn.execute(
-                  updatedStatement,
-                  updatedParameterValues,
-                );
-              } catch (insertEx) {
-                logger.log('INSERT FAILED - Exception: $insertEx');
-                rethrow;
-              }
-            } else if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
-              var row = sqlOperation.row!;
-              final columns = row.keys.toList();
-              final placeholders = List.generate(
-                columns.length,
-                (i) => '?',
-              ).join(', ');
-              final statement =
-                  "INSERT INTO ${sqlOperation.table} (${columns.join(', ')}) VALUES ($placeholders)";
-              final params = row.values.toList();
-
-              logger.log('INSERT Statement: $statement');
-              logger.log('INSERT Parameters: $params');
-              logger.log('INSERT Columns: ${columns.join(', ')}');
-
-              try {
-                final insertedId = await txn.rawInsert(
-                  statement,
-                  ensureValidParamsType(params: params),
-                );
-                operationResults.add(insertedId);
-                logger.log(
-                  'INSERT SUCCESS - Rows affected / Inserted ID: $insertedId',
-                );
-              } catch (insertEx) {
-                logger.log('INSERT FAILED - Exception: $insertEx');
-                rethrow;
-              }
-            } else if (sqlOperation.operation == AcEnumDDRowOperation.update) {
-              var row = sqlOperation.row!;
-              final setValues = row.keys.map((key) => "$key = ?").join(", ");
-              final conditionClause =
-                  sqlOperation.condition != null &&
-                          sqlOperation.condition!.isNotEmpty
-                      ? "WHERE ${sqlOperation.condition}"
-                      : "";
-              final statement =
-                  "UPDATE ${sqlOperation.table} SET $setValues $conditionClause";
-              final params = [
-                ...row.values,
-                ...(sqlOperation.parameters?.values ?? []),
-              ];
-
-              logger.log('UPDATE Statement: $statement');
-              logger.log('UPDATE Set Values: $setValues');
-              if (conditionClause.isNotEmpty) {
-                logger.log('UPDATE Condition: ${sqlOperation.condition}');
-                logger.log(
-                  'UPDATE Condition Parameters: ${sqlOperation.parameters}',
-                );
-              }
-              logger.log('UPDATE Parameters (combined): $params');
-
-              try {
-                final updatedCount = await txn.rawUpdate(
-                  statement,
-                  ensureValidParamsType(params: params),
-                );
-                operationResults.add(updatedCount);
-                logger.log('UPDATE SUCCESS - Rows affected: $updatedCount');
-              } catch (updateEx) {
-                logger.log('UPDATE FAILED - Exception: $updateEx');
-                rethrow;
-              }
-            } else if (sqlOperation.operation == AcEnumDDRowOperation.delete) {
-              final conditionClause =
-                  sqlOperation.condition != null &&
-                          sqlOperation.condition!.isNotEmpty
-                      ? "WHERE ${sqlOperation.condition}"
-                      : "";
-              final baseStatement =
-                  "DELETE FROM ${sqlOperation.table} $conditionClause";
-
+          print(
+            '--- Processing Operation ${i + 1}/${operations.length} ---',
+          );
+          logger.log('Type: ${sqlOperation.operation}');
+          logger.log('Table: ${sqlOperation.table}');
+          if (sqlOperation.rawSql != null) {
+            try {
               final setParametersResult = setSqlStatementParameters(
-                statement: baseStatement,
-                passedParameters: sqlOperation.parameters ?? {},
+                statement: sqlOperation.rawSql!,
+                passedParameters:
+                sqlOperation.parameters == null
+                    ? {}
+                    : sqlOperation.parameters!,
               );
-              final updatedStatement =
-                  setParametersResult['statement'] as String;
-              final parameterMap =
-                  setParametersResult['statementParametersMap']
-                      as Map<String, dynamic>;
-              final updatedParameterValues = parameterMap.values.toList();
+              final updatedStatement = setParametersResult['statement'];
+              final updatedParameterValues = ensureValidParamsType(
+                params:
+                (setParametersResult['statementParametersMap']
+                as Map<String, dynamic>)
+                    .values
+                    .toList(),
+              );
 
-              logger.log('DELETE Base Statement: $baseStatement');
-              logger.log('DELETE Final Statement: $updatedStatement');
-              logger.log('DELETE Parameters: $updatedParameterValues');
+              logger.log('INSERT Statement: $updatedStatement');
+              logger.log('INSERT Parameters: $updatedParameterValues');
 
-              try {
-                final deletedCount = await txn.rawDelete(
-                  updatedStatement,
-                  ensureValidParamsType(params: updatedParameterValues),
-                );
-                operationResults.add(deletedCount);
-                logger.log('DELETE SUCCESS - Rows deleted: $deletedCount');
-              } catch (deleteEx) {
-                logger.log('DELETE FAILED - Exception: $deleteEx');
-                rethrow;
-              }
-            } else {
+              print('RAW Statement: $updatedStatement');
+              print('RAW Parameters: $updatedParameterValues');
+              db.execute(
+                updatedStatement,
+                updatedParameterValues,
+              );
+            } catch (insertEx) {
+              logger.log('INSERT FAILED - Exception: $insertEx');
+              rethrow;
+            }
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.insert) {
+            var row = sqlOperation.row!;
+            final columns = row.keys.toList();
+            final placeholders = List.generate(
+              columns.length,
+                  (i) => '?',
+            ).join(', ');
+            final statement =
+                "INSERT INTO ${sqlOperation.table} (${columns.join(', ')}) VALUES ($placeholders)";
+            final params = row.values.toList();
+
+            logger.log('INSERT Statement: $statement');
+            logger.log('INSERT Parameters: $params');
+            logger.log('INSERT Columns: ${columns.join(', ')}');
+
+            print('INSERT Statement: $statement');
+            print('INSERT Parameters: $params');
+
+            try {
+              db.execute(
+                statement,
+                ensureValidParamsType(params: params),
+              );
+              final insertedId = db.lastInsertRowId;
+              operationResults.add(insertedId);
               logger.log(
-                'UNKNOWN/UNSUPPORTED Operation Type: ${sqlOperation.operation} - Skipping',
+                'INSERT SUCCESS - Rows affected / Inserted ID: $insertedId',
               );
-              operationResults.add(null);
+            } catch (insertEx) {
+              logger.log('INSERT FAILED - Exception: $insertEx');
+              rethrow;
             }
-            if (perOperationCallback != null) {
-              perOperationCallback(
-                AcSqlCallbackArgs(
-                  totalCount: totalCount,
-                  completedCount: completedCount,
-                ),
-              );
-            }
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.update) {
+            var row = sqlOperation.row!;
+            final setValues = row.keys.map((key) => "$key = ?").join(", ");
+            final conditionClause =
+            sqlOperation.condition != null &&
+                sqlOperation.condition!.isNotEmpty
+                ? "WHERE ${sqlOperation.condition}"
+                : "";
+            final statement =
+                "UPDATE ${sqlOperation.table} SET $setValues $conditionClause";
+            final params = [
+              ...row.values,
+              ...(sqlOperation.parameters?.values ?? []),
+            ];
 
-            logger.log('--- End Operation ${i + 1} ---\n');
+            logger.log('UPDATE Statement: $statement');
+            logger.log('UPDATE Set Values: $setValues');
+            if (conditionClause.isNotEmpty) {
+              logger.log('UPDATE Condition: ${sqlOperation.condition}');
+              logger.log(
+                'UPDATE Condition Parameters: ${sqlOperation.parameters}',
+              );
+            }
+            logger.log('UPDATE Parameters (combined): $params');
+
+            print('UPDATE Statement: $statement');
+            print('UPDATE Set Values: $setValues');
+
+            try {
+              db.execute(
+                statement,
+                ensureValidParamsType(params: params),
+              );
+              // operationResults.add(updatedCount);
+              // logger.log('UPDATE SUCCESS - Rows affected: $updatedCount');
+            } catch (updateEx) {
+              logger.log('UPDATE FAILED - Exception: $updateEx');
+              rethrow;
+            }
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.delete) {
+            final conditionClause =
+            sqlOperation.condition != null &&
+                sqlOperation.condition!.isNotEmpty
+                ? "WHERE ${sqlOperation.condition}"
+                : "";
+            final baseStatement =
+                "DELETE FROM ${sqlOperation.table} $conditionClause";
+
+            final setParametersResult = setSqlStatementParameters(
+              statement: baseStatement,
+              passedParameters: sqlOperation.parameters ?? {},
+            );
+            final updatedStatement =
+            setParametersResult['statement'] as String;
+            final parameterMap =
+            setParametersResult['statementParametersMap']
+            as Map<String, dynamic>;
+            final updatedParameterValues = parameterMap.values.toList();
+
+            logger.log('DELETE Base Statement: $baseStatement');
+            logger.log('DELETE Final Statement: $updatedStatement');
+            logger.log('DELETE Parameters: $updatedParameterValues');
+
+            print('DELETE Base Statement: $baseStatement');
+            print('DELETE Final Statement: $updatedStatement');
+
+            try {
+              db.execute(
+                updatedStatement,
+                ensureValidParamsType(params: updatedParameterValues),
+              );
+            } catch (deleteEx) {
+              logger.log('DELETE FAILED - Exception: $deleteEx');
+              rethrow;
+            }
+          } else {
+            logger.log(
+              'UNKNOWN/UNSUPPORTED Operation Type: ${sqlOperation.operation} - Skipping',
+            );
+            operationResults.add(null);
+          }
+          if (perOperationCallback != null) {
+            perOperationCallback(
+              AcSqlCallbackArgs(
+                totalCount: totalCount,
+                completedCount: completedCount,
+              ),
+            );
           }
 
-          logger.log(
-            'All ${operations.length} operations processed. Committing transaction...',
-          );
-          return operationResults;
-        });
+          logger.log('--- End Operation ${i + 1} ---\n');
+        }
+
+        logger.log(
+          'All ${operations.length} operations processed. Committing transaction...',
+        );
 
         logger.log('Transaction committed successfully');
         result.setSuccess();
@@ -538,22 +514,18 @@ class AcSqliteDao extends AcBaseSqlDao {
         result.setFailure(message: 'Error connecting database');
       }
     } catch (ex, stack) {
+      if(db!=null) {
+        db.execute("ROLLBACK");
+      }
       logger.log('EXCEPTION during executeSqlOperations: $ex');
       logger.log('Stack trace: $stack');
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (db != null &&
-          sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        logger.log(
-          'Closing database connection (autoCloseAfterExecution = true)',
-        );
-        await db.close();
-        logger.log('Database connection closed');
-      } else if (db != null) {
-        logger.log(
-          'Keeping database connection open (in-memory or autoClose disabled)',
-        );
+      if(db!=null){
+        db.execute("COMMIT");
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
 
@@ -592,40 +564,17 @@ class AcSqliteDao extends AcBaseSqlDao {
                     as Map<String, dynamic>)
                 .values
                 .toList();
-        if (_transaction != null) {
-          await _transaction!.execute(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-          result.setSuccess();
-          if ([
-            AcEnumDDRowOperation.insert,
-            AcEnumDDRowOperation.update,
-            AcEnumDDRowOperation.delete,
-          ].contains(operation)) {
-            var rows = await _transaction!.rawQuery(
-              'SELECT changes() as rows_count;',
-            );
-            if (rows.length > 0) {
-              result.affectedRowsCount = rows.first.getInt('rows_count');
-            }
-          }
-        } else {
-          await db.execute(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-          result.setSuccess();
-          if ([
-            AcEnumDDRowOperation.insert,
-            AcEnumDDRowOperation.update,
-            AcEnumDDRowOperation.delete,
-          ].contains(operation)) {
-            var rows = await db.rawQuery('SELECT changes() as rows_count;');
-            if (rows.length > 0) {
-              result.affectedRowsCount = rows.first.getInt('rows_count');
-            }
-          }
+        db.execute(
+          updatedStatement,
+          ensureValidParamsType(params: updatedParameterValues),
+        );
+        result.setSuccess();
+        if ([
+          AcEnumDDRowOperation.insert,
+          AcEnumDDRowOperation.update,
+          AcEnumDDRowOperation.delete,
+        ].contains(operation)) {
+          result.affectedRowsCount = await db.select('SELECT changes() as rows_count;').first['rows_count'];
         }
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -633,9 +582,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -746,16 +696,9 @@ class AcSqliteDao extends AcBaseSqlDao {
       if (db != null) {
         const statement =
             "SELECT name AS TABLE_NAME FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDTable.keyTableName: row['TABLE_NAME']});
-          }
-        } else {
-          final results = await db.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDTable.keyTableName: row['TABLE_NAME']});
-          }
+        final results = db.select(statement);
+        for (final row in results) {
+          result.rows.add({AcDDTable.keyTableName: row['TABLE_NAME']});
         }
         result.setSuccess();
       } else {
@@ -764,9 +707,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -787,16 +731,9 @@ class AcSqliteDao extends AcBaseSqlDao {
       if (db != null) {
         const statement =
             "SELECT name AS TRIGGER_NAME FROM sqlite_master WHERE type='trigger'";
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDTrigger.keyTriggerName: row['TRIGGER_NAME']});
-          }
-        } else {
-          final results = await db.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDTrigger.keyTriggerName: row['TRIGGER_NAME']});
-          }
+        final results = db.select(statement);
+        for (final row in results) {
+          result.rows.add({AcDDTrigger.keyTriggerName: row['TRIGGER_NAME']});
         }
 
         result.setSuccess();
@@ -806,9 +743,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -829,16 +767,9 @@ class AcSqliteDao extends AcBaseSqlDao {
       if (db != null) {
         const statement =
             "SELECT name AS TABLE_NAME FROM sqlite_master WHERE type='view'";
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDView.keyViewName: row['TABLE_NAME']});
-          }
-        } else {
-          final results = await db.rawQuery(statement);
-          for (final row in results) {
-            result.rows.add({AcDDView.keyViewName: row['TABLE_NAME']});
-          }
+        final results = db.select(statement);
+        for (final row in results) {
+          result.rows.add({AcDDView.keyViewName: row['TABLE_NAME']});
         }
 
         result.setSuccess();
@@ -848,9 +779,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -906,43 +838,23 @@ class AcSqliteDao extends AcBaseSqlDao {
           "parameters",
           updatedParameterValues,
         ]);
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-          if (mode == AcEnumDDSelectMode.count) {
-            result.totalRows = results.first['records_count'] as int;
-          } else {
-            result.rows =
-                results
-                    .map(
-                      (row) => formatRow(
-                        row: Map<String, dynamic>.from(row),
-                        columnFormats: columnFormats,
-                      ),
-                    )
-                    .toList();
-          }
+        final results = db.select(
+          updatedStatement,
+          ensureValidParamsType(params: updatedParameterValues),
+        );
+        if (mode == AcEnumDDSelectMode.count) {
+          result.totalRows = results.first['records_count'] as int;
         } else {
-          final results = await db.rawQuery(
-            updatedStatement,
-            ensureValidParamsType(params: updatedParameterValues),
-          );
-          if (mode == AcEnumDDSelectMode.count) {
-            result.totalRows = results.first['records_count'] as int;
-          } else {
-            logger.log(["Total rows", results.length]);
-            result.rows =
-                results
-                    .map(
-                      (row) => formatRow(
-                        row: Map<String, dynamic>.from(row),
-                        columnFormats: columnFormats,
-                      ),
-                    )
-                    .toList();
-          }
+          logger.log(["Total rows", results.length]);
+          result.rows =
+              results
+                  .map(
+                    (row) => formatRow(
+                  row: Map<String, dynamic>.from(row),
+                  columnFormats: columnFormats,
+                ),
+              )
+                  .toList();
         }
 
         result.setSuccess();
@@ -952,9 +864,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -975,46 +888,24 @@ class AcSqliteDao extends AcBaseSqlDao {
       db = await _getConnection();
       if (db != null) {
         final statement = "PRAGMA table_info($tableName)";
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement);
-          for (final row in results) {
-            final properties = <String, dynamic>{};
-            if (row['notnull'] == 1) {
-              properties[AcEnumDDColumnProperty.notNull.value] = false;
-            }
-            if (row['pk'] == 1) {
-              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-            }
-            if (row['dflt_value'] != null) {
-              properties[AcEnumDDColumnProperty.defaultValue.value] =
-                  row['dflt_value'];
-            }
-            result.rows.add({
-              AcDDTableColumn.keyColumnName: row['name'],
-              AcDDTableColumn.keyColumnType: row['type'],
-              AcDDTableColumn.keyColumnProperties: properties,
-            });
+        final results = db.select(statement);
+        for (final row in results) {
+          final properties = <String, dynamic>{};
+          if (row['notnull'] == 1) {
+            properties[AcEnumDDColumnProperty.notNull.value] = false;
           }
-        } else {
-          final results = await db.rawQuery(statement);
-          for (final row in results) {
-            final properties = <String, dynamic>{};
-            if (row['notnull'] == 1) {
-              properties[AcEnumDDColumnProperty.notNull.value] = false;
-            }
-            if (row['pk'] == 1) {
-              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-            }
-            if (row['dflt_value'] != null) {
-              properties[AcEnumDDColumnProperty.defaultValue.value] =
-                  row['dflt_value'];
-            }
-            result.rows.add({
-              AcDDTableColumn.keyColumnName: row['name'],
-              AcDDTableColumn.keyColumnType: row['type'],
-              AcDDTableColumn.keyColumnProperties: properties,
-            });
+          if (row['pk'] == 1) {
+            properties[AcEnumDDColumnProperty.primaryKey.value] = true;
           }
+          if (row['dflt_value'] != null) {
+            properties[AcEnumDDColumnProperty.defaultValue.value] =
+            row['dflt_value'];
+          }
+          result.rows.add({
+            AcDDTableColumn.keyColumnName: row['name'],
+            AcDDTableColumn.keyColumnType: row['type'],
+            AcDDTableColumn.keyColumnProperties: properties,
+          });
         }
 
         result.setSuccess();
@@ -1024,9 +915,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -1047,46 +939,24 @@ class AcSqliteDao extends AcBaseSqlDao {
       db = await _getConnection();
       if (db != null) {
         final statement = "PRAGMA table_info($viewName)";
-        if (_transaction != null) {
-          final results = await _transaction!.rawQuery(statement);
-          for (final row in results) {
-            final properties = <String, dynamic>{};
-            if (row['notnull'] == 1) {
-              properties[AcEnumDDColumnProperty.notNull.value] = false;
-            }
-            if (row['pk'] == 1) {
-              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-            }
-            if (row['dflt_value'] != null) {
-              properties[AcEnumDDColumnProperty.defaultValue.value] =
-                  row['dflt_value'];
-            }
-            result.rows.add({
-              AcDDViewColumn.keyColumnName: row['name'],
-              AcDDViewColumn.keyColumnType: row['type'],
-              AcDDViewColumn.keyColumnProperties: properties,
-            });
+        final results = db.select(statement);
+        for (final row in results) {
+          final properties = <String, dynamic>{};
+          if (row['notnull'] == 1) {
+            properties[AcEnumDDColumnProperty.notNull.value] = false;
           }
-        } else {
-          final results = await db.rawQuery(statement);
-          for (final row in results) {
-            final properties = <String, dynamic>{};
-            if (row['notnull'] == 1) {
-              properties[AcEnumDDColumnProperty.notNull.value] = false;
-            }
-            if (row['pk'] == 1) {
-              properties[AcEnumDDColumnProperty.primaryKey.value] = true;
-            }
-            if (row['dflt_value'] != null) {
-              properties[AcEnumDDColumnProperty.defaultValue.value] =
-                  row['dflt_value'];
-            }
-            result.rows.add({
-              AcDDViewColumn.keyColumnName: row['name'],
-              AcDDViewColumn.keyColumnType: row['type'],
-              AcDDViewColumn.keyColumnProperties: properties,
-            });
+          if (row['pk'] == 1) {
+            properties[AcEnumDDColumnProperty.primaryKey.value] = true;
           }
+          if (row['dflt_value'] != null) {
+            properties[AcEnumDDColumnProperty.defaultValue.value] =
+            row['dflt_value'];
+          }
+          result.rows.add({
+            AcDDViewColumn.keyColumnName: row['name'],
+            AcDDViewColumn.keyColumnType: row['type'],
+            AcDDViewColumn.keyColumnProperties: properties,
+          });
         }
 
         result.setSuccess();
@@ -1096,9 +966,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -1132,19 +1003,11 @@ class AcSqliteDao extends AcBaseSqlDao {
         final statement =
             "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
         final params = row.values.toList();
-        var lastInsertedId = 0;
-        if (_transaction != null) {
-          lastInsertedId = await _transaction!.rawInsert(
-            statement,
-            ensureValidParamsType(params: params),
-          );
-        } else {
-          lastInsertedId = await db.rawInsert(
-            statement,
-            ensureValidParamsType(params: params),
-          );
-        }
-        result.lastInsertedId = lastInsertedId;
+        db.execute(
+          statement,
+          ensureValidParamsType(params: params),
+        );
+        result.lastInsertedId = db.lastInsertRowId;
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -1152,9 +1015,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -1180,38 +1044,19 @@ class AcSqliteDao extends AcBaseSqlDao {
       db = await _getConnection();
       if (db != null) {
         if (rows.isNotEmpty) {
-          if (_transaction != null) {
-            for (final rowData in rows) {
-              final columns = rowData.keys.toList();
-              final placeholders = List.generate(
-                columns.length,
-                (i) => '?',
-              ).join(', ');
-              final statement =
-                  "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
-              final params = rowData.values.toList();
-              await _transaction!.rawInsert(
-                statement,
-                ensureValidParamsType(params: params),
-              );
-            }
-          } else {
-            await db.transaction((txn) async {
-              for (final rowData in rows) {
-                final columns = rowData.keys.toList();
-                final placeholders = List.generate(
-                  columns.length,
+          for (final rowData in rows) {
+            final columns = rowData.keys.toList();
+            final placeholders = List.generate(
+              columns.length,
                   (i) => '?',
-                ).join(', ');
-                final statement =
-                    "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
-                final params = rowData.values.toList();
-                await txn.rawInsert(
-                  statement,
-                  ensureValidParamsType(params: params),
-                );
-              }
-            });
+            ).join(', ');
+            final statement =
+                "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
+            final params = rowData.values.toList();
+            db.execute(
+              statement,
+              ensureValidParamsType(params: params),
+            );
           }
           result.setSuccess();
         } else {
@@ -1220,12 +1065,13 @@ class AcSqliteDao extends AcBaseSqlDao {
       } else {
         result.setFailure(message: 'Error connecting database');
       }
-    } catch (ex, stack) {
+    } catch (ex, stack){
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -1234,8 +1080,9 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<AcResult> transactionCommit() async {
     AcResult result = AcResult();
     try {
-      if (_transaction != null) {
-        _transaction = null;
+      if (_database != null) {
+        _database!.execute("COMMIT");
+        _database = null;
         result.setSuccess();
       } else {
         result.setSuccess(message: 'Transaction not started');
@@ -1249,8 +1096,9 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<AcResult> transactionRollback() async {
     AcResult result = AcResult();
     try {
-      if (_transaction != null) {
-        _transaction = null;
+      if (_database != null) {
+        _database!.execute("ROLLBACK");
+        _database = null;
         result.setSuccess();
       } else {
         result.setSuccess(message: 'Transaction not started');
@@ -1265,21 +1113,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     AcResult result = AcResult();
     Database? db;
     try {
-      if (_transaction == null) {
+      if (_database == null) {
         db = await _getConnection();
         if (db != null) {
-          db.transaction((Transaction trns) async {
-            try {
-              _transaction = trns;
-              while (_transaction != null) {
-                await Future.delayed(Duration(milliseconds: 100));
-              }
-              if (_transactionRollback) {
-                _transactionRollback = false;
-                throw Error();
-              }
-            } catch (ex) {}
-          }, exclusive: false);
+          db.execute("BEGIN");
           result.setSuccess();
         } else {
           result.setFailure(message: 'Error connecting database');
@@ -1320,19 +1157,11 @@ class AcSqliteDao extends AcBaseSqlDao {
         final statement =
             "UPDATE $tableName SET $setValues ${condition.isNotEmpty ? "WHERE $condition" : ""}";
         final params = [...row.values, ...parameters.values];
-        var affectedRows = 0;
-        if (_transaction != null) {
-          affectedRows = await _transaction!.rawUpdate(
-            statement,
-            ensureValidParamsType(params: params),
-          );
-        } else {
-          affectedRows = await db.rawUpdate(
-            statement,
-            ensureValidParamsType(params: params),
-          );
-        }
-        result.affectedRowsCount = affectedRows;
+        db.execute(
+          statement,
+          ensureValidParamsType(params: params),
+        );
+        result.affectedRowsCount = db.select("SELECT changes() as count").first['count'];;
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -1340,9 +1169,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
@@ -1367,56 +1197,26 @@ class AcSqliteDao extends AcBaseSqlDao {
     try {
       db = await _getConnection();
       if (db != null) {
-        if (_transaction != null) {
-          for (final rowWithCondition in rowsWithConditions) {
-            if (rowWithCondition.containsKey('row') &&
-                rowWithCondition.containsKey('condition')) {
-              final row = rowWithCondition['row'] as Map<String, dynamic>;
-              final condition = rowWithCondition['condition'] as String;
-              final conditionParameters =
-                  rowWithCondition.containsKey('parameters')
-                      ? rowWithCondition['parameters'] as Map<String, dynamic>
-                      : <String, dynamic>{};
-              final setValues = row.keys.map((key) => "$key = ?").join(", ");
-              final statement =
-                  "UPDATE $tableName SET $setValues WHERE $condition";
-              final params = [...row.values, ...conditionParameters.values];
-              final affectedRows = await _transaction!.rawUpdate(
-                statement,
-                ensureValidParamsType(params: params),
-              );
-              result.affectedRowsCount ??= 0;
-              result.affectedRowsCount =
-                  (result.affectedRowsCount! + affectedRows) as int?;
-            }
+        for (final rowWithCondition in rowsWithConditions) {
+          if (rowWithCondition.containsKey('row') &&
+              rowWithCondition.containsKey('condition')) {
+            final row = rowWithCondition['row'] as Map<String, dynamic>;
+            final condition = rowWithCondition['condition'] as String;
+            final conditionParameters =
+            rowWithCondition.containsKey('parameters')
+                ? rowWithCondition['parameters'] as Map<String, dynamic>
+                : <String, dynamic>{};
+            final setValues = row.keys.map((key) => "$key = ?").join(", ");
+            final statement =
+                "UPDATE $tableName SET $setValues WHERE $condition";
+            final params = [...row.values, ...conditionParameters.values];
+            db.execute(
+              statement,
+              ensureValidParamsType(params: params),
+            );
+            result.affectedRowsCount = db.select("SELECT changes() as count").first.getInt('count');
           }
-        } else {
-          await db.transaction((txn) async {
-            for (final rowWithCondition in rowsWithConditions) {
-              if (rowWithCondition.containsKey('row') &&
-                  rowWithCondition.containsKey('condition')) {
-                final row = rowWithCondition['row'] as Map<String, dynamic>;
-                final condition = rowWithCondition['condition'] as String;
-                final conditionParameters =
-                    rowWithCondition.containsKey('parameters')
-                        ? rowWithCondition['parameters'] as Map<String, dynamic>
-                        : <String, dynamic>{};
-                final setValues = row.keys.map((key) => "$key = ?").join(", ");
-                final statement =
-                    "UPDATE $tableName SET $setValues WHERE $condition";
-                final params = [...row.values, ...conditionParameters.values];
-                final affectedRows = await txn.rawUpdate(
-                  statement,
-                  ensureValidParamsType(params: params),
-                );
-                result.affectedRowsCount ??= 0;
-                result.affectedRowsCount =
-                    (result.affectedRowsCount! + affectedRows) as int?;
-              }
-            }
-          });
         }
-
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -1424,9 +1224,10 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if (sqlConnection.database != inMemoryDatabasePath &&
-          autoCloseAfterExecution) {
-        await db?.close();
+      if(db!=null){
+        if (autoCloseAfterExecution) {
+          db.close();
+        }
       }
     }
     return result;
