@@ -83,6 +83,10 @@ class AcFilesControllerConfig {
   String get uploadDirectory => _uploadDirectory;
   set uploadDirectory(String v) => _uploadDirectory = v;
 
+  String _uploadDirectoryPlaceholder = "";
+  String get uploadDirectoryPlaceholder => _uploadDirectoryPlaceholder;
+  set uploadDirectoryPlaceholder(String v) => _uploadDirectoryPlaceholder = v;
+
   String _uploadFormKey = "file";
   String get uploadFormKey => _uploadFormKey;
   set uploadFormKey(String v) => _uploadFormKey = v;

@@ -146,7 +146,7 @@ class AcFilesController {
       if(fileResult.isSuccess()){
         File savedFile = fileResult.value!;
         AcSavedFileDetails fileDetails = AcSavedFileDetails(
-          path:savedFile.path,
+          path: savedFile.path.replaceAll(acWebConfig.filesControllerConfig.uploadDirectory, acWebConfig.filesControllerConfig.uploadDirectoryPlaceholder),
           height: 0,
           type: savedFile.extension,
           width: 0,
@@ -197,7 +197,8 @@ class AcFilesController {
       else if(extension.equalsIgnoreCase("gif")){
         resized.writeAsBytesSync(encodeGif(resizedImage));
       }
-      AcSavedFileDetails savedFileDetails = AcSavedFileDetails(height: newHeight,width: newWidth,size: resized.lengthSync(),path: resized.path,type: resized.extension);
+      AcSavedFileDetails savedFileDetails = AcSavedFileDetails(height: newHeight,width: newWidth,size: resized.lengthSync(),path:
+      resized.path.replaceAll(acWebConfig.filesControllerConfig.uploadDirectory, acWebConfig.filesControllerConfig.uploadDirectoryPlaceholder),type: resized.extension);
       result.setSuccess(value:savedFileDetails,logger: logger);
     } catch (ex,stack) {
       result.setException(exception: ex,stackTrace: stack,logger: logger);
