@@ -88,9 +88,13 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
       _controller = WebViewController();
     }
     _controller
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(widget.backgroundColor ?? Colors.white)
-      ..setNavigationDelegate(
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+
+    if (!Platform.isMacOS) {
+      _controller.setBackgroundColor(widget.backgroundColor ?? Colors.white);
+    }
+
+    _controller.setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (url) async {
             await _injectBridge();
@@ -148,7 +152,11 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
     })();
     ''';
 
-    await _controller.runJavaScript(bridgeJs);
+    try {
+      await _controller.runJavaScript(bridgeJs);
+    } catch (e) {
+      debugPrint('Error injecting bridge JS: $e');
+    }
   }
 
   Future<void> _handleMessageFromWeb(String rawMessage) async {
@@ -173,7 +181,11 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
 
   Future<void> _sendToWebView(Map<String, dynamic> data) async {
     final jsonPayload = jsonEncode(data);
-    _controller.runJavaScript( "acWebviewChannel.receive({data:${jsonEncode(data)}});");
+    try {
+      await _controller.runJavaScript( "acWebviewChannel.receive({data:${jsonEncode(data)}});");
+    } catch (e) {
+      debugPrint('Error sending data to webview: $e');
+    }
     // You can choose your preferred way — here using window.postMessage style
     // await _controller.runJavaScript('''
     //   if (window.acWebviewChannel && typeof window.acWebviewChannel.onmessage === 'function') {
@@ -203,7 +215,11 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
   }
 
   runJavascript(String javascript) async {
-    await _controller.runJavaScript(javascript);
+    try {
+      await _controller.runJavaScript(javascript);
+    } catch (e) {
+      debugPrint('Error running custom javascript: $e');
+    }
   }
 
   @override
