@@ -27,9 +27,15 @@ class AcWsOnWeb {
     this.socket.on(event: eventName, handler: (data, [ack]) async {
       try {
         final requestData = data is String ? jsonDecode(data) : data as Map<String, dynamic>;
+        print('AcWsOnWeb: Received event: $eventName');
+        print('AcWsOnWeb: Request data: $requestData');
+
         bool continueOperation = true;
-        if( interceptor!= null){
+        if( interceptor != null){
+          print('AcWsOnWeb: Calling interceptor...');
           var interceptorResult = await interceptor!(AcWsOnWebInterceptorArgs(eventName: eventName,requestData: requestData));
+          print('AcWsOnWeb: Interceptor result: isSuccess=${interceptorResult.isSuccess()}, continueOperation=${interceptorResult.continueOperation}');
+          
           if(interceptorResult.isSuccess()){
             if(interceptorResult.continueOperation == false){
               continueOperation = false;
@@ -48,6 +54,7 @@ class AcWsOnWeb {
         }
 
         if(continueOperation == true){
+          print('AcWsOnWeb: Proceeding with request handling...');
           final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
           final url = (requestData['url'] ?? '').toString();
           final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
