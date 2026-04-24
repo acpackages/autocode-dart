@@ -33,15 +33,12 @@ class AcWsOnWeb {
         bool continueOperation = true;
         if( interceptor != null){
           print('AcWsOnWeb: Calling interceptor...');
-          var interceptorResult = await interceptor!(AcWsOnWebInterceptorArgs(eventName: eventName,requestData: requestData));
+          var interceptorResult = await interceptor!(AcWsOnWebInterceptorArgs(eventName: eventName,requestData: requestData,ack:ack));
           print('AcWsOnWeb: Interceptor result: isSuccess=${interceptorResult.isSuccess()}, continueOperation=${interceptorResult.continueOperation}');
           
           if(interceptorResult.isSuccess()){
             if(interceptorResult.continueOperation == false){
               continueOperation = false;
-              if (ack != null) {
-                ack(interceptorResult.webResponse);
-              }
             }
           }
           else{
@@ -226,6 +223,6 @@ class AcWsOnWeb {
 class AcWsOnWebInterceptorArgs{
   String eventName = "";
   Map<String, dynamic> requestData = {};
-
-  AcWsOnWebInterceptorArgs({required this.eventName,required this.requestData}){}
+  dynamic Function(dynamic)? ack;
+  AcWsOnWebInterceptorArgs({required this.eventName,required this.requestData,this.ack}){}
 }
