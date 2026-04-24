@@ -5,10 +5,13 @@ import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:ac_ws_server/ac_ws_server.dart';
 
+import 'ac_ws_on_web_interceptor_result.dart';
+
 class AcWsOnWeb {
   final AcWsSocket socket;
   final AcWeb app;
   final String eventName;
+  Future<AcWsOnWebInterceptorResult> Function(AcWsOnWebInterceptorArgs args)? interceptor;
   final AcLogger logger = AcLogger(
     logMessages: true,
     logDirectory: 'logs',
@@ -16,7 +19,7 @@ class AcWsOnWeb {
     logFileName: 'ac-ws-on-web.log',
   );
 
-  AcWsOnWeb(this.socket, this.app, {this.eventName = 'web_request'}) {
+  AcWsOnWeb(this.socket, this.app, {this.eventName = 'web_request', this.interceptor}) {
     _setupWsHandlers();
   }
 
@@ -24,51 +27,74 @@ class AcWsOnWeb {
     this.socket.on(event: eventName, handler: (data, [ack]) async {
       try {
         final requestData = data is String ? jsonDecode(data) : data as Map<String, dynamic>;
-        final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
-        final url = (requestData['url'] ?? '').toString();
-        final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
-
-        // Find the route definition
-        AcWebRouteDefinition? routeDefinition;
-        Map<String, String> pathParams = {};
-
-        for (var entry in app.routeDefinitions.values) {
-
-          final routeMethod = entry.method.toLowerCase();
-          final routePath = entry.url;
-          final cleanRoutePath = routePath.startsWith('/') ? routePath.substring(1) : routePath;
-          if (routeMethod.equalsIgnoreCase(method)) {
-            if (cleanRoutePath == cleanUrl) {
-              routeDefinition = entry;
-              break;
-            } else {
-              // Try pattern matching for path parameters
-              final extracted = _extractPathParams(cleanRoutePath, cleanUrl);
-              if (extracted != null) {
-                routeDefinition = entry;
-                pathParams = extracted;
-                break;
+        bool continueOperation = true;
+        if( interceptor!= null){
+          var interceptorResult = await interceptor!(AcWsOnWebInterceptorArgs(eventName: eventName,requestData: requestData));
+          if(interceptorResult.isSuccess()){
+            if(interceptorResult.continueOperation == false){
+              continueOperation = false;
+              if (ack != null) {
+                ack(interceptorResult.webResponse);
               }
             }
           }
-        }
-
-        if (routeDefinition == null) {
-          logger.error("Route not found: $method>$url");
-          if (ack != null) {
-            final response = AcWebResponse.notFound();
-            ack(_createWsResponseFromAcWebResponse(response));
+          else{
+            continueOperation = false;
+            if (ack != null) {
+              ack(interceptorResult.toJson());
+            }
           }
-          return;
+
         }
 
-        final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
-        acWebRequest.pathParameters = pathParams;
-        acWebRequest.internalParams['socket'] = this.socket;
-        final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
-        if (ack != null) {
-          ack(_createWsResponseFromAcWebResponse(webResponse));
+        if(continueOperation == true){
+          final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
+          final url = (requestData['url'] ?? '').toString();
+          final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+
+          // Find the route definition
+          AcWebRouteDefinition? routeDefinition;
+          Map<String, String> pathParams = {};
+
+          for (var entry in app.routeDefinitions.values) {
+
+            final routeMethod = entry.method.toLowerCase();
+            final routePath = entry.url;
+            final cleanRoutePath = routePath.startsWith('/') ? routePath.substring(1) : routePath;
+            if (routeMethod.equalsIgnoreCase(method)) {
+              if (cleanRoutePath == cleanUrl) {
+                routeDefinition = entry;
+                break;
+              } else {
+                // Try pattern matching for path parameters
+                final extracted = _extractPathParams(cleanRoutePath, cleanUrl);
+                if (extracted != null) {
+                  routeDefinition = entry;
+                  pathParams = extracted;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (routeDefinition == null) {
+            logger.error("Route not found: $method>$url");
+            if (ack != null) {
+              final response = AcWebResponse.notFound();
+              ack(_createWsResponseFromAcWebResponse(response));
+            }
+            return;
+          }
+
+          final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
+          acWebRequest.pathParameters = pathParams;
+          acWebRequest.internalParams['socket'] = this.socket;
+          final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
+          if (ack != null) {
+            ack(_createWsResponseFromAcWebResponse(webResponse));
+          }
         }
+
       } catch (e, stack) {
         logger.error("Error handling $eventName: $e");
         logger.error(stack);
@@ -188,4 +214,11 @@ class AcWsOnWeb {
       'headers': response.headers,
     };
   }
+}
+
+class AcWsOnWebInterceptorArgs{
+  String eventName = "";
+  Map<String, dynamic> requestData = {};
+
+  AcWsOnWebInterceptorArgs({required this.eventName,required this.requestData}){}
 }
