@@ -132,8 +132,14 @@ class _AcWebviewState extends State<AcWebview> {
 
       ),
         onConsoleMessage: (controller, consoleMessage) {
-          // DO NOTHING → disables console output
+          debugPrint('WebView Console: ${consoleMessage.message}');
           return;
+        },
+        onReceivedError: (controller, request, error) {
+          debugPrint('WebView Error: ${error.description} (URL: ${request.url})');
+        },
+        onReceivedHttpError: (controller, request, errorResponse) {
+          debugPrint('WebView HTTP Error: ${errorResponse.statusCode} (URL: ${request.url})');
         },
       onLoadStop: (InAppWebViewController ctrl, WebUri? url) async {
         // Inject the compatibility wrapper
