@@ -18,7 +18,7 @@ class AcWebviewOnWeb {
     logFileName: 'ac-webview-on-web.log',
   );
 
-  AcWebviewOnWeb({required this.webview,required this.app, this.actionName = 'web_request', this.interceptor}) {
+  AcWebviewOnWeb({required this.webview,required this.app, this.actionName = 'webRequest', this.interceptor}) {
     webview.onAction(
       name: actionName,
       callback: (AcWebviewChannelAction channelAction) async {
