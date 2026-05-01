@@ -23,12 +23,12 @@ class AcWebviewOnWeb {
       name: actionName,
       callback: (AcWebviewChannelAction channelAction) async {
         try {
-          logger.log('AcWebviewOnWeb: Received message: $channelAction');
+          logger.log('[AcWebviewOnWeb]: Received message: $channelAction');
           Map<String,dynamic> requestData = channelAction.data!;
           bool continueOperation = true;
           bool waitingForResponse = false;
           if (interceptor != null) {
-            logger.log('AcWebviewOnWeb: Calling interceptor...');
+            logger.log('[AcWebviewOnWeb]: Calling interceptor...');
             void callbackFunction(Map<String,dynamic> actionResponse) {
               channelAction.response = actionResponse;
               waitingForResponse = false;
@@ -39,11 +39,14 @@ class AcWebviewOnWeb {
               requestData: requestData,
               callback: callbackFunction,
             ));
-            logger.log('AcWebviewOnWeb: Interceptor result: isSuccess=${interceptorResult.isSuccess()}, continueOperation=${interceptorResult.continueOperation}');
+            logger.log('[AcWebviewOnWeb]: Interceptor result: isSuccess=${interceptorResult.isSuccess()}, continueOperation=${interceptorResult.continueOperation}');
 
             if (interceptorResult.isSuccess()) {
               if (interceptorResult.continueOperation == false) {
                 continueOperation = false;
+              }
+              else{
+                waitingForResponse = false;
               }
             } else {
               waitingForResponse = false;
@@ -53,7 +56,7 @@ class AcWebviewOnWeb {
           }
 
           if (continueOperation) {
-            logger.log('AcWebviewOnWeb: Proceeding with request handling...');
+            logger.log('[AcWebviewOnWeb]: Proceeding with request handling...');
             final method = (requestData['method'] ?? 'GET').toString().toLowerCase();
             final url = (requestData['url'] ?? '').toString();
             final cleanUrl = url.startsWith('/') ? url.substring(1) : url;
@@ -88,15 +91,19 @@ class AcWebviewOnWeb {
               channelAction.response = _createChannelResponseFromAcWebResponse(response);
             }
             else{
+              logger.log("[AcWebviewOnWeb]: Creating web request");
               final acWebRequest = _createAcWebRequestFromChannelData(requestData);
               acWebRequest.pathParameters = pathParams;
+              logger.log("[AcWebviewOnWeb]: Handling web request");
               final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
+              logger.log("[AcWebviewOnWeb]: Generating web response");
               channelAction.response = _createChannelResponseFromAcWebResponse(webResponse);
             }
 
           }
 
           while(waitingForResponse){
+            logger.log("[AcWebviewOnWeb]: Waiting for operation to complete");
             await Future.delayed(Duration(microseconds: 500));
           }
 
@@ -106,6 +113,7 @@ class AcWebviewOnWeb {
           final response = AcWebResponse.internalError(data: e.toString());
           channelAction.response = _createChannelResponseFromAcWebResponse(response);
         }
+        logger.log("[AcWebviewOnWeb]: Returning channel action");
         return channelAction;
       },
     );

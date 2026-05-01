@@ -22,8 +22,8 @@ class AcWebDataDictionaryUtils {
     final result = AcDataDictionaryWebAutoExecuteResult();
     final response = AcWebApiResponse();
     try{
-      logger.log("Getting rows for table $tableName using post method...");
-      logger.log(["Request : ",request]);
+      logger.log("[AcWebDataDictionaryUtils] : Getting rows for table $tableName using post method...");
+      logger.log(["[AcWebDataDictionaryUtils] : Request : ",request]);
         String fromName = "";
         if(tableName.isNotEmpty){
           AcDDTable? acDDTable = AcDataDictionary.getTable(tableName:tableName,dataDictionaryName: dataDictionaryName);
@@ -45,19 +45,19 @@ class AcWebDataDictionaryUtils {
         }
 
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
-          logger.log("Found include columns key");
+          logger.log("[AcWebDataDictionaryUtils] : Found include columns key");
           acDDSelectStatement.includeColumns = List<String>.from(
             request.post[AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey],
           );
         }
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey)) {
-          logger.log("Found exclude columns key");
+          logger.log("[AcWebDataDictionaryUtils] : Found exclude columns key");
           acDDSelectStatement.excludeColumns = List<String>.from(
             request.post[AcDataDictionaryAutoApiConfig.selectParameterExcludeColumnsKey],
           );
         }
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
-          logger.log("Found select query key");
+          logger.log("[AcWebDataDictionaryUtils] : Found select query key");
           List<String> queryColumns = List.empty(growable: true);
           if(acDDSelectStatement.tableName.isNotEmpty){
             var acDDTable = AcDataDictionary.getTable(
@@ -79,7 +79,7 @@ class AcWebDataDictionaryUtils {
           }
           acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
           for (final columnName in queryColumns) {
-            logger.log("Using column name for select query contains operation");
+            logger.log("[AcWebDataDictionaryUtils] : Using column name for select query contains operation");
             acDDSelectStatement.addCondition(
               key: columnName,
               operator: AcEnumConditionOperator.contains,
@@ -89,7 +89,7 @@ class AcWebDataDictionaryUtils {
           acDDSelectStatement.endGroup();
         }
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterFiltersKey)) {
-          logger.log("Found filter key");
+          logger.log("[AcWebDataDictionaryUtils] : Found filter key");
           final filters = request.post[AcDataDictionaryAutoApiConfig.selectParameterFiltersKey] as Map<String, dynamic>;
           acDDSelectStatement.setConditionsFromFilters(filters: filters);
         }
@@ -109,7 +109,7 @@ class AcWebDataDictionaryUtils {
           );
           if(acDDTable!=null){
             for (var columnName in acDDTable.getColumnNames()) {
-              logger.log('Checking request for column $columnName');
+              logger.log('[AcWebDataDictionaryUtils] : Checking request for column $columnName');
               if(request.post.containsKey(columnName)){
                 acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: request.post.get(columnName));
               }
@@ -123,7 +123,7 @@ class AcWebDataDictionaryUtils {
           );
           if(acDDView!=null){
             for (var columnName in acDDView.getColumnNames()) {
-              logger.log('Checking request for column $columnName');
+              logger.log('[AcWebDataDictionaryUtils] : Checking request for column $columnName');
               if(request.post.containsKey(columnName)){
                 acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: request.post.get(columnName));
               }
@@ -133,7 +133,7 @@ class AcWebDataDictionaryUtils {
 
         if(!allRows){
           if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)) {
-            logger.log("Found page number key");
+            logger.log("[AcWebDataDictionaryUtils] : Found page number key");
             acDDSelectStatement.pageNumber =
             request.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] is int
                 ? request.post[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey]
@@ -143,7 +143,7 @@ class AcWebDataDictionaryUtils {
             acDDSelectStatement.pageNumber = 1;
           }
           if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey)) {
-            logger.log("Found page size key");
+            logger.log("[AcWebDataDictionaryUtils] : Found page size key");
             acDDSelectStatement.pageSize =
             request.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey] is int
                 ? request.post[AcDataDictionaryAutoApiConfig.selectParameterPageSizeKey]
@@ -154,17 +154,17 @@ class AcWebDataDictionaryUtils {
         }
 
         if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterOrderByKey)) {
-          logger.log("Found order by key");
+          logger.log("[AcWebDataDictionaryUtils] : Found order by key");
           acDDSelectStatement.orderBy = request.post[AcDataDictionaryAutoApiConfig.selectParameterOrderByKey];
         }
 
-        logger.log(["Getting response from database for sql statement",acDDSelectStatement]);
+        logger.log(["[AcWebDataDictionaryUtils] : Getting response from database for sql statement",acDDSelectStatement]);
         AcSqlDbTable acSqlDbTable = AcSqlDbTable(tableName: tableName,dao: dao);
         final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
             acDDSelectStatement: acDDSelectStatement
         );
       result.selectStatement = acDDSelectStatement;
-        logger.log(["Response : ",getResponse]);
+        logger.log(["[AcWebDataDictionaryUtils] : Response : ",getResponse]);
         response.setFromSqlDaoResult(result: getResponse);
     }
     catch(ex,stack){

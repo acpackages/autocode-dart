@@ -35,8 +35,9 @@ class AcJsonUtils {
 
       return getJsonDataFromInstance(instance: instance);
     }
-    catch(ex){
+    catch(ex,stack){
       print("Error instance to json");
+      print(stack);
       print(instance.runtimeType);
       throw ex;
     }
@@ -58,34 +59,40 @@ class AcJsonUtils {
   static Map<String, dynamic> getJsonDataFromInstance({
     required Object instance,
   }) {
-    final result = <String, dynamic>{};
-    final instanceMirror = acReflect(instance);
-    final classMirror = instanceMirror.classMirror;
+    var result = <String, dynamic>{};
+    if(instance is Map){
+      result = Map.from(instance);
+    }
+    else{
+      final instanceMirror = acReflect(instance);
+      final classMirror = instanceMirror.classMirror;
 
-    for (final member in classMirror.instanceMembers.values) {
-      if (member is! AcVariableMirror || member.isStatic) {
-        continue;
-      }
-
-      final fieldSymbol = member.simpleName;
-      String jsonKey = symbolToName(fieldSymbol);
-
-      final bindProps = member.metadata.whereType<AcBindJsonProperty>().firstOrNull;
-
-      if (bindProps != null) {
-        if (bindProps.key != null) {
-          jsonKey = bindProps.key!;
-        }
-        if (bindProps.skipInToJson == true) {
+      for (final member in classMirror.instanceMembers.values) {
+        if (member is! AcVariableMirror || member.isStatic) {
           continue;
         }
-      }
 
-      var propertyValue = instanceMirror.getField(fieldSymbol);
-      if (propertyValue != null) {
-        result[jsonKey] = getJsonForPropertyValue(propertyValue);
+        final fieldSymbol = member.simpleName;
+        String jsonKey = symbolToName(fieldSymbol);
+
+        final bindProps = member.metadata.whereType<AcBindJsonProperty>().firstOrNull;
+
+        if (bindProps != null) {
+          if (bindProps.key != null) {
+            jsonKey = bindProps.key!;
+          }
+          if (bindProps.skipInToJson == true) {
+            continue;
+          }
+        }
+
+        var propertyValue = instanceMirror.getField(fieldSymbol);
+        if (propertyValue != null) {
+          result[jsonKey] = getJsonForPropertyValue(propertyValue);
+        }
       }
     }
+
     return result;
   }
 

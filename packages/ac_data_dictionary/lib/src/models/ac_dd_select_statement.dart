@@ -37,6 +37,8 @@ class AcDDSelectStatement {
   bool _isDefaultConditionValuesSet = false;
   String _condition = "";
   Map<String, dynamic> _defaultParameters = Map.from({});
+
+  @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
   AcLogger logger = AcLogger(logMessages: false);
 
   /* AcDoc({"summary": "The target database type for SQL dialect generation."}) */

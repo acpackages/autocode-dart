@@ -11,6 +11,7 @@ import 'package:ac_sql/ac_sql.dart';
 }) */
 class AcBaseSqlDao {
   /* AcDoc({"summary": "Logger instance for logging DAO operations."}) */
+  @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
   late AcLogger logger;
 
   /* AcDoc({"summary": "The connection configuration for the database."}) */

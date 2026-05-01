@@ -29,6 +29,7 @@ class AcResult {
   static const String keyStatus = 'status';
   static const String keyValue = 'value';
 
+  @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
   AcLogger? logger;
 
   /* AcDoc({ "description": "Result code representing status of operation." }) */
