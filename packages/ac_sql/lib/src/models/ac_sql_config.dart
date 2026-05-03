@@ -4,8 +4,7 @@ import 'package:autocode/autocode.dart';
 @AcReflectable()
 class AcSqlConfig {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyCascadeDeleteDestinationRows =
-      'cascadeDeleteDestinationRows';
+  static const String keyCascadeDeleteDestinationRows = 'cascadeDeleteDestinationRows';
   static const String keyCascadeDeleteSourceRows = 'cascadeDeleteSourceRows';
   static const String keySqliteConf = 'sqliteConfig';
 

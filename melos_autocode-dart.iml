@@ -487,6 +487,9 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

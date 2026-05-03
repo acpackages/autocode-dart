@@ -13,6 +13,8 @@ dependencies:
     path: '../ac_extensions'
   ac_mirrors:
     path: '../ac_mirrors'
+  ac_sql:
+    path: '../ac_sql'
   autocode:
     path: '../autocode'
 
