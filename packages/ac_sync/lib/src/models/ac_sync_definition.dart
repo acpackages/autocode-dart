@@ -1,20 +1,18 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
+import 'ac_sync_table_definition.dart';
 
 @AcReflectable()
 class AcSyncDefinition {
   static const String keyDefinitionName = 'definitionName';
-  static const String keyExcludeTables = 'excludeTables';
-  static const String keyIncludeTables = 'includeTables';
+  static const String keyTableDefinitions = 'tableDefinitions';
 
   String definitionName = "";
-  List<String> excludeTables = List.empty(growable: true);
-  List<String> includeTables = List.empty(growable: true);
+  List<AcSyncTableDefinition> tableDefinitions = List.empty(growable: true);
 
   AcSyncDefinition({
     this.definitionName = "",
-    this.excludeTables = const [],
-    this.includeTables = const [],
+    this.tableDefinitions = const [],
   });
 
   factory AcSyncDefinition.instanceFromJson({
@@ -29,6 +27,10 @@ class AcSyncDefinition {
       instance: this,
       jsonData: jsonData,
     );
+    if (jsonData.containsKey(keyTableDefinitions)) {
+      var list = jsonData[keyTableDefinitions] as List<dynamic>;
+      tableDefinitions = list.map((item) => AcSyncTableDefinition.instanceFromJson(jsonData: item)).toList();
+    }
     return this;
   }
 

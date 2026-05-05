@@ -1073,13 +1073,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the final outcome of the initialization process.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> initDatabase({AcBaseSqlDao? dao}) async {
+  Future<AcResult> initDatabase() async {
     final result = AcResult();
-    if (dao != null) {
-      this.dao = dao;
-      acSqlDDTableSchemaDetails.dao = dao;
-      acSqlDDTableSchemaLogs.dao = dao;
-    }
     try {
       logger.log(
         "Initializing database for data dictionary $dataDictionaryName...",
@@ -1247,7 +1242,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
         // acSchemaManager.acDataDictionary = acDataDictionary;
-        final initSchemaResult = await acSchemaManager.initDatabase(dao: dao);
+        final initSchemaResult = await acSchemaManager.initDatabase();
         if (initSchemaResult.isSuccess()) {
           result.setSuccess(
             message: 'Schema data dictionary initialized successfully',

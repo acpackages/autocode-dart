@@ -490,6 +490,18 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_webview_on_web/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_ws/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_ws/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_ws/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_websocket/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_websocket/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_websocket/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_ws/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_ws/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_ws/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_socket/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_socket/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_socket/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

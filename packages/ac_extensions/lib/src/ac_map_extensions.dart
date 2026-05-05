@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
-extension AcMapExtensions on Map<String, dynamic> {
+extension AcMapExtensions on Map {
 
   Map<K, V> castMap<K, V>() {
     return Map<K, V>.fromEntries(
@@ -91,7 +91,7 @@ extension AcMapExtensions on Map<String, dynamic> {
   String getString(dynamic key,{String defaultValue = ''}) =>
       containsKey(key) && this[key] != null ? this[key].toString() : defaultValue;
 
-  Map<String, dynamic> merge(Map<String, dynamic> other) {
+  Map merge(Map other) {
     other.forEach((k, v) => this[k] = v);
     return this;
   }
@@ -166,7 +166,7 @@ extension AcMapExtensions on Map<String, dynamic> {
     return result;
   }
 
-  String toQueryString() => Uri(queryParameters: this).query;
+  String toQueryString() => Uri(queryParameters: Map<String, dynamic>.from(this)).query;
 
   List<T> toValuesList<T>() => values.map((e) => e as T).toList();
 }

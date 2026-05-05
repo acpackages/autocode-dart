@@ -7,3 +7,4 @@
 pubspec.lock
 environment.json
 /third_party_repositories/
+*.db

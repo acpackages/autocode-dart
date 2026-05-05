@@ -1,0 +1,22 @@
+name: ac_web_on_ws
+description: A bridge between AcWeb and WebSockets using the unified ac_web_socket package.
+version: 0.0.1
+publish_to: none
+repository: https://github.com/acpackages/autocode-dart
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  autocode:
+    path: ../autocode
+  ac_extensions:
+    path: ../ac_extensions
+  ac_web:
+    path: ../ac_web
+  ac_web_socket:
+    path: ../ac_web_socket
+
+dev_dependencies:
+  lints: ^2.0.0
+  test: ^1.24.0
