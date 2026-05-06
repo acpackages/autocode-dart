@@ -183,7 +183,6 @@ class AcSyncOnWs {
                   },
                 );
                 if (onSyncComplete != null) onSyncComplete!();
-                tempFile.delete();
                 result.setSuccess(message: "Sync stream completed successfully");
                 print("AcSyncOnWs: Sync stream complete.");
               } catch (e, stack) {
