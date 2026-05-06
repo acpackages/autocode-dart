@@ -116,6 +116,19 @@ class AcWebSocket {
   }
 
   void _handleBinary({required Uint8List data}) {
+    if (data.length > 2 && data[0] == 0xAC) {
+      final eventLen = data[1];
+      if (data.length >= 2 + eventLen) {
+        try {
+          final eventName = utf8.decode(data.sublist(2, 2 + eventLen));
+          final payload = data.sublist(2 + eventLen);
+          _handleEvent(event: eventName, data: payload);
+          return;
+        } catch (e) {
+          // Fallback to raw binary if decoding fails
+        }
+      }
+    }
     _handleEvent(event: 'bin', data: data);
   }
 
@@ -239,6 +252,216 @@ class AcWebSocket {
     } catch (e) {
       print("AcWebSocket: Error sending binary: $e");
     }
+  }
+
+  /// Emits a binary event. Use this for high-performance streaming (video/audio).
+  ///
+  /// Protocol: [0xAC] [eventLen (1 byte)] [event...] [payload...]
+  void emitBinary({required String event, required List<int> data}) {
+    try {
+      final eventBytes = utf8.encode(event);
+      if (eventBytes.length > 255) throw Exception("Event name too long for binary event");
+      
+      final buffer = Uint8List(2 + eventBytes.length + data.length);
+      buffer[0] = 0xAC; 
+      buffer[1] = eventBytes.length;
+      buffer.setRange(2, 2 + eventBytes.length, eventBytes);
+      buffer.setRange(2 + eventBytes.length, buffer.length, data);
+      _webSocket.add(buffer);
+    } catch (e) {
+      print("AcWebSocket: Error sending binary event: $e");
+    }
+  }
+
+  /// Emits a stream of data. If data is List<int>, it's sent as a sequence of binary events.
+  /// Otherwise, it's sent via JSON (Base64 for binary).
+  void emitStream({
+    required String event,
+    required Stream<dynamic> stream,
+    Map<String, dynamic>? metadata,
+    bool binary = true,
+  }) {
+    final String transferId = "stream_${DateTime.now().millisecondsSinceEpoch}_$id";
+
+    // 1. Send start notification (JSON)
+    emit(event: event, data: {
+      'action': 'start',
+      'transferId': transferId,
+      'metadata': metadata,
+      'isBinary': binary,
+    });
+
+    // 2. Send chunks
+    stream.listen((data) {
+      if (binary && data is List<int>) {
+        emitBinary(event: event, data: data);
+      } else {
+        dynamic payload = data;
+        if (data is List<int>) payload = base64Encode(data);
+        
+        emit(event: event, data: {
+          'action': 'chunk',
+          'transferId': transferId,
+          'data': payload,
+        });
+      }
+    }, onDone: () {
+      // 3. Send end notification
+      emit(event: event, data: {
+        'action': 'end',
+        'transferId': transferId,
+      });
+    });
+  }
+
+  /// Registers a handler for incoming streams.
+  void onStream({
+    required String event,
+    required void Function({
+      required String transferId,
+      required Stream<dynamic> stream,
+      Map<String, dynamic>? metadata,
+    }) handler,
+  }) {
+    final Map<String, StreamController<dynamic>> controllers = {};
+
+    on(event: event, handler: ({data, callback}) {
+      if (data is List<int>) {
+        // This is a binary chunk for an ongoing stream.
+        // We don't have a transferId here in the binary frame, 
+        // so we assume it belongs to the most recent stream for this event.
+        // For multi-stream support, use JSON-based streaming or tagged binary streams.
+        for (final controller in controllers.values) {
+           if (!controller.isClosed) controller.add(data);
+        }
+        return;
+      }
+
+      final Map<String, dynamic> payload = Map<String, dynamic>.from(data);
+      final String? action = payload['action'] as String?;
+      final String? transferId = payload['transferId'] as String?;
+
+      if (action == 'start' && transferId != null) {
+        final StreamController<dynamic> controller = StreamController<dynamic>();
+        controllers[transferId] = controller;
+
+        handler(
+          transferId: transferId,
+          stream: controller.stream,
+          metadata: payload['metadata'] != null ? Map<String, dynamic>.from(payload['metadata']) : null,
+        );
+      } else if (action == 'chunk' && transferId != null) {
+        controllers[transferId]?.add(payload['data']);
+      } else if (action == 'end' && transferId != null) {
+        controllers.remove(transferId)?.close();
+      }
+
+      if (callback != null) {
+        callback(response: {'success': true});
+      }
+    });
+  }
+
+  /// Sends a file in chunks with a progress callback.
+  ///
+  /// [file] The file to be sent.
+  /// [event] The event name to use for the transfer (default: 'file').
+  /// [metadata] Optional metadata to send with the file.
+  /// [onProgress] A callback that receives the progress as a double (0.0 to 1.0).
+  /// [chunkSize] The size of each chunk in bytes (default: 64KB).
+  Future<void> sendFile({
+    required File file,
+    String event = 'file',
+    Map<String, dynamic>? metadata,
+    void Function(double progress)? onProgress,
+    int chunkSize = 64 * 1024,
+  }) async {
+    final int totalSize = await file.length();
+    final String name = file.path.split(Platform.pathSeparator).last;
+    final String transferId = "${DateTime.now().millisecondsSinceEpoch}_$id";
+
+    // 1. Send start
+    await emit(event: event, data: {
+      'action': 'start',
+      'transferId': transferId,
+      'name': name,
+      'size': totalSize,
+      'metadata': metadata,
+    });
+
+    // 2. Send chunks
+    final RandomAccessFile raf = await file.open(mode: FileMode.read);
+    try {
+      int sent = 0;
+      while (sent < totalSize) {
+        final int length = (totalSize - sent) < chunkSize ? (totalSize - sent) : chunkSize;
+        final List<int> buffer = await raf.read(length);
+
+        await emit(event: event, data: {
+          'action': 'chunk',
+          'transferId': transferId,
+          'data': base64Encode(buffer),
+        });
+
+        sent += length;
+        if (onProgress != null) {
+          onProgress(sent / totalSize);
+        }
+      }
+    } finally {
+      await raf.close();
+    }
+
+    // 3. Send end
+    await emit(event: event, data: {
+      'action': 'end',
+      'transferId': transferId,
+    });
+  }
+
+  /// Registers a handler for incoming file transfers.
+  ///
+  /// [event] The event name to listen for (default: 'file').
+  /// [handler] The callback to execute when a file transfer starts.
+  void onFile({
+    String event = 'file',
+    required void Function({
+      required String transferId,
+      required String name,
+      required int totalSize,
+      required Stream<List<int>> stream,
+      Map<String, dynamic>? metadata,
+    }) handler,
+  }) {
+    final Map<String, StreamController<List<int>>> controllers = {};
+
+    on(event: event, handler: ({data, callback}) {
+      final Map<String, dynamic> payload = Map<String, dynamic>.from(data);
+      final String action = payload['action'] as String;
+      final String transferId = payload['transferId'] as String;
+
+      if (action == 'start') {
+        final StreamController<List<int>> controller = StreamController<List<int>>();
+        controllers[transferId] = controller;
+
+        handler(
+          transferId: transferId,
+          name: payload['name'] as String,
+          totalSize: payload['size'] as int,
+          stream: controller.stream,
+          metadata: payload['metadata'] != null ? Map<String, dynamic>.from(payload['metadata']) : null,
+        );
+      } else if (action == 'chunk') {
+        final List<int> chunk = base64Decode(payload['data'] as String);
+        controllers[transferId]?.add(chunk);
+      } else if (action == 'end') {
+        controllers.remove(transferId)?.close();
+      }
+
+      if (callback != null) {
+        callback(response: {'success': true});
+      }
+    });
   }
 
   void join({required String room}) {

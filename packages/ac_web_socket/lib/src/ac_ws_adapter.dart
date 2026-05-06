@@ -26,7 +26,11 @@ class AcWsDefaultAdapter extends AcWsAdapter {
     if (sockets != null) {
       for (final socket in sockets) {
         if (except != null && except.contains(socket.id)) continue;
-        socket.emit(event: event, data: data);
+        if (data is List<int>) {
+          socket.emitBinary(event: event, data: data);
+        } else {
+          socket.emit(event: event, data: data);
+        }
       }
     }
   }
