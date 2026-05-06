@@ -134,6 +134,10 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
                 Future<void> Function(AcNotifySuccessCallbackArgs callbackArgs) notifySuccessCallback = (AcNotifySuccessCallbackArgs callbackArgs) async {
                   print("AcSyncDestinationDatabase: Received sync success confirmation from source.");
                   result.setSuccess();
+                  
+                  // Delete rows that are marked to be deleted after successful sync (e.g. logs/queue)
+                  await deleteSyncedRows(changes: localChanges);
+
                   if(callbackArgs.lastSyncChangeLogId! > newLastChangeLogId){
                     print("AcSyncDestinationDatabase: Remote has more changes (${callbackArgs.lastSyncChangeLogId} > $newLastChangeLogId). Triggering nested sync...");
                     result.setFromResult(result:await sync(isNested: false));

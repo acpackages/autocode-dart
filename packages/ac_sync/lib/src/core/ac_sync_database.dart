@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
@@ -33,18 +35,18 @@ class AcSyncDatabase {
     AcResult result = AcResult();
     var databaseManager = AcSyncDatabaseManager();
 
-    List<String> tables = [];
+    Map<String, AcSyncTableDefinition> tableDefinitionsMap = {};
     for(var definition in syncDefinitions.values){
-      tables.addAll(definition.tableDefinitions.map((t) => t.tableName));
+      for(var tableDef in definition.tableDefinitions){
+        tableDefinitionsMap.putIfAbsent(tableDef.tableName, () => tableDef);
+      }
     }
 
-    // Remove duplicates
-    tables = tables.toSet().toList();
-    print("AcSyncDatabase: Creating triggers for tables: ${tables.join(', ')}");
+    print("AcSyncDatabase: Creating triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
 
     await databaseManager.createSyncTriggers(
         dao: dao,
-        tables: tables,
+        tableDefinitions: tableDefinitionsMap.values.toList(),
         databaseType: databaseType
     );
 
@@ -126,6 +128,46 @@ class AcSyncDatabase {
     }
     return result;
   }
+  Future<AcResult> deleteSyncedRows({required AcSyncChanges changes, String definitionName = 'default'}) async {
+    AcResult result = AcResult();
+    if (dao == null) return result.setFailure(message: "DAO not set");
+
+    if (!syncDefinitions.containsKey(definitionName)) {
+      return result.setFailure(message: "Definition not found");
+    }
+
+    final definition = syncDefinitions[definitionName]!;
+    try {
+      for (var tableName in changes.tableChanges.keys) {
+        final tableDef = definition.tableDefinitions.firstWhere((t) => t.tableName == tableName);
+        if (tableDef != null && tableDef.deleteAfterSyncFromDestination) {
+          final tableChanges = changes.tableChanges[tableName]!;
+          final pkField = tableDef.primaryKeyField.isNotEmpty ? tableDef.primaryKeyField : 'id';
+
+          // Rows that were successfully sent (inserts and updates)
+          final rowsToDelete = [...tableChanges.rowsToInsert, ...tableChanges.rowsToUpdate];
+          
+          if (rowsToDelete.isNotEmpty) {
+            print("AcSyncDatabase: Deleting ${rowsToDelete.length} synced rows from '$tableName' as per deleteAfterSyncFromDestination flag.");
+            for (var rowChange in rowsToDelete) {
+              final rowId = rowChange.rowId ?? (rowChange.row != null ? rowChange.row![pkField] : null);
+              if (rowId != null) {
+                await dao!.deleteRows(
+                  tableName: tableName,
+                  condition: "$pkField = '$rowId'",
+                );
+              }
+            }
+          }
+        }
+      }
+      result.setSuccess();
+    } catch (e, stack) {
+      print("AcSyncDatabase: Error deleting synced rows: $e");
+      result.setException(exception: e, stackTrace: stack);
+    }
+    return result;
+  }
 
   Future<AcResult> getLastChangeLogId() async {
     AcResult result = AcResult();
@@ -157,76 +199,101 @@ class AcSyncDatabase {
     }
 
     if(syncDefinitions.containsKey(definitionName)){
-      var tablesResult = await dao!.getRows(
-        statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.tableName} FROM ${AcSyncTables.acSyncChangeLogs} "
-            "WHERE ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId",
+      // 1. Fetch all logs since lastSyncId
+      var logsResult = await dao!.getRows(
+        statement: "SELECT * FROM ${AcSyncTables.acSyncChangeLogs} "
+            "WHERE ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId "
+            "ORDER BY ${TblAcSyncChangeLogs.syncChangeLogId} ASC",
       );
 
-      if (!tablesResult.isSuccess()){
-        print("AcSyncDatabase: Failed to get tables with changes: ${tablesResult.message}");
-        result.setFromResult(result: tablesResult);
+      if (!logsResult.isSuccess()){
+        print("AcSyncDatabase: Failed to get change logs: ${logsResult.message}");
+        result.setFromResult(result: logsResult);
         return result;
       }
 
-      List<String> tablesWithChanges = List.empty(growable: true);
-      for(var row in tablesResult.rows){
-        tablesWithChanges.add(row.getString(TblAcSyncChangeLogs.tableName));
-      }
-      print("AcSyncDatabase: AcSyncTables with changes: ${tablesWithChanges.join(', ')}");
-
       AcSyncChanges changes = AcSyncChanges(tableChanges: {});
-      changes.lastChangeLogId = lastSyncId;
+      int maxLogId = lastSyncId;
+
+      // Group logs by table and rowId to merge changes
+      Map<String, Map<String, List<Map<String,dynamic>>>> groupedLogs = {};
+
+      for(var log in logsResult.rows){
+        int logId = log.getInt(TblAcSyncChangeLogs.syncChangeLogId);
+        if(logId > maxLogId) maxLogId = logId;
+
+        String tableName = log.getString(TblAcSyncChangeLogs.tableName);
+        String rowId = log.getString(TblAcSyncChangeLogs.rowId);
+
+        groupedLogs.putIfAbsent(tableName, () => {});
+        groupedLogs[tableName]!.putIfAbsent(rowId, () => []);
+        groupedLogs[tableName]![rowId]!.add(log);
+      }
 
       AcSyncDefinition definition = syncDefinitions[definitionName]!;
       for(var tableDefinition in definition.tableDefinitions){
         String tableName = tableDefinition.tableName;
-        String primaryKeyField = tableDefinition.primaryKeyField;
+        if(!groupedLogs.containsKey(tableName)) continue;
+
         bool continueOperation = (tableDefinition.syncToSource && isDestination) || (tableDefinition.syncToDestination && !isDestination);
         if(continueOperation){
           var tableChanges = AcSyncTableChanges();
+          var rowsForTable = groupedLogs[tableName]!;
 
-          if(tablesWithChanges.contains(tableName)){
-            var deletedResult = await dao!.getRows(
-              statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
-                  "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
-                  "AND ${TblAcSyncChangeLogs.rowOperation} = 'DELETE' "
-                  "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId",
-            );
-            tableChanges.rowsToDelete = deletedResult.rows.map((r) => AcSyncTableRowChange(operation: 'DELETE',rowId:r[TblAcSyncChangeLogs.rowId].toString())).toList();
+          for(var rowId in rowsForTable.keys){
+            var logs = rowsForTable[rowId]!;
+            
+            String? finalOp;
+            Map<String, dynamic> mergedPayload = {};
+            bool wasInsertedInRange = false;
 
-            // Get all inserted row IDs for this table
-            var insertedResult = await dao!.getRows(
-              statement: "SELECT * FROM $tableName WHERE $primaryKeyField IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
-                  "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
-                  "AND ${TblAcSyncChangeLogs.rowOperation} = 'INSERT' "
-                  "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId)",
-            );
-            tableChanges.rowsToInsert = insertedResult.rows.map((r) => AcSyncTableRowChange(operation: 'INSERT',row:r)).toList();
+            for(var log in logs){
+              String op = log.getString(TblAcSyncChangeLogs.rowOperation);
+              String? payloadStr = log.getString(TblAcSyncChangeLogs.rowPayload);
+              Map<String, dynamic> payload = {};
+              if(payloadStr != null && payloadStr.isNotEmpty){
+                try {
+                  payload = jsonDecode(payloadStr);
+                } catch (e) {
+                  print("AcSyncDatabase: Error decoding payload for table $tableName row $rowId: $e");
+                }
+              }
 
-            // Get all updated row IDs for this table
-            var updatedResult = await dao!.getRows(
-              statement: "SELECT * FROM $tableName WHERE $primaryKeyField IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
-                  "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
-                  "AND ${TblAcSyncChangeLogs.rowOperation} = 'UPDATE' "
-                  "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId"
-                  ") AND  ${primaryKeyField} NOT IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
-                  "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
-                  "AND ${TblAcSyncChangeLogs.rowOperation} IN ('DELETE','INSERT' )"
-                  "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId"
-                  ")",
-            );
-            tableChanges.rowsToUpdate = updatedResult.rows.map((r) => AcSyncTableRowChange(operation: 'UPDATE',row:r)).toList();
-
-            if (tableChanges.rowsToDelete.isNotEmpty || tableChanges.rowsToInsert.isNotEmpty || tableChanges.rowsToUpdate.isNotEmpty) {
-              print("AcSyncDatabase: Collected changes for '$tableName' - Del: ${tableChanges.rowsToDelete.length}, Ins: ${tableChanges.rowsToInsert.length}, Upd: ${tableChanges.rowsToUpdate.length}");
-              changes.tableChanges[tableName] = tableChanges;
+              if(op == 'INSERT'){
+                finalOp = 'INSERT';
+                wasInsertedInRange = true;
+                mergedPayload.addAll(payload);
+              } else if(op == 'UPDATE'){
+                if(finalOp == null || finalOp == 'UPDATE'){
+                  finalOp = 'UPDATE';
+                }
+                mergedPayload.addAll(payload);
+              } else if(op == 'DELETE'){
+                finalOp = 'DELETE';
+                mergedPayload = {};
+              }
             }
+
+            if(finalOp == 'DELETE'){
+              if(!wasInsertedInRange){
+                tableChanges.rowsToDelete.add(AcSyncTableRowChange(operation: 'DELETE', rowId: rowId));
+              }
+            } else if(finalOp == 'INSERT'){
+              mergedPayload[tableDefinition.primaryKeyField] = rowId;
+              tableChanges.rowsToInsert.add(AcSyncTableRowChange(operation: 'INSERT', row: mergedPayload, rowId: rowId));
+            } else if(finalOp == 'UPDATE'){
+              mergedPayload[tableDefinition.primaryKeyField] = rowId;
+              tableChanges.rowsToUpdate.add(AcSyncTableRowChange(operation: 'UPDATE', row: mergedPayload, rowId: rowId));
+            }
+          }
+
+          if (tableChanges.rowsToDelete.isNotEmpty || tableChanges.rowsToInsert.isNotEmpty || tableChanges.rowsToUpdate.isNotEmpty) {
+            print("AcSyncDatabase: Collected merged changes for '$tableName' - Del: ${tableChanges.rowsToDelete.length}, Ins: ${tableChanges.rowsToInsert.length}, Upd: ${tableChanges.rowsToUpdate.length}");
+            changes.tableChanges[tableName] = tableChanges;
           }
         }
       }
+      changes.lastChangeLogId = maxLogId;
       result.setSuccess(value: changes);
     }
     else{
@@ -298,7 +365,14 @@ class AcSyncDatabase {
     return result;
   }
 
-  AcSyncDefinition registerDefinitionFromDataDictionary({required String dataDictionaryName,List<String> syncToSourceTables = const [],List<String> syncToDestinationTables = const [],String definitionName = 'default',}) {
+  AcSyncDefinition registerDefinitionFromDataDictionary({
+    required String dataDictionaryName,
+    List<String> syncToSourceTables = const [],
+    List<String> syncToDestinationTables = const [],
+    Map<String, List<String>> columnsToSyncMap = const {},
+    List<String> deleteAfterSyncTables = const [],
+    String definitionName = 'default',
+  }) {
     final dd = AcDataDictionary.getInstance(dataDictionaryName: dataDictionaryName);
     List<String> allTables = dd.tables.keys.toList();
 
@@ -320,8 +394,19 @@ class AcSyncDatabase {
             syncToSource = true;
           }
         }
-        print("Definition Table : ${t}, Sync To Source : $syncToSource, Sync To Destination : $syncToDestination");
-        return AcSyncTableDefinition(tableName: t, primaryKeyField: table.getPrimaryKeyColumnName(),syncToSource:syncToSource,syncToDestination: syncToDestination);
+        
+        List<String> columnsToSync = columnsToSyncMap[t] ?? [];
+        bool deleteAfterSync = deleteAfterSyncTables.contains(t);
+
+        print("Definition Table : ${t}, Sync To Source : $syncToSource, Sync To Destination : $syncToDestination, Columns To Sync : ${columnsToSync.length}, Delete After Sync : $deleteAfterSync");
+        return AcSyncTableDefinition(
+          tableName: t, 
+          primaryKeyField: table.getPrimaryKeyColumnName(),
+          syncToSource: syncToSource,
+          syncToDestination: syncToDestination,
+          columnsToSync: columnsToSync,
+          deleteAfterSyncFromDestination: deleteAfterSync
+        );
       }).toList(),
     );
 

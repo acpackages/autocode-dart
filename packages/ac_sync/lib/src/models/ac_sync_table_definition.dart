@@ -7,18 +7,24 @@ class AcSyncTableDefinition {
   static const String keyPrimaryKeyField = 'primaryKeyField';
   static const String keySyncToDestination = 'syncToDestination';
   static const String keySyncToSource = 'syncToSource';
+  static const String keyColumnsToSync = 'columnsToSync';
+  static const String keyDeleteAfterSyncFromDestination = 'deleteAfterSyncFromDestination';
 
 
   String tableName = "";
   String primaryKeyField = "";
   bool syncToSource = false;
   bool syncToDestination = false;
+  List<String> columnsToSync = [];
+  bool deleteAfterSyncFromDestination = false;
 
   AcSyncTableDefinition({
     this.tableName = "",
     this.primaryKeyField = "",
     this.syncToDestination = false,
-    this.syncToSource = false
+    this.syncToSource = false,
+    this.columnsToSync = const [],
+    this.deleteAfterSyncFromDestination = false,
   });
 
   factory AcSyncTableDefinition.instanceFromJson({

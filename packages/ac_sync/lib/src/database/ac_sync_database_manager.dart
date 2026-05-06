@@ -9,7 +9,11 @@ class AcSyncDatabaseManager {
   static const String dataDictionaryName = "_ac_sync";
   AcBaseSqlDao? dao;
   AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown;
-  List<String> _buildMysqlTriggerSql(String table, String pk, String prefix) {
+  List<String> _buildMysqlTriggerSql(String table, String pk, String prefix, List<String> columns) {
+    String insertPayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(NEW.`$c` IS NULL, '\$.$c', '\$._dummy_')").join(', ')})";
+    
+    String updatePayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(OLD.`$c` <=> NEW.`$c`, '\$.$c', '\$._dummy_')").join(', ')})";
+
     return [
       // INSERT Trigger
       """
@@ -20,12 +24,14 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp}
+          ${TblAcSyncChangeLogs.operationTimestamp},
+          ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
           NEW.$pk, 
           'INSERT', 
-          NOW()
+          NOW(),
+          $insertPayload
         );
       END;
       """,
@@ -38,12 +44,14 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp}
+          ${TblAcSyncChangeLogs.operationTimestamp},
+          ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
           NEW.$pk, 
           'UPDATE', 
-          NOW()
+          NOW(),
+          $updatePayload
         );
       END;
       """,
@@ -68,7 +76,11 @@ class AcSyncDatabaseManager {
     ];
   }
 
-  List<String> _buildSqliteTriggerSql(String table, String pk, String prefix) {
+  List<String> _buildSqliteTriggerSql(String table, String pk, String prefix, List<String> columns) {
+    String insertPayload = "json_remove(json_object(${columns.map((c) => "'$c', NEW.\"$c\"").join(', ')}), ${columns.map((c) => "CASE WHEN NEW.\"$c\" IS NULL THEN '\$.$c' ELSE NULL END").join(', ')})";
+    
+    String updatePayload = "json_remove(json_object(${columns.map((c) => "'$c', NEW.\"$c\"").join(', ')}), ${columns.map((c) => "CASE WHEN OLD.\"$c\" IS NEW.\"$c\" THEN '\$.$c' ELSE NULL END").join(', ')})";
+
     return [
       // INSERT Trigger
       """
@@ -78,12 +90,14 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp}
+          ${TblAcSyncChangeLogs.operationTimestamp},
+          ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
           NEW.$pk, 
           'INSERT', 
-          CURRENT_TIMESTAMP
+          CURRENT_TIMESTAMP,
+          $insertPayload
         );
       END;
       """,
@@ -95,12 +109,14 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp}
+          ${TblAcSyncChangeLogs.operationTimestamp},
+          ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
           NEW.$pk, 
           'UPDATE', 
-          CURRENT_TIMESTAMP
+          CURRENT_TIMESTAMP,
+          $updatePayload
         );
       END;
       """,
@@ -128,15 +144,16 @@ class AcSyncDatabaseManager {
     required AcBaseSqlDao dao,
     required String tableName,
     required String primaryKey,
+    required List<String> columns,
     required AcEnumSqlDatabaseType databaseType,
   }) async {
     List<String> triggerSqls = [];
     String triggerPrefix = "_ac_sync_trg_";
 
     if (databaseType == AcEnumSqlDatabaseType.sqlite) {
-      triggerSqls.addAll(_buildSqliteTriggerSql(tableName, primaryKey, triggerPrefix));
+      triggerSqls.addAll(_buildSqliteTriggerSql(tableName, primaryKey, triggerPrefix, columns));
     } else if (databaseType == AcEnumSqlDatabaseType.mysql || databaseType == AcEnumSqlDatabaseType.mariadb) {
-      triggerSqls.addAll(_buildMysqlTriggerSql(tableName, primaryKey, triggerPrefix));
+      triggerSqls.addAll(_buildMysqlTriggerSql(tableName, primaryKey, triggerPrefix, columns));
     }
 
     for (var sql in triggerSqls) {
@@ -146,35 +163,55 @@ class AcSyncDatabaseManager {
 
   Future<void> createSyncTriggers({
     AcBaseSqlDao? dao,
-    required List<String> tables,
+    required List<AcSyncTableDefinition> tableDefinitions,
     required AcEnumSqlDatabaseType databaseType,
   }) async {
     if (dao == null) return;
 
-    for (var table in tables) {
-      // Get columns only to find the primary key
+    for (var tableDef in tableDefinitions) {
+      String table = tableDef.tableName;
+      // Get columns to find all available columns and identify the primary key
       var columnsResult = await dao.getTableColumns(tableName: table);
       if (!columnsResult.isSuccess()) continue;
 
-      String? primaryKey;
+      String? primaryKey = tableDef.primaryKeyField.isNotEmpty ? tableDef.primaryKeyField : null;
+      List<String> allColumns = [];
 
       for (var row in columnsResult.rows) {
         String colName = row[AcDDTableColumn.keyColumnName];
+        allColumns.add(colName);
 
         var properties = row[AcDDTableColumn.keyColumnProperties];
-        if (properties != null && properties[AcEnumDDColumnProperty.primaryKey.value] == true) {
-          primaryKey = colName;
-          break;
+        if (properties != null) {
+          if (properties[AcEnumDDColumnProperty.primaryKey.value] == true) {
+            primaryKey ??= colName;
+          }
         }
       }
 
-      // If no primary key found, fallback to 'id' or first column
       primaryKey ??= "id";
+      
+      // Filter columns based on columnsToSync
+      List<String> columnsToUse = [];
+      if (tableDef.columnsToSync.isNotEmpty) {
+        // Always include Primary Key
+        if (!tableDef.columnsToSync.contains(primaryKey)) {
+          columnsToUse.add(primaryKey);
+        }
+        for (var col in tableDef.columnsToSync) {
+          if (allColumns.contains(col)) {
+            columnsToUse.add(col);
+          }
+        }
+      } else {
+        columnsToUse = allColumns;
+      }
 
       await _createTriggersForTable(
         dao: dao,
         tableName: table,
         primaryKey: primaryKey,
+        columns: columnsToUse,
         databaseType: databaseType,
       );
     }
