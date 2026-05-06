@@ -114,8 +114,7 @@ class AcSyncOnWs {
               ));
             }
           }
-          print(destinationFile.fileName);
-          await tempDestinationFile.rename(destinationFile.fileName);
+          tempDestinationFile.renameSync("${destinationFile.parent.absolute.path}/${destinationFile.fileName}");
           print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
           if (onSyncComplete != null) {
             await onSyncComplete!();
@@ -194,7 +193,7 @@ class AcSyncOnWs {
                 // 3. Remove the copy once done
                 if (await tempFile.exists()) {
                   print("AcSyncOnWs: Removing temporary sync file...");
-                  // await tempFile.delete();
+                  await tempFile.delete();
                 }
               }
             }
