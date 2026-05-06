@@ -13,7 +13,7 @@ class AcSyncDatabase {
   bool isDestination = false;
   void Function()? onSyncStart;
   void Function()? onSyncComplete;
-  void Function(AcSyncProgress progress)? onSyncProgress;
+  void Function({required AcSyncProgress progress})? onSyncProgress;
 
   AcSyncDatabase({this.dao, this.databaseType = AcEnumSqlDatabaseType.unknown,}){
   }

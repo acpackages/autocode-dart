@@ -10,10 +10,11 @@ class AcSyncOnWs {
   final AcSyncDestinationDatabase? syncDestinationDatabase;
   final AcSyncSourceDatabase? syncSourceDatabase;
 
-  Future<void> Function(AcSyncProgress progress)? onSyncProgress;
+  Future<void> Function({required AcSyncProgress progress})? onSyncProgress;
   List<int> _receivedSyncStream = [];
   Future<void> Function()? onSyncStart;
   Future<void> Function()? onSyncComplete;
+  String? _destinationFilePath;
 
   AcSyncOnWs({
     this.socket,
@@ -29,21 +30,26 @@ class AcSyncOnWs {
 
   Future<AcResult> sync() async {
     AcResult result = AcResult();
-    if (socket != null) {
-      print("AcSyncOnWs: Initiating sync request...");
-      await socket!.emit(
-        event: eventName,
-        data: {
-          'syncAction': 'sync',
-          'syncData': {},
-        },
-        callback: ({response}) {
-          if (response != null) {
-            result = AcResult.instanceFromJson(jsonData: response);
-            print("AcSyncOnWs: Sync request response: ${result.isSuccess() ? 'Success' : 'Failure - ' + result.message}");
-          }
-        },
-      );
+    if (socket != null && syncDestinationDatabase != null) {
+      print("AcSyncOnWs: Initiating sync request from database...");
+      result = await this.syncDestinationDatabase!.sync();
+    } else {
+      result.setFailure(message: "Socket not set");
+    }
+    return result;
+  }
+
+  Future<AcResult> getDatabaseFileFromSource({required String destinationFilePath}) async {
+    AcResult result = AcResult();
+    if (socket != null && syncDestinationDatabase != null) {
+      this._destinationFilePath = destinationFilePath;
+      Map<String,dynamic> data = {
+        'syncAction':'getDatabaseFileForDestination',
+        'syncData':{}
+      };
+      this.socket!.emit(event: eventName,data:data );
+      print("AcSyncOnWs: Initiating sync request from database...");
+      result = await this.syncDestinationDatabase!.sync();
     } else {
       result.setFailure(message: "Socket not set");
     }
@@ -84,16 +90,22 @@ class AcSyncOnWs {
       syncDestinationDatabase!.notifyChangesToSourceFun = notifyChangesCallback;
       syncDestinationDatabase!.notifySyncSuccessToSourceFun = notifySuccessCallback;
 
-      socket!.onFile(event: eventName, handler: ({required transferId, required name, required totalSize, required stream, metadata}) async {
+      socket!.onFile(event: "${eventName}DestinationFile", handler: ({required transferId, required name, required totalSize, required stream, metadata}) async {
           print("AcSyncOnWs: Receiving sync stream start. Total size: $totalSize");
           if (onSyncStart != null) onSyncStart!();
-          _receivedSyncStream = [];
+          File destinationFile = File(_destinationFilePath!);
+          String tempFilePath = "${destinationFile.parent}/-ac-sync-temp-file-${Autocode.uuid()}";
+          File tempDestinationFile = File(tempFilePath);
+          if(!tempDestinationFile.existsSync()){
+            tempDestinationFile.createSync(recursive: true);
+          }
+
           int received = 0;
           await for (final chunk in stream) {
-            _receivedSyncStream.addAll(chunk);
+            tempDestinationFile.writeAsBytesSync(chunk,mode: FileMode.append,flush: true);
             received += chunk.length;
             if (onSyncProgress != null) {
-              onSyncProgress!(AcSyncProgress(
+              onSyncProgress!(progress: AcSyncProgress(
                 title: 'Receiving Database',
                 description: 'Downloading synchronization data...',
                 total: totalSize,
@@ -102,6 +114,7 @@ class AcSyncOnWs {
               ));
             }
           }
+          await tempDestinationFile.rename(destinationFile.fileName);
           print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
           if (onSyncComplete != null) {
             await onSyncComplete!();
@@ -137,7 +150,7 @@ class AcSyncOnWs {
             }
             callback!(response: result);
           }
-          else if(syncAction.equalsIgnoreCase("sync")){
+          else if(syncAction.equalsIgnoreCase("getDatabaseFileForDestination")){
             AcResult result = AcResult();
             if(syncSourceDatabase != null){
               String tempPath = "temp_sync_${Autocode.uuid()}.db";
@@ -153,10 +166,10 @@ class AcSyncOnWs {
                 final int totalSize = await tempFile.length();
                 await socket!.sendFile(
                   file: tempFile, 
-                  event: eventName,
+                  event: "${eventName}DestinationFile",
                   onProgress: (progress) {
                     if (onSyncProgress != null) {
-                      onSyncProgress!(AcSyncProgress(
+                      onSyncProgress!(progress: AcSyncProgress(
                         title: 'Sending Database',
                         description: 'Uploading synchronization data...',
                         total: totalSize,
