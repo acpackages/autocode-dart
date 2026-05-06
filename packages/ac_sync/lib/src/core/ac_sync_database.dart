@@ -55,7 +55,7 @@ class AcSyncDatabase {
     if (dao == null) return;
     try {
       await dao!.insertRow(
-          tableName: Tables.acSyncDeviceLogs,
+          tableName: AcSyncTables.acSyncDeviceLogs,
           row: {
             TblAcSyncDeviceLogs.syncDeviceId: remoteDeviceId,
             TblAcSyncDeviceLogs.startTimestamp: start,
@@ -151,7 +151,7 @@ class AcSyncDatabase {
       return result;
     }
     var selectResult = await dao!.getRows(
-      statement: "SELECT MAX(${TblAcSyncChangeLogs.syncChangeLogId}) AS ${TblAcSyncChangeLogs.syncChangeLogId} FROM ${Tables.acSyncChangeLogs}"
+      statement: "SELECT MAX(${TblAcSyncChangeLogs.syncChangeLogId}) AS ${TblAcSyncChangeLogs.syncChangeLogId} FROM ${AcSyncTables.acSyncChangeLogs}"
     );
 
     if (selectResult.isSuccess()){
@@ -175,7 +175,7 @@ class AcSyncDatabase {
 
     if(syncDefinitions.containsKey(definitionName)){
       var tablesResult = await dao!.getRows(
-        statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.tableName} FROM ${Tables.acSyncChangeLogs} "
+        statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.tableName} FROM ${AcSyncTables.acSyncChangeLogs} "
             "WHERE ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId",
       );
 
@@ -189,7 +189,7 @@ class AcSyncDatabase {
       for(var row in tablesResult.rows){
         tablesWithChanges.add(row.getString(TblAcSyncChangeLogs.tableName));
       }
-      print("AcSyncDatabase: Tables with changes: ${tablesWithChanges.join(', ')}");
+      print("AcSyncDatabase: AcSyncTables with changes: ${tablesWithChanges.join(', ')}");
 
       AcSyncChanges changes = AcSyncChanges(tableChanges: {});
       changes.lastChangeLogId = lastSyncId;
@@ -204,7 +204,7 @@ class AcSyncDatabase {
 
           if(tablesWithChanges.contains(tableName)){
             var deletedResult = await dao!.getRows(
-              statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${Tables.acSyncChangeLogs} "
+              statement: "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
                   "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
                   "AND ${TblAcSyncChangeLogs.rowOperation} = 'DELETE' "
                   "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId",
@@ -214,7 +214,7 @@ class AcSyncDatabase {
             // Get all inserted row IDs for this table
             var insertedResult = await dao!.getRows(
               statement: "SELECT * FROM $tableName WHERE $primaryKeyField IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${Tables.acSyncChangeLogs} "
+                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
                   "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
                   "AND ${TblAcSyncChangeLogs.rowOperation} = 'INSERT' "
                   "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId)",
@@ -224,12 +224,12 @@ class AcSyncDatabase {
             // Get all updated row IDs for this table
             var updatedResult = await dao!.getRows(
               statement: "SELECT * FROM $tableName WHERE $primaryKeyField IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${Tables.acSyncChangeLogs} "
+                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
                   "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
                   "AND ${TblAcSyncChangeLogs.rowOperation} = 'UPDATE' "
                   "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId"
                   ") AND  ${primaryKeyField} NOT IN ("
-                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${Tables.acSyncChangeLogs} "
+                  "SELECT DISTINCT ${TblAcSyncChangeLogs.rowId} FROM ${AcSyncTables.acSyncChangeLogs} "
                   "WHERE ${TblAcSyncChangeLogs.tableName} = '$tableName' "
                   "AND ${TblAcSyncChangeLogs.rowOperation} IN ('DELETE','INSERT' )"
                   "AND ${TblAcSyncChangeLogs.syncChangeLogId} > $lastSyncId"
@@ -257,7 +257,7 @@ class AcSyncDatabase {
     print("AcSyncDatabase: Initializing database...");
     // Register sync data dictionary
     AcDataDictionary.registerDataDictionary(
-      jsonData: DATA_DICTIONARY,
+      jsonData: AC_SYNC_DATA_DICTIONARY,
       dataDictionaryName: AcSyncDatabaseManager.dataDictionaryName,
     );
 
@@ -267,7 +267,7 @@ class AcSyncDatabase {
     }
     if (result.isSuccess()) {
       print("AcSyncDatabase: Reading sync details...");
-      AcSqlDaoResult selectResult = await dao!.getRows(statement:"SELECT ${TblAcSyncDetails.syncDetailKey}, ${TblAcSyncDetails.syncDetailStringValue} FROM ${Tables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} IN (@keys);",parameters: {
+      AcSqlDaoResult selectResult = await dao!.getRows(statement:"SELECT ${TblAcSyncDetails.syncDetailKey}, ${TblAcSyncDetails.syncDetailStringValue} FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} IN (@keys);",parameters: {
         "@keys":[AcSyncKeys.keyDeviceType,AcSyncKeys.keyDeviceId]
       });
       if(selectResult.isSuccess()){
@@ -286,11 +286,11 @@ class AcSyncDatabase {
         if(!deviceSet){
           this.deviceId = Autocode.uuid();
           print("AcSyncDatabase: Generating new Device ID: ${this.deviceId}");
-          await dao!.insertRow(tableName: Tables.acSyncDetails, row: {
+          await dao!.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
             TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
             TblAcSyncDetails.syncDetailStringValue:deviceId,
           });
-          await dao!.insertRow(tableName: Tables.acSyncDevices, row: {
+          await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
             TblAcSyncDevices.isSourceOfTruth: isDestination?0:1,
             TblAcSyncDevices.lastSyncChangeLogId: 0,
             TblAcSyncDevices.syncDeviceId: deviceId,
@@ -300,7 +300,7 @@ class AcSyncDatabase {
         if(!typeSet){
           String type = isDestination?'DESTINATION':'SOURCE';
           print("AcSyncDatabase: Setting Device Type: $type");
-          await dao!.insertRow(tableName: Tables.acSyncDetails, row: {
+          await dao!.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
             TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceType,
             TblAcSyncDetails.syncDetailStringValue:type,
           });
@@ -381,7 +381,7 @@ class AcSyncDatabase {
     }
     if(syncDeviceLogId > 0){
       result.setFromResult(result: await dao!.updateRow(
-        tableName: Tables.acSyncDeviceLogs,
+        tableName: AcSyncTables.acSyncDeviceLogs,
         row: row,
         condition: "${TblAcSyncDeviceLogs.syncDeviceLogId} = @syncDeviceLogId",
         parameters: {
@@ -390,7 +390,7 @@ class AcSyncDatabase {
       ));
     }
     else{
-      AcSqlDaoResult insertResult = await dao!.insertRow(tableName: Tables.acSyncDeviceLogs, row: row);
+      AcSqlDaoResult insertResult = await dao!.insertRow(tableName: AcSyncTables.acSyncDeviceLogs, row: row);
       if(insertResult.isSuccess()){
         syncDeviceLogId = insertResult.lastInsertedId;
       }
@@ -403,7 +403,7 @@ class AcSyncDatabase {
   Future<AcResult> updateLastSyncChangeLogId({required String deviceId, required int lastSyncChangeLogId}) async {
     AcResult result = AcResult();
     result.setFromResult(result: await dao!.updateRow(
-      tableName: Tables.acSyncDevices,
+      tableName: AcSyncTables.acSyncDevices,
       row: {TblAcSyncDevices.lastSyncChangeLogId: lastSyncChangeLogId, TblAcSyncDevices.lastSyncedOn: DateTime.now()},
       condition: "${TblAcSyncDevices.syncDeviceId} = '$deviceId'",
     ));

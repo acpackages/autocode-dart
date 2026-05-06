@@ -53,28 +53,28 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
       destinationDao.sqlConnection = AcSqlConnection(database: destinationPath);
       String destinationDeviceId = Autocode.uuid();
       print("AcSyncSourceDatabase: New destination device ID: $destinationDeviceId");
-      await destinationDao.insertRow(tableName: Tables.acSyncDetails, row: {
+      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
         TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
         TblAcSyncDetails.syncDetailStringValue:destinationDeviceId,
       });
-      await destinationDao.insertRow(tableName: Tables.acSyncDetails, row: {
+      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
         TblAcSyncDetails.syncDetailKey: AcSyncKeys.keyDeviceType,
         TblAcSyncDetails.syncDetailStringValue: 'DESTINATION'
       });
-      await destinationDao.insertRow(tableName: Tables.acSyncDevices, row: {
+      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
         TblAcSyncDevices.isSourceOfTruth: 1,
         TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
         TblAcSyncDevices.syncDeviceId: deviceId,
         TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
       });
-      await destinationDao.insertRow(tableName: Tables.acSyncDevices, row: {
+      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
         TblAcSyncDevices.isSourceOfTruth: 0,
         TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
         TblAcSyncDevices.syncDeviceId: destinationDeviceId,
         TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
       });
       print("AcSyncSourceDatabase: Registering new destination device in source database...");
-      await dao!.insertRow(tableName: Tables.acSyncDevices, row: {
+      await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
         TblAcSyncDevices.isSourceOfTruth: 0,
         TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
         TblAcSyncDevices.syncDeviceId: destinationDeviceId,
@@ -101,7 +101,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
       print("AcSyncSourceDatabase: Pruning synced change logs...");
       // 1. Get the minimum last_sync_change_log_id from all devices
       var minIdResult = await dao!.getRows(
-          statement: "SELECT MIN(${TblAcSyncDevices.lastSyncChangeLogId}) as min_id FROM ${Tables.acSyncDevices}"
+          statement: "SELECT MIN(${TblAcSyncDevices.lastSyncChangeLogId}) as min_id FROM ${AcSyncTables.acSyncDevices}"
       );
 
       if (minIdResult.isSuccess() && minIdResult.rows.isNotEmpty) {
@@ -113,7 +113,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
 
           // 2. Delete logs that are already synced across all devices
           await dao!.deleteRows(
-              tableName: Tables.acSyncChangeLogs,
+              tableName: AcSyncTables.acSyncChangeLogs,
               condition: "${TblAcSyncChangeLogs.syncChangeLogId} <= $id"
           );
 
@@ -138,7 +138,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
   Future<AcResult> getDestinationLastChangeLogId(String destinationDeviceId) async {
     AcResult result = AcResult();
     final getResult = await dao!.getRows(
-        statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${Tables.acSyncDevices} WHERE ${TblAcSyncDevices.syncDeviceId} = @remoteDeviceId",
+        statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.syncDeviceId} = @remoteDeviceId",
       parameters: {"@remoteDeviceId":destinationDeviceId}
     );
     if (getResult.isSuccess()) {

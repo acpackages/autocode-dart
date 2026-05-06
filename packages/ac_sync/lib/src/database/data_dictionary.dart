@@ -2,7 +2,7 @@ import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 /* Keys Start */
 /* Table Keys Start */
 
-class Tables {
+class AcSyncTables {
 	static const String acSyncChangeLogs = "_ac_sync_change_logs";
 	static const String acSyncDetails = "_ac_sync_details";
 	static const String acSyncDeviceLogs = "_ac_sync_device_logs";
@@ -43,12 +43,12 @@ class TblAcSyncDevices {
 /* Keys End */
 
 
-const Map<String,dynamic> DATA_DICTIONARY = {
+const Map<String,dynamic> AC_SYNC_DATA_DICTIONARY = {
 	AcDataDictionary.keyName : "Autocode Sync",
 	AcDataDictionary.keyVersion : 0,
 	AcDataDictionary.keyTables : {
-		Tables.acSyncChangeLogs : {
-			AcDDTable.keyTableName : Tables.acSyncChangeLogs,
+		AcSyncTables.acSyncChangeLogs : {
+			AcDDTable.keyTableName : AcSyncTables.acSyncChangeLogs,
 			AcDDTable.keyTableColumns : {
 				TblAcSyncChangeLogs.syncChangeLogId : {
 					AcDDTableColumn.keyColumnName : TblAcSyncChangeLogs.syncChangeLogId,
@@ -130,8 +130,8 @@ const Map<String,dynamic> DATA_DICTIONARY = {
 				}
 			}
 		},
-		Tables.acSyncDetails : {
-			AcDDTable.keyTableName : Tables.acSyncDetails,
+		AcSyncTables.acSyncDetails : {
+			AcDDTable.keyTableName : AcSyncTables.acSyncDetails,
 			AcDDTable.keyTableColumns : {
 				TblAcSyncDetails.syncDetailId : {
 					AcDDTableColumn.keyColumnName : TblAcSyncDetails.syncDetailId,
@@ -189,8 +189,8 @@ const Map<String,dynamic> DATA_DICTIONARY = {
 				}
 			}
 		},
-		Tables.acSyncDeviceLogs : {
-			AcDDTable.keyTableName : Tables.acSyncDeviceLogs,
+		AcSyncTables.acSyncDeviceLogs : {
+			AcDDTable.keyTableName : AcSyncTables.acSyncDeviceLogs,
 			AcDDTable.keyTableColumns : {
 				TblAcSyncDeviceLogs.syncDeviceLogId : {
 					AcDDTableColumn.keyColumnName : TblAcSyncDeviceLogs.syncDeviceLogId,
@@ -278,8 +278,8 @@ const Map<String,dynamic> DATA_DICTIONARY = {
 				}
 			}
 		},
-		Tables.acSyncDevices : {
-			AcDDTable.keyTableName : Tables.acSyncDevices,
+		AcSyncTables.acSyncDevices : {
+			AcDDTable.keyTableName : AcSyncTables.acSyncDevices,
 			AcDDTable.keyTableColumns : {
 				TblAcSyncDevices.syncDeviceId : {
 					AcDDTableColumn.keyColumnName : TblAcSyncDevices.syncDeviceId,

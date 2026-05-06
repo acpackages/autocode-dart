@@ -16,7 +16,7 @@ class AcSyncDatabaseManager {
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_ins AFTER INSERT ON $table
       FOR EACH ROW
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -34,7 +34,7 @@ class AcSyncDatabaseManager {
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd AFTER UPDATE ON $table
       FOR EACH ROW
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -52,7 +52,7 @@ class AcSyncDatabaseManager {
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del AFTER DELETE ON $table
       FOR EACH ROW
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -74,7 +74,7 @@ class AcSyncDatabaseManager {
       """
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_ins AFTER INSERT ON $table
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -91,7 +91,7 @@ class AcSyncDatabaseManager {
       """
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd AFTER UPDATE ON $table
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -108,7 +108,7 @@ class AcSyncDatabaseManager {
       """
       CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del AFTER DELETE ON $table
       BEGIN
-        INSERT INTO ${Tables.acSyncChangeLogs} (
+        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
           ${TblAcSyncChangeLogs.tableName}, 
           ${TblAcSyncChangeLogs.rowId}, 
           ${TblAcSyncChangeLogs.rowOperation}, 
@@ -215,10 +215,10 @@ class AcSyncDatabaseManager {
         }
       }
 
-      await destDao.executeStatement(statement: "DELETE FROM ${Tables.acSyncDetails}");
-      await destDao.executeStatement(statement: "DELETE FROM ${Tables.acSyncChangeLogs}");
-      await destDao.executeStatement(statement: "DELETE FROM ${Tables.acSyncDeviceLogs}");
-      await destDao.executeStatement(statement: "DELETE FROM ${Tables.acSyncDevices}");
+      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDetails}");
+      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncChangeLogs}");
+      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDeviceLogs}");
+      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
 
       await destDao.executeStatement(statement: "PRAGMA foreign_keys = ON;");
       // 4. Perform Vacuum
@@ -240,10 +240,10 @@ class AcSyncDatabaseManager {
     try {
       // 1. Set current device ID for the client copy
       await destDao.executeStatement(
-          statement: "DELETE FROM ${Tables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'current_device_id'"
+          statement: "DELETE FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'current_device_id'"
       );
       await destDao.insertRow(
-          tableName: Tables.acSyncDetails,
+          tableName: AcSyncTables.acSyncDetails,
           row: {
             TblAcSyncDetails.syncDetailKey: 'current_device_id',
             TblAcSyncDetails.syncDetailStringValue: clientDeviceId
@@ -252,10 +252,10 @@ class AcSyncDatabaseManager {
 
       // 2. Set sync mode to client
       await destDao.executeStatement(
-          statement: "DELETE FROM ${Tables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'sync_mode'"
+          statement: "DELETE FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'sync_mode'"
       );
       await destDao.insertRow(
-          tableName: Tables.acSyncDetails,
+          tableName: AcSyncTables.acSyncDetails,
           row: {
             TblAcSyncDetails.syncDetailKey: 'sync_mode',
             TblAcSyncDetails.syncDetailStringValue: 'client'
@@ -263,11 +263,11 @@ class AcSyncDatabaseManager {
       );
 
       // 3. Clear all device records and keep only Client and Server
-      await destDao.executeStatement(statement: "DELETE FROM ${Tables.acSyncDevices}");
+      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
 
       // Add Client Device entry (as itself)
       await destDao.insertRow(
-          tableName: Tables.acSyncDevices,
+          tableName: AcSyncTables.acSyncDevices,
           row: {
             TblAcSyncDevices.syncDeviceId: clientDeviceId,
             TblAcSyncDevices.isSourceOfTruth: 0,
@@ -278,7 +278,7 @@ class AcSyncDatabaseManager {
       // Add Server Device entry (as remote source)
       // This allows the client to know where it stands relative to the server's logs
       await destDao.insertRow(
-          tableName: Tables.acSyncDevices,
+          tableName: AcSyncTables.acSyncDevices,
           row: {
             ...serverDeviceDetails,
             TblAcSyncDevices.syncDeviceId: serverDeviceId,
@@ -291,7 +291,7 @@ class AcSyncDatabaseManager {
       // Actually, the clone has 0 logs usually if it was a fresh setup, or it has all the server's current data.
       // We set the lastSyncChangeLogId for the server device to the server's current log ID.
       await destDao.updateRow(
-        tableName: Tables.acSyncDevices,
+        tableName: AcSyncTables.acSyncDevices,
         row: {TblAcSyncDevices.lastSyncChangeLogId: serverLastLogId},
         condition: "${TblAcSyncDevices.syncDeviceId} = '$serverDeviceId'"
       );

@@ -22,7 +22,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
       return result;
     }
     var selectResult = await dao!.getRows(
-      statement: "SELECT MAX(${TblAcSyncChangeLogs.syncChangeLogId}) AS ${TblAcSyncChangeLogs.syncChangeLogId} FROM ${Tables.acSyncChangeLogs}"
+      statement: "SELECT MAX(${TblAcSyncChangeLogs.syncChangeLogId}) AS ${TblAcSyncChangeLogs.syncChangeLogId} FROM ${AcSyncTables.acSyncChangeLogs}"
     );
 
     if (selectResult.isSuccess()){
@@ -71,7 +71,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
         int lastSourceChangeLogId = 0;
         print("AcSyncDestinationDatabase: Getting last source change log ID...");
         var sourceLastSyncIdResult = await dao!.getRows(
-            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${Tables.acSyncDevices} WHERE ${TblAcSyncDevices.isSourceOfTruth} = 1;"
+            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.isSourceOfTruth} = 1;"
         );
 
         if (sourceLastSyncIdResult.isFailure()){
