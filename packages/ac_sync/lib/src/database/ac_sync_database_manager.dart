@@ -190,7 +190,7 @@ class AcSyncDatabaseManager {
   Future<void> createDatabaseFileForDestination({
     required String sourcePath,
     required String destinationPath,
-    required List<AcSyncTableDefinition> tableDefinitions,
+    List<AcSyncTableDefinition>? tableDefinitions,
   }) async {
     // 1. Copy the file
     final sourceFile = File(sourcePath);
@@ -206,23 +206,26 @@ class AcSyncDatabaseManager {
     destDao.sqlConnection = AcSqlConnection(database: destinationPath);
 
     try {
-      await destDao.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
-      // 3. Empty tables where syncToDestination is false
-      for (var tableDef in tableDefinitions) {
-        if (!tableDef.syncToDestination) {
-          print("Deleting from database : ${tableDef.tableName}");
-          await destDao.executeStatement(statement: "DELETE FROM ${tableDef.tableName}");
+      if(tableDefinitions != null){
+        await destDao.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
+        // 3. Empty tables where syncToDestination is false
+        for (var tableDef in tableDefinitions) {
+          if (!tableDef.syncToDestination) {
+            print("Deleting from database : ${tableDef.tableName}");
+            await destDao.executeStatement(statement: "DELETE FROM ${tableDef.tableName}");
+          }
         }
+
+        await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDetails}");
+        await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncChangeLogs}");
+        await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDeviceLogs}");
+        await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
+
+        await destDao.executeStatement(statement: "PRAGMA foreign_keys = ON;");
+        // 4. Perform Vacuum
+        await destDao.executeStatement(statement: "VACUUM");
       }
 
-      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDetails}");
-      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncChangeLogs}");
-      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDeviceLogs}");
-      await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
-
-      await destDao.executeStatement(statement: "PRAGMA foreign_keys = ON;");
-      // 4. Perform Vacuum
-      await destDao.executeStatement(statement: "VACUUM");
     } finally {
     }
   }

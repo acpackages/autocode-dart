@@ -13,9 +13,6 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
   Future<AcResult> createDatabaseFileForDestination({required String destinationPath,String definitionName = 'default'}) async {
     final result = AcResult();
     final definition = syncDefinitions[definitionName];
-    if (definition == null) {
-      return result.setFailure(message: "Definition not found");
-    }
 
     String? sourcePath;
     if (dao is AcSqliteDao) {
@@ -32,7 +29,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
       await databaseManager.createDatabaseFileForDestination(
         sourcePath: sourcePath,
         destinationPath: destinationPath,
-        tableDefinitions: definition.tableDefinitions,
+        tableDefinitions: definition != null?definition.tableDefinitions:null,
       );
 
       print("AcSyncSourceDatabase: Database file created. Initializing destination database metadata...");
