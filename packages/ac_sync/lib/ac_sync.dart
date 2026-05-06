@@ -16,3 +16,4 @@ export 'src/models/ac_sync_definition.dart';
 export 'src/models/ac_sync_table_changes.dart';
 export 'src/models/ac_sync_table_row_change.dart';
 export 'src/models/ac_sync_table_definition.dart';
+export 'src/models/ac_sync_progress.dart';

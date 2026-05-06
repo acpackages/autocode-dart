@@ -46,6 +46,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
 
     if(!isNested){
       isSyncing = true;
+      if (onSyncStart != null) onSyncStart!();
     }
 
     bool isWorking = true;
@@ -192,6 +193,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
       result.setException(exception: e, stackTrace: stack);
     } finally {
       isSyncing = false;
+      if (onSyncComplete != null) onSyncComplete!();
       print("AcSyncDestinationDatabase: Sync process ended.");
     }
     return result;

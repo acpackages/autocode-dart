@@ -11,6 +11,9 @@ class AcSyncDatabase {
   String? deviceId;
   bool isSyncing = false;
   bool isDestination = false;
+  void Function()? onSyncStart;
+  void Function()? onSyncComplete;
+  void Function(AcSyncProgress progress)? onSyncProgress;
 
   AcSyncDatabase({this.dao, this.databaseType = AcEnumSqlDatabaseType.unknown,}){
   }
