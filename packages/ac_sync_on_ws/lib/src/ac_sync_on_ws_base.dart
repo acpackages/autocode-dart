@@ -48,8 +48,7 @@ class AcSyncOnWs {
         'syncData':{}
       };
       this.socket!.emit(event: eventName,data:data );
-      print("AcSyncOnWs: Initiating sync request from database...");
-      result = await this.syncDestinationDatabase!.sync();
+      print("AcSyncOnWs: Sending database file from source...");
     } else {
       result.setFailure(message: "Socket not set");
     }
@@ -94,8 +93,9 @@ class AcSyncOnWs {
           print("AcSyncOnWs: Receiving sync stream start. Total size: $totalSize");
           if (onSyncStart != null) onSyncStart!();
           File destinationFile = File(_destinationFilePath!);
-          String tempFilePath = "${destinationFile.parent}/-ac-sync-temp-file-${Autocode.uuid()}";
+          String tempFilePath = "${destinationFile.parent.absolute.path}/ac-sync-temp-file-${Autocode.uuid()}";
           File tempDestinationFile = File(tempFilePath);
+          print(tempDestinationFile.absolute.path);
           if(!tempDestinationFile.existsSync()){
             tempDestinationFile.createSync(recursive: true);
           }
@@ -114,6 +114,7 @@ class AcSyncOnWs {
               ));
             }
           }
+          print(destinationFile.fileName);
           await tempDestinationFile.rename(destinationFile.fileName);
           print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
           if (onSyncComplete != null) {
@@ -161,7 +162,8 @@ class AcSyncOnWs {
                 tempFile.createSync(recursive: true);
                 print("AcSyncOnWs: Creating temporary destination copy for sync...");
                 await syncSourceDatabase!.createDatabaseFileForDestination(destinationPath: tempPath);
-                
+                print("AcSyncOnWs: Original file size : ${File(syncSourceDatabase!.dao!.sqlConnection.database).lengthSync()}");
+                print("AcSyncOnWs: Temporary file size : ${tempFile.lengthSync()}");
                 // 2. Send the data via stream from source to destination
                 print("AcSyncOnWs: Streaming database content to client...");
                 if (onSyncStart != null) onSyncStart!();
@@ -192,7 +194,7 @@ class AcSyncOnWs {
                 // 3. Remove the copy once done
                 if (await tempFile.exists()) {
                   print("AcSyncOnWs: Removing temporary sync file...");
-                  await tempFile.delete();
+                  // await tempFile.delete();
                 }
               }
             }

@@ -199,7 +199,7 @@ class AcSyncDatabaseManager {
     }
     // await sourceFile.copy(destinationPath);
     final bytes = await sourceFile.readAsBytes();
-    await File(destinationPath).writeAsBytes(bytes);
+    File(destinationPath).writeAsBytesSync(bytes);
 
     // 2. Open the destination database
     final destDao = AcSqliteDao();
