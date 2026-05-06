@@ -1,7 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import '../../ac_sync.dart';
-import 'ac_sync_table_changes.dart';
 
 @AcReflectable()
 class AcNotifyChangesCallbackArgs {

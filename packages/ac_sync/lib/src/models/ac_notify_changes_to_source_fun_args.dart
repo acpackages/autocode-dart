@@ -1,7 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
 import '../../ac_sync.dart';
-import 'ac_notify_changes_callback_args.dart';
 
 @AcReflectable()
 class AcNotifyChangesToSourceFunArgs {

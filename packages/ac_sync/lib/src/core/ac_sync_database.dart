@@ -1,7 +1,6 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
-import 'package:ac_sync/src/consts/ac_sync_keys.dart';
 import 'package:autocode/autocode.dart';
 import '../../ac_sync.dart';
 
@@ -49,25 +48,6 @@ class AcSyncDatabase {
     result.setSuccess();
     print("AcSyncDatabase: Triggers initialized.");
     return result;
-  }
-
-  Future<void> _logSync({required String remoteDeviceId,required DateTime start,required int oldLogId,required int newLogId,required String status}) async {
-    if (dao == null) return;
-    try {
-      await dao!.insertRow(
-          tableName: AcSyncTables.acSyncDeviceLogs,
-          row: {
-            TblAcSyncDeviceLogs.syncDeviceId: remoteDeviceId,
-            TblAcSyncDeviceLogs.startTimestamp: start,
-            TblAcSyncDeviceLogs.endTimestamp: DateTime.now(),
-            TblAcSyncDeviceLogs.oldSyncChangeLogId: oldLogId,
-            TblAcSyncDeviceLogs.newSyncChangeLogId: newLogId,
-            TblAcSyncDeviceLogs.syncOperationResult: status,
-          }
-      );
-    } catch (e) {
-      print("Error logging sync: $e");
-    }
   }
 
   Future<AcResult> applySyncChanges({required AcSyncChanges changes}) async {
