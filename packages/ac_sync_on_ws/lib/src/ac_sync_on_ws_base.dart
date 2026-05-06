@@ -155,8 +155,10 @@ class AcSyncOnWs {
             if(syncSourceDatabase != null){
               String tempPath = "temp_sync_${Autocode.uuid()}.db";
               File tempFile = File(tempPath);
+
               try {
                 // 1. Create temporary destination copy
+                tempFile.createSync(recursive: true);
                 print("AcSyncOnWs: Creating temporary destination copy for sync...");
                 await syncSourceDatabase!.createDatabaseFileForDestination(destinationPath: tempPath);
                 
@@ -181,7 +183,7 @@ class AcSyncOnWs {
                   },
                 );
                 if (onSyncComplete != null) onSyncComplete!();
-
+                tempFile.delete();
                 result.setSuccess(message: "Sync stream completed successfully");
                 print("AcSyncOnWs: Sync stream complete.");
               } catch (e, stack) {
