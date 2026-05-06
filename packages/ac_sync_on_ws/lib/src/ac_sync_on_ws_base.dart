@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sync/src/core/ac_sync_destination_database.dart';
@@ -9,12 +8,14 @@ import 'package:ac_sync/src/models/ac_notify_sync_success_to_source_fun_args.dar
 import 'package:ac_sync/src/models/ac_notify_success_callback_args.dart';
 import 'package:ac_web_socket/ac_web_socket.dart';
 import 'package:autocode/autocode.dart';
+import 'models/ac_sync_progress.dart';
 
 class AcSyncOnWs {
   final String eventName;
   final AcWebSocket? socket;
   final AcSyncDestinationDatabase? syncDestinationDatabase;
   final AcSyncSourceDatabase? syncSourceDatabase;
+  final void Function(AcSyncProgress progress)? onProgress;
   
   List<int> _receivedSyncStream = [];
   Future<void> Function(List<int> bytes)? onSyncStreamComplete;
@@ -25,6 +26,7 @@ class AcSyncOnWs {
     this.syncSourceDatabase,
     this.eventName = 'acSync',
     this.onSyncStreamComplete,
+    this.onProgress,
   }) {
     _init();
   }
@@ -86,26 +88,28 @@ class AcSyncOnWs {
       syncDestinationDatabase!.notifyChangesToSourceFun = notifyChangesCallback;
       syncDestinationDatabase!.notifySyncSuccessToSourceFun = notifySuccessCallback;
 
-      socket!.on(event: eventName, handler: ({data, callback}) async {
-        Map<String, dynamic> eventData = Map.from(data);
-        if (eventData.containsKey("syncAction")) {
-          String syncAction = eventData.getString("syncAction");
-          Map<String, dynamic> syncData = Map.from(eventData.getMap("syncData"));
-
-          if (syncAction.equalsIgnoreCase("streamStart")) {
-            print("AcSyncOnWs: Receiving sync stream start. Total size: ${syncData['totalSize']}");
-            _receivedSyncStream = [];
-          } else if (syncAction.equalsIgnoreCase("streamChunk")) {
-            String chunkBase64 = syncData.getString("chunk");
-            _receivedSyncStream.addAll(base64Decode(chunkBase64));
-          } else if (syncAction.equalsIgnoreCase("streamEnd")) {
-            print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
-            if (onSyncStreamComplete != null) {
-              await onSyncStreamComplete!(_receivedSyncStream);
+      socket!.onFile(event: eventName, handler: ({required transferId, required name, required totalSize, required stream, metadata}) async {
+          print("AcSyncOnWs: Receiving sync stream start. Total size: $totalSize");
+          _receivedSyncStream = [];
+          int received = 0;
+          await for (final chunk in stream) {
+            _receivedSyncStream.addAll(chunk);
+            received += chunk.length;
+            if (onProgress != null) {
+              onProgress!(AcSyncProgress(
+                title: 'Receiving Database',
+                description: 'Downloading synchronization data...',
+                total: totalSize,
+                progress: received / totalSize,
+                pendingCount: 1,
+              ));
             }
-            _receivedSyncStream = [];
           }
-        }
+          print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
+          if (onSyncStreamComplete != null) {
+            await onSyncStreamComplete!(_receivedSyncStream);
+          }
+          _receivedSyncStream = [];
       });
     }
     else{
@@ -148,30 +152,23 @@ class AcSyncOnWs {
                 
                 // 2. Send the data via stream from source to destination
                 print("AcSyncOnWs: Streaming database content to client...");
-                Stream<List<int>> fileStream = tempFile.openRead();
-                
-                // Send stream start
-                socket!.emit(event: eventName, data: {
-                  'syncAction': 'streamStart',
-                  'syncData': {
-                    'totalSize': await tempFile.length(),
-                  }
-                });
-
-                await for (List<int> chunk in fileStream) {
-                  socket!.emit(event: eventName, data: {
-                    'syncAction': 'streamChunk',
-                    'syncData': {
-                      'chunk': base64Encode(chunk),
+                final int totalSize = await tempFile.length();
+                await socket!.sendFile(
+                  file: tempFile, 
+                  event: eventName,
+                  onProgress: (progress) {
+                    if (onProgress != null) {
+                      onProgress!(AcSyncProgress(
+                        title: 'Sending Database',
+                        description: 'Uploading synchronization data...',
+                        total: totalSize,
+                        progress: progress,
+                        pendingCount: 1,
+                      ));
                     }
-                  });
-                }
-                
-                // Send stream end
-                socket!.emit(event: eventName, data: {
-                  'syncAction': 'streamEnd',
-                  'syncData': {}
-                });
+                    print("AcSyncOnWs: Sync upload progress: ${(progress * 100).toStringAsFixed(1)}%");
+                  },
+                );
 
                 result.setSuccess(message: "Sync stream completed successfully");
                 print("AcSyncOnWs: Sync stream complete.");
