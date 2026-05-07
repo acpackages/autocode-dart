@@ -1,0 +1,24 @@
+name: ac_flutter
+description: Flutter related AutoCode functionality.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  autocode:
+    path: ../autocode
+  ac_extensions:
+    path: ../ac_extensions
+  unique_device_identifier: ^2.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.0.0
+
+flutter:

@@ -16,6 +16,7 @@ class AcSyncDatabase {
   void Function()? onSyncStart;
   void Function()? onSyncComplete;
   void Function({required AcSyncProgress progress})? onSyncProgress;
+  static const int currentSyncVersion = 1;
 
   AcSyncDatabase({this.dao, this.databaseType = AcEnumSqlDatabaseType.unknown,}){
   }
@@ -303,6 +304,48 @@ class AcSyncDatabase {
     return result;
   }
 
+  Future<AcResult> reinitialize() async {
+    print("AcSyncDatabase: Reinitializing database (dropping and recreating triggers)...");
+    AcResult result = AcResult();
+
+    if (dao == null) {
+      print("AcSyncDatabase: DAO not set, cannot reinitialize.");
+      result.setFailure(message: "DAO not set");
+      return result;
+    }
+
+    var databaseManager = AcSyncDatabaseManager();
+
+    Map<String, AcSyncTableDefinition> tableDefinitionsMap = {};
+    for(var definition in syncDefinitions.values){
+      for(var tableDef in definition.tableDefinitions){
+        tableDefinitionsMap.putIfAbsent(tableDef.tableName, () => tableDef);
+      }
+    }
+
+    try {
+      // 1. Drop Triggers
+      print("AcSyncDatabase: Dropping triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
+      await databaseManager.dropSyncTriggers(
+          dao: dao,
+          tableDefinitions: tableDefinitionsMap.values.toList(),
+          databaseType: databaseType
+      );
+
+      // 2. Recreate Triggers
+      result = await _initTriggers();
+      
+      if(result.isSuccess()){
+        print("AcSyncDatabase: Reinitialization successful.");
+      }
+    } catch (e, stack) {
+      print("AcSyncDatabase: Error during reinitialization: $e");
+      result.setException(exception: e, stackTrace: stack);
+    }
+
+    return result;
+  }
+
   Future<AcResult> initialize() async {
     print("AcSyncDatabase: Initializing database...");
     // Register sync data dictionary
@@ -313,26 +356,60 @@ class AcSyncDatabase {
 
     AcResult result = await _initSchemaManager();
     if (result.isSuccess()) {
-      result = await _initTriggers();
-    }
-    if (result.isSuccess()) {
       print("AcSyncDatabase: Reading sync details...");
       AcSqlDaoResult selectResult = await dao!.getRows(statement:"SELECT ${TblAcSyncDetails.syncDetailKey}, ${TblAcSyncDetails.syncDetailStringValue} FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} IN (@keys);",parameters: {
-        "@keys":[AcSyncKeys.keyDeviceType,AcSyncKeys.keyDeviceId]
+        "@keys":[AcSyncKeys.keyDeviceType,AcSyncKeys.keyDeviceId, AcSyncKeys.keySyncVersion]
       });
+
+      int dbVersion = 0;
+      bool deviceSet = false, typeSet = false, versionSet = false;
+
       if(selectResult.isSuccess()){
-        bool deviceSet = false, typeSet = false;
         for(var row in selectResult.rows){
-          if(row.getString(TblAcSyncDetails.syncDetailKey) == AcSyncKeys.keyDeviceId){
+          String key = row.getString(TblAcSyncDetails.syncDetailKey);
+          String val = row.getString(TblAcSyncDetails.syncDetailStringValue);
+          if(key == AcSyncKeys.keyDeviceId){
             deviceSet = true;
-            this.deviceId = row.getString(TblAcSyncDetails.syncDetailStringValue);
+            this.deviceId = val;
             print("AcSyncDatabase: Device ID: ${this.deviceId}");
           }
-          else if(row.getString(TblAcSyncDetails.syncDetailKey) == AcSyncKeys.keyDeviceType){
+          else if(key == AcSyncKeys.keyDeviceType){
             typeSet = true;
-            print("AcSyncDatabase: Device Type: ${row.getString(TblAcSyncDetails.syncDetailStringValue)}");
+            print("AcSyncDatabase: Device Type: $val");
+          }
+          else if(key == AcSyncKeys.keySyncVersion){
+            versionSet = true;
+            dbVersion = int.tryParse(val) ?? 0;
+            print("AcSyncDatabase: DB Sync Version: $dbVersion");
           }
         }
+      }
+
+      if (dbVersion < currentSyncVersion) {
+        print("AcSyncDatabase: Version mismatch (DB: $dbVersion, Current: $currentSyncVersion). Reinitializing...");
+        result = await reinitialize();
+        if (result.isSuccess()) {
+          if (versionSet) {
+            await dao!.updateRow(
+                tableName: AcSyncTables.acSyncDetails,
+                row: {TblAcSyncDetails.syncDetailStringValue: currentSyncVersion.toString()},
+                condition: "${TblAcSyncDetails.syncDetailKey} = '${AcSyncKeys.keySyncVersion}'"
+            );
+          } else {
+            await dao!.insertRow(
+                tableName: AcSyncTables.acSyncDetails,
+                row: {
+                  TblAcSyncDetails.syncDetailKey: AcSyncKeys.keySyncVersion,
+                  TblAcSyncDetails.syncDetailStringValue: currentSyncVersion.toString()
+                }
+            );
+          }
+        }
+      } else {
+        result = await _initTriggers();
+      }
+
+      if (result.isSuccess()) {
         if(!deviceSet){
           this.deviceId = Autocode.uuid();
           print("AcSyncDatabase: Generating new Device ID: ${this.deviceId}");
@@ -357,7 +434,7 @@ class AcSyncDatabase {
         }
       }
       else{
-        print("AcSyncDatabase: Failed to read sync details: ${selectResult.message}");
+        print("AcSyncDatabase: Failed to read sync details or initialize triggers: ${selectResult.message}");
         result.setFromResult(result: selectResult);
       }
     }
@@ -395,7 +472,15 @@ class AcSyncDatabase {
           }
         }
         
-        List<String> columnsToSync = columnsToSyncMap[t] ?? [];
+        List<String> columnsToSync = List.empty(growable: true);
+        if(columnsToSyncMap.containsKey(table.tableName)){
+          columnsToSync.addAll(columnsToSyncMap[t]!);
+        }
+        else{
+          for(var tableColumn in table.tableColumns){
+            columnsToSync.add(tableColumn.columnName);
+          }
+        }
         bool deleteAfterSync = deleteAfterSyncTables.contains(t);
 
         print("Definition Table : ${t}, Sync To Source : $syncToSource, Sync To Destination : $syncToDestination, Columns To Sync : ${columnsToSync.length}, Delete After Sync : $deleteAfterSync");

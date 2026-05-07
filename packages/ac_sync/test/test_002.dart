@@ -32,7 +32,7 @@ Future<void> main() async {
 
 Future<void> setDestinationSyncDatabase() async {
   AcSqliteDao destinationDao = AcSqliteDao();
-  destinationDao.sqlConnection = AcSqlConnection(database: 'destination.db');
+  destinationDao.sqlConnection = AcSqlConnection(database: 'database/destination.db');
   syncDestinationDatabase = AcSyncDestinationDatabase(dao: destinationDao,databaseType: AcEnumSqlDatabaseType.sqlite);
   Future<void> Function(AcNotifyChangesToSourceFunArgs callbackArgs) notifyChangesCallback = (AcNotifyChangesToSourceFunArgs callbackArgs) async {
   AcResult result = await syncSourceDatabase.handleNotifyChangesFromDestination(destinationNotifyArgs: callbackArgs);
@@ -77,7 +77,7 @@ Future<void> setDestinationSyncDatabase() async {
 
 Future<void> setSourceSyncDatabase() async {
   AcSqliteDao sourceDao = AcSqliteDao();
-  sourceDao.sqlConnection = AcSqlConnection(database: 'source.db');
+  sourceDao.sqlConnection = AcSqlConnection(database: 'database/source.db');
   syncSourceDatabase = AcSyncSourceDatabase(dao: sourceDao,databaseType: AcEnumSqlDatabaseType.sqlite);
   await syncSourceDatabase.registerDefinitionFromDataDictionary(dataDictionaryName: 'default',
       syncToDestinationTables: [

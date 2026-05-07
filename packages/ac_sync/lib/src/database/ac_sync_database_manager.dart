@@ -217,6 +217,32 @@ class AcSyncDatabaseManager {
     }
   }
 
+  Future<void> dropSyncTriggers({
+    AcBaseSqlDao? dao,
+    required List<AcSyncTableDefinition> tableDefinitions,
+    required AcEnumSqlDatabaseType databaseType,
+  }) async {
+    if (dao == null) return;
+    String triggerPrefix = "_ac_sync_trg_";
+
+    for (var tableDef in tableDefinitions) {
+      String table = tableDef.tableName;
+      List<String> suffixes = ['_ins', '_upd', '_del'];
+      for (var suffix in suffixes) {
+        String triggerName = "$triggerPrefix$table$suffix";
+        String dropSql = "";
+        if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+          dropSql = "DROP TRIGGER IF EXISTS $triggerName;";
+        } else if (databaseType == AcEnumSqlDatabaseType.mysql || databaseType == AcEnumSqlDatabaseType.mariadb) {
+          dropSql = "DROP TRIGGER IF EXISTS `$triggerName`;";
+        }
+        if (dropSql.isNotEmpty) {
+          await dao.executeStatement(statement: dropSql);
+        }
+      }
+    }
+  }
+
   Future<AcResult> initAcSyncDatabase() async {
     AcSqlDbSchemaManager schemaManager = AcSqlDbSchemaManager(dataDictionaryName: dataDictionaryName);
     schemaManager.dao = dao;

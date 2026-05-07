@@ -17,10 +17,20 @@ class AcSyncTableChanges {
 
   AcSyncTableChanges({
     this.tableName = "",
-    this.rowsToDelete = const [],
-    this.rowsToInsert = const [],
-    this.rowsToUpdate = const [],
-  });
+    List<AcSyncTableRowChange>? rowsToDelete,
+    List<AcSyncTableRowChange>? rowsToInsert,
+    List<AcSyncTableRowChange>? rowsToUpdate,
+  }){
+    if(rowsToDelete != null){
+      this.rowsToDelete = rowsToDelete;
+    }
+    if(rowsToInsert != null){
+      this.rowsToInsert = rowsToInsert;
+    }
+    if(rowsToUpdate != null){
+      this.rowsToUpdate = rowsToUpdate;
+    }
+  }
 
   factory AcSyncTableChanges.instanceFromJson({
     required Map<String, dynamic> jsonData,
