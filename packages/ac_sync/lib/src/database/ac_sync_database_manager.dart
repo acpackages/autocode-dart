@@ -10,9 +10,9 @@ class AcSyncDatabaseManager {
   AcBaseSqlDao? dao;
   AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown;
   List<String> _buildMysqlTriggerSql(String table, String pk, String prefix, List<String> columns) {
-    String insertPayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(NEW.`$c` IS NULL, '\$.$c', '\$._dummy_')").join(', ')})";
+    String insertPayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(NEW.`$c` IS NULL, '\$.\"$c\"', '\$._dummy_')").join(', ')})";
     
-    String updatePayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(OLD.`$c` <=> NEW.`$c`, '\$.$c', '\$._dummy_')").join(', ')})";
+    String updatePayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(OLD.`$c` <=> NEW.`$c`, '\$.\"$c\"', '\$._dummy_')").join(', ')})";
 
     return [
       // INSERT Trigger
@@ -28,7 +28,7 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
-          NEW.$pk, 
+          NEW.`$pk`, 
           'INSERT', 
           NOW(),
           $insertPayload
@@ -48,7 +48,7 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.rowPayload}
         ) VALUES (
           '$table', 
-          NEW.$pk, 
+          NEW.`$pk`, 
           'UPDATE', 
           NOW(),
           $updatePayload
@@ -67,7 +67,7 @@ class AcSyncDatabaseManager {
           ${TblAcSyncChangeLogs.operationTimestamp}
         ) VALUES (
           '$table', 
-          OLD.$pk, 
+          OLD.`$pk`, 
           'DELETE', 
           NOW()
         );
@@ -76,67 +76,119 @@ class AcSyncDatabaseManager {
     ];
   }
 
-  List<String> _buildSqliteTriggerSql(String table, String pk, String prefix, List<String> columns) {
-    String insertPayload = "json_remove(json_object(${columns.map((c) => "'$c', NEW.\"$c\"").join(', ')}), ${columns.map((c) => "CASE WHEN NEW.\"$c\" IS NULL THEN '\$.$c' ELSE NULL END").join(', ')})";
-    
-    String updatePayload = "json_remove(json_object(${columns.map((c) => "'$c', NEW.\"$c\"").join(', ')}), ${columns.map((c) => "CASE WHEN OLD.\"$c\" IS NEW.\"$c\" THEN '\$.$c' ELSE NULL END").join(', ')})";
+  List<String> _buildSqliteTriggerSql(
+      String table,
+      String pk,
+      String prefix,
+      List<String> columns,
+      ) {
+
+    String buildInsertPayload() {
+      final selects = columns.map((column) {
+        return """
+SELECT '$column' AS key, NEW.`$column` AS value
+""";
+      }).join("\nUNION ALL\n");
+
+      return """
+(
+  SELECT json_group_object(key, value)
+  FROM (
+    $selects
+  )
+  WHERE value IS NOT NULL
+)
+""";
+    }
+
+    String buildUpdatePayload() {
+      final selects = columns.map((column) {
+        return """
+SELECT
+  '$column' AS key,
+  CASE
+    WHEN NEW.`$column` IS NOT OLD.`$column`
+    THEN NEW.`$column`
+  END AS value
+""";
+      }).join("\nUNION ALL\n");
+
+      return """
+(
+  SELECT json_group_object(key, value)
+  FROM (
+    $selects
+  )
+  WHERE value IS NOT NULL
+)
+""";
+    }
+
+    final insertPayload = buildInsertPayload();
+    final updatePayload = buildUpdatePayload();
+
+    final insertTrigger = """
+CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_ins
+AFTER INSERT ON `$table`
+BEGIN
+  INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
+    `${TblAcSyncChangeLogs.tableName}`,
+    `${TblAcSyncChangeLogs.rowId}`,
+    `${TblAcSyncChangeLogs.rowOperation}`,
+    `${TblAcSyncChangeLogs.operationTimestamp}`,
+    `${TblAcSyncChangeLogs.rowPayload}`
+  ) VALUES (
+    '$table',
+    NEW.`$pk`,
+    'INSERT',
+    CURRENT_TIMESTAMP,
+    $insertPayload
+  );
+END;
+""";
+
+    final updateTrigger = """
+CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd
+AFTER UPDATE ON `$table`
+BEGIN
+  INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
+    `${TblAcSyncChangeLogs.tableName}`,
+    `${TblAcSyncChangeLogs.rowId}`,
+    `${TblAcSyncChangeLogs.rowOperation}`,
+    `${TblAcSyncChangeLogs.operationTimestamp}`,
+    `${TblAcSyncChangeLogs.rowPayload}`
+  ) VALUES (
+    '$table',
+    NEW.`$pk`,
+    'UPDATE',
+    CURRENT_TIMESTAMP,
+    $updatePayload
+  );
+END;
+""";
+
+    final deleteTrigger = """
+CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del
+AFTER DELETE ON `$table`
+BEGIN
+  INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
+    `${TblAcSyncChangeLogs.tableName}`,
+    `${TblAcSyncChangeLogs.rowId}`,
+    `${TblAcSyncChangeLogs.rowOperation}`,
+    `${TblAcSyncChangeLogs.operationTimestamp}`
+  ) VALUES (
+    '$table',
+    OLD.`$pk`,
+    'DELETE',
+    CURRENT_TIMESTAMP
+  );
+END;
+""";
 
     return [
-      // INSERT Trigger
-      """
-      CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_ins AFTER INSERT ON $table
-      BEGIN
-        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
-          ${TblAcSyncChangeLogs.tableName}, 
-          ${TblAcSyncChangeLogs.rowId}, 
-          ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp},
-          ${TblAcSyncChangeLogs.rowPayload}
-        ) VALUES (
-          '$table', 
-          NEW.$pk, 
-          'INSERT', 
-          CURRENT_TIMESTAMP,
-          $insertPayload
-        );
-      END;
-      """,
-      // UPDATE Trigger
-      """
-      CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd AFTER UPDATE ON $table
-      BEGIN
-        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
-          ${TblAcSyncChangeLogs.tableName}, 
-          ${TblAcSyncChangeLogs.rowId}, 
-          ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp},
-          ${TblAcSyncChangeLogs.rowPayload}
-        ) VALUES (
-          '$table', 
-          NEW.$pk, 
-          'UPDATE', 
-          CURRENT_TIMESTAMP,
-          $updatePayload
-        );
-      END;
-      """,
-      // DELETE Trigger
-      """
-      CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del AFTER DELETE ON $table
-      BEGIN
-        INSERT INTO ${AcSyncTables.acSyncChangeLogs} (
-          ${TblAcSyncChangeLogs.tableName}, 
-          ${TblAcSyncChangeLogs.rowId}, 
-          ${TblAcSyncChangeLogs.rowOperation}, 
-          ${TblAcSyncChangeLogs.operationTimestamp}
-        ) VALUES (
-          '$table', 
-          OLD.$pk, 
-          'DELETE', 
-          CURRENT_TIMESTAMP
-        );
-      END;
-      """
+      insertTrigger,
+      updateTrigger,
+      deleteTrigger,
     ];
   }
 
