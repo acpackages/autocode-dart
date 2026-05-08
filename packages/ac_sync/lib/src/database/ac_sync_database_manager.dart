@@ -326,7 +326,6 @@ END;
         // 3. Empty tables where syncToDestination is false
         for (var tableDef in tableDefinitions) {
           if (!tableDef.syncToDestination) {
-            print("Deleting from database : ${tableDef.tableName}");
             await destDao.executeStatement(statement: "DELETE FROM ${tableDef.tableName}");
           }
         }

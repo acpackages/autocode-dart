@@ -16,23 +16,23 @@ class AcSyncDatabase {
   void Function()? onSyncStart;
   void Function()? onSyncComplete;
   void Function({required AcSyncProgress progress})? onSyncProgress;
-  static const int currentSyncVersion = 1;
+  AcLogger logger = AcLogger(logType: AcEnumLogType.console,logMessages: false);
 
   AcSyncDatabase({this.dao, this.databaseType = AcEnumSqlDatabaseType.unknown,}){
   }
 
   Future<AcResult> _initSchemaManager() async {
-    print("AcSyncDatabase: Initializing Schema Manager...");
+    logger.log("AcSyncDatabase: Initializing Schema Manager...");
     var databaseManager = AcSyncDatabaseManager();
     databaseManager.dao = dao;
     databaseManager.databaseType = databaseType;
     var result = await databaseManager.initAcSyncDatabase();
-    print("AcSyncDatabase: Schema Manager initialization ${result.isSuccess() ? 'successful' : 'failed: ' + result.message}");
+    logger.log("AcSyncDatabase: Schema Manager initialization ${result.isSuccess() ? 'successful' : 'failed: ' + result.message}");
     return result;
   }
 
   Future<AcResult> _initTriggers() async {
-    print("AcSyncDatabase: Initializing Triggers...");
+    logger.log("AcSyncDatabase: Initializing Triggers...");
     AcResult result = AcResult();
     var databaseManager = AcSyncDatabaseManager();
 
@@ -43,7 +43,7 @@ class AcSyncDatabase {
       }
     }
 
-    print("AcSyncDatabase: Creating triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
+    logger.log("AcSyncDatabase: Creating triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
 
     await databaseManager.createSyncTriggers(
         dao: dao,
@@ -52,15 +52,15 @@ class AcSyncDatabase {
     );
 
     result.setSuccess();
-    print("AcSyncDatabase: Triggers initialized.");
+    logger.log("AcSyncDatabase: Triggers initialized.");
     return result;
   }
 
   Future<AcResult> applySyncChanges({required AcSyncChanges changes}) async {
     AcResult result = AcResult();
-    print("AcSyncDatabase: Applying sync changes...");
+    logger.log("AcSyncDatabase: Applying sync changes...");
     if (dao == null) {
-      print("AcSyncDatabase: DAO not set, cannot apply changes.");
+      logger.log("AcSyncDatabase: DAO not set, cannot apply changes.");
       result.setFailure(message: "DAO not set");
       return result;
     }
@@ -69,7 +69,7 @@ class AcSyncDatabase {
       await dao!.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
       for (var tableName in changes.tableChanges.keys) {
         var tableChanges = changes.tableChanges[tableName]!;
-        print("AcSyncDatabase: Table '$tableName' - Deletes: ${tableChanges.rowsToDelete.length}, Inserts: ${tableChanges.rowsToInsert.length}, Updates: ${tableChanges.rowsToUpdate.length}");
+        logger.log("AcSyncDatabase: Table '$tableName' - Deletes: ${tableChanges.rowsToDelete.length}, Inserts: ${tableChanges.rowsToInsert.length}, Updates: ${tableChanges.rowsToUpdate.length}");
 
         // Find PK field from definitions
         String pkField = "id";
@@ -122,9 +122,9 @@ class AcSyncDatabase {
       }
       await dao!.executeStatement(statement: "PRAGMA foreign_keys = ON;");
       result.setSuccess();
-      print("AcSyncDatabase: Sync changes applied successfully.");
+      logger.log("AcSyncDatabase: Sync changes applied successfully.");
     } catch (e, stack) {
-      print("AcSyncDatabase: Error applying sync changes: $e");
+      logger.log("AcSyncDatabase: Error applying sync changes: $e");
       result.setException(exception: e, stackTrace: stack);
     }
     return result;
@@ -149,7 +149,7 @@ class AcSyncDatabase {
           final rowsToDelete = [...tableChanges.rowsToInsert, ...tableChanges.rowsToUpdate];
           
           if (rowsToDelete.isNotEmpty) {
-            print("AcSyncDatabase: Deleting ${rowsToDelete.length} synced rows from '$tableName' as per deleteAfterSyncFromDestination flag.");
+            logger.log("AcSyncDatabase: Deleting ${rowsToDelete.length} synced rows from '$tableName' as per deleteAfterSyncFromDestination flag.");
             for (var rowChange in rowsToDelete) {
               final rowId = rowChange.rowId ?? (rowChange.row != null ? rowChange.row![pkField] : null);
               if (rowId != null) {
@@ -164,7 +164,7 @@ class AcSyncDatabase {
       }
       result.setSuccess();
     } catch (e, stack) {
-      print("AcSyncDatabase: Error deleting synced rows: $e");
+      logger.log("AcSyncDatabase: Error deleting synced rows: $e");
       result.setException(exception: e, stackTrace: stack);
     }
     return result;
@@ -192,9 +192,9 @@ class AcSyncDatabase {
 
   Future<AcResult> getSyncChanges({int lastSyncId = 0, String definitionName = 'default',}) async {
     AcResult result = AcResult();
-    print("AcSyncDatabase: Getting sync changes since ID: $lastSyncId for definition: $definitionName");
+    logger.log("AcSyncDatabase: Getting sync changes since ID: $lastSyncId for definition: $definitionName");
     if (dao == null){
-      print("AcSyncDatabase: DAO not set, cannot get changes.");
+      logger.log("AcSyncDatabase: DAO not set, cannot get changes.");
       result.setFailure(message: "DAO not set");
       return result;
     }
@@ -208,7 +208,7 @@ class AcSyncDatabase {
       );
 
       if (!logsResult.isSuccess()){
-        print("AcSyncDatabase: Failed to get change logs: ${logsResult.message}");
+        logger.log("AcSyncDatabase: Failed to get change logs: ${logsResult.message}");
         result.setFromResult(result: logsResult);
         return result;
       }
@@ -256,7 +256,7 @@ class AcSyncDatabase {
                 try {
                   payload = jsonDecode(payloadStr);
                 } catch (e) {
-                  print("AcSyncDatabase: Error decoding payload for table $tableName row $rowId: $e");
+                  logger.log("AcSyncDatabase: Error decoding payload for table $tableName row $rowId: $e");
                 }
               }
 
@@ -289,7 +289,7 @@ class AcSyncDatabase {
           }
 
           if (tableChanges.rowsToDelete.isNotEmpty || tableChanges.rowsToInsert.isNotEmpty || tableChanges.rowsToUpdate.isNotEmpty) {
-            print("AcSyncDatabase: Collected merged changes for '$tableName' - Del: ${tableChanges.rowsToDelete.length}, Ins: ${tableChanges.rowsToInsert.length}, Upd: ${tableChanges.rowsToUpdate.length}");
+            logger.log("AcSyncDatabase: Collected merged changes for '$tableName' - Del: ${tableChanges.rowsToDelete.length}, Ins: ${tableChanges.rowsToInsert.length}, Upd: ${tableChanges.rowsToUpdate.length}");
             changes.tableChanges[tableName] = tableChanges;
           }
         }
@@ -298,18 +298,18 @@ class AcSyncDatabase {
       result.setSuccess(value: changes);
     }
     else{
-      print("AcSyncDatabase: Definition '$definitionName' does not exist.");
+      logger.log("AcSyncDatabase: Definition '$definitionName' does not exist.");
       result.setFailure(message: 'Definition does not exist');
     }
     return result;
   }
 
   Future<AcResult> reinitialize() async {
-    print("AcSyncDatabase: Reinitializing database (dropping and recreating triggers)...");
+    logger.log("AcSyncDatabase: Reinitializing database (dropping and recreating triggers)...");
     AcResult result = AcResult();
 
     if (dao == null) {
-      print("AcSyncDatabase: DAO not set, cannot reinitialize.");
+      logger.log("AcSyncDatabase: DAO not set, cannot reinitialize.");
       result.setFailure(message: "DAO not set");
       return result;
     }
@@ -325,7 +325,7 @@ class AcSyncDatabase {
 
     try {
       // 1. Drop Triggers
-      print("AcSyncDatabase: Dropping triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
+      logger.log("AcSyncDatabase: Dropping triggers for tables: ${tableDefinitionsMap.keys.join(', ')}");
       await databaseManager.dropSyncTriggers(
           dao: dao,
           tableDefinitions: tableDefinitionsMap.values.toList(),
@@ -336,18 +336,18 @@ class AcSyncDatabase {
       result = await _initTriggers();
       
       if(result.isSuccess()){
-        print("AcSyncDatabase: Reinitialization successful.");
+        logger.log("AcSyncDatabase: Reinitialization successful.");
       }
     } catch (e, stack) {
-      print("AcSyncDatabase: Error during reinitialization: $e");
+      logger.log("AcSyncDatabase: Error during reinitialization: $e");
       result.setException(exception: e, stackTrace: stack);
     }
 
     return result;
   }
 
-  Future<AcResult> initialize() async {
-    print("AcSyncDatabase: Initializing database...");
+  Future<AcResult> initialize({int syncVersion = 0}) async {
+    logger.log("AcSyncDatabase: Initializing database...");
     // Register sync data dictionary
     AcDataDictionary.registerDataDictionary(
       jsonData: AC_SYNC_DATA_DICTIONARY,
@@ -356,7 +356,7 @@ class AcSyncDatabase {
 
     AcResult result = await _initSchemaManager();
     if (result.isSuccess()) {
-      print("AcSyncDatabase: Reading sync details...");
+      logger.log("AcSyncDatabase: Reading sync details...");
       AcSqlDaoResult selectResult = await dao!.getRows(statement:"SELECT ${TblAcSyncDetails.syncDetailKey}, ${TblAcSyncDetails.syncDetailStringValue} FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} IN (@keys);",parameters: {
         "@keys":[AcSyncKeys.keyDeviceType,AcSyncKeys.keyDeviceId, AcSyncKeys.keySyncVersion]
       });
@@ -371,28 +371,28 @@ class AcSyncDatabase {
           if(key == AcSyncKeys.keyDeviceId){
             deviceSet = true;
             this.deviceId = val;
-            print("AcSyncDatabase: Device ID: ${this.deviceId}");
+            logger.log("AcSyncDatabase: Device ID: ${this.deviceId}");
           }
           else if(key == AcSyncKeys.keyDeviceType){
             typeSet = true;
-            print("AcSyncDatabase: Device Type: $val");
+            logger.log("AcSyncDatabase: Device Type: $val");
           }
           else if(key == AcSyncKeys.keySyncVersion){
             versionSet = true;
-            dbVersion = int.tryParse(val) ?? 0;
-            print("AcSyncDatabase: DB Sync Version: $dbVersion");
+            dbVersion = int.tryParse(row.getString(TblAcSyncDetails.syncDetailNumericValue)) ?? 0;
+            logger.log("AcSyncDatabase: DB Sync Version: $dbVersion");
           }
         }
       }
 
-      if (dbVersion < currentSyncVersion) {
-        print("AcSyncDatabase: Version mismatch (DB: $dbVersion, Current: $currentSyncVersion). Reinitializing...");
+      if (dbVersion < syncVersion) {
+        logger.log("AcSyncDatabase: Version mismatch (DB: $dbVersion, Current: $syncVersion). Reinitializing...");
         result = await reinitialize();
         if (result.isSuccess()) {
           if (versionSet) {
             await dao!.updateRow(
                 tableName: AcSyncTables.acSyncDetails,
-                row: {TblAcSyncDetails.syncDetailStringValue: currentSyncVersion.toString()},
+                row: {TblAcSyncDetails.syncDetailNumericValue: syncVersion},
                 condition: "${TblAcSyncDetails.syncDetailKey} = '${AcSyncKeys.keySyncVersion}'"
             );
           } else {
@@ -400,7 +400,7 @@ class AcSyncDatabase {
                 tableName: AcSyncTables.acSyncDetails,
                 row: {
                   TblAcSyncDetails.syncDetailKey: AcSyncKeys.keySyncVersion,
-                  TblAcSyncDetails.syncDetailStringValue: currentSyncVersion.toString()
+                  TblAcSyncDetails.syncDetailNumericValue: syncVersion
                 }
             );
           }
@@ -412,7 +412,7 @@ class AcSyncDatabase {
       if (result.isSuccess()) {
         if(!deviceSet){
           this.deviceId = Autocode.uuid();
-          print("AcSyncDatabase: Generating new Device ID: ${this.deviceId}");
+          logger.log("AcSyncDatabase: Generating new Device ID: ${this.deviceId}");
           await dao!.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
             TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
             TblAcSyncDetails.syncDetailStringValue:deviceId,
@@ -426,7 +426,7 @@ class AcSyncDatabase {
         }
         if(!typeSet){
           String type = isDestination?'DESTINATION':'SOURCE';
-          print("AcSyncDatabase: Setting Device Type: $type");
+          logger.log("AcSyncDatabase: Setting Device Type: $type");
           await dao!.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
             TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceType,
             TblAcSyncDetails.syncDetailStringValue:type,
@@ -434,11 +434,11 @@ class AcSyncDatabase {
         }
       }
       else{
-        print("AcSyncDatabase: Failed to read sync details or initialize triggers: ${selectResult.message}");
+        logger.log("AcSyncDatabase: Failed to read sync details or initialize triggers: ${selectResult.message}");
         result.setFromResult(result: selectResult);
       }
     }
-    print("AcSyncDatabase: Initialization ${result.isSuccess() ? 'finished successfully.' : 'failed.'}");
+    logger.log("AcSyncDatabase: Initialization ${result.isSuccess() ? 'finished successfully.' : 'failed.'}");
     return result;
   }
 
@@ -483,7 +483,7 @@ class AcSyncDatabase {
         }
         bool deleteAfterSync = deleteAfterSyncTables.contains(t);
 
-        print("Definition Table : ${t}, Sync To Source : $syncToSource, Sync To Destination : $syncToDestination, Columns To Sync : ${columnsToSync.length}, Delete After Sync : $deleteAfterSync");
+        logger.log("Definition Table : ${t}, Sync To Source : $syncToSource, Sync To Destination : $syncToDestination, Columns To Sync : ${columnsToSync.length}, Delete After Sync : $deleteAfterSync");
         return AcSyncTableDefinition(
           tableName: t, 
           primaryKeyField: table.getPrimaryKeyColumnName(),
