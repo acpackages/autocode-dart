@@ -14,6 +14,7 @@ class AcWsServer {
   int sslPort = 0;
   String sslCertificateChainPath = "";
   String sslPrivateKeyPath = "";
+  bool instantDetection = true;
 
   AcWsServer() {
     _namespaces['/'] = AcWsNamespace(name: '/', server: this);
@@ -59,7 +60,14 @@ class AcWsServer {
         final socketId = DateTime.now().millisecondsSinceEpoch.toString();
         final nspName = request.uri.queryParameters['nsp'] ?? '/';
         
-        final socket = AcWebSocket(webSocket, id: socketId, nsp: nspName, handshake: handshake, server: this);
+        final socket = AcWebSocket(
+          webSocket, 
+          id: socketId, 
+          nsp: nspName, 
+          handshake: handshake, 
+          server: this,
+          pingInterval: instantDetection ? const Duration(seconds: 5) : null,
+        );
         
         of(name: nspName)._addSocket(socket: socket);
       } else {

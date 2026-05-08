@@ -47,7 +47,11 @@ class AcWebSocket {
     this.nsp = '/',
     this.handshake = const {},
     this.server,
+    Duration? pingInterval,
   }) {
+    if (pingInterval != null) {
+      _webSocket.pingInterval = pingInterval;
+    }
     _listen();
   }
 

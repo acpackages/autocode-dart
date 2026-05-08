@@ -11,6 +11,7 @@ class AcWsClient {
 
   AcWebSocket? _socket;
   bool _shouldReconnect = true;
+  final bool instantDetection;
   Timer? _reconnectTimer;
   
   final List<void Function({required AcWebSocket socket})> _connectionHandlers = [];
@@ -22,6 +23,7 @@ class AcWsClient {
     this.query = const {},
     this.securityContext,
     this.acceptBadCertificates = false,
+    this.instantDetection = true,
   });
 
   Future<AcWebSocket?> connect() async {
@@ -54,7 +56,12 @@ class AcWsClient {
         ws = await WebSocket.connect(uri.toString());
       }
       
-      _socket = AcWebSocket(ws, id: 'client', nsp: nsp);
+      _socket = AcWebSocket(
+        ws, 
+        id: 'client', 
+        nsp: nsp,
+        pingInterval: instantDetection ? const Duration(seconds: 5) : null,
+      );
       
       _socket!.on(event: 'disconnect', handler: ({data, callback}) {
         for (var h in _disconnectHandlers) {
