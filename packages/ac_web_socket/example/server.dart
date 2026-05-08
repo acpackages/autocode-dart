@@ -42,7 +42,7 @@ Future<void> setupServer() async {
   print('Server started on port 3000');
 
   // Keep alive for a bit to see logs
-  await Future.delayed(Duration(seconds: 50000));
+  await Future.delayed(Duration(seconds: 10));
   await server.stop();
-  print('Example finished.');
+  print('Server Stopped');
 }

@@ -12,10 +12,17 @@ typedef AnyEventHandler = void Function({required String event, dynamic data, vo
 /// [message] is the raw message map which can be modified in-place.
 /// [callback] is provided for incoming messages that request an acknowledgment.
 /// Calling [abort] will prevent further interceptors and event handlers from being executed.
+
+typedef EventInterceptor = FutureOr<void> Function({
+required dynamic data,
+void Function({dynamic response})? callback,
+void Function()? abort,
+});
+
 typedef MessageInterceptor = FutureOr<void> Function({
-  required dynamic message,
-  void Function({dynamic response})? callback,
-  void Function()? abort,
+required dynamic message,
+void Function({dynamic response})? callback,
+void Function()? abort,
 });
 
 class AcWebSocket {
@@ -37,10 +44,10 @@ class AcWebSocket {
   final List<MessageInterceptor> _outgoingInterceptors = [];
 
   /// Event-specific interceptors for incoming messages.
-  final Map<String, List<MessageInterceptor>> _eventIncomingInterceptors = {};
+  final Map<String, List<EventInterceptor>> _eventIncomingInterceptors = {};
 
   /// Event-specific interceptors for outgoing messages.
-  final Map<String, List<MessageInterceptor>> _eventOutgoingInterceptors = {};
+  final Map<String, List<EventInterceptor>> _eventOutgoingInterceptors = {};
 
   AcWebSocket(this._webSocket, {
     required this.id,
@@ -85,13 +92,16 @@ class AcWebSocket {
             if (aborted) return;
           }
 
+          final payload = decoded['d'];
+          final respId = decoded['r'] as int?;
+
           // 2. Run event-specific incoming interceptors
           final event = decoded['e'] as String?;
           if (event != null) {
             final eventInterceptors = _eventIncomingInterceptors[event];
             if (eventInterceptors != null) {
               for (var interceptor in eventInterceptors) {
-                await interceptor(message: decoded, callback: callback, abort: abort);
+                await interceptor(data: payload, callback: callback, abort: abort);
                 if (aborted) return;
               }
             }
@@ -99,8 +109,7 @@ class AcWebSocket {
 
           if (nsp != this.nsp) return;
 
-          final payload = decoded['d'];
-          final respId = decoded['r'] as int?;
+
 
           if (respId != null) {
             _pendingAcks.remove(respId)?.complete(payload);
@@ -144,20 +153,20 @@ class AcWebSocket {
     _anyEventHandlers.add(handler);
   }
 
-  void addIncomingInterceptor(MessageInterceptor handler, {String? event}) {
-    if (event == null) {
-      _incomingInterceptors.add(handler);
-    } else {
-      _eventIncomingInterceptors.putIfAbsent(event, () => []).add(handler);
-    }
+  void addIncomingInterceptor({required MessageInterceptor handler}) {
+    _incomingInterceptors.add(handler);
   }
 
-  void addOutgoingInterceptor(MessageInterceptor handler, {String? event}) {
-    if (event == null) {
-      _outgoingInterceptors.add(handler);
-    } else {
-      _eventOutgoingInterceptors.putIfAbsent(event, () => []).add(handler);
-    }
+  void addOutgoingInterceptor({required MessageInterceptor handler}) {
+    _outgoingInterceptors.add(handler);
+  }
+
+  void addIncomingEventInterceptor({required EventInterceptor handler, required String event}) {
+    _eventIncomingInterceptors.putIfAbsent(event, () => []).add(handler);
+  }
+
+  void addOutgoingEventInterceptor({required EventInterceptor handler, required String event}) {
+    _eventOutgoingInterceptors.putIfAbsent(event, () => []).add(handler);
   }
 
   void pipe({required AcWsClient client}) {
@@ -238,7 +247,7 @@ class AcWebSocket {
         final eventInterceptors = _eventOutgoingInterceptors[event];
         if (eventInterceptors != null) {
           for (var interceptor in eventInterceptors) {
-            await interceptor(message: message, abort: abort);
+            await interceptor(data: message['d'], abort: abort);
             if (aborted) return;
           }
         }

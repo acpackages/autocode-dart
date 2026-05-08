@@ -16,7 +16,7 @@ Future<void> setupClient() async {
 
     // Send chat message and wait for acknowledgment
     final response = await socket.emit(
-      event: 'chat', 
+      event: 'chat',
       data: 'Hello Server!',
       callback: ({response}) {
         print('Client: Server acknowledged: $response');
@@ -40,10 +40,15 @@ Future<void> setupClient() async {
     socket.emit(event: 'room_msg', data: {'room': 'lobby', 'msg': 'Hi everyone in lobby!'});
   });
 
+  client!.onDisconnect(handler:  ({data, callback}) {
+
+    print('Disconnected from server');
+  });
+
   await client.connect();
 
   // Keep alive for a bit to see logs
-  await Future.delayed(Duration(seconds: 500000));
+  await Future.delayed(Duration(seconds: 100));
   await client.disconnect();
   print('Example finished.');
 }
