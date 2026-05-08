@@ -5,7 +5,7 @@ import 'server.dart';
 
 void main() async {
   // For Server
-  await setupServer();
+  // await setupServer();
 
   // For Client
   await setupClient();

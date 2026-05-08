@@ -58,9 +58,6 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
 
       if (tableName.isNotEmpty) {
-        print(
-          "[AcSqlEventHandling] Adding event handler methods for table $tableName",
-        );
         for (var member in classMirror.instanceMembers.values) {
           if (member is! AcMethodMirror) continue;
 
@@ -1485,12 +1482,12 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
 
         if (continueOperation && executeAfterEvent) {
-          print("Calling after save in save row");
+          logger.log("Calling after save in save row");
           if (_tableEventHandlers.containsKey(tableName) &&
               _tableEventHandlers[tableName]!.hasMethodForEvent(
                 event: AcEnumDDRowEvent.afterSave,
               )) {
-            print("Called after save in save row");
+            logger.log("Called after save in save row");
             var args = AcSqlEventArgs(sqlDbTableInstance: this, result: result);
             var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
               event: AcEnumDDRowEvent.afterSave,
@@ -1508,7 +1505,7 @@ class AcSqlDbTable extends AcSqlDbBase {
               );
             }
           } else {
-            print(
+            logger.log(
               "_tableEventHandlers does not have event handler for after save for ${tableName}",
             );
           }
@@ -1676,12 +1673,12 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
 
       if (executeBeforeEvent) {
-        print("Calling after save in save rows");
+        logger.log("Calling after save in save rows");
         if (_tableEventHandlers.containsKey(tableName) &&
             _tableEventHandlers[tableName]!.hasMethodForEvent(
               event: AcEnumDDRowEvent.afterSave,
             )) {
-          print("Called after save in save rows");
+          logger.log("Called after save in save rows");
           var args = AcSqlEventArgs(sqlDbTableInstance: this, result: result);
           var eventResult = await _tableEventHandlers[tableName]!.handleEvent(
             event: AcEnumDDRowEvent.afterSave,

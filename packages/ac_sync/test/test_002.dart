@@ -72,7 +72,7 @@ Future<void> setDestinationSyncDatabase() async {
       ]
   );
   print("Test: Initializing destination database...");
-  await syncDestinationDatabase.initialize();
+  await syncDestinationDatabase.initialize(syncVersion: 1);
 }
 
 Future<void> setSourceSyncDatabase() async {
@@ -93,6 +93,6 @@ Future<void> setSourceSyncDatabase() async {
       ]
   );
   print("Test: Initializing source database...");
-  await syncSourceDatabase.initialize();
+  await syncSourceDatabase.initialize(syncVersion: 1);
 }
 

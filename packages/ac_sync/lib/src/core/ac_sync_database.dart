@@ -190,7 +190,7 @@ class AcSyncDatabase {
     return result;
   }
 
-  Future<AcResult> getSyncChanges({int lastSyncId = 0, String definitionName = 'default',}) async {
+  Future<AcResult> getSyncChanges({int lastSyncId = -1, String definitionName = 'default',}) async {
     AcResult result = AcResult();
     logger.log("AcSyncDatabase: Getting sync changes since ID: $lastSyncId for definition: $definitionName");
     if (dao == null){
