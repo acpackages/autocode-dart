@@ -321,6 +321,8 @@ END;
     destDao.sqlConnection = AcSqlConnection(database: destinationPath);
 
     try {
+      await destDao.executeStatement(statement: "PRAGMA journal_mode = OFF;");
+
       if(tableDefinitions != null){
         await destDao.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
         // 3. Empty tables where syncToDestination is false
