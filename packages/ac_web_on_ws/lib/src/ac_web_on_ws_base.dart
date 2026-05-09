@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:ac_extensions/ac_extensions.dart';
+import 'package:ac_web_on_ws/src/models/ac_web_on_ws_params.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:ac_web_socket/ac_web_socket.dart';
@@ -66,7 +67,7 @@ class AcWebOnWs {
 
           final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
           acWebRequest.pathParameters = pathParams;
-          acWebRequest.internalParams['socket'] = socket;
+          acWebRequest.internalParams['acWebOnWs'] = AcWebOnWsParams(socket: socket);
 
           final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
           if (callback != null) {
