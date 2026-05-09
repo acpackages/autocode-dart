@@ -443,7 +443,7 @@ class AcSyncDatabase {
   }
 
   AcSyncDefinition registerDefinitionFromDataDictionary({
-    required String dataDictionaryName,
+    String dataDictionaryName = 'default',
     List<String> syncToSourceTables = const [],
     List<String> syncToDestinationTables = const [],
     Map<String, List<String>> columnsToSyncMap = const {},
