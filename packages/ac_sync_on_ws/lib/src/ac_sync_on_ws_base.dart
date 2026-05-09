@@ -155,7 +155,7 @@ class AcSyncOnWs {
           else if(syncAction.equalsIgnoreCase("getDatabaseFileForDestination")){
             AcResult result = AcResult();
             if(syncSourceDatabase != null){
-              String tempPath = "temp_sync_${Autocode.uuid()}.db";
+              String tempPath = "_ac_sync_on_ws_/temp_dest_file/temp_sync_${Autocode.uuid()}.db";
               File tempFile = File(tempPath);
 
               try {
