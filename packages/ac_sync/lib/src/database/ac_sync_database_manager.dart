@@ -9,6 +9,7 @@ class AcSyncDatabaseManager {
   static const String dataDictionaryName = "_ac_sync";
   AcBaseSqlDao? dao;
   AcEnumSqlDatabaseType databaseType = AcEnumSqlDatabaseType.unknown;
+  AcLogger logger = AcLogger(logType: AcEnumLogType.console, logMessages: true);
   List<String> _buildMysqlTriggerSql(String table, String pk, String prefix, List<String> columns) {
     String insertPayload = "JSON_REMOVE(JSON_OBJECT(${columns.map((c) => "'$c', NEW.`$c`").join(', ')}), ${columns.map((c) => "IF(NEW.`$c` IS NULL, '\$.\"$c\"', '\$._dummy_')").join(', ')})";
     
@@ -141,31 +142,31 @@ BEGIN
     '$table',
     NEW.`$pk`,
     'INSERT',
-    CURRENT_TIMESTAMP,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
     $insertPayload
   );
 END;
 """;
 
     final updateTrigger = """
-CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd
-AFTER UPDATE ON `$table`
-BEGIN
-  INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
-    `${TblAcSyncChangeLogs.tableName}`,
-    `${TblAcSyncChangeLogs.rowId}`,
-    `${TblAcSyncChangeLogs.rowOperation}`,
-    `${TblAcSyncChangeLogs.operationTimestamp}`,
-    `${TblAcSyncChangeLogs.rowPayload}`
-  ) VALUES (
-    '$table',
-    NEW.`$pk`,
-    'UPDATE',
-    CURRENT_TIMESTAMP,
-    $updatePayload
-  );
-END;
-""";
+    CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd
+    AFTER UPDATE ON `$table`
+    BEGIN
+      INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
+        `${TblAcSyncChangeLogs.tableName}`,
+        `${TblAcSyncChangeLogs.rowId}`,
+        `${TblAcSyncChangeLogs.rowOperation}`,
+        `${TblAcSyncChangeLogs.operationTimestamp}`,
+        `${TblAcSyncChangeLogs.rowPayload}`
+      ) VALUES (
+        '$table',
+        NEW.`$pk`,
+        'UPDATE',
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+        $updatePayload
+      );
+    END;
+    """;
 
     final deleteTrigger = """
 CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del
@@ -180,7 +181,7 @@ BEGIN
     '$table',
     OLD.`$pk`,
     'DELETE',
-    CURRENT_TIMESTAMP
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   );
 END;
 """;
@@ -209,6 +210,7 @@ END;
     }
 
     for (var sql in triggerSqls) {
+      logger.log("[AcSyncDatabaseManager] Executing trigger SQL: ${sql.substring(0, sql.indexOf('AFTER')).trim()}...");
       await dao.executeStatement(statement: sql);
     }
   }
@@ -218,13 +220,20 @@ END;
     required List<AcSyncTableDefinition> tableDefinitions,
     required AcEnumSqlDatabaseType databaseType,
   }) async {
-    if (dao == null) return;
+    logger.log("[AcSyncDatabaseManager] Creating sync triggers for ${tableDefinitions.length} tables...");
+    if (dao == null) {
+      logger.error("[AcSyncDatabaseManager] DAO is null, cannot create triggers.");
+      return;
+    }
 
     for (var tableDef in tableDefinitions) {
       String table = tableDef.tableName;
       // Get columns to find all available columns and identify the primary key
       var columnsResult = await dao.getTableColumns(tableName: table);
-      if (!columnsResult.isSuccess()) continue;
+      if (!columnsResult.isSuccess()) {
+        logger.error("[AcSyncDatabaseManager] Failed to get columns for table '$table': ${columnsResult.message}");
+        continue;
+      }
 
       String? primaryKey = tableDef.primaryKeyField.isNotEmpty ? tableDef.primaryKeyField : null;
       List<String> allColumns = [];
@@ -241,7 +250,12 @@ END;
         }
       }
 
-      primaryKey ??= "id";
+      if (primaryKey == null) {
+        logger.warn("[AcSyncDatabaseManager] Table '$table' - Primary key not found in definition or database metadata. Defaulting to 'id'.");
+        primaryKey = "id";
+      } else {
+        logger.log("[AcSyncDatabaseManager] Table '$table' - Using primary key: $primaryKey");
+      }
       
       // Filter columns based on columnsToSync
       List<String> columnsToUse = [];
@@ -267,6 +281,7 @@ END;
         databaseType: databaseType,
       );
     }
+    logger.log("[AcSyncDatabaseManager] Finished creating sync triggers.");
   }
 
   Future<void> dropSyncTriggers({
@@ -274,7 +289,11 @@ END;
     required List<AcSyncTableDefinition> tableDefinitions,
     required AcEnumSqlDatabaseType databaseType,
   }) async {
-    if (dao == null) return;
+    logger.log("[AcSyncDatabaseManager] Dropping sync triggers for ${tableDefinitions.length} tables...");
+    if (dao == null) {
+      logger.error("[AcSyncDatabaseManager] DAO is null, cannot drop triggers.");
+      return;
+    }
     String triggerPrefix = "_ac_sync_trg_";
 
     for (var tableDef in tableDefinitions) {
@@ -289,17 +308,22 @@ END;
           dropSql = "DROP TRIGGER IF EXISTS `$triggerName`;";
         }
         if (dropSql.isNotEmpty) {
+          logger.log("[AcSyncDatabaseManager] Dropping trigger: $triggerName");
           await dao.executeStatement(statement: dropSql);
         }
       }
     }
+    logger.log("[AcSyncDatabaseManager] Finished dropping sync triggers.");
   }
 
   Future<AcResult> initAcSyncDatabase() async {
     AcSqlDbSchemaManager schemaManager = AcSqlDbSchemaManager(dataDictionaryName: dataDictionaryName);
     schemaManager.dao = dao;
     schemaManager.databaseType = databaseType;
-    return await schemaManager.initDatabase();
+    logger.log("[AcSyncDatabaseManager] Initializing AcSync database schema...");
+    var result = await schemaManager.initDatabase();
+    logger.log("[AcSyncDatabaseManager] Schema initialization ${result.isSuccess() ? 'successful' : 'failed: ' + result.message}");
+    return result;
   }
 
   Future<void> createDatabaseFileForDestination({
@@ -313,23 +337,29 @@ END;
       throw Exception("Source database file does not exist at $sourcePath");
     }
     // await sourceFile.copy(destinationPath);
+    logger.log("[AcSyncDatabaseManager] Copying database file from '$sourcePath' to '$destinationPath'...");
     final bytes = await sourceFile.readAsBytes();
     File(destinationPath).writeAsBytesSync(bytes);
+    logger.log("[AcSyncDatabaseManager] File copy complete (${bytes.length} bytes).");
 
     // 2. Open the destination database
+    logger.log("[AcSyncDatabaseManager] Opening destination database...");
     final destDao = AcSqliteDao();
     destDao.sqlConnection = AcSqlConnection(database: destinationPath);
 
     try {
       if(tableDefinitions != null){
+        logger.log("[AcSyncDatabaseManager] Cleaning up destination database tables...");
         await destDao.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
         // 3. Empty tables where syncToDestination is false
         for (var tableDef in tableDefinitions) {
           if (!tableDef.syncToDestination) {
+            logger.log("[AcSyncDatabaseManager] Emptying table '${tableDef.tableName}' (syncToDestination is false)");
             await destDao.executeStatement(statement: "DELETE FROM ${tableDef.tableName}");
           }
         }
 
+        logger.log("[AcSyncDatabaseManager] Clearing sync metadata tables...");
         await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDetails}");
         await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncChangeLogs}");
         await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDeviceLogs}");
@@ -337,10 +367,15 @@ END;
 
         await destDao.executeStatement(statement: "PRAGMA foreign_keys = ON;");
         // 4. Perform Vacuum
+        logger.log("[AcSyncDatabaseManager] Performing VACUUM on destination database...");
         await destDao.executeStatement(statement: "VACUUM");
       }
 
+    } catch (e) {
+      logger.error("[AcSyncDatabaseManager] Error during database file preparation: $e");
+      rethrow;
     } finally {
+      logger.log("[AcSyncDatabaseManager] Finished preparing destination database file.");
     }
   }
 
@@ -351,11 +386,13 @@ END;
     required int serverLastLogId,
     required Map<String, dynamic> serverDeviceDetails,
   }) async {
+    logger.log("[AcSyncDatabaseManager] Provisioning client database at '$destinationPath'...");
     final destDao = AcSqliteDao();
     destDao.sqlConnection = AcSqlConnection(database: destinationPath);
 
     try {
       // 1. Set current device ID for the client copy
+      logger.log("[AcSyncDatabaseManager] Setting current device ID to '$clientDeviceId'...");
       await destDao.executeStatement(
           statement: "DELETE FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'current_device_id'"
       );
@@ -368,6 +405,7 @@ END;
       );
 
       // 2. Set sync mode to client
+      logger.log("[AcSyncDatabaseManager] Setting sync mode to 'client'...");
       await destDao.executeStatement(
           statement: "DELETE FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'sync_mode'"
       );
@@ -380,6 +418,7 @@ END;
       );
 
       // 3. Clear all device records and keep only Client and Server
+      logger.log("[AcSyncDatabaseManager] Clearing devices and adding Client/Server records...");
       await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
 
       // Add Client Device entry (as itself)
@@ -407,12 +446,17 @@ END;
       // Update the "Server has processed our logs up to X" (which is everything since it's a fresh clone)
       // Actually, the clone has 0 logs usually if it was a fresh setup, or it has all the server's current data.
       // We set the lastSyncChangeLogId for the server device to the server's current log ID.
+      logger.log("[AcSyncDatabaseManager] Setting server's last log ID to $serverLastLogId...");
       await destDao.updateRow(
         tableName: AcSyncTables.acSyncDevices,
         row: {TblAcSyncDevices.lastSyncChangeLogId: serverLastLogId},
         condition: "${TblAcSyncDevices.syncDeviceId} = '$serverDeviceId'"
       );
+      logger.log("[AcSyncDatabaseManager] Client database provisioning complete.");
 
+    } catch (e) {
+      logger.error("[AcSyncDatabaseManager] Error during client provisioning: $e");
+      rethrow;
     } finally {
     }
   }
