@@ -16,6 +16,8 @@ class AcSyncOnWs {
   Future<void> Function()? onSyncComplete;
   String? _destinationFilePath;
 
+  AcLogger logger = AcLogger(logMessages: true,logDirectory: 'logs',logType: AcEnumLogType.console,logFileName: 'ac-web.log');
+
   AcSyncOnWs({
     this.socket,
     this.syncDestinationDatabase,
@@ -31,7 +33,7 @@ class AcSyncOnWs {
   Future<AcResult> sync() async {
     AcResult result = AcResult();
     if (socket != null && syncDestinationDatabase != null) {
-      print("AcSyncOnWs: Initiating sync request from database...");
+      logger.log("[AcSyncOnWs] Initiating sync request from database...");
       result = await this.syncDestinationDatabase!.sync();
     } else {
       result.setFailure(message: "Socket not set");
@@ -48,7 +50,7 @@ class AcSyncOnWs {
         'syncData':{}
       };
       this.socket!.emit(event: eventName,data:data );
-      print("AcSyncOnWs: Sending database file from source...");
+      logger.log("[AcSyncOnWs] Getting database file from source...");
     } else {
       result.setFailure(message: "Socket not set");
     }
@@ -73,7 +75,7 @@ class AcSyncOnWs {
 
       };
       Future<void> Function(AcNotifySyncSuccessToSourceFunArgs callbackArgs) notifySuccessCallback = (AcNotifySyncSuccessToSourceFunArgs callbackArgs) async {
-        print("Test: Destination notifying sync success to source...");
+        logger.log("[AcSyncOnWs] Destination notifying sync success to source...");
         Map<String,dynamic> data = {
           'syncAction':'notifySyncSuccessToSource',
           'syncData':callbackArgs.toJson()
@@ -90,12 +92,12 @@ class AcSyncOnWs {
       syncDestinationDatabase!.notifySyncSuccessToSourceFun = notifySuccessCallback;
 
       socket!.onFile(event: "${eventName}DestinationFile", handler: ({required transferId, required name, required totalSize, required stream, metadata}) async {
-          print("AcSyncOnWs: Receiving sync stream start. Total size: $totalSize");
+          logger.log("[AcSyncOnWs] Receiving sync stream start. Total size: $totalSize");
           if (onSyncStart != null) onSyncStart!();
           File destinationFile = File(_destinationFilePath!);
           String tempFilePath = "${destinationFile.parent.absolute.path}/ac-sync-temp-file-${Autocode.uuid()}";
           File tempDestinationFile = File(tempFilePath);
-          print(tempDestinationFile.absolute.path);
+          logger.log("[AcSyncOnWs] ${tempDestinationFile.absolute.path}");
           if(!tempDestinationFile.existsSync()){
             tempDestinationFile.createSync(recursive: true);
           }
@@ -115,7 +117,7 @@ class AcSyncOnWs {
             }
           }
           tempDestinationFile.renameSync("${destinationFile.parent.absolute.path}/${destinationFile.fileName}");
-          print("AcSyncOnWs: Sync stream received. Total bytes: ${_receivedSyncStream.length}");
+          logger.log("[AcSyncOnWs] Sync stream received. Total bytes: ${_receivedSyncStream.length}");
           if (onSyncComplete != null) {
             await onSyncComplete!();
           }
@@ -159,12 +161,12 @@ class AcSyncOnWs {
               try {
                 // 1. Create temporary destination copy
                 tempFile.createSync(recursive: true);
-                print("AcSyncOnWs: Creating temporary destination copy for sync...");
+                logger.log("[AcSyncOnWs] Creating temporary destination copy for sync...");
                 await syncSourceDatabase!.createDatabaseFileForDestination(destinationPath: tempPath);
-                print("AcSyncOnWs: Original file size : ${File(syncSourceDatabase!.dao!.sqlConnection.database).lengthSync()}");
-                print("AcSyncOnWs: Temporary file size : ${tempFile.lengthSync()}");
+                logger.log("[AcSyncOnWs] Original file size : ${File(syncSourceDatabase!.dao!.sqlConnection.database).lengthSync()}");
+                logger.log("[AcSyncOnWs] Temporary file size : ${tempFile.lengthSync()}");
                 // 2. Send the data via stream from source to destination
-                print("AcSyncOnWs: Streaming database content to client...");
+                logger.log("[AcSyncOnWs] Streaming database content to client...");
                 if (onSyncStart != null) onSyncStart!();
                 final int totalSize = await tempFile.length();
                 await socket!.sendFile(
@@ -180,19 +182,19 @@ class AcSyncOnWs {
                         pendingCount: 1,
                       ));
                     }
-                    print("AcSyncOnWs: Sync upload progress: ${(progress * 100).toStringAsFixed(1)}%");
+                    logger.log("[AcSyncOnWs] Sync upload progress: ${(progress * 100).toStringAsFixed(1)}%");
                   },
                 );
                 if (onSyncComplete != null) onSyncComplete!();
                 result.setSuccess(message: "Sync stream completed successfully");
-                print("AcSyncOnWs: Sync stream complete.");
+                logger.log("[AcSyncOnWs] Sync stream complete.");
               } catch (e, stack) {
-                print("AcSyncOnWs: Error during sync action: $e");
+                logger.log("[AcSyncOnWs] Error during sync action: $e");
                 result.setException(exception: e, stackTrace: stack);
               } finally {
                 // 3. Remove the copy once done
                 if (await tempFile.exists()) {
-                  print("AcSyncOnWs: Removing temporary sync file...");
+                  logger.log("[AcSyncOnWs] Removing temporary sync file...");
                   await tempFile.delete();
                 }
               }

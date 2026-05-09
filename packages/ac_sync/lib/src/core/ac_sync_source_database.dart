@@ -24,7 +24,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
     }
 
     try {
-      logger.log("AcSyncSourceDatabase: Creating database file for destination at '$destinationPath'...");
+      logger.log("[AcSyncSourceDatabase] Creating database file for destination at '$destinationPath'...");
       final databaseManager = AcSyncDatabaseManager();
       await databaseManager.createDatabaseFileForDestination(
         sourcePath: sourcePath,
@@ -32,7 +32,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
         tableDefinitions: definition != null?definition.tableDefinitions:null,
       );
 
-      logger.log("AcSyncSourceDatabase: Database file created. Initializing destination database metadata...");
+      logger.log("[AcSyncSourceDatabase] Database file created. Initializing destination database metadata...");
       AcSqliteDao destinationDao = AcSqliteDao();
       int lastChangeLogId = 0;
       AcResult getLastResult = await getLastChangeLogId();
@@ -41,10 +41,10 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           lastChangeLogId = getLastResult.value;
         }
       }
-      logger.log("AcSyncSourceDatabase: Current last change log ID: $lastChangeLogId");
+      logger.log("[AcSyncSourceDatabase] Current last change log ID: $lastChangeLogId");
       destinationDao.sqlConnection = AcSqlConnection(database: destinationPath);
       String destinationDeviceId = Autocode.uuid();
-      logger.log("AcSyncSourceDatabase: New destination device ID: $destinationDeviceId");
+      logger.log("[AcSyncSourceDatabase] New destination device ID: $destinationDeviceId");
       await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
         TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
         TblAcSyncDetails.syncDetailStringValue:destinationDeviceId,
@@ -65,7 +65,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
         TblAcSyncDevices.syncDeviceId: destinationDeviceId,
         TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
       });
-      logger.log("AcSyncSourceDatabase: Registering new destination device in source database...");
+      logger.log("[AcSyncSourceDatabase] Registering new destination device in source database...");
       await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
         TblAcSyncDevices.isSourceOfTruth: 0,
         TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
@@ -73,9 +73,9 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
         TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
       });
       result.setSuccess();
-      logger.log("AcSyncSourceDatabase: Destination database file creation complete.");
+      logger.log("[AcSyncSourceDatabase] Destination database file creation complete.");
     } catch (e, stack) {
-      logger.log("AcSyncSourceDatabase: Error creating destination database: $e");
+      logger.log("[AcSyncSourceDatabase] Error creating destination database: $e");
       result.setException(exception: e, stackTrace: stack);
     }
 
@@ -90,7 +90,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
     }
 
     try {
-      logger.log("AcSyncSourceDatabase: Pruning synced change logs...");
+      logger.log("[AcSyncSourceDatabase] Pruning synced change logs...");
       // 1. Get the minimum last_sync_change_log_id from all devices
       var minIdResult = await dao!.getRows(
           statement: "SELECT MIN(${TblAcSyncDevices.lastSyncChangeLogId}) as min_id FROM ${AcSyncTables.acSyncDevices}"
@@ -101,7 +101,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
 
         if (minId != null) {
           int id = int.parse(minId.toString());
-          logger.log("AcSyncSourceDatabase: Minimum synced ID across all devices: $id. Deleting older logs...");
+          logger.log("[AcSyncSourceDatabase] Minimum synced ID across all devices: $id. Deleting older logs...");
 
           // 2. Delete logs that are already synced across all devices
           await dao!.deleteRows(
@@ -110,17 +110,17 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           );
 
           result.setSuccess(message: "Pruned logs up to ID $id");
-          logger.log("AcSyncSourceDatabase: Pruned logs up to ID $id");
+          logger.log("[AcSyncSourceDatabase] Pruned logs up to ID $id");
         } else {
-          logger.log("AcSyncSourceDatabase: No logs to prune (min_id is null)");
+          logger.log("[AcSyncSourceDatabase] No logs to prune (min_id is null)");
           result.setSuccess(message: "No logs to prune (min_id is null)");
         }
       } else {
-        logger.log("AcSyncSourceDatabase: Failed to get minimum synced ID: ${minIdResult.message}");
+        logger.log("[AcSyncSourceDatabase] Failed to get minimum synced ID: ${minIdResult.message}");
         result.setFromResult(result: minIdResult);
       }
     } catch (e, stack) {
-      logger.log("AcSyncSourceDatabase: Error pruning logs: $e");
+      logger.log("[AcSyncSourceDatabase] Error pruning logs: $e");
       result.setException(exception: e, stackTrace: stack);
     }
 
@@ -149,9 +149,9 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
 
   Future<AcResult> handleNotifyChangesFromDestination({required AcNotifyChangesToSourceFunArgs destinationNotifyArgs})  async {
     AcResult result = AcResult();
-    logger.log("AcSyncSourceDatabase: Received notification of changes from destination (Device ID: ${destinationNotifyArgs.deviceId})...");
+    logger.log("[AcSyncSourceDatabase] Received notification of changes from destination (Device ID: ${destinationNotifyArgs.deviceId})...");
     
-    logger.log("AcSyncSourceDatabase: Saving device sync log (STARTED)...");
+    logger.log("[AcSyncSourceDatabase] Saving device sync log (STARTED)...");
     var startSyncLogResult = await saveDeviceSyncLog(
         deviceId: destinationNotifyArgs.deviceId!,
         startTimestamp: destinationNotifyArgs.startTimestamp,
@@ -160,32 +160,32 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
     );
     lastDeviceSyncLogId = startSyncLogResult.value ?? 0;
     
-    logger.log("AcSyncSourceDatabase: Extracting source changes for destination (since ID: ${destinationNotifyArgs.lastSyncChangeLogId})...");
+    logger.log("[AcSyncSourceDatabase] Extracting source changes for destination (since ID: ${destinationNotifyArgs.lastSyncChangeLogId})...");
     var getChangesResult = await getSyncChanges(lastSyncId: destinationNotifyArgs.lastSyncChangeLogId!);
     if(getChangesResult.isSuccess()){
       final changes = getChangesResult.value as AcSyncChanges;
-      logger.log("AcSyncSourceDatabase: Source changes extracted. Table count: ${changes.tableChanges.length}");
+      logger.log("[AcSyncSourceDatabase] Source changes extracted. Table count: ${changes.tableChanges.length}");
 
       AcNotifyChangesCallbackArgs callbackArgs = AcNotifyChangesCallbackArgs();
       callbackArgs.deviceId = deviceId;
       callbackArgs.sourceChanges = changes;
 
-      logger.log("AcSyncSourceDatabase: Getting current last change log ID...");
+      logger.log("[AcSyncSourceDatabase] Getting current last change log ID...");
       final lastChangeLogIdResult = await getLastChangeLogId();
       if(lastChangeLogIdResult.isFailure()){
-        logger.log("AcSyncSourceDatabase: Failed to get last change log ID: ${lastChangeLogIdResult.message}");
+        logger.log("[AcSyncSourceDatabase] Failed to get last change log ID: ${lastChangeLogIdResult.message}");
         result.setFromResult(result: lastChangeLogIdResult);
         return result;
       }
 
       int lastChangeLogId = lastChangeLogIdResult.value ?? 0;
       callbackArgs.lastSyncChangeLogId = lastChangeLogId;
-      logger.log("AcSyncSourceDatabase: Current last change log ID: $lastChangeLogId. Sending response to destination.");
+      logger.log("[AcSyncSourceDatabase] Current last change log ID: $lastChangeLogId. Sending response to destination.");
 
       result.setSuccess(value: callbackArgs);
     }
     else{
-      logger.log("AcSyncSourceDatabase: Failed to extract changes: ${getChangesResult.message}");
+      logger.log("[AcSyncSourceDatabase] Failed to extract changes: ${getChangesResult.message}");
       result.setFromResult(result: getChangesResult);
     }
     return result;
@@ -193,22 +193,22 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
 
   Future<AcResult> handleNotifySyncSuccessFromSource({required AcNotifySyncSuccessToSourceFunArgs destinationNotifyArgs}) async {
     AcResult result = AcResult();
-    logger.log("AcSyncSourceDatabase: Received sync success notification from destination (Device ID: ${destinationNotifyArgs.deviceId})...");
+    logger.log("[AcSyncSourceDatabase] Received sync success notification from destination (Device ID: ${destinationNotifyArgs.deviceId})...");
     
     AcNotifySuccessCallbackArgs callbackArgs = AcNotifySuccessCallbackArgs();
-    logger.log("AcSyncSourceDatabase: Updating last sync ID for destination...");
+    logger.log("[AcSyncSourceDatabase] Updating last sync ID for destination...");
     var updateSelfSyncIdResult = await updateLastSyncChangeLogId(deviceId: destinationNotifyArgs.deviceId!,lastSyncChangeLogId:destinationNotifyArgs.lastSyncChangeLogId!);
     if(updateSelfSyncIdResult.isSuccess()){
-      logger.log("AcSyncSourceDatabase: Last sync ID updated. Getting new last change log ID...");
+      logger.log("[AcSyncSourceDatabase] Last sync ID updated. Getting new last change log ID...");
       final lastChangeLogIdResult = await getLastChangeLogId();
       if(lastChangeLogIdResult.isFailure()){
-        logger.log("AcSyncSourceDatabase: Failed to get last change log ID: ${lastChangeLogIdResult.message}");
+        logger.log("[AcSyncSourceDatabase] Failed to get last change log ID: ${lastChangeLogIdResult.message}");
         result.setFromResult(result: lastChangeLogIdResult);
         return result;
       }
 
       int lastChangeLogId = lastChangeLogIdResult.value ?? 0;
-      logger.log("AcSyncSourceDatabase: New last change log ID: $lastChangeLogId. Updating sync log (COMPLETED)...");
+      logger.log("[AcSyncSourceDatabase] New last change log ID: $lastChangeLogId. Updating sync log (COMPLETED)...");
       callbackArgs.lastSyncChangeLogId = lastChangeLogId;
       callbackArgs.deviceId = deviceId;
       await saveDeviceSyncLog(
@@ -218,11 +218,11 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           syncOperationResult: 'COMPLETED',
           syncDeviceLogId: lastDeviceSyncLogId
       );
-      logger.log("AcSyncSourceDatabase: Sync cycle finished for destination.");
+      logger.log("[AcSyncSourceDatabase] Sync cycle finished for destination.");
       result.setSuccess(value: callbackArgs);
     }
     else{
-      logger.log("AcSyncSourceDatabase: Failed to update last sync ID: ${updateSelfSyncIdResult.message}");
+      logger.log("[AcSyncSourceDatabase] Failed to update last sync ID: ${updateSelfSyncIdResult.message}");
       result.setFromResult(result: updateSelfSyncIdResult);
     }
     return result;

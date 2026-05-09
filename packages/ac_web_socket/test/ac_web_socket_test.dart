@@ -22,7 +22,7 @@ void main() {
              socket.sendBinary(bytes: data);
            }
         });
-        socket.addIncomingInterceptor(({required message, callback, abort}) {
+        socket.addIncomingInterceptor(handler:({required message, callback, abort}) {
           interceptorLogs.add(message['e'] ?? 'none');
         });
       });

@@ -76,7 +76,7 @@ class AcWeb {
 
   /* AcDoc({"summary": "The logger instance for the web server."}) */
   AcLogger logger = AcLogger(
-    logMessages: true,
+    logMessages: false,
     logDirectory: 'logs',
     logType: AcEnumLogType.console,
     logFileName: 'ac-web.log',
@@ -161,10 +161,10 @@ class AcWeb {
       get(
         url: '/swagger$swaggerFileName',
         handler: (AcWebRequestHandlerArgs args) {
-          logger.log("Handling Swagger File : $swaggerFileName");
+          logger.log("[AcWeb] Handling Swagger File : $swaggerFileName");
           var fileContent = AcSwaggerResources.files[swaggerFileName];
           String mimeType = AcFileUtils.getMimeTypeFromPath(swaggerFileName);
-          logger.log("Handling Swagger File Mime : $mimeType");
+          logger.log("[AcWeb] Handling Swagger File Mime : $mimeType");
           return AcWebResponse.raw(
             content: fileContent,
             headers: {'Content-Type': mimeType},
@@ -265,7 +265,7 @@ class AcWeb {
       if (interceptor != null && !chain.contains(interceptor)) {
         chain.add(interceptor);
       } else if (interceptor == null) {
-        logger.log("Warning: Interceptor '$name' not found for route ${routeDefinition.method}>${routeDefinition.url}");
+        logger.log("[AcWeb] Warning: Interceptor '$name' not found for route ${routeDefinition.method}>${routeDefinition.url}");
       }
     }
 
@@ -278,7 +278,7 @@ class AcWeb {
         executedInterceptors.add(interceptor);
         if (shortCircuitResponse != null) break;
       } catch (e) {
-        logger.log("Error in interceptor ${interceptor.name}.onRequest: $e");
+        logger.log("[AcWeb] Error in interceptor ${interceptor.name}.onRequest: $e");
         shortCircuitResponse = AcWebResponse.internalError(data: 'Interceptor error: $e');
         executedInterceptors.add(interceptor);
         break;
@@ -298,7 +298,7 @@ class AcWeb {
       try {
         response = await interceptor.onResponse(request, response);
       } catch (e) {
-        logger.log("Error in interceptor ${interceptor.name}.onResponse: $e");
+        logger.log("[AcWeb] Error in interceptor ${interceptor.name}.onResponse: $e");
       }
     }
 
@@ -315,41 +315,41 @@ class AcWeb {
       ) async {
     AcLogger requestLogger = AcLogger(logFileName:"${request.url}.log",logDirectory: "logs/ac-web-requests",logMessages: true,logType: AcEnumLogType.text);
     if (routeDefinition.controller != null && routeDefinition.handler is String) {
-      logger.log("Handing controller route...");
+      logger.log("[AcWeb] Handing controller route...");
       final controllerClassMirror = acReflectClass(routeDefinition.controller!);
       final controllerInstance = controllerClassMirror.newInstance('', []);
-      logger.log("Instance class name is : ${controllerClassMirror.getName()}");
+      logger.log("[AcWeb] Instance class name is : ${controllerClassMirror.getName()}");
       final controllerInstanceMirror = acReflect(controllerInstance);
 
       final methodName = Symbol(routeDefinition.handler as String);
-      logger.log("Handler controller method name is : ${methodName.getName()}");
+      logger.log("[AcWeb] Handler controller method name is : ${methodName.getName()}");
       final methodMirror = controllerClassMirror.instanceMembers[methodName] as AcMethodMirror;
 
       final positionalArgs = <dynamic>[];
       final namedArgs = <Symbol, dynamic>{};
-      logger.log("Looking for arguments of method : ${methodName.getName()}");
+      logger.log("[AcWeb] Looking for arguments of method : ${methodName.getName()}");
       for (final parameter in methodMirror.parameters) {
         dynamic argValue;
         bool valueSet = false;
-        logger.log("Found parameter : ${parameter.getName()}");
+        logger.log("[AcWeb] Found parameter : ${parameter.getName()}");
 
         if (parameter.type == AcWebRequest) {
-          logger.log("Parameter type is AcWebRequest");
+          logger.log("[AcWeb] Parameter type is AcWebRequest");
           argValue = request;
           valueSet = true;
         }
         else if (parameter.type == AcLogger) {
-          logger.log("Parameter type is AcLogger");
+          logger.log("[AcWeb] Parameter type is AcLogger");
           argValue = requestLogger;
           valueSet = true;
         }
         else {
-          logger.log("Checking meta of parameter");
+          logger.log("[AcWeb] Checking meta of parameter");
           for (final meta in parameter.metadata) {
             String key = parameter.simpleName.getName();
-            logger.log("Parameter key : $key");
+            logger.log("[AcWeb] Parameter key : $key");
             if (meta is AcWebValueFromPath) {
-              logger.log("Parameter meta is of type AcWebValueFromPath");
+              logger.log("[AcWeb] Parameter meta is of type AcWebValueFromPath");
               if(meta.key.isNotEmpty){
                 key = meta.key;
               }
@@ -358,11 +358,11 @@ class AcWeb {
                 valueSet = true;
               }
               else{
-                logger.log("Path parameter does not contain key : $key");
+                logger.log("[AcWeb] Path parameter does not contain key : $key");
               }
               break;
             } else if (meta is AcWebValueFromQuery && request.queryParameters.containsKey(key)) {
-              logger.log("Parameter meta is of type AcWebValueFromQuery");
+              logger.log("[AcWeb] Parameter meta is of type AcWebValueFromQuery");
               if(meta.key.isNotEmpty){
                 key = meta.key;
               }
@@ -370,11 +370,11 @@ class AcWeb {
                 argValue = request.queryParameters[key]; valueSet = true;
               }
               else{
-                logger.log("Query parameter does not contain key : $key");
+                logger.log("[AcWeb] Query parameter does not contain key : $key");
               }
                break;
             } else if (meta is AcWebValueFromForm && request.formFields.containsKey(key)) {
-              logger.log("Parameter meta is of type AcWebValueFromForm");
+              logger.log("[AcWeb] Parameter meta is of type AcWebValueFromForm");
               if(meta.key.isNotEmpty){
                 key = meta.key;
               }
@@ -382,11 +382,11 @@ class AcWeb {
                 argValue = request.formFields[key]; valueSet = true;
               }
               else{
-                logger.log("Form fields does not contain key : $key");
+                logger.log("[AcWeb] Form fields does not contain key : $key");
               }
                break;
             } else if (meta is AcWebValueFromHeader && request.headers.containsKey(key)) {
-              logger.log("Parameter meta is of type AcWebValueFromHeader");
+              logger.log("[AcWeb] Parameter meta is of type AcWebValueFromHeader");
               if(meta.key.isNotEmpty){
                 key = meta.key;
               }
@@ -394,11 +394,11 @@ class AcWeb {
                 argValue = request.headers[key]; valueSet = true;
               }
               else{
-                logger.log("Headers does not contain key : $key");
+                logger.log("[AcWeb] Headers does not contain key : $key");
               }
               break;
             } else if (meta is AcWebValueFromCookie && request.cookies.containsKey(key)) {
-              logger.log("Parameter meta is of type AcWebValueFromCookie");
+              logger.log("[AcWeb] Parameter meta is of type AcWebValueFromCookie");
               if(meta.key.isNotEmpty){
                 key = meta.key;
               }
@@ -406,11 +406,11 @@ class AcWeb {
                 argValue = request.cookies[key]; valueSet = true;
               }
               else{
-                logger.log("Cookies does not contain key : $key");
+                logger.log("[AcWeb] Cookies does not contain key : $key");
               }
                break;
             } else if (meta is AcWebValueFromBody) {
-              logger.log("Parameter is of type AcWebValueFromBody");
+              logger.log("[AcWeb] Parameter is of type AcWebValueFromBody");
               final paramType = parameter.type;
               final object = acReflectClass(paramType).newInstance('', []);
               AcJsonUtils.setInstancePropertiesFromJsonData(instance: object, jsonData: request.body);
@@ -419,14 +419,14 @@ class AcWeb {
           }
         }
         if (!valueSet) {
-          logger.log("Value is not set");
+          logger.log("[AcWeb] Value is not set");
           argValue = null;
         }
         if(parameter.isNamed){
-          logger.log("Parameter is named");
+          logger.log("[AcWeb] Parameter is named");
           namedArgs[parameter.simpleName] = argValue;
         } else {
-          logger.log("Parameter is not named");
+          logger.log("[AcWeb] Parameter is not named");
           positionalArgs.add(argValue);
         }
       }
@@ -435,7 +435,7 @@ class AcWeb {
     }
     else if (routeDefinition.handler is Function) {
       try {
-        logger.log("Handing function route...");
+        logger.log("[AcWeb] Handing function route...");
         AcWebRequestHandlerArgs args = AcWebRequestHandlerArgs(request: request,logger: requestLogger);
         return await (routeDefinition.handler as Function)(args);
       } catch (e) {
@@ -457,21 +457,21 @@ class AcWeb {
   }) */
   AcWeb registerController({required Type controllerClass,String routePrefix = ""}) {
     final classMirror = acReflectClass(controllerClass);
-    logger.log("Registering controller class : ${classMirror.getName()}");
+    logger.log("[AcWeb] Registering controller class : ${classMirror.getName()}");
     String classRoute = '';
     if(routePrefix.isNotEmpty){
       classRoute = routePrefix;
     }
-    logger.log("Checking class meta...");
+    logger.log("[AcWeb] Checking class meta...");
     for (var meta in classMirror.metadata) {
       if (meta is AcWebRoute) {
-        logger.log("Found route meta annotation.");
+        logger.log("[AcWeb] Found route meta annotation.");
         classRoute = meta.path.trimRight();
       }
     }
-    logger.log("Class meta checked.");
-    logger.log("Class route is : $classRoute");
-    logger.log("Going through class instance members...");
+    logger.log("[AcWeb] Class meta checked.");
+    logger.log("[AcWeb] Class route is : $classRoute");
+    logger.log("[AcWeb] Going through class instance members...");
     // Collect class-level interceptor names
     final classInterceptors = <String>[];
     for (var meta in classMirror.metadata) {
@@ -482,15 +482,15 @@ class AcWeb {
 
     for (var member in classMirror.instanceMembers.values) {
       if (member is! AcMethodMirror) continue;
-      logger.log("Found method mirror.");
+      logger.log("[AcWeb] Found method mirror.");
       for (var meta in member.metadata) {
-        logger.log("Checking method meta...");
+        logger.log("[AcWeb] Checking method meta...");
         if (meta is AcWebRoute) {
-          logger.log("Found route meta annotation on method.");
+          logger.log("[AcWeb] Found route meta annotation on method.");
           final fullPath = '$classRoute/${meta.path.trim()}'.replaceAll('//', '/');
           final httpMethod = meta.method.toLowerCase();
           final routeKey = '$httpMethod>$fullPath';
-          logger.log("Method route details > Method: $httpMethod, Path : $fullPath, RouteKey : $routeKey ");
+          logger.log("[AcWeb] Method route details > Method: $httpMethod, Path : $fullPath, RouteKey : $routeKey ");
           final acApiDocRoute = _getRouteDocFromMethodMirror(methodMirror: member);
 
           // Collect method-level interceptor names
@@ -513,7 +513,7 @@ class AcWeb {
         }
       }
     }
-    logger.log("Controller registered.");
+    logger.log("[AcWeb] Controller registered.");
     return this;
   }
 
@@ -554,13 +554,13 @@ class AcWeb {
   }
 
   AcWeb assetFiles({required String assetDirectory, String prefix = ""}) {
-    logger.log("Registering static files directory : $assetDirectory");
+    logger.log("[AcWeb] Registering static files directory : $assetDirectory");
     assetFilesRoutes.add({'prefix': prefix, 'directory': assetDirectory});
     return this;
   }
 
   AcWeb rawContentMap({required Map<String,dynamic> map, String prefix = "",String fallbackUrl = ""}) {
-    // logger.log("Registering raw files map : $map");
+    // logger.log("[AcWeb] Registering raw files map : $map");
     Map<String,dynamic> valueMap = {'prefix': prefix, 'map': map,'fallbackUrl':fallbackUrl};
     rawContentMaps.add(valueMap);
     return this;
@@ -604,7 +604,7 @@ class AcWeb {
     "returns_type": "AcWeb"
   }) */
   AcWeb staticFilesDirectory({required String directory, String prefix = ""}) {
-    logger.log("Registering static files directory : $directory");
+    logger.log("[AcWeb] Registering static files directory : $directory");
     Directory d = Directory(directory);
     if(!d.existsSync()){
       d.createSync(recursive: true);

@@ -8,7 +8,7 @@ Future<void> setupClient() async {
     print('Client: Connected to server!');
 
     // Intercept outgoing messages to add a prefix
-    socket.addOutgoingInterceptor(({required message, callback, abort}) {
+    socket.addOutgoingInterceptor(handler:({required message, callback, abort}) {
       if (message['e'] == 'chat') {
         message['d'] = '[Client-Prefixed] ${message['d']}';
       }
