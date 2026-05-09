@@ -14,6 +14,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
   Future<AcResult> getLastChangeLogId() async {
     AcResult result = AcResult();
     if (dao == null){
+      logger.error("[AcSyncDestinationDatabase] DAO not set, cannot get last change log ID.");
       result.setFailure(message: "DAO not set");
       return result;
     }
@@ -24,8 +25,10 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
     if (selectResult.isSuccess()){
       result.setSuccess();
       result.value = selectResult.rows.first[TblAcSyncChangeLogs.syncChangeLogId]??0;
+      logger.log("[AcSyncDestinationDatabase] Last change log ID: ${result.value}");
     }
     else{
+      logger.error("[AcSyncDestinationDatabase] Failed to get last change log ID: ${selectResult.message}");
       result.setFromResult(result: selectResult);
     }
     return result;
@@ -65,31 +68,34 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
         int lastChangeLogId = lastChangeLogIdResult.value ?? 0;
         logger.log("[AcSyncDestinationDatabase] Last change log ID: $lastChangeLogId");
 
-        int lastSourceChangeLogId = 0;
-        logger.log("[AcSyncDestinationDatabase] Getting last source change log ID...");
-        var sourceLastSyncIdResult = await dao!.getRows(
-            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.isSourceOfTruth} = 1;"
+        int lastSyncChangeLogId = 0;
+        logger.log("[AcSyncDestinationDatabase] Getting last synced change log ID...");
+        var lastSyncChangeLogIdResult = await dao!.getRows(
+            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.syncDeviceId} = @deviceId;",
+          parameters: {"@deviceId":deviceId}
         );
 
-        if (sourceLastSyncIdResult.isFailure()){
-          logger.log("[AcSyncDestinationDatabase] Failed to get last source change log ID: ${sourceLastSyncIdResult.message}");
-          result.setFromResult(result: sourceLastSyncIdResult);
+        if (lastSyncChangeLogIdResult.isFailure()){
+          logger.log("[AcSyncDestinationDatabase] Failed to get last synced change log ID: ${lastSyncChangeLogIdResult.message}");
+          result.setFromResult(result: lastSyncChangeLogIdResult);
           return result;
         }
-        lastSourceChangeLogId = sourceLastSyncIdResult.value ?? 0;
-        logger.log("[AcSyncDestinationDatabase] Last source change log ID: $lastSourceChangeLogId");
+        lastSyncChangeLogId = lastSyncChangeLogIdResult.rows.first[TblAcSyncDevices.lastSyncChangeLogId] ?? 0;
+
+
+        logger.log("[AcSyncDestinationDatabase] Last synced change log ID: $lastSyncChangeLogId");
 
         logger.log("[AcSyncDestinationDatabase] Saving device sync log (STARTED)...");
         var startSyncLogResult = await saveDeviceSyncLog(
             deviceId: deviceId!,
             startTimestamp: startTimestamp,
-            oldSyncChangeLogId: lastSourceChangeLogId,
+            oldSyncChangeLogId: lastSyncChangeLogId,
             syncOperationResult: 'STARTED'
         );
 
         logger.log("[AcSyncDestinationDatabase] Extracting local changes...");
         final extractResult = await getSyncChanges(
-          lastSyncId: lastChangeLogId,
+          lastSyncId: lastSyncChangeLogId,
         );
 
         if (!extractResult.isSuccess()) {
@@ -136,11 +142,14 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
                   result.setSuccess();
                   
                   // Delete rows that are marked to be deleted after successful sync (e.g. logs/queue)
+                  logger.log("[AcSyncDestinationDatabase] Checking for rows to delete after sync...");
                   await deleteSyncedRows(changes: localChanges);
 
                   if(callbackArgs.lastSyncChangeLogId! > newLastChangeLogId){
                     logger.log("[AcSyncDestinationDatabase] Remote has more changes (${callbackArgs.lastSyncChangeLogId} > $newLastChangeLogId). Triggering nested sync...");
-                    result.setFromResult(result:await sync(isNested: false));
+                    result.setFromResult(result:await sync(isNested: true));
+                  } else {
+                    logger.log("[AcSyncDestinationDatabase] No more remote changes to sync.");
                   }
                   isWorking = false;
                   logger.log("[AcSyncDestinationDatabase] Sync cycle finished.");
@@ -173,6 +182,18 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
           }
         };
 
+        int lastSourceChangeLogId = 0;
+        logger.log("[AcSyncDestinationDatabase] Getting last source change log ID...");
+        var sourceLastSyncIdResult = await dao!.getRows(
+            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.isSourceOfTruth} = 1;"
+        );
+
+        if (sourceLastSyncIdResult.isFailure()){
+          logger.log("[AcSyncDestinationDatabase] Failed to get last source change log ID: ${sourceLastSyncIdResult.message}");
+          result.setFromResult(result: sourceLastSyncIdResult);
+          return result;
+        }
+        lastSourceChangeLogId = sourceLastSyncIdResult.rows.first[TblAcSyncDevices.lastSyncChangeLogId] ?? 0;
         var changesArgs = AcNotifyChangesToSourceFunArgs(
           changes: localChanges,
           lastSyncChangeLogId: lastSourceChangeLogId,
@@ -185,8 +206,13 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
         await notifyChangesToSourceFun!(changesArgs);
 
         logger.log("[AcSyncDestinationDatabase] Waiting for source to process changes...");
+        int waitCount = 0;
         while(isWorking){
           await Future.delayed(Duration(milliseconds: 500));
+          waitCount++;
+          if(waitCount % 10 == 0){ // Every 5 seconds
+            logger.log("[AcSyncDestinationDatabase] Still waiting for source... (${waitCount * 0.5}s)");
+          }
         }
       }
       else {
