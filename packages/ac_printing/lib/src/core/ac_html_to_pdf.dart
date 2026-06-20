@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ac_extensions/ac_extensions.dart';
@@ -81,11 +82,12 @@ class AcHtmlToPdf {
       htmlFile.write(html);
       _debug("Creating browser page...");
       Page page = await browser.newPage();
-      if(viewportHeight > 0 && viewportWidth > 0){
-        viewportHeight = 1440;
-        viewportWidth = 2560;
-        await page.setViewport(DeviceViewport(height: viewportHeight, width: viewportWidth,deviceScaleFactor:deviceScaleFactor,isLandscape: true ));
-        await page.reload();
+      await page.emulateMediaType(MediaType.print);
+      if(viewportHeight > 0 && viewportWidth > 0 ){
+        // viewportHeight = 1080;
+        // viewportWidth = 1920;
+        // await page.setViewport(DeviceViewport(height: viewportHeight, width: viewportWidth,deviceScaleFactor:deviceScaleFactor,isLandscape: true ));
+        // await page.reload();
       }
       _debug("Browser page created.");
       await page.setContent(html, wait: Until.all([
@@ -104,12 +106,22 @@ class AcHtmlToPdf {
           const rect = el.getBoundingClientRect();
         
           return {
-            width: rect.width,
-            height: rect.height
+            dpr: window.devicePixelRatio,
+            innerWidth: window.innerWidth,
+            innerHeight: window.innerHeight,
+            pageWidth: getComputedStyle(el).width,
+            pageHeight: getComputedStyle(el).height,
+            font: getComputedStyle(document.body).fontFamily,
+            media: matchMedia('print').matches ? 'print' : 'screen',
+            widthPx: rect.width,
+            heightPx: rect.height,
+            widthIn: rect.width / 96,
+            heightIn: rect.height / 96
           };
         }
         '''));
-        result = await pagePdf(page, callback: callback, heightPX: size['height'], widthPX: size['width']);
+        print("Page Size : "+jsonEncode(size));
+        result = await pagePdf(page, callback: callback, heightIN: size.getDouble('heightIn'), widthIN: size.getDouble('widthIn'));
         completed = true;
       }
       else{
@@ -134,11 +146,17 @@ class AcHtmlToPdf {
     return result;
   }
 
-  Future<AcResult> pagePdf(Page page,{Function? callback,AcPageFormat? pageFormat,int heightPX = 0,int widthPX = 0})async{
+  Future<AcResult> pagePdf(Page page,{Function? callback,AcPageFormat? pageFormat,int heightPX = 0,int widthPX = 0, double heightMM = 0,double widthMM = 0, double heightIN = 0,double widthIN = 0})async{
     AcResult result = AcResult();
     PaperFormat paperFormat=PaperFormat.a4;
     if(heightPX > 0 && widthPX > 0){
       paperFormat = PaperFormat.px(width: widthPX, height: heightPX);
+    }
+    else if(heightIN > 0 && widthIN > 0){
+      paperFormat = PaperFormat.inches(width: widthIN, height: heightIN);
+    }
+    else if(heightMM > 0 && widthMM > 0){
+      paperFormat = PaperFormat.mm(width: widthMM, height: heightMM);
     }
     else if(pageFormat != null){
       paperFormat = pageFormat.toPaperFormat();
@@ -154,7 +172,8 @@ class AcHtmlToPdf {
     Uint8List? pdfData=await page.pdf(
         format: paperFormat,
         printBackground: true,
-        preferCssPageSize: true
+        preferCssPageSize: true,
+      margins: PdfMargins.px(top: 0,left: 0,bottom: 0,right: 0)
     );
     if(callback!=null){
       callback(pdfData);

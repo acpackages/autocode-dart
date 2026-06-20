@@ -18,7 +18,7 @@ class AcWebviewOnWeb {
     logFileName: 'ac-webview-on-web.log',
   );
 
-  AcWebviewOnWeb({required this.webview,required this.app, this.actionName = 'webRequest', this.interceptor}) {
+  AcWebviewOnWeb({required this.webview,required this.app, this.actionName = 'web_request', this.interceptor}) {
     webview.onAction(
       name: actionName,
       callback: (AcWebviewChannelAction channelAction) async {
@@ -206,7 +206,7 @@ class AcWebviewOnWeb {
     }
 
     // Path Parameters (can be overridden by data)
-    final pathMap = data['pathParameters'] ?? data['params'];
+    final pathMap = data['path_parameters'] ?? data['params'];
     if (pathMap is Map) {
       pathMap.forEach((k, v) => request.pathParameters[k.toString()] = v);
     }

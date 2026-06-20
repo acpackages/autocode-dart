@@ -7,10 +7,10 @@ class AcPrinter {
   static const String keyUrl = "url";
   static const String keyLocation = "location";
   static const String keyComment = "comment";
-  static const String keyIsDefault = "isDefault";
-  static const String keyIsAvailable = "isAvailable";
-  static const String keyDriverName = "driverName";
-  static const String keyPpdName = "ppdName";
+  static const String keyIsDefault = "is_default";
+  static const String keyIsAvailable = "is_available";
+  static const String keyDriverName = "driver_name";
+  static const String keyPpdName = "ppd_name";
 
   @AcBindJsonProperty(key: keyName)
   String name = "";

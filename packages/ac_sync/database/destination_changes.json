@@ -1,0 +1,593 @@
+{
+  "tableChanges": {
+    "act_inventory_tracking_entries": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "in_quantity": 0.0,
+            "in_total_quantity": 0.0,
+            "inventory_tracking_id": "66fa9420-d5cd-4045-bd5c-86c9c1310ec3",
+            "inventory_tracking_entry_id": "34db10a4-3833-4823-b8dd-10ac71e63da0",
+            "out_quantity": 1.0,
+            "out_total_quantity": 1.0,
+            "product_uom_id": "a592144f-9130-4a44-9a4a-5900e5a08e7f",
+            "out_uom_id": "a592144f-9130-4a44-9a4a-5900e5a08e7f",
+            "product_price_final": 10.0
+          },
+          "rowId": "34db10a4-3833-4823-b8dd-10ac71e63da0"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "in_quantity": 0.0,
+            "in_total_quantity": 0.0,
+            "inventory_tracking_id": "d8984bbc-0412-47c0-b425-749807eda8da",
+            "inventory_tracking_entry_id": "bed98d50-6ac6-4994-a2a6-bccb3b9a5d69",
+            "out_quantity": 1.0,
+            "out_total_quantity": 1.0,
+            "product_uom_id": "2f02e6d8-a2f3-49e2-852f-52f7804366ab",
+            "out_uom_id": "2f02e6d8-a2f3-49e2-852f-52f7804366ab",
+            "product_price_final": 90.0
+          },
+          "rowId": "bed98d50-6ac6-4994-a2a6-bccb3b9a5d69"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "in_quantity": 0.0,
+            "in_total_quantity": 0.0,
+            "inventory_tracking_id": "cecbdc18-4120-4074-87b2-f4ab0a77530f",
+            "inventory_tracking_entry_id": "3c374d40-bd39-4c14-9dc6-a9f7ebb4fe3c",
+            "out_quantity": 1.0,
+            "out_total_quantity": 1.0,
+            "product_uom_id": "411e3362-00ac-4597-880d-926b9da60d68",
+            "out_uom_id": "411e3362-00ac-4597-880d-926b9da60d68",
+            "product_price_final": 250.0
+          },
+          "rowId": "3c374d40-bd39-4c14-9dc6-a9f7ebb4fe3c"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "in_quantity": 0.0,
+            "in_total_quantity": 0.0,
+            "inventory_tracking_id": "891d9fef-2aee-4ae7-978e-f4f480c5b586",
+            "inventory_tracking_entry_id": "c6b69017-063a-4ddc-bc9f-874567ccb445",
+            "out_quantity": 1.0,
+            "out_total_quantity": 1.0,
+            "product_uom_id": "8fbeb78f-49d9-4b0e-934f-cac42ff9c5cc",
+            "out_uom_id": "8fbeb78f-49d9-4b0e-934f-cac42ff9c5cc",
+            "product_price_final": 2690.0
+          },
+          "rowId": "c6b69017-063a-4ddc-bc9f-874567ccb445"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "in_quantity": 0.0,
+            "in_total_quantity": 0.0,
+            "inventory_tracking_id": "149ebb8b-5f99-424c-8c76-906383375570",
+            "inventory_tracking_entry_id": "ff7547d1-2d6d-4197-a74f-58d6ecfc68ec",
+            "out_quantity": 1.0,
+            "out_total_quantity": 1.0,
+            "product_uom_id": "c3bf8a96-acbc-4e6c-a203-a7a899dfbf96",
+            "out_uom_id": "c3bf8a96-acbc-4e6c-a203-a7a899dfbf96",
+            "product_price_final": 560.0
+          },
+          "rowId": "ff7547d1-2d6d-4197-a74f-58d6ecfc68ec"
+        }
+      ],
+      "rowsToUpdate": []
+    },
+    "act_inventory_trackings": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "inventory_tracking_datetime": "2026-05-09T13:52:27.000",
+            "inventory_tracking_id": "66fa9420-d5cd-4045-bd5c-86c9c1310ec3",
+            "is_draft": 0,
+            "product_id": "a13f7c8a-aa7e-41c3-b99d-feaa0b5c21e7"
+          },
+          "rowId": "66fa9420-d5cd-4045-bd5c-86c9c1310ec3"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "inventory_tracking_datetime": "2026-05-09T13:52:27.000",
+            "inventory_tracking_id": "d8984bbc-0412-47c0-b425-749807eda8da",
+            "is_draft": 0,
+            "product_id": "3dcc6ddd-3fd5-45f4-9005-e8a060685762"
+          },
+          "rowId": "d8984bbc-0412-47c0-b425-749807eda8da"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "inventory_tracking_datetime": "2026-05-09T13:52:27.000",
+            "inventory_tracking_id": "cecbdc18-4120-4074-87b2-f4ab0a77530f",
+            "is_draft": 0,
+            "product_id": "420d0961-f35e-440b-a938-65523132e1ae"
+          },
+          "rowId": "cecbdc18-4120-4074-87b2-f4ab0a77530f"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "inventory_tracking_datetime": "2026-05-09T13:52:27.000",
+            "inventory_tracking_id": "891d9fef-2aee-4ae7-978e-f4f480c5b586",
+            "is_draft": 0,
+            "product_id": "402b88bb-ee3c-49bf-b39a-519a384a2673"
+          },
+          "rowId": "891d9fef-2aee-4ae7-978e-f4f480c5b586"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "inventory_tracking_datetime": "2026-05-09T13:52:27.000",
+            "inventory_tracking_id": "149ebb8b-5f99-424c-8c76-906383375570",
+            "is_draft": 0,
+            "product_id": "561b1747-65f5-49f0-83d2-3ccea363da33"
+          },
+          "rowId": "149ebb8b-5f99-424c-8c76-906383375570"
+        }
+      ],
+      "rowsToUpdate": []
+    },
+    "act_ledger_accounts": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [],
+      "rowsToUpdate": [
+        {
+          "operation": "UPDATE",
+          "row": {
+            "ledger_account_balance": 8210481.42,
+            "ledger_account_id": "a33ee6e5-2a09-4bdf-83f0-91e915df3f80"
+          },
+          "rowId": "a33ee6e5-2a09-4bdf-83f0-91e915df3f80"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "ledger_account_balance": -1016784.7226547,
+            "ledger_account_id": "5e5ff893-06f8-4820-8047-82afe6ceaa30"
+          },
+          "rowId": "5e5ff893-06f8-4820-8047-82afe6ceaa30"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "ledger_account_id": "9f8ba1fa-9a31-4ef0-b634-cf90744e843b"
+          },
+          "rowId": "9f8ba1fa-9a31-4ef0-b634-cf90744e843b"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "ledger_account_balance": -17528423.8123453,
+            "ledger_account_id": "ef6be304-0110-404c-bd04-0047ddd4cca7"
+          },
+          "rowId": "ef6be304-0110-404c-bd04-0047ddd4cca7"
+        }
+      ]
+    },
+    "act_products": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [],
+      "rowsToUpdate": [
+        {
+          "operation": "UPDATE",
+          "row": {
+            "stock_total_quantity": -1.0,
+            "product_id": "a13f7c8a-aa7e-41c3-b99d-feaa0b5c21e7"
+          },
+          "rowId": "a13f7c8a-aa7e-41c3-b99d-feaa0b5c21e7"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "stock_total_quantity": -1.0,
+            "product_id": "3dcc6ddd-3fd5-45f4-9005-e8a060685762"
+          },
+          "rowId": "3dcc6ddd-3fd5-45f4-9005-e8a060685762"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "stock_total_quantity": -19.0,
+            "product_id": "420d0961-f35e-440b-a938-65523132e1ae"
+          },
+          "rowId": "420d0961-f35e-440b-a938-65523132e1ae"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "stock_total_quantity": -5.0,
+            "product_id": "402b88bb-ee3c-49bf-b39a-519a384a2673"
+          },
+          "rowId": "402b88bb-ee3c-49bf-b39a-519a384a2673"
+        },
+        {
+          "operation": "UPDATE",
+          "row": {
+            "stock_total_quantity": -2.0,
+            "product_id": "561b1747-65f5-49f0-83d2-3ccea363da33"
+          },
+          "rowId": "561b1747-65f5-49f0-83d2-3ccea363da33"
+        }
+      ]
+    },
+    "act_sale_invoice_payments": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "display_index": 0,
+            "payment_method_id": "a5118270-78a0-4c30-a519-e18480966726",
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_payment_amount": 3600.0,
+            "sale_invoice_payment_datetime": "2026-05-09T08:23:08.867Z",
+            "sale_invoice_payment_id": "afd2f2fa-1a14-4b7b-a774-f779daee0072",
+            "sale_invoice_payment_status": "RECEIVED",
+            "transaction_entry_id": "ce4f1ad5-2c47-4d48-a704-020996639eef"
+          },
+          "rowId": "afd2f2fa-1a14-4b7b-a774-f779daee0072"
+        }
+      ],
+      "rowsToUpdate": [
+        {
+          "operation": "UPDATE",
+          "row": {
+            "sale_invoice_payment_amount": 3373.0,
+            "sale_invoice_payment_id": "2093d7bf-8f75-474a-ba1c-07355e04f91d"
+          },
+          "rowId": "2093d7bf-8f75-474a-ba1c-07355e04f91d"
+        }
+      ]
+    },
+    "act_sale_invoice_products": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Vimal Cottonseed Oil 1ltr",
+            "product_id": "97ecc1b2-1b77-4098-84ee-d0422a460343",
+            "product_price_gross": 145.714,
+            "product_price_final": 153.0,
+            "product_quantity": 1.0,
+            "product_total_quantity": 0.0,
+            "sale_invoice_id": "0d439a04-a5c4-4e22-9166-66071e3c2330",
+            "sale_invoice_product_id": "16a2eb33-8806-41cf-a57a-a844b19c8e97",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "taxing_scheme_id": "e0953612-995b-4d25-84c8-c957c5b39652",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 153.0,
+            "product_price_mrp": 180.0,
+            "exchange_rate": 1.0
+          },
+          "rowId": "16a2eb33-8806-41cf-a57a-a844b19c8e97"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Tirupati Cottonseed Oil 15kg",
+            "product_id": "402b88bb-ee3c-49bf-b39a-519a384a2673",
+            "product_price_gross": 2561.905,
+            "product_price_final": 2690.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "8fbeb78f-49d9-4b0e-934f-cac42ff9c5cc",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "0d439a04-a5c4-4e22-9166-66071e3c2330",
+            "sale_invoice_product_id": "ca3e2ce1-dada-4cf0-a396-1b466f00a3d3",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "taxing_scheme_id": "e0953612-995b-4d25-84c8-c957c5b39652",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 2690.0,
+            "product_price_mrp": 2990.0,
+            "exchange_rate": 1.0
+          },
+          "rowId": "ca3e2ce1-dada-4cf0-a396-1b466f00a3d3"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Aashirvaad Atta 5kg",
+            "product_id": "420d0961-f35e-440b-a938-65523132e1ae",
+            "product_price_gross": 238.095,
+            "product_price_final": 250.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "411e3362-00ac-4597-880d-926b9da60d68",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "0d439a04-a5c4-4e22-9166-66071e3c2330",
+            "sale_invoice_product_id": "ab978611-1e1c-4b55-abf3-ea69113b4dd0",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 250.0,
+            "product_price_mrp": 286.0,
+            "exchange_rate": 1.0
+          },
+          "rowId": "ab978611-1e1c-4b55-abf3-ea69113b4dd0"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Active Wheel Blue Bar 210gm",
+            "product_id": "a13f7c8a-aa7e-41c3-b99d-feaa0b5c21e7",
+            "product_price_gross": 8.475,
+            "product_price_final": 10.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "a592144f-9130-4a44-9a4a-5900e5a08e7f",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_product_id": "1b8f9e9a-3463-49dc-b6b1-ea675e6fbbe0",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "8ecab53c-24d4-4d96-98b2-ee52eadfdda0",
+            "tax_rate_percentage": 18.0,
+            "product_amount": 10.0,
+            "product_price_mrp": 10.0,
+            "exchange_rate": 1.0,
+            "inventory_tracking_id": "66fa9420-d5cd-4045-bd5c-86c9c1310ec3"
+          },
+          "rowId": "1b8f9e9a-3463-49dc-b6b1-ea675e6fbbe0"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Vanesa Air Freshener Gel French Fusion",
+            "product_id": "3dcc6ddd-3fd5-45f4-9005-e8a060685762",
+            "product_price_gross": 85.714,
+            "product_price_final": 90.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "2f02e6d8-a2f3-49e2-852f-52f7804366ab",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_product_id": "a87196b0-8e18-499d-a2a2-7184f15641c8",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 90.0,
+            "product_price_mrp": 99.0,
+            "exchange_rate": 1.0,
+            "inventory_tracking_id": "d8984bbc-0412-47c0-b425-749807eda8da"
+          },
+          "rowId": "a87196b0-8e18-499d-a2a2-7184f15641c8"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Aashirvaad Atta 5kg",
+            "product_id": "420d0961-f35e-440b-a938-65523132e1ae",
+            "product_price_gross": 238.095,
+            "product_price_final": 250.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "411e3362-00ac-4597-880d-926b9da60d68",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_product_id": "d0d615f9-33a4-41d4-88b9-38a24408c64e",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 250.0,
+            "product_price_mrp": 286.0,
+            "exchange_rate": 1.0,
+            "inventory_tracking_id": "cecbdc18-4120-4074-87b2-f4ab0a77530f"
+          },
+          "rowId": "d0d615f9-33a4-41d4-88b9-38a24408c64e"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Tirupati Cottonseed Oil 15kg",
+            "product_id": "402b88bb-ee3c-49bf-b39a-519a384a2673",
+            "product_price_gross": 2561.905,
+            "product_price_final": 2690.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "8fbeb78f-49d9-4b0e-934f-cac42ff9c5cc",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_product_id": "49a0e81f-903c-409f-a3d7-809075b6e97a",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "taxing_scheme_id": "e0953612-995b-4d25-84c8-c957c5b39652",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 2690.0,
+            "product_price_mrp": 2990.0,
+            "exchange_rate": 1.0,
+            "inventory_tracking_id": "891d9fef-2aee-4ae7-978e-f4f480c5b586"
+          },
+          "rowId": "49a0e81f-903c-409f-a3d7-809075b6e97a"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "discount_cash_percentage": 0.0,
+            "discount_rebate_percentage": 0.0,
+            "discount_trade_percentage": 0.0,
+            "display_index": 0,
+            "product_description": "Amul Cheese Block 1kg",
+            "product_id": "561b1747-65f5-49f0-83d2-3ccea363da33",
+            "product_price_gross": 533.333,
+            "product_price_final": 560.0,
+            "product_quantity": 1.0,
+            "product_uom_id": "c3bf8a96-acbc-4e6c-a203-a7a899dfbf96",
+            "product_total_quantity": 1.0,
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_product_id": "8dee72b0-7a4b-4449-8ca3-f9db3b4f3056",
+            "product_status": "DELIVERED",
+            "tax_rate_id": "36adf133-a61e-49d7-aea5-010bf9e8353b",
+            "tax_rate_percentage": 5.0,
+            "product_amount": 560.0,
+            "product_price_mrp": 575.0,
+            "exchange_rate": 1.0,
+            "inventory_tracking_id": "149ebb8b-5f99-424c-8c76-906383375570"
+          },
+          "rowId": "8dee72b0-7a4b-4449-8ca3-f9db3b4f3056"
+        }
+      ],
+      "rowsToUpdate": []
+    },
+    "act_sale_invoices": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "accountee_id": "253c7745-97cd-48e7-9dc9-ab85af109a6b",
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "is_draft": 0,
+            "sale_invoice_amount": 3600.0,
+            "sale_invoice_datetime": "2026-05-09T13:52:27.000",
+            "sale_invoice_id": "f496211e-d568-4fde-8fc5-5ab34fddf0f0",
+            "sale_invoice_number": "3047",
+            "sale_invoice_status": "PENDING",
+            "sale_invoice_type": "TAX",
+            "supply_mode": "INTRA",
+            "is_finalized": 1,
+            "payment_status": "RECEIVED",
+            "is_credit": 0,
+            "products_count": 5,
+            "received_amount": 3600.0,
+            "transaction_id": "65ae7f44-949c-4749-ae32-75152e89ee0f"
+          },
+          "rowId": "f496211e-d568-4fde-8fc5-5ab34fddf0f0"
+        }
+      ],
+      "rowsToUpdate": [
+        {
+          "operation": "UPDATE",
+          "row": {
+            "sale_invoice_amount": 3373.0,
+            "products_count": 4,
+            "payment_status": "RECEIVED",
+            "received_amount": 3373.0,
+            "sale_invoice_id": "0d439a04-a5c4-4e22-9166-66071e3c2330"
+          },
+          "rowId": "0d439a04-a5c4-4e22-9166-66071e3c2330"
+        }
+      ]
+    },
+    "act_transaction_entries": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "transaction_entry_amount": 3427.52215,
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "ledger_account_id": "ef6be304-0110-404c-bd04-0047ddd4cca7",
+            "transaction_entry_id": "e68c3c68-7a04-4f23-829f-f4e742816e06",
+            "transaction_id": "65ae7f44-949c-4749-ae32-75152e89ee0f",
+            "transaction_entry_description": "Sale Invoice 3047",
+            "transaction_entry_type": "Sale",
+            "is_credit": 1
+          },
+          "rowId": "e68c3c68-7a04-4f23-829f-f4e742816e06"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "transaction_entry_amount": 172.47785,
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "ledger_account_id": "5e5ff893-06f8-4820-8047-82afe6ceaa30",
+            "transaction_entry_id": "69d0bdae-f0ca-4571-9456-7406cf9ba9c5",
+            "transaction_id": "65ae7f44-949c-4749-ae32-75152e89ee0f",
+            "transaction_entry_description": "Output Tax for Invoice 3047",
+            "transaction_entry_type": "Output Tax",
+            "is_credit": 1
+          },
+          "rowId": "69d0bdae-f0ca-4571-9456-7406cf9ba9c5"
+        },
+        {
+          "operation": "INSERT",
+          "row": {
+            "transaction_entry_amount": 3600.0,
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "ledger_account_id": "a33ee6e5-2a09-4bdf-83f0-91e915df3f80",
+            "transaction_entry_id": "ce4f1ad5-2c47-4d48-a704-020996639eef",
+            "transaction_id": "65ae7f44-949c-4749-ae32-75152e89ee0f",
+            "transaction_entry_description": "Cash Payment for Sale Invoice 3047",
+            "transaction_entry_type": "Payment",
+            "is_credit": 0
+          },
+          "rowId": "ce4f1ad5-2c47-4d48-a704-020996639eef"
+        }
+      ],
+      "rowsToUpdate": []
+    },
+    "act_transactions": {
+      "tableName": "",
+      "rowsToDelete": [],
+      "rowsToInsert": [
+        {
+          "operation": "INSERT",
+          "row": {
+            "accountee_id": "253c7745-97cd-48e7-9dc9-ab85af109a6b",
+            "currency_code": "INR",
+            "exchange_rate": 1.0,
+            "is_draft": 0,
+            "transaction_amount": 3600.0,
+            "transaction_id": "65ae7f44-949c-4749-ae32-75152e89ee0f",
+            "transaction_narration": "Sale Invoice #3047",
+            "transaction_time": "2026-05-09T13:52:27.000",
+            "transaction_type": "Sale Invoice",
+            "debit_total": 3600.0,
+            "credit_total": 3600.0
+          },
+          "rowId": "65ae7f44-949c-4749-ae32-75152e89ee0f"
+        }
+      ],
+      "rowsToUpdate": []
+    }
+  },
+  "lastChangeLogId": 83
+}

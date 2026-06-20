@@ -67,7 +67,7 @@ class AcWebOnWs {
 
           final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
           acWebRequest.pathParameters = pathParams;
-          acWebRequest.internalParams['acWebOnWs'] = AcWebOnWsParams(socket: socket);
+          acWebRequest.internalParams['ac_web_on_ws'] = AcWebOnWsParams(socket: socket);
 
           final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
           if (callback != null) {
@@ -160,7 +160,7 @@ class AcWebOnWs {
       });
     }
 
-    final pathMap = data['pathParameters'] ?? data['params'];
+    final pathMap = data['path_parameters'] ?? data['params'];
     if (pathMap is Map) {
       pathMap.forEach((k, v) => request.pathParameters[k.toString()] = v);
     }
