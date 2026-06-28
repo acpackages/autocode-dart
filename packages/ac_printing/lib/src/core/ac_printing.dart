@@ -11,15 +11,20 @@ class AcPrinting {
     AcResult result = AcResult();
     try{
       List<AcPrinter> printers = List.empty(growable: true);
-      for(var printer in await Printing.listPrinters()){
-        var acPrinter = AcPrinter();
-        acPrinter.name = printer.name;
-        acPrinter.url = printer.url;
-        acPrinter.location = printer.location ?? '';
-        acPrinter.comment = printer.comment ?? '';
-        acPrinter.isDefault = printer.isDefault;
-        acPrinter.isAvailable = printer.isAvailable;
-        printers.add(acPrinter);
+      try{
+        for(var printer in await Printing.listPrinters()){
+          var acPrinter = AcPrinter();
+          acPrinter.name = printer.name;
+          acPrinter.url = printer.url;
+          acPrinter.location = printer.location ?? '';
+          acPrinter.comment = printer.comment ?? '';
+          acPrinter.isDefault = printer.isDefault;
+          acPrinter.isAvailable = printer.isAvailable;
+          printers.add(acPrinter);
+        }
+      }
+      catch(ex,stack){
+        print(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
       }
       result.setSuccess(value: printers);
     }

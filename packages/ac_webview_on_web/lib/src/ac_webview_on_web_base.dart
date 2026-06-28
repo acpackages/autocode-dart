@@ -12,7 +12,7 @@ class AcWebviewOnWeb {
   final String actionName;
   Future<AcWebviewOnWebInterceptorResult> Function(AcWebviewOnWebInterceptorArgs args)? interceptor;
   final AcLogger logger = AcLogger(
-    logMessages: true,
+    logMessages: false,
     logDirectory: 'logs',
     logType: AcEnumLogType.console,
     logFileName: 'ac-webview-on-web.log',

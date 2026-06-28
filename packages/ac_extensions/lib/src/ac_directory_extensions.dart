@@ -47,4 +47,25 @@ extension AcDirectoryExtensions on Directory {
     }
     return totalSize;
   }
+
+  bool get isEmpty {
+    bool result = false;
+    try {
+      if(existsSync()){
+        result = listSync().isEmpty;
+      }
+      else{
+        result = true;
+      }
+    } catch (e, stackTrace) {
+      // Best practice is to also capture the stack trace for better debugging.
+      stderr.writeln('Error calculating directory size: $e');
+      stderr.writeln('Stack trace: $stackTrace');
+    }
+    return result;
+  }
+
+  bool get isNotEmpty {
+    return !isEmpty;
+  }
 }
