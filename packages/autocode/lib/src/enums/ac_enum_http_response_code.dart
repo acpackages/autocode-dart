@@ -7,6 +7,7 @@ import 'package:ac_mirrors/ac_mirrors.dart';
 }) */
 @AcReflectable()
 enum AcEnumHttpResponseCode {
+  unknown(0),
   continue_(100),
   switchingProtocols(101),
   processing(102),
