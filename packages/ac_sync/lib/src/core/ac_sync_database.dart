@@ -5,6 +5,8 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:autocode/autocode.dart';
 import '../../ac_sync.dart';
+import './ac_sync_provider.dart';
+import './ac_sync_database_provider.dart';
 
 class AcSyncDatabase {
   AcBaseSqlDao? dao;
@@ -17,6 +19,18 @@ class AcSyncDatabase {
   void Function()? onSyncComplete;
   void Function({required AcSyncProgress progress})? onSyncProgress;
   AcLogger logger = AcLogger(logType: AcEnumLogType.console, logMessages: true);
+
+  List<AcSyncProvider> providers = [];
+
+  void registerProvider(AcSyncProvider provider) {
+    providers.add(provider);
+  }
+
+  void ensureDatabaseProvider() {
+    if (providers.isEmpty) {
+      registerProvider(AcSyncDatabaseProvider(this));
+    }
+  }
 
   AcSyncDatabase(
       {this.dao, this.databaseType = AcEnumSqlDatabaseType.unknown,}) {
@@ -527,7 +541,10 @@ class AcSyncDatabase {
         if (dbVersion < syncVersion) {
           logger.log(
               "[AcSyncDatabase|$isDestination]  Version mismatch (DB: $dbVersion, Current: $syncVersion). Reinitializing...");
-          result = await reinitialize();
+          result = await _initSchemaManager();
+          if (result.isSuccess()) {
+            result = await reinitialize();
+          }
           if (result.isSuccess()) {
             if (versionSet) {
               await dao!.updateRow(
@@ -733,9 +750,477 @@ class AcSyncDatabase {
     } else {
       logger.error(
           "[AcSyncDatabase|$isDestination]  Failed to update last sync change log ID for device $deviceId: ${result
-              .message}");
+               .message}");
     }
     return result;
   }
 
+  Future<AcSyncSessionState?> loadSessionState(String syncIdentifier) async {
+    if (dao == null) return null;
+    var rowsResult = await dao!.getRows(
+      statement: "SELECT * FROM ${AcSyncTables.acSyncSessions} WHERE ${TblAcSyncSessions.syncSessionId} = @id;",
+      parameters: {"@id": syncIdentifier}
+    );
+    if (rowsResult.isSuccess() && rowsResult.rows.isNotEmpty) {
+      var row = rowsResult.rows.first;
+      String? metaStr = row.getString(TblAcSyncSessions.metadata);
+      Map<String, dynamic> metadata = {};
+      if (metaStr != null && metaStr.isNotEmpty) {
+        try {
+          metadata = jsonDecode(metaStr);
+        } catch (_) {}
+      }
+      
+      // Load standard checkpoint columns as fallback
+      var incomingCheckpoint = row.getInt(TblAcSyncSessions.incomingCheckpoint);
+      var incomingTargetCheckpoint = row.getInt(TblAcSyncSessions.incomingTargetCheckpoint);
+      var outgoingCheckpoint = row.getInt(TblAcSyncSessions.outgoingCheckpoint);
+      var outgoingTargetCheckpoint = row.getInt(TblAcSyncSessions.outgoingTargetCheckpoint);
+      
+      // If we don't have checkpoint info in metadata, initialize from column defaults (backward compat)
+      metadata.putIfAbsent('incomingCheckpoint', () => incomingCheckpoint);
+      metadata.putIfAbsent('incomingTargetCheckpoint', () => incomingTargetCheckpoint);
+      metadata.putIfAbsent('outgoingCheckpoint', () => outgoingCheckpoint);
+      metadata.putIfAbsent('outgoingTargetCheckpoint', () => outgoingTargetCheckpoint);
+
+      return AcSyncSessionState(
+        syncIdentifier: row.getString(TblAcSyncSessions.syncSessionId),
+        clientIdentifier: row.getString(TblAcSyncSessions.clientIdentifier),
+        status: row.getString(TblAcSyncSessions.status),
+        incomingCheckpoint: metadata['incomingCheckpoint'],
+        incomingTargetCheckpoint: metadata['incomingTargetCheckpoint'],
+        incomingCompleted: row.getInt(TblAcSyncSessions.incomingCompleted) == 1 || row.getBool(TblAcSyncSessions.incomingCompleted),
+        outgoingCheckpoint: metadata['outgoingCheckpoint'],
+        outgoingTargetCheckpoint: metadata['outgoingTargetCheckpoint'],
+        outgoingCompleted: row.getInt(TblAcSyncSessions.outgoingCompleted) == 1 || row.getBool(TblAcSyncSessions.outgoingCompleted),
+        metadata: metadata,
+        createdAt: row.getString(TblAcSyncSessions.createdAt) ?? "",
+        updatedAt: row.getString(TblAcSyncSessions.updatedAt) ?? "",
+        lastActivityAt: row.getString(TblAcSyncSessions.lastActivityAt) ?? "",
+        expiresAt: row.getString(TblAcSyncSessions.expiresAt) ?? "",
+      );
+    }
+    return null;
+  }
+
+  Future<void> saveSessionState(AcSyncSessionState session) async {
+    if (dao == null) return;
+    session.updatedAt = DateTime.now().toIso8601String();
+    session.lastActivityAt = session.updatedAt;
+    
+    // Sync the map checkpoint values back into session.metadata
+    var newMeta = Map<String, dynamic>.from(session.metadata);
+    newMeta['incomingCheckpoint'] = session.incomingCheckpoint;
+    newMeta['incomingTargetCheckpoint'] = session.incomingTargetCheckpoint;
+    newMeta['outgoingCheckpoint'] = session.outgoingCheckpoint;
+    newMeta['outgoingTargetCheckpoint'] = session.outgoingTargetCheckpoint;
+    session.metadata = newMeta;
+
+    // Helper to get an integer representation of checkpoint for database columns (e.g. for database target)
+    int getDbCheckpointValue(dynamic val) {
+      if (val is Map) {
+        var dbVal = val['database'];
+        if (dbVal is int) return dbVal;
+        if (dbVal != null) return int.tryParse(dbVal.toString()) ?? 0;
+      } else if (val is int) {
+        return val;
+      } else if (val != null) {
+        return int.tryParse(val.toString()) ?? 0;
+      }
+      return 0;
+    }
+
+    var exists = await loadSessionState(session.syncIdentifier);
+    var row = {
+      TblAcSyncSessions.syncSessionId: session.syncIdentifier,
+      TblAcSyncSessions.clientIdentifier: session.clientIdentifier,
+      TblAcSyncSessions.status: session.status,
+      // Map to columns (for database provider compatibility)
+      TblAcSyncSessions.incomingCheckpoint: getDbCheckpointValue(session.incomingCheckpoint),
+      TblAcSyncSessions.incomingTargetCheckpoint: getDbCheckpointValue(session.incomingTargetCheckpoint),
+      TblAcSyncSessions.incomingCompleted: session.incomingCompleted ? 1 : 0,
+      TblAcSyncSessions.outgoingCheckpoint: getDbCheckpointValue(session.outgoingCheckpoint),
+      TblAcSyncSessions.outgoingTargetCheckpoint: getDbCheckpointValue(session.outgoingTargetCheckpoint),
+      TblAcSyncSessions.outgoingCompleted: session.outgoingCompleted ? 1 : 0,
+      TblAcSyncSessions.metadata: jsonEncode(session.metadata),
+      TblAcSyncSessions.createdAt: session.createdAt,
+      TblAcSyncSessions.updatedAt: session.updatedAt,
+      TblAcSyncSessions.lastActivityAt: session.lastActivityAt,
+      TblAcSyncSessions.expiresAt: session.expiresAt,
+    };
+    if (exists != null) {
+      await dao!.updateRow(
+        tableName: AcSyncTables.acSyncSessions,
+        row: row,
+        condition: "${TblAcSyncSessions.syncSessionId} = '${session.syncIdentifier}'"
+      );
+    } else {
+      await dao!.insertRow(
+        tableName: AcSyncTables.acSyncSessions,
+        row: row
+      );
+    }
+  }
+
+  Future<void> sendMessage(AcSyncMessage message) async {
+    logger.log("[AcSyncDatabase|$isDestination] sendMessage (base): sending ${message.messageType}");
+  }
+
+  Future<List<AcSyncMessage>> receiveMessage(AcSyncMessage message) async {
+    ensureDatabaseProvider();
+    logger.log("[AcSyncDatabase|$isDestination] receiveMessage: type=${message.messageType}, session=${message.sessionIdentifier}");
+    List<AcSyncMessage> responses = [];
+
+    try {
+      if (message.messageType == 'InitializeSession') {
+        if (isDestination) {
+          responses.add(AcSyncMessage(
+            messageType: 'Error',
+            sessionIdentifier: message.sessionIdentifier,
+            payload: {'error': 'Destination does not handle InitializeSession'},
+          ));
+        } else {
+          String syncId = message.sessionIdentifier;
+          var session = await loadSessionState(syncId);
+          if (session == null) {
+            session = AcSyncSessionState(
+              syncIdentifier: syncId,
+              clientIdentifier: message.payload['clientIdentifier'] ?? 'unknown',
+              status: 'RUNNING',
+            );
+          } else {
+            session.status = 'RUNNING';
+          }
+          
+          // outgoing target checkpoint is our local current checkpoints
+          Map<String, dynamic> localCurrentCheckpoints = {};
+          for (var provider in providers) {
+            localCurrentCheckpoints[provider.targetId] = await provider.getCurrentCheckpoint();
+          }
+          
+          session.outgoingTargetCheckpoint = localCurrentCheckpoints;
+          session.incomingTargetCheckpoint = message.payload['outgoingTargetCheckpoint'] ?? {};
+          
+          // Initialize actual checkpoints to start from if not set
+          session.incomingCheckpoint ??= <String, dynamic>{};
+          session.outgoingCheckpoint ??= <String, dynamic>{};
+          
+          await saveSessionState(session);
+
+          responses.add(AcSyncMessage(
+            messageType: 'SessionAccepted',
+            sessionIdentifier: syncId,
+            payload: {
+              'incomingTargetCheckpoint': session.incomingTargetCheckpoint,
+              'outgoingTargetCheckpoint': session.outgoingTargetCheckpoint,
+            },
+          ));
+        }
+      } 
+      else if (message.messageType == 'SessionAccepted') {
+        if (isDestination) {
+          var session = await loadSessionState(message.sessionIdentifier);
+          if (session != null) {
+            session.status = 'RUNNING';
+            session.incomingTargetCheckpoint = message.payload['outgoingTargetCheckpoint'] ?? {};
+            session.outgoingTargetCheckpoint = message.payload['incomingTargetCheckpoint'] ?? {};
+            
+            session.incomingCheckpoint ??= <String, dynamic>{};
+            session.outgoingCheckpoint ??= <String, dynamic>{};
+
+            await saveSessionState(session);
+            
+            var nextPush = await getNextOutgoingBatchMessage(session);
+            if (nextPush != null) {
+              responses.add(nextPush);
+            }
+            var nextRequest = await getNextIncomingRequestMessage(session);
+            if (nextRequest != null) {
+              responses.add(nextRequest);
+            }
+          }
+        }
+      }
+      else if (message.messageType == 'RequestChanges') {
+        String syncId = message.sessionIdentifier;
+        var session = await loadSessionState(syncId);
+        if (session != null) {
+          var fromCheckpointObj = message.payload['fromCheckpoint'];
+          var targetCheckpointObj = message.payload['targetCheckpoint'];
+          
+          Map<String, dynamic> changesPayload = {};
+          Map<String, dynamic> nextCheckpointPayload = {};
+          bool hasMoreAny = false;
+          
+          for (var provider in providers) {
+            var fromCp = _getCheckpointForTarget(fromCheckpointObj, provider.targetId);
+            var targetCp = _getCheckpointForTarget(targetCheckpointObj, provider.targetId);
+            
+            var batch = await provider.getChanges(fromCp, targetCp);
+            changesPayload[provider.targetId] = batch.payload;
+            nextCheckpointPayload[provider.targetId] = batch.nextCheckpoint;
+            if (batch.hasMore) {
+              hasMoreAny = true;
+            }
+          }
+          
+          responses.add(AcSyncMessage(
+            messageType: 'PushChanges',
+            sessionIdentifier: syncId,
+            stream: message.stream,
+            payload: {
+              'changes': changesPayload,
+              'nextCheckpoint': nextCheckpointPayload,
+              'hasMore': hasMoreAny,
+            },
+          ));
+        }
+      }
+      else if (message.messageType == 'PushChanges') {
+        String syncId = message.sessionIdentifier;
+        var session = await loadSessionState(syncId);
+        if (session != null) {
+          var payloadChanges = message.payload['changes'];
+          var nextCheckpointObj = message.payload['nextCheckpoint'];
+          bool hasMore = message.payload['hasMore'] ?? false;
+
+          if (payloadChanges != null) {
+            // Apply changes on each provider inside a coordinated try-catch/transaction
+            bool success = true;
+            String errorMsg = "";
+            
+            // Map changes might be flat if old DB sync message
+            bool isFlatDbSync = payloadChanges is! Map || (!payloadChanges.containsKey('database') && providers.any((p) => p.targetId == 'database'));
+            
+            for (var provider in providers) {
+              var targetChanges = isFlatDbSync && provider.targetId == 'database' ? payloadChanges : (payloadChanges is Map ? payloadChanges[provider.targetId] : null);
+              if (targetChanges != null) {
+                try {
+                  await provider.applyChanges(targetChanges);
+                } catch (e) {
+                  success = false;
+                  errorMsg = e.toString();
+                  break;
+                }
+              }
+            }
+            
+            if (success) {
+              for (var provider in providers) {
+                await provider.commitChanges();
+              }
+              
+              String resolvedStream = isDestination ? message.stream : (message.stream == 'incoming' ? 'outgoing' : 'incoming');
+              
+              // Helper to update session checkpoint
+              void updateSessionCheckpoints(bool isIncoming) {
+                var currentCp = isIncoming ? session.incomingCheckpoint : session.outgoingCheckpoint;
+                Map<String, dynamic> newCpMap = {};
+                if (currentCp is Map) {
+                  newCpMap = Map<String, dynamic>.from(currentCp);
+                } else if (currentCp != null && providers.length == 1) {
+                  newCpMap[providers.first.targetId] = currentCp;
+                }
+                
+                for (var provider in providers) {
+                  var nextCp = _getCheckpointForTarget(nextCheckpointObj, provider.targetId);
+                  if (nextCp != null) {
+                    newCpMap[provider.targetId] = nextCp;
+                  }
+                }
+                
+                if (isIncoming) {
+                  // If we only have database provider and it is flat, keep it primitive for backward compatibility
+                  session.incomingCheckpoint = (providers.length == 1 && providers.first.targetId == 'database') ? newCpMap['database'] : newCpMap;
+                  if (!hasMore) {
+                    session.incomingCompleted = true;
+                  }
+                } else {
+                  session.outgoingCheckpoint = (providers.length == 1 && providers.first.targetId == 'database') ? newCpMap['database'] : newCpMap;
+                  if (!hasMore) {
+                    session.outgoingCompleted = true;
+                  }
+                }
+              }
+              
+              if (resolvedStream == 'incoming') {
+                updateSessionCheckpoints(true);
+              } else {
+                updateSessionCheckpoints(false);
+              }
+              
+              await saveSessionState(session);
+              
+              responses.add(AcSyncMessage(
+                messageType: 'Acknowledge',
+                sessionIdentifier: syncId,
+                stream: message.stream,
+                payload: {
+                  'checkpoint': nextCheckpointObj,
+                  'completed': !hasMore,
+                },
+              ));
+
+              if (resolvedStream == 'incoming' && hasMore && isDestination) {
+                var nextReq = await getNextIncomingRequestMessage(session);
+                if (nextReq != null) responses.add(nextReq);
+              }
+            } else {
+              for (var provider in providers) {
+                await provider.rollbackChanges();
+              }
+              responses.add(AcSyncMessage(
+                messageType: 'Error',
+                sessionIdentifier: syncId,
+                payload: {'error': 'Failed to apply changes: $errorMsg'},
+              ));
+            }
+          }
+        }
+      }
+      else if (message.messageType == 'Acknowledge') {
+        String syncId = message.sessionIdentifier;
+        var session = await loadSessionState(syncId);
+        if (session != null) {
+          var ackCheckpointObj = message.payload['checkpoint'];
+          bool completed = message.payload['completed'] ?? false;
+          
+          String resolvedStream = isDestination ? message.stream : (message.stream == 'incoming' ? 'outgoing' : 'incoming');
+          
+          void updateAckCheckpoints(bool isOutgoing) {
+            var currentCp = isOutgoing ? session.outgoingCheckpoint : session.incomingCheckpoint;
+            Map<String, dynamic> newCpMap = {};
+            if (currentCp is Map) {
+              newCpMap = Map<String, dynamic>.from(currentCp);
+            } else if (currentCp != null && providers.length == 1) {
+              newCpMap[providers.first.targetId] = currentCp;
+            }
+            
+            for (var provider in providers) {
+              var ackCp = _getCheckpointForTarget(ackCheckpointObj, provider.targetId);
+              if (ackCp != null) {
+                newCpMap[provider.targetId] = ackCp;
+              }
+            }
+            
+            if (isOutgoing) {
+              session.outgoingCheckpoint = (providers.length == 1 && providers.first.targetId == 'database') ? newCpMap['database'] : newCpMap;
+              session.outgoingCompleted = completed;
+            } else {
+              session.incomingCheckpoint = (providers.length == 1 && providers.first.targetId == 'database') ? newCpMap['database'] : newCpMap;
+              session.incomingCompleted = completed;
+            }
+          }
+          
+          if (resolvedStream == 'outgoing') {
+            updateAckCheckpoints(true);
+          } else {
+            updateAckCheckpoints(false);
+          }
+          
+          await saveSessionState(session);
+
+          if (!completed) {
+            if (message.stream == 'outgoing') {
+              var nextPush = await getNextOutgoingBatchMessage(session);
+              if (nextPush != null) responses.add(nextPush);
+            } else {
+              var nextReq = await getNextIncomingRequestMessage(session);
+              if (nextReq != null) responses.add(nextReq);
+            }
+          } else {
+            if (session.incomingCompleted && session.outgoingCompleted) {
+              session.status = 'COMPLETED';
+              await saveSessionState(session);
+              responses.add(AcSyncMessage(
+                messageType: 'CompleteSession',
+                sessionIdentifier: syncId,
+              ));
+            }
+          }
+        }
+      }
+      else if (message.messageType == 'CompleteSession') {
+        String syncId = message.sessionIdentifier;
+        var session = await loadSessionState(syncId);
+        if (session != null) {
+          session.status = 'COMPLETED';
+          await saveSessionState(session);
+        }
+      }
+      else if (message.messageType == 'Error') {
+        logger.error("[AcSyncDatabase] Received error from remote: ${message.payload}");
+      }
+    } catch (e, st) {
+      logger.error("[AcSyncDatabase] Error in receiveMessage: $e\n$st");
+      responses.add(AcSyncMessage(
+        messageType: 'Error',
+        sessionIdentifier: message.sessionIdentifier,
+        payload: {'error': e.toString()},
+      ));
+    }
+
+    return responses;
+  }
+
+  Future<AcSyncMessage?> getNextOutgoingBatchMessage(AcSyncSessionState session) async {
+    ensureDatabaseProvider();
+    if (session.outgoingCompleted) return null;
+    
+    Map<String, dynamic> changesPayload = {};
+    Map<String, dynamic> nextCheckpointPayload = {};
+    bool hasMoreAny = false;
+    
+    for (var provider in providers) {
+      var fromCp = _getCheckpointForTarget(session.outgoingCheckpoint, provider.targetId);
+      var targetCp = _getCheckpointForTarget(session.outgoingTargetCheckpoint, provider.targetId);
+      
+      var batch = await provider.getChanges(fromCp, targetCp);
+      changesPayload[provider.targetId] = batch.payload;
+      nextCheckpointPayload[provider.targetId] = batch.nextCheckpoint;
+      if (batch.hasMore) {
+        hasMoreAny = true;
+      }
+    }
+    
+    // If only database provider, keep it flat for backward compatibility
+    var payloadChanges = (providers.length == 1 && providers.first.targetId == 'database') ? changesPayload['database'] : changesPayload;
+    var payloadNextCp = (providers.length == 1 && providers.first.targetId == 'database') ? nextCheckpointPayload['database'] : nextCheckpointPayload;
+    
+    return AcSyncMessage(
+      messageType: 'PushChanges',
+      sessionIdentifier: session.syncIdentifier,
+      stream: 'outgoing',
+      payload: {
+        'changes': payloadChanges,
+        'nextCheckpoint': payloadNextCp,
+        'hasMore': hasMoreAny,
+      },
+    );
+  }
+
+  Future<AcSyncMessage?> getNextIncomingRequestMessage(AcSyncSessionState session) async {
+    ensureDatabaseProvider();
+    if (session.incomingCompleted) return null;
+    return AcSyncMessage(
+      messageType: 'RequestChanges',
+      sessionIdentifier: session.syncIdentifier,
+      stream: 'incoming',
+      payload: {
+        'fromCheckpoint': session.incomingCheckpoint,
+        'targetCheckpoint': session.incomingTargetCheckpoint,
+      },
+    );
+  }
+
+  dynamic _getCheckpointForTarget(dynamic checkpointObj, String targetId) {
+    if (checkpointObj is Map) {
+      return checkpointObj[targetId];
+    }
+    // Backward compatibility: if checkpoint is a single value, map it to database
+    if (targetId == 'database') {
+      return checkpointObj;
+    }
+    return null;
+  }
 }

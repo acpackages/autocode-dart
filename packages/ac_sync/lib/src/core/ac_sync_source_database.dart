@@ -6,6 +6,16 @@ import '../../ac_sync.dart';
 class AcSyncSourceDatabase extends AcSyncDatabase {
 
   int lastDeviceSyncLogId = 0;
+  Future<void> Function(AcSyncMessage message)? onSendMessage;
+
+  @override
+  Future<void> sendMessage(AcSyncMessage message) async {
+    if (onSendMessage != null) {
+      await onSendMessage!(message);
+    } else {
+      await super.sendMessage(message);
+    }
+  }
 
   AcSyncSourceDatabase({super.dao,super.databaseType = AcEnumSqlDatabaseType.unknown}){
   }

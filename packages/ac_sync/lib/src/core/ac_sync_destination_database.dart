@@ -34,8 +34,118 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
     return result;
   }
 
-  Future<AcResult> sync({bool isNested = false}) async {
-    logger.log("[AcSyncDestinationDatabase] Starting sync (isNested: $isNested)...");
+  Future<void> Function(AcSyncMessage message)? onSendMessage;
+
+  @override
+  Future<void> sendMessage(AcSyncMessage message) async {
+    if (onSendMessage != null) {
+      await onSendMessage!(message);
+    } else {
+      await super.sendMessage(message);
+    }
+  }
+
+  Future<AcResult> sync({bool isNested = false, String? syncId}) async {
+    if (notifyChangesToSourceFun != null && onSendMessage == null) {
+      return syncClassic(isNested: isNested);
+    }
+
+    logger.log("[AcSyncDestinationDatabase] Starting session-based sync (isNested: $isNested, syncId: $syncId)...");
+    final result = AcResult();
+    
+    if (isSyncing && !isNested) {
+      logger.log("[AcSyncDestinationDatabase] Sync already in progress, skipping.");
+      return result.setFailure(message: "Synchronization already in progress");
+    }
+    
+    if (dao == null) {
+      logger.log("[AcSyncDestinationDatabase] DAO not set, skipping sync.");
+      return result.setFailure(message: "DAO not set");
+    }
+
+    if (!isNested) {
+      isSyncing = true;
+      if (onSyncStart != null) onSyncStart!();
+    }
+
+    try {
+      String sessionId = syncId ?? Autocode.uuid();
+      var session = await loadSessionState(sessionId);
+      if (session == null) {
+        int lastIncoming = 0;
+        int lastOutgoing = 0;
+        
+        var sourceLastSyncIdResult = await dao!.getRows(
+            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.isSourceOfTruth} = 1;"
+        );
+        if (sourceLastSyncIdResult.isSuccess() && sourceLastSyncIdResult.rows.isNotEmpty) {
+          lastIncoming = sourceLastSyncIdResult.rows.first[TblAcSyncDevices.lastSyncChangeLogId] ?? 0;
+        }
+
+        var selfLastSyncIdResult = await dao!.getRows(
+            statement: "SELECT ${TblAcSyncDevices.lastSyncChangeLogId} FROM ${AcSyncTables.acSyncDevices} WHERE ${TblAcSyncDevices.syncDeviceId} = @deviceId;",
+            parameters: {"@deviceId": deviceId}
+        );
+        if (selfLastSyncIdResult.isSuccess() && selfLastSyncIdResult.rows.isNotEmpty) {
+          lastOutgoing = selfLastSyncIdResult.rows.first[TblAcSyncDevices.lastSyncChangeLogId] ?? 0;
+        }
+
+        ensureDatabaseProvider();
+        Map<String, dynamic> localCurrentCheckpoints = {};
+        for (var provider in providers) {
+          localCurrentCheckpoints[provider.targetId] = await provider.getCurrentCheckpoint();
+        }
+
+        dynamic outgoingTarget;
+        dynamic incomingCp;
+        dynamic outgoingCp;
+
+        if (providers.length == 1 && providers.first.targetId == 'database') {
+          outgoingTarget = localCurrentCheckpoints['database'];
+          incomingCp = lastIncoming;
+          outgoingCp = lastOutgoing;
+        } else {
+          outgoingTarget = localCurrentCheckpoints;
+          incomingCp = {for (var p in providers) p.targetId: p.targetId == 'database' ? lastIncoming : null};
+          outgoingCp = {for (var p in providers) p.targetId: p.targetId == 'database' ? lastOutgoing : null};
+        }
+
+        session = AcSyncSessionState(
+          syncIdentifier: sessionId,
+          clientIdentifier: deviceId ?? 'client',
+          incomingCheckpoint: incomingCp,
+          outgoingCheckpoint: outgoingCp,
+          outgoingTargetCheckpoint: outgoingTarget,
+        );
+        await saveSessionState(session);
+      }
+
+      var initMessage = AcSyncMessage(
+        messageType: 'InitializeSession',
+        sessionIdentifier: session.syncIdentifier,
+        payload: {
+          'clientIdentifier': session.clientIdentifier,
+          'outgoingTargetCheckpoint': session.outgoingTargetCheckpoint,
+        },
+      );
+
+      await sendMessage(initMessage);
+      result.setSuccess(value: session.syncIdentifier);
+
+    } catch (e, stack) {
+      logger.log("[AcSyncDestinationDatabase] Sync error: $e");
+      result.setException(exception: e, stackTrace: stack);
+    } finally {
+      if (!isNested) {
+        isSyncing = false;
+        if (onSyncComplete != null) onSyncComplete!();
+      }
+    }
+    return result;
+  }
+
+  Future<AcResult> syncClassic({bool isNested = false}) async {
+    logger.log("[AcSyncDestinationDatabase] Starting classic sync (isNested: $isNested)...");
     final result = AcResult();
     String startTimestamp = DateTime.now().toIso8601String();
     if (isSyncing && !isNested) {

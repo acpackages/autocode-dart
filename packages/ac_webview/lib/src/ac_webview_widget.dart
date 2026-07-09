@@ -7,6 +7,8 @@ import 'package:autocode/autocode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_win_floating/webview_win_floating.dart';
 
 class AcWebview extends StatefulWidget {
   final String url;
@@ -45,12 +47,11 @@ class AcWebview extends StatefulWidget {
   }
 
   @override
-  State<AcWebview> createState() => _AcWebviewState();
+  State<AcWebview> createState() => Platform.isWindows?_AcWebviewWinFloatingState():_AcWebviewState();
 }
 
 class _AcWebviewState extends State<AcWebview> {
   static _AcWebviewState? instance;
-
   InAppWebViewController? controller;
 
   String url = "";
@@ -179,5 +180,178 @@ class _AcWebviewState extends State<AcWebview> {
         );
       },
     );
+  }
+}
+
+class _AcWebviewWinFloatingState extends _AcWebviewState {
+  static final Map<AcWebview , _AcWebviewState> _instances = {};
+
+  late final WebViewController _controller;
+  late WebViewWidget webview;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _instances[widget] = this;
+    _initialize();
+  }
+
+  @override
+  void dispose() {
+    _instances.remove(widget);
+    super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    if (_isInitialized) return;
+    if (Platform.isWindows) {
+      final params = WindowsWebViewControllerCreationParams();
+      _controller = WebViewController.fromPlatformCreationParams(params);
+    } else {
+      _controller = WebViewController();
+    }
+    _controller
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+
+    if (!Platform.isMacOS) {
+      _controller.setBackgroundColor(widget.backgroundColor ?? Colors.white);
+    }
+
+    _controller.setNavigationDelegate(
+      NavigationDelegate(
+        onPageFinished: (url) async {
+          await _injectBridge();
+        },
+        onWebResourceError: (error) {
+          debugPrint('Web resource error: ${error.description}');
+        },
+      ),
+    );
+    if(widget.keepCache!=true){
+      _controller.clearCache();
+    }
+    // Add JavaScript channel for communication from web → Flutter
+    _controller.addJavaScriptChannel(
+      'acWinFloatingWebviewChannel',
+      onMessageReceived: (JavaScriptMessage message) {
+        _handleMessageFromWeb(message.message);
+      },
+    );
+
+    // Enable debugging (inspectable) if allowed
+    if (widget.allowDebugging == true) {
+      if (Platform.isAndroid) {
+        // WebViewController.(true);
+      }
+      // On Windows/Linux (WebView2) debugging is usually enabled via WebView2 dev tools
+    }
+    webview = WebViewWidget(controller: _controller);
+    // Load initial URL
+    await _controller.loadRequest(Uri.parse(widget.url));
+
+    _isInitialized = true;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _injectBridge() async {
+    const bridgeJs = '''
+    (function() {
+      if (window.acWebviewJavascriptChannel) return;
+
+      window.acWebviewJavascriptChannel = {
+        postMessage: function(data) {
+          let msg = data;
+          if (typeof data !== 'string') {
+            try {
+              msg = JSON.stringify(data);
+            } catch (e) {}
+          }
+          acWinFloatingWebviewChannel.postMessage(msg);
+        }
+      };
+
+      // Optional: signal ready
+      window.dispatchEvent(new Event('acWebviewChannelReady'));
+    })();
+    ''';
+
+    try {
+      await _controller.runJavaScript(bridgeJs);
+    } catch (e) {
+      debugPrint('Error injecting bridge JS: $e');
+    }
+  }
+
+  Future<void> _handleMessageFromWeb(String rawMessage) async {
+    try {
+      final data = jsonDecode(rawMessage) as Map<String, dynamic>;
+
+      final action = await widget.actionManager.performAction(actionJson: data);
+
+      if (action.callbackId != null &&
+          action.callbackId!.isNotEmpty &&
+          action.response != null) {
+        final response = {
+          'callbackId': action.callbackId,
+          'actionResponse': action.response, // must be JSON-serializable
+        };
+        _sendToWebView(response);
+      }
+    } catch (e, st) {
+      debugPrint('Error handling message from webview: $e\n$st');
+    }
+  }
+
+  Future<void> _sendToWebView(Map<String, dynamic> data) async {
+    final jsonPayload = jsonEncode(data);
+    try {
+      await _controller.runJavaScript( "acWebviewChannel.receive({data:${jsonEncode(data)}});");
+    } catch (e) {
+      debugPrint('Error sending data to webview: $e');
+    }
+    // You can choose your preferred way — here using window.postMessage style
+    // await _controller.runJavaScript('''
+    //   if (window.acWebviewChannel && typeof window.acWebviewChannel.onmessage === 'function') {
+    //     window.acWebviewChannel.onmessage($jsonPayload);
+    //   } else {
+    //     console.warn("acWebviewChannel.onmessage not available yet");
+    //   }
+    // ''');
+  }
+
+  Future<void> _loadUrl(String newUrl) async {
+    await _controller.loadRequest(Uri.parse(newUrl));
+  }
+
+  Future<bool> _handleBack() async {
+    if (await _controller.canGoBack()) {
+      await _controller.goBack();
+      return false;
+    }
+
+    // Optional: exit app on Android if no history
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    }
+
+    return true;
+  }
+
+  runJavascript(String javascript) async {
+    try {
+      await _controller.runJavaScript(javascript);
+    } catch (e) {
+      debugPrint('Error running custom javascript: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return webview;
   }
 }

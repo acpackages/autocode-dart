@@ -50,6 +50,8 @@ class AcLogger {
   String logFileNameTimestampPrefix = " [ ";
   String logFileNameTimestampSuffix = " ]";
 
+  Function({required String message,required String type})? callback;
+
   /* AcDoc({"description": "Initializes the logger with optional configurations."}) */
   AcLogger({
     this.logMessages = true,
@@ -59,6 +61,7 @@ class AcLogger {
     this.logType = AcEnumLogType.console,
     this.addTimestampToFileName = true,
     this.envConfigTags = const ["logs"],
+    this.callback
   }) {
     logFilePath = "$logDirectory/$logFileName";
     if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
@@ -129,24 +132,25 @@ class AcLogger {
 
   AcLogger _loggerMessage(dynamic args, String type) {
     if (logMessages) {
+      logMessage(msg){
+        if (logType != AcEnumLogType.console && logType != AcEnumLogType.print_ && logType != AcEnumLogType.callback) {
+          _writeToFile(message: msg.toString(), type: type);
+        } else if (logType == AcEnumLogType.print_) {
+          _printMessage(message: msg.toString(), type: type);
+        } else if (logType == AcEnumLogType.callback) {
+          if(callback != null){
+            callback!(message: msg.toString(), type: type);
+          }
+        } else {
+          _consoleMessage(message: msg.toString(), type: type);
+        }
+      };
       if (args is List) {
         for (var message in args) {
-          if (logType != AcEnumLogType.console && logType != AcEnumLogType.print_) {
-            _writeToFile(message: message.toString(), type: type);
-          } else if (logType == AcEnumLogType.print_) {
-            _printMessage(message: message.toString(), type: type);
-          } else {
-            _consoleMessage(message: message.toString(), type: type);
-          }
+          logMessage(message);
         }
       } else {
-        if (logType != AcEnumLogType.console && logType != AcEnumLogType.print_) {
-          _writeToFile(message: args.toString(), type: type);
-        } else if (logType == AcEnumLogType.print_) {
-          _printMessage(message: args.toString(), type: type);
-        } else {
-          _consoleMessage(message: args.toString(), type: type);
-        }
+        logMessage(args);
       }
     }
     return this;

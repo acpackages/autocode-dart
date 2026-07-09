@@ -93,6 +93,14 @@ class AcSqliteDao extends AcBaseSqlDao {
     return result;
   }
 
+  Future<void> close() async {
+    if (_database != null) {
+      _database!.close();
+      _databaseInstances.remove(sqlConnection.database);
+      _database = null;
+    }
+  }
+
   /* AcDoc({
     "summary": "Checks if a specific table exists in the database.",
     "description": "This SQLite implementation queries the `sqlite_master` table.",

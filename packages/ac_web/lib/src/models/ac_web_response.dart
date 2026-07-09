@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:ac_extensions/ac_extensions.dart';
+
 import '../ac_web_internal.dart';
 import 'dart:convert';
 import 'package:ac_mirrors/ac_mirrors.dart';
@@ -114,16 +118,28 @@ class AcWebResponse {
     "returns_type": "AcWebResponse"
   }) */
   static AcWebResponse download({
-    required dynamic content,
-    required String filename,
+    dynamic? content,
+    String? fileName,
+    String? filePath,
     AcEnumHttpResponseCode responseCode = AcEnumHttpResponseCode.ok,
   }) {
     final response = AcWebResponse();
-    response.responseCode = responseCode;
-    response.responseType = AcEnumWebResponseType.download;
-    response.content = content;
-    response.headers['Content-Disposition'] = 'attachment; filename="$filename"';
-    response.headers['Content-Type'] = 'application/octet-stream';
+    if(filePath != null){
+      var file = File(filePath);
+      if(file.existsSync()){
+        content = file.readAsBytesSync();
+        if(fileName == null){
+          fileName = file.fileName;
+        }
+      }
+    }
+    if(content != null && fileName != null){
+      response.responseCode = responseCode;
+      response.responseType = AcEnumWebResponseType.download;
+      response.content = content;
+      response.headers['Content-Disposition'] = 'attachment; filename="$fileName"';
+      response.headers['Content-Type'] = 'application/octet-stream';
+    }
     return response;
   }
 

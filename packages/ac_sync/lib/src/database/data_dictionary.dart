@@ -7,6 +7,7 @@ class AcSyncTables {
 	static const String acSyncDetails = "_ac_sync_details";
 	static const String acSyncDeviceLogs = "_ac_sync_device_logs";
 	static const String acSyncDevices = "_ac_sync_devices";
+	static const String acSyncSessions = "_ac_sync_sessions";
 }
 
 class TblAcSyncChangeLogs {
@@ -38,6 +39,22 @@ class TblAcSyncDevices {
 	static const String lastSyncedOn = "last_synced_on";
 	static const String lastSyncChangeLogId = "last_sync_change_log_id";
 }
+class TblAcSyncSessions {
+	static const String syncSessionId = "sync_session_id";
+	static const String clientIdentifier = "client_identifier";
+	static const String status = "status";
+	static const String incomingCheckpoint = "incoming_checkpoint";
+	static const String incomingTargetCheckpoint = "incoming_target_checkpoint";
+	static const String incomingCompleted = "incoming_completed";
+	static const String outgoingCheckpoint = "outgoing_checkpoint";
+	static const String outgoingTargetCheckpoint = "outgoing_target_checkpoint";
+	static const String outgoingCompleted = "outgoing_completed";
+	static const String metadata = "metadata";
+	static const String createdAt = "created_at";
+	static const String updatedAt = "updated_at";
+	static const String lastActivityAt = "last_activity_at";
+	static const String expiresAt = "expires_at";
+}
 
 /* Table Keys End */
 /* Keys End */
@@ -45,7 +62,7 @@ class TblAcSyncDevices {
 
 const Map<String,dynamic> AC_SYNC_DATA_DICTIONARY = {
 	AcDataDictionary.keyName : "Autocode Sync",
-	AcDataDictionary.keyVersion : 0,
+	AcDataDictionary.keyVersion : 1,
 	AcDataDictionary.keyTables : {
 		AcSyncTables.acSyncChangeLogs : {
 			AcDDTable.keyTableName : AcSyncTables.acSyncChangeLogs,
@@ -334,6 +351,165 @@ const Map<String,dynamic> AC_SYNC_DATA_DICTIONARY = {
 				AcEnumDDTableProperty.singularName : {
 					AcDDTableProperty.keyPropertyName : AcEnumDDTableProperty.singularName,
 					AcDDTableProperty.keyPropertyValue : "sync_device"
+				}
+			}
+		},
+		AcSyncTables.acSyncSessions : {
+			AcDDTable.keyTableName : AcSyncTables.acSyncSessions,
+			AcDDTable.keyTableColumns : {
+				TblAcSyncSessions.syncSessionId : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.syncSessionId,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.string,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Sync Session Id"
+						},
+						AcEnumDDColumnProperty.primaryKey : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.primaryKey,
+							AcDDTableColumnProperty.keyPropertyValue : true
+						}
+					}
+				},
+				TblAcSyncSessions.clientIdentifier : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.clientIdentifier,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.string,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Client Identifier"
+						}
+					}
+				},
+				TblAcSyncSessions.status : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.status,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.string,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Status"
+						}
+					}
+				},
+				TblAcSyncSessions.incomingCheckpoint : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.incomingCheckpoint,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.integer,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Incoming Checkpoint"
+						}
+					}
+				},
+				TblAcSyncSessions.incomingTargetCheckpoint : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.incomingTargetCheckpoint,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.integer,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Incoming Target Checkpoint"
+						}
+					}
+				},
+				TblAcSyncSessions.incomingCompleted : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.incomingCompleted,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.yesNo,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Incoming Completed"
+						}
+					}
+				},
+				TblAcSyncSessions.outgoingCheckpoint : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.outgoingCheckpoint,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.integer,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Outgoing Checkpoint"
+						}
+					}
+				},
+				TblAcSyncSessions.outgoingTargetCheckpoint : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.outgoingTargetCheckpoint,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.integer,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Outgoing Target Checkpoint"
+						}
+					}
+				},
+				TblAcSyncSessions.outgoingCompleted : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.outgoingCompleted,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.yesNo,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Outgoing Completed"
+						}
+					}
+				},
+				TblAcSyncSessions.metadata : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.metadata,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.json,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Metadata"
+						}
+					}
+				},
+				TblAcSyncSessions.createdAt : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.createdAt,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.datetime,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Created At"
+						}
+					}
+				},
+				TblAcSyncSessions.updatedAt : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.updatedAt,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.datetime,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Updated At"
+						}
+					}
+				},
+				TblAcSyncSessions.lastActivityAt : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.lastActivityAt,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.datetime,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Last Activity At"
+						}
+					}
+				},
+				TblAcSyncSessions.expiresAt : {
+					AcDDTableColumn.keyColumnName : TblAcSyncSessions.expiresAt,
+					AcDDTableColumn.keyColumnType : AcEnumDDColumnType.datetime,
+					AcDDTableColumn.keyColumnProperties : {
+						AcEnumDDColumnProperty.columnTitle : {
+							AcDDTableColumnProperty.keyPropertyName : AcEnumDDColumnProperty.columnTitle,
+							AcDDTableColumnProperty.keyPropertyValue : "Expires At"
+						}
+					}
+				}
+			},
+			AcDDTable.keyTableProperties : {
+				AcEnumDDTableProperty.pluralName : {
+					AcDDTableProperty.keyPropertyName : AcEnumDDTableProperty.pluralName,
+					AcDDTableProperty.keyPropertyValue : "sync_sessions"
+				},
+				AcEnumDDTableProperty.singularName : {
+					AcDDTableProperty.keyPropertyName : AcEnumDDTableProperty.singularName,
+					AcDDTableProperty.keyPropertyValue : "sync_session"
 				}
 			}
 		}

@@ -505,6 +505,9 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_flutter/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_flutter/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_flutter/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_message/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_message/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_message/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

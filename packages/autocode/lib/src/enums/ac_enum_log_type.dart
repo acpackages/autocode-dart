@@ -8,6 +8,8 @@ import 'package:ac_mirrors/ac_mirrors.dart';
 @AcReflectable()
 enum AcEnumLogType {
   /* AcDoc({"description": "Logs output to the system console."}) */
+  callback('CALLBACK'),
+
   console('CONSOLE'),
 
   /* AcDoc({"description": "Logs output using Dart's print statement. 'print' is a reserved keyword, so 'print_' is used."}) */

@@ -217,7 +217,8 @@ class AcWebSocket {
 
     _send(map: {'e': event, 'd': data, 'a': ackId, 'n': nsp, if (volatile) 'v': true});
 
-    final future = completer.future.timeout(Duration(seconds: 30), onTimeout: () {
+
+    final future = completer.future.timeout(Duration(minutes:5), onTimeout: () {
       _pendingAcks.remove(ackId);
       return null;
     });

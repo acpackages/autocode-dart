@@ -1,3 +1,5 @@
+import 'package:ac_web/ac_web.dart';
+
 import '../ac_web_internal.dart';
 import 'dart:io';
 import 'package:ac_mirrors/ac_mirrors.dart';
@@ -61,6 +63,8 @@ class AcWeb {
   final List<Map<String, dynamic>> assetFilesRoutes = [];
 
   final List<Map<String, dynamic>> rawContentMaps = [];
+
+  final List<Map<String, dynamic>> runtimeResolvers = [];
 
   /* AcDoc({"summary": "The port number for the HTTP server."}) */
   int port = 0;
@@ -610,6 +614,14 @@ class AcWeb {
       d.createSync(recursive: true);
     }
     staticFilesRoutes.add({'prefix': prefix, 'directory': directory});
+    return this;
+  }
+
+  AcWeb staticFileRuntimeResolver({required Function(AcWebRuntimePathResolverArgs args) resolver, String prefix = ""}) {
+    // logger.log("[AcWeb] Registering raw files map : $map");
+    Map<String,dynamic> valueMap = {'prefix': prefix, 'resolver': resolver};
+    print("Adding runtime resolver for $prefix");
+    runtimeResolvers.add(valueMap);
     return this;
   }
 

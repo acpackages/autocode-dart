@@ -44,11 +44,27 @@ class AcSyncTableChanges {
       instance: this,
       jsonData: jsonData,
     );
+    if (jsonData.containsKey(keyRowsToDelete) && jsonData[keyRowsToDelete] != null) {
+      var list = jsonData[keyRowsToDelete] as List;
+      rowsToDelete = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
+    }
+    if (jsonData.containsKey(keyRowsToInsert) && jsonData[keyRowsToInsert] != null) {
+      var list = jsonData[keyRowsToInsert] as List;
+      rowsToInsert = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
+    }
+    if (jsonData.containsKey(keyRowsToUpdate) && jsonData[keyRowsToUpdate] != null) {
+      var list = jsonData[keyRowsToUpdate] as List;
+      rowsToUpdate = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
+    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    data[keyRowsToDelete] = rowsToDelete.map((v) => v.toJson()).toList();
+    data[keyRowsToInsert] = rowsToInsert.map((v) => v.toJson()).toList();
+    data[keyRowsToUpdate] = rowsToUpdate.map((v) => v.toJson()).toList();
+    return data;
   }
 
   @override

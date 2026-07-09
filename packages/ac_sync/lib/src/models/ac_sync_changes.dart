@@ -39,7 +39,9 @@ class AcSyncChanges {
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    data[keyTableChanges] = tableChanges.map((k, v) => MapEntry(k, v.toJson()));
+    return data;
   }
 
   @override

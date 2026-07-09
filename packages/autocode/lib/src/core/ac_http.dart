@@ -49,10 +49,7 @@ class AcHttp {
         queryParams: queryParams,
       );
 
-      final hasFormData =
-          method != AcEnumHttpMethod.get &&
-              method != AcEnumHttpMethod.delete &&
-              data != null;
+      final hasFormData = method != AcEnumHttpMethod.get && method != AcEnumHttpMethod.delete && data != null;
 
       late http.Response httpResponse;
 
@@ -91,6 +88,14 @@ class AcHttp {
             httpResponse = await _client.delete(
               Uri.parse(url),
               headers: headers,
+            );
+            break;
+
+          case AcEnumHttpMethod.post:
+            httpResponse = await _client.post(
+              Uri.parse(url),
+              headers: headers,
+              body:data
             );
             break;
 

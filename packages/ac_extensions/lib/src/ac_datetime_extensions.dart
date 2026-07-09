@@ -145,6 +145,10 @@ extension AcDateTimeExtensions on DateTime {
     return current.compareTo(other) == 0;
   }
 
+  bool isSameDate(DateTime other) {
+    return year == other.year && month == other.month && day == other.day;
+  }
+
   /* AcDoc({
     "type": "method",
     "summary": "Subtracts the specified duration components from this DateTime.",

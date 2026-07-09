@@ -32,11 +32,18 @@ class AcSyncTableRowChange {
       instance: this,
       jsonData: jsonData,
     );
+    if (jsonData.containsKey(keyTimestamp) && jsonData[keyTimestamp] is String) {
+      timestamp = DateTime.tryParse(jsonData[keyTimestamp] as String);
+    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    if (timestamp != null) {
+      data[keyTimestamp] = timestamp!.toIso8601String();
+    }
+    return data;
   }
 
   @override
