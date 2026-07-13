@@ -121,7 +121,7 @@ class AcDataDictionaryAutoSelect {
           ..in_ = "query";
     acApiDocRoute.addParameter(parameter: orderParameter);
 
-    for (final column in acDDTable.tableColumns) {
+    for (final column in acDDTable.tableColumns.values) {
       final requestParameter =
           AcApiDocParameter()
             ..name = column.columnName
@@ -151,7 +151,7 @@ class AcDataDictionaryAutoSelect {
   }) */
   Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
-      var acWebRequest = args.request;
+      var acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
@@ -192,7 +192,7 @@ class AcDataDictionaryAutoSelect {
             acDDSelectStatement.endGroup();
           }
 
-          for (final col in acDDTable.tableColumns) {
+          for (final col in acDDTable.tableColumns.values) {
             if (acWebRequest.get.containsKey(col.columnName)) {
               acDDSelectStatement.addCondition(
                 key: col.columnName,
@@ -287,7 +287,7 @@ class AcDataDictionaryAutoSelect {
   }) */
   Function(AcWebRequestHandlerArgs args) getByIdHandler() {
     return (AcWebRequestHandlerArgs args) async{
-      var acWebRequest = args.request;
+      var acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
@@ -385,7 +385,7 @@ class AcDataDictionaryAutoSelect {
   Function(AcWebRequestHandlerArgs args) postHandler() {
     return (AcWebRequestHandlerArgs args) async {
       var logger = args.logger;
-      var acWebRequest = args.request;
+      var acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try{
         logger.log("[AcDataDictionaryAutoSelect] : Getting rows for table ${acDDTable.tableName} using post method...");

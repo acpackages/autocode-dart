@@ -56,23 +56,64 @@ class AcWebOnWs {
             }
           }
 
-          if (routeDefinition == null) {
-            logger.error("Route not found: $method>$url");
+          if (routeDefinition != null) {
+            final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
+            acWebRequest.pathParameters = pathParams;
+            acWebRequest.internalParams['ac_web_on_ws'] = AcWebOnWsParams(socket: socket);
+
+            final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
             if (callback != null) {
-              final response = AcWebResponse.notFound();
-              callback(response: _createWsResponseFromAcWebResponse(response));
+              callback(response: _createWsResponseFromAcWebResponse(webResponse));
             }
-            return;
+          }
+          else{
+            AcWebRuntimeResolverDefinition? resolverDefinition;
+            for (var entry in app.runtimeRouteResolvers.values) {
+              final routeMethod = entry.method.value.toLowerCase();
+              final routePath = entry.prefix;
+              final cleanRoutePath = routePath.startsWith('/') ? routePath.substring(1) : routePath;
+
+              if (routeMethod.equalsIgnoreCase(method)) {
+                if (cleanUrl.startsWith(cleanRoutePath)) {
+                  resolverDefinition = entry;
+                  break;
+                }
+              }
+            }
+            if (resolverDefinition != null) {
+              final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
+              acWebRequest.pathParameters = pathParams;
+              acWebRequest.internalParams['ac_web_on_ws'] = AcWebOnWsParams(socket: socket);
+              AcWebRuntimeResolverArgs args = AcWebRuntimeResolverArgs();
+              args.path = cleanUrl;
+              args.method = resolverDefinition.method;
+              args.webRequest = acWebRequest;
+
+              final webResponse = await resolverDefinition.resolver(args);
+              if(webResponse == null){
+                if (callback != null) {
+                  final response = AcWebResponse.notFound();
+                  callback(response: _createWsResponseFromAcWebResponse(response));
+                }
+              }
+              else{
+                if (callback != null) {
+                  callback(response: _createWsResponseFromAcWebResponse(webResponse));
+                }
+              }
+            }
+            else{
+              logger.error("[AcWebOnWs] Route not found: $method>$url");
+              if (callback != null) {
+                final response = AcWebResponse.notFound();
+                callback(response: _createWsResponseFromAcWebResponse(response));
+              }
+              return;
+            }
           }
 
-          final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
-          acWebRequest.pathParameters = pathParams;
-          acWebRequest.internalParams['ac_web_on_ws'] = AcWebOnWsParams(socket: socket);
 
-          final webResponse = await app.handleWebRequest(acWebRequest, routeDefinition);
-          if (callback != null) {
-            callback(response: _createWsResponseFromAcWebResponse(webResponse));
-          }
+
         }
       } catch (e, stack) {
         logger.error("Error handling $eventName: $e");

@@ -20,7 +20,11 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
   AcSyncSourceDatabase({super.dao,super.databaseType = AcEnumSqlDatabaseType.unknown}){
   }
 
-  Future<AcResult> createDatabaseFileForDestination({required String destinationPath,String definitionName = 'default'}) async {
+  Future<AcResult> createDatabaseFileForDestination({
+    required String destinationPath,
+    String definitionName = 'default',
+    String? clientDeviceId,
+  }) async {
     final result = AcResult();
     logger.log("[AcSyncSourceDatabase] Starting creation of destination database file. Definition: $definitionName");
     final definition = syncDefinitions[definitionName];
@@ -45,7 +49,6 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
       );
 
       logger.log("[AcSyncSourceDatabase] Database file created. Initializing destination database metadata...");
-      AcSqliteDao destinationDao = AcSqliteDao();
       int lastChangeLogId = 0;
       AcResult getLastResult = await getLastChangeLogId();
       if(getLastResult.isSuccess()){
@@ -54,38 +57,59 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
         }
       }
       logger.log("[AcSyncSourceDatabase] Current last change log ID: $lastChangeLogId");
-      destinationDao.sqlConnection = AcSqlConnection(database: destinationPath);
-      String destinationDeviceId = Autocode.uuid();
-      logger.log("[AcSyncSourceDatabase] New destination device ID: $destinationDeviceId");
-      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
-        TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
-        TblAcSyncDetails.syncDetailStringValue:destinationDeviceId,
-      });
-      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
-        TblAcSyncDetails.syncDetailKey: AcSyncKeys.keyDeviceType,
-        TblAcSyncDetails.syncDetailStringValue: 'DESTINATION'
-      });
-      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
-        TblAcSyncDevices.isSourceOfTruth: 1,
-        TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
-        TblAcSyncDevices.syncDeviceId: deviceId,
-        TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
-      });
-      logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Source Device $deviceId with last ID $lastChangeLogId");
-      await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
-        TblAcSyncDevices.isSourceOfTruth: 0,
-        TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
-        TblAcSyncDevices.syncDeviceId: destinationDeviceId,
-        TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
-      });
-      logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Destination Device $destinationDeviceId with last ID $lastChangeLogId");
-      logger.log("[AcSyncSourceDatabase] Registering new destination device in source database...");
-      await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
-        TblAcSyncDevices.isSourceOfTruth: 0,
-        TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
-        TblAcSyncDevices.syncDeviceId: destinationDeviceId,
-        TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
-      });
+
+      if (clientDeviceId != null) {
+        logger.log("[AcSyncSourceDatabase] Provisioning client database with ID: $clientDeviceId");
+        await databaseManager.provisionClientDatabase(
+          destinationPath: destinationPath,
+          clientDeviceId: clientDeviceId,
+          serverDeviceId: deviceId!,
+          serverLastLogId: lastChangeLogId,
+          serverDeviceDetails: {},
+        );
+
+        logger.log("[AcSyncSourceDatabase] Registering new destination device in source database...");
+        await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
+          TblAcSyncDevices.isSourceOfTruth: 0,
+          TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
+          TblAcSyncDevices.syncDeviceId: clientDeviceId,
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+        });
+      } else {
+        AcSqliteDao destinationDao = AcSqliteDao();
+        destinationDao.sqlConnection = AcSqlConnection(database: destinationPath);
+        String destinationDeviceId = Autocode.uuid();
+        logger.log("[AcSyncSourceDatabase] New destination device ID: $destinationDeviceId");
+        await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
+          TblAcSyncDetails.syncDetailKey:AcSyncKeys.keyDeviceId,
+          TblAcSyncDetails.syncDetailStringValue:destinationDeviceId,
+        });
+        await destinationDao.insertRow(tableName: AcSyncTables.acSyncDetails, row: {
+          TblAcSyncDetails.syncDetailKey: AcSyncKeys.keyDeviceType,
+          TblAcSyncDetails.syncDetailStringValue: 'DESTINATION'
+        });
+        await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
+          TblAcSyncDevices.isSourceOfTruth: 1,
+          TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
+          TblAcSyncDevices.syncDeviceId: deviceId,
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+        });
+        logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Source Device $deviceId with last ID $lastChangeLogId");
+        await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
+          TblAcSyncDevices.isSourceOfTruth: 0,
+          TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
+          TblAcSyncDevices.syncDeviceId: destinationDeviceId,
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+        });
+        logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Destination Device $destinationDeviceId with last ID $lastChangeLogId");
+        logger.log("[AcSyncSourceDatabase] Registering new destination device in source database...");
+        await dao!.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
+          TblAcSyncDevices.isSourceOfTruth: 0,
+          TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
+          TblAcSyncDevices.syncDeviceId: destinationDeviceId,
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+        });
+      }
       result.setSuccess();
       logger.log("[AcSyncSourceDatabase] Destination database file creation complete.");
     } catch (e, stack) {

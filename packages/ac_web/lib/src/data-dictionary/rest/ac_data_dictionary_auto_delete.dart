@@ -98,7 +98,7 @@ class AcDataDictionaryAutoDelete {
   }) */
   Future<AcWebResponse> Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
-      AcWebRequest acWebRequest = args.request;
+      AcWebRequest acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       final key = acDDTable.getPrimaryKeyColumnName();
       if (acWebRequest.pathParameters.containsKey(key)) {
@@ -171,7 +171,7 @@ class AcDataDictionaryAutoDelete {
   Function(AcWebRequestHandlerArgs args) getPostHandler() {
     return (AcWebRequestHandlerArgs args) async {
       AcLogger logger = args.logger;
-      AcWebRequest acWebRequest = args.request;
+      AcWebRequest acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try{
         logger.log("Deleting row from table ${acDDTable.tableName}");

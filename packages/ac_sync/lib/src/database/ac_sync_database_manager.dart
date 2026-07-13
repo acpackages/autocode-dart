@@ -377,6 +377,9 @@ END;
       logger.error("[AcSyncDatabaseManager] Error during database file preparation: $e");
       rethrow;
     } finally {
+      try {
+        await destDao.close();
+      } catch (_) {}
       logger.log("[AcSyncDatabaseManager] Finished preparing destination database file.");
     }
   }
@@ -460,6 +463,9 @@ END;
       logger.error("[AcSyncDatabaseManager] Error during client provisioning: $e");
       rethrow;
     } finally {
+      try {
+        await destDao.close();
+      } catch (_) {}
     }
   }
 }

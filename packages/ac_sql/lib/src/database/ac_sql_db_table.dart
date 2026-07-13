@@ -190,7 +190,7 @@ class AcSqlDbTable extends AcSqlDbBase {
       List<String> checkColumns = [];
       Map<String, Map<String, dynamic>> autoNumberColumns = {};
       bool continueOperation = true;
-      for (final tableColumn in acDDTable.tableColumns) {
+      for (final tableColumn in acDDTable.tableColumns.values) {
         bool setAutoNumber = true;
         if (tableColumn.isAutoNumber()) {
           if (row.containsKey(tableColumn.columnName) &&
@@ -312,7 +312,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         }
       }
 
-      for (final tableColumn in acDDTable.tableColumns) {
+      for (final tableColumn in acDDTable.tableColumns.values) {
         final value = row[tableColumn.columnName];
         if (tableColumn.checkInModify()) {
           modifyConditions.add(
@@ -593,7 +593,7 @@ class AcSqlDbTable extends AcSqlDbBase {
 
     if (continueOperation) {
       List<String> tableColumnNames = List.empty(growable: true);
-      for (final column in acDDTable.tableColumns) {
+      for (final column in acDDTable.tableColumns.values) {
         tableColumnNames.add(column.columnName);
         if (row.containsKey(column.columnName) || insertMode) {
           bool setColumnValue = row.containsKey(column.columnName);
@@ -1379,7 +1379,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         conditionParameters[":primaryKeyValue"] = primaryKeyValue;
       } else {
         final Map<String, dynamic> checkInSaveColumns = {};
-        for (final column in acDDTable.tableColumns) {
+        for (final column in acDDTable.tableColumns.values) {
           if (column.checkInSave()) {
             checkInSaveColumns[column.columnName] = row[column.columnName];
           }
@@ -1589,7 +1589,7 @@ class AcSqlDbTable extends AcSqlDbBase {
             conditionParameters[":primaryKeyValue"] = primaryKeyValue;
           } else {
             final Map<String, dynamic> checkInSaveColumns = {};
-            for (final column in acDDTable.tableColumns) {
+            for (final column in acDDTable.tableColumns.values) {
               if (column.checkInSave()) {
                 checkInSaveColumns[column.columnName] = row[column.columnName];
               }
@@ -2142,7 +2142,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     final result = AcResult();
     try {
       bool continueOperation = true;
-      for (final column in acDDTable.tableColumns) {
+      for (final column in acDDTable.tableColumns.values) {
         dynamic value = row[column.columnName];
         if (continueOperation) {
           if (column.isRequired() && isInsert) {

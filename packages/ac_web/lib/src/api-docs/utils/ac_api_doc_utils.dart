@@ -92,7 +92,7 @@ class AcApiDocUtils {
     acApiDocModel.name = acDDTable.tableName;
     final modelProperties = <String, dynamic>{};
 
-    for (final column in acDDTable.tableColumns) {
+    for (final column in acDDTable.tableColumns.values) {
       final columnType = getApiDataTypeFromDataDictionaryDataType(
         dataType: column.columnType,
       );

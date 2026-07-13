@@ -103,7 +103,7 @@ class AcDataDictionaryAutoSave {
   }) */
   Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
-      var acWebRequest = args.request;
+      var acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try {
 

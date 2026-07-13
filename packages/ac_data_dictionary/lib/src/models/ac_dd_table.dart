@@ -19,7 +19,7 @@ class AcDDTable {
     "summary": "A list of column objects belonging to this table."
   }) */
   @AcBindJsonProperty(key: keyTableColumns)
-  List<AcDDTableColumn> tableColumns = [];
+  Map<String,AcDDTableColumn> tableColumns = {};
 
   /* AcDoc({
     "summary": "The name of the database table."
@@ -31,7 +31,7 @@ class AcDDTable {
     "summary": "A list of special properties or metadata for this table."
   }) */
   @AcBindJsonProperty(key: keyTableProperties)
-  List<AcDDTableProperty> tableProperties = [];
+  Map<String,AcDDTableProperty> tableProperties = {};
 
   /* AcDoc({
     "summary": "Creates a new, empty instance of a table definition."
@@ -96,13 +96,14 @@ class AcDDTable {
     "returns_type": "AcDDTableColumn?"
   }) */
   AcDDTableColumn? getColumn(String columnName) {
+    return tableColumns[columnName];
     // Use a try/catch or a loop to safely find the column without throwing an error.
-    for (final column in tableColumns) {
-      if (column.columnName == columnName) {
-        return column;
-      }
-    }
-    return null;
+    // for (final column in tableColumns) {
+    //   if (column.columnName == columnName) {
+    //     return column;
+    //   }
+    // }
+    // return null;
   }
 
   /* AcDoc({
@@ -111,7 +112,7 @@ class AcDDTable {
     "returns_type": "List<String>"
   }) */
   List<String> getColumnNames() {
-    return tableColumns.map((column) => column.columnName).toList();
+    return tableColumns.keys.toList();
   }
 
   /* AcDoc({
@@ -129,21 +130,21 @@ class AcDDTable {
     String statement = "";
 
     if(databaseType == AcEnumSqlDatabaseType.sqlite){
-      final columnDefinitions = tableColumns.map(
+      final columnDefinitions = tableColumns.values.map(
             (column) => column.getColumnDefinitionForStatement(
           databaseType: databaseType,
         ),
       ).where((def) => def.isNotEmpty).toList();
-      if(acDDConfig.insertTimestampColumnKey.isNotEmpty){
+      if(acDDConfig.insertTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.insertTimestampColumnKey)){
         columnDefinitions.add("${acDDConfig.insertTimestampColumnKey} TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
       }
-      if(acDDConfig.updateTimestampColumnKey.isNotEmpty){
+      if(acDDConfig.updateTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.updateTimestampColumnKey)){
         columnDefinitions.add("${acDDConfig.updateTimestampColumnKey} TEXT");
       }
-      if(acDDConfig.deleteTimestampColumnKey.isNotEmpty){
+      if(acDDConfig.deleteTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.deleteTimestampColumnKey)){
         columnDefinitions.add("${acDDConfig.deleteTimestampColumnKey} TEXT");
       }
-      for(var property in tableProperties){
+      for(var property in tableProperties.values){
         if(property.propertyName == AcEnumDDTableProperty.constraints){
           for(var constraint in property.propertyValue){
             if(constraint['type'] == AcEnumDDTableConstraint.compositeUniqueKey){
@@ -162,36 +163,35 @@ class AcDDTable {
       statement = "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
     }
     else if (databaseType == AcEnumSqlDatabaseType.postgres) {
-      final columnDefinitions = tableColumns
-          .map((column) => column.getColumnDefinitionForStatement(
+      final columnDefinitions = tableColumns.values.map((column) => column.getColumnDefinitionForStatement(
         databaseType: databaseType,
       ))
           .where((def) => def.isNotEmpty)
           .toList();
 
       // ✅ Insert timestamp
-      if (acDDConfig.insertTimestampColumnKey.isNotEmpty) {
+      if (acDDConfig.insertTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.insertTimestampColumnKey)) {
         columnDefinitions.add(
           "${acDDConfig.insertTimestampColumnKey} TIMESTAMPTZ DEFAULT NOW()",
         );
       }
 
       // ✅ Update timestamp
-      if (acDDConfig.updateTimestampColumnKey.isNotEmpty) {
+      if (acDDConfig.updateTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.updateTimestampColumnKey)) {
         columnDefinitions.add(
           "${acDDConfig.updateTimestampColumnKey} TIMESTAMPTZ",
         );
       }
 
       // ✅ Delete timestamp (soft delete)
-      if (acDDConfig.deleteTimestampColumnKey.isNotEmpty) {
+      if (acDDConfig.deleteTimestampColumnKey.isNotEmpty && !hasColumn(columnName: acDDConfig.deleteTimestampColumnKey)) {
         columnDefinitions.add(
           "${acDDConfig.deleteTimestampColumnKey} TIMESTAMPTZ",
         );
       }
 
       // ✅ Constraints
-      for (var property in tableProperties) {
+      for (var property in tableProperties.values) {
         if (property.propertyName == AcEnumDDTableProperty.constraints) {
           for (var constraint in property.propertyValue) {
             if (constraint['type'] ==
@@ -255,7 +255,7 @@ class AcDDTable {
     "returns_type": "List<AcDDTableColumn>"
   }) */
   List<AcDDTableColumn> getPrimaryKeyColumns() {
-    return tableColumns.where((column) => column.isPrimaryKey()).toList();
+    return tableColumns.values.where((column) => column.isPrimaryKey()).toList();
   }
 
   /* AcDoc({
@@ -273,7 +273,7 @@ class AcDDTable {
     "returns_type": "List<AcDDTableColumn>"
   }) */
   List<AcDDTableColumn> getSearchQueryColumns() {
-    return tableColumns
+    return tableColumns.values
         .where((column) => column.isUseForRowLikeFilter())
         .toList();
   }
@@ -284,7 +284,7 @@ class AcDDTable {
     "returns_type": "List<AcDDTableColumn>"
   }) */
   List<AcDDTableColumn> getForeignKeyColumns() {
-    return tableColumns.where((column) => column.isForeignKey()).toList();
+    return tableColumns.values.where((column) => column.isForeignKey()).toList();
   }
 
   List<AcDDRelationship> getForeignKeyRelationships() {
@@ -304,7 +304,7 @@ class AcDDTable {
     "returns_type": "String"
   }) */
   String getPluralName() {
-    for (var property in tableProperties) {
+    for (var property in tableProperties.values) {
       if (property.propertyName == AcEnumDDTableProperty.pluralName) {
         return property.propertyValue;
       }
@@ -318,7 +318,7 @@ class AcDDTable {
     "returns_type": "String"
   }) */
   String getSingularName() {
-    for (var property in tableProperties) {
+    for (var property in tableProperties.values) {
       if (property.propertyName == AcEnumDDTableProperty.singularName) {
         return property.propertyValue;
       }
@@ -332,7 +332,7 @@ class AcDDTable {
     "returns_type": "List<AcDDTableColumn>"
   }) */
   List<AcDDTableColumn> getSelectDistinctColumns() {
-    return tableColumns.where((column) => column.isSelectDistinct()).toList();
+    return tableColumns.values.where((column) => column.isSelectDistinct()).toList();
   }
 
   String getSelectQueryFromName() {
@@ -345,7 +345,7 @@ class AcDDTable {
 
   String getSqlViewName() {
     String result = "";
-    for (var property in tableProperties) {
+    for (var property in tableProperties.values) {
       if (property.propertyName == AcEnumDDTableProperty.sqlViewName) {
         result = property.propertyValue;
       }
@@ -354,14 +354,7 @@ class AcDDTable {
   }
 
   bool hasColumn({required String columnName}) {
-    bool result = false;
-    for(var col in tableColumns){
-      if(col.columnName == columnName){
-        result = true;
-        break;
-      }
-    }
-    return result;
+    return tableColumns.containsKey(columnName);
   }
 
   /* AcDoc({
@@ -375,12 +368,11 @@ class AcDDTable {
   }) */
   AcDDTable fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
-    if (jsonData.containsKey(keyTableColumns) &&
-        jsonData[keyTableColumns] is Map) {
+    if (jsonData.containsKey(keyTableColumns) && jsonData[keyTableColumns] is Map) {
       (json[keyTableColumns] as Map).forEach((columnName, columnData) {
         final column = AcDDTableColumn.instanceFromJson(jsonData: columnData);
         column.table = this;
-        tableColumns.add(column);
+        tableColumns[columnName] = column;
       });
       json.remove(keyTableColumns);
     }
@@ -388,9 +380,7 @@ class AcDDTable {
     if (json.containsKey(keyTableProperties) &&
         json[keyTableProperties] is Map) {
       (json[keyTableProperties] as Map).forEach((propertyName, propertyData) {
-        tableProperties.add(
-          AcDDTableProperty.instanceFromJson(jsonData: propertyData),
-        );
+        tableProperties[propertyName] = AcDDTableProperty.instanceFromJson(jsonData: propertyData);
       });
       json.remove(keyTableProperties);
     }

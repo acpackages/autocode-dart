@@ -25,16 +25,16 @@ class AcDataDictionary {
   @AcBindJsonProperty(key: keyDataDictionaries)
   static Map<String, dynamic> dataDictionaries = {};
 
-  Map<String, dynamic> functions = {};
+  Map<String, AcDDFunction> functions = {};
   List<Map<String, dynamic>> relationships = List.empty(growable: true);
 
   @AcBindJsonProperty(key: keyStoredProcedures)
-  Map<String, dynamic> storedProcedures = {};
+  Map<String, AcDDStoredProcedure> storedProcedures = {};
 
-  Map<String, dynamic> tables = {};
-  Map<String, dynamic> triggers = {};
+  Map<String, AcDDTable> tables = {};
+  Map<String, AcDDTrigger> triggers = {};
   int version = 0;
-  Map<String, dynamic> views = {};
+  Map<String, AcDDView> views = {};
   String name = "";
 
   /* AcDoc({
@@ -77,16 +77,10 @@ class AcDataDictionary {
   static Map<String, AcDDFunction> getFunctions({
     String dataDictionaryName = "default",
   }) {
-    final result = <String, AcDDFunction>{};
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    acDataDictionary.functions.forEach((functionName, functionData) {
-      result[functionName] = AcDDFunction.instanceFromJson(
-        jsonData: functionData,
-      );
-    });
-    return result;
+    return acDataDictionary.functions;
   }
 
   /* AcDoc({
@@ -105,12 +99,7 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    if (acDataDictionary.functions.containsKey(functionName)) {
-      return AcDDFunction.instanceFromJson(
-        jsonData: acDataDictionary.functions[functionName],
-      );
-    }
-    return null;
+    return acDataDictionary.functions[functionName];
   }
 
   /* AcDoc({
@@ -163,14 +152,10 @@ class AcDataDictionary {
   static Map<String, AcDDStoredProcedure> getStoredProcedures({
     String dataDictionaryName = "default",
   }) {
-    final result = <String, AcDDStoredProcedure>{};
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    acDataDictionary.storedProcedures.forEach((name, data) {
-      result[name] = AcDDStoredProcedure.instanceFromJson(jsonData: data);
-    });
-    return result;
+    return acDataDictionary.storedProcedures;
   }
 
   /* AcDoc({
@@ -189,12 +174,7 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    if (acDataDictionary.storedProcedures.containsKey(storedProcedureName)) {
-      return AcDDStoredProcedure.instanceFromJson(
-        jsonData: acDataDictionary.storedProcedures[storedProcedureName],
-      );
-    }
-    return null;
+    return acDataDictionary.storedProcedures[storedProcedureName];
   }
 
   /* AcDoc({
@@ -213,15 +193,7 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    List<dynamic> matches = acDataDictionary.tables.values.where((data) {
-      return data[AcDDTable.keyTableName] == tableName;
-    }).toList();
-    if (matches.isNotEmpty) {
-      return AcDDTable.instanceFromJson(
-        jsonData: matches.first,
-      );
-    }
-    return null;
+    return acDataDictionary.tables[tableName];
   }
 
   /* AcDoc({
@@ -357,7 +329,7 @@ class AcDataDictionary {
       dataDictionaryName: dataDictionaryName,
     );
     acDataDictionary.tables.forEach((name, data) {
-      result[name] = AcDDTable.instanceFromJson(jsonData: data);
+      result[name] = data;
     });
     if(foreignKeysSorted){
       bool sortedSuccessfully = true;
@@ -405,14 +377,10 @@ class AcDataDictionary {
   static Map<String, AcDDTrigger> getTriggers({
     String dataDictionaryName = "default",
   }) {
-    final result = <String, AcDDTrigger>{};
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    acDataDictionary.triggers.forEach((name, data) {
-      result[name] = AcDDTrigger.instanceFromJson(jsonData: data);
-    });
-    return result;
+    return acDataDictionary.triggers;
   }
 
   /* AcDoc({
@@ -431,12 +399,7 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    if (acDataDictionary.triggers.containsKey(triggerName)) {
-      return AcDDTrigger.instanceFromJson(
-        jsonData: acDataDictionary.triggers[triggerName],
-      );
-    }
-    return null;
+    return acDataDictionary.triggers[triggerName];
   }
 
   /* AcDoc({
@@ -450,14 +413,10 @@ class AcDataDictionary {
   static Map<String, AcDDView> getViews({
     String dataDictionaryName = "default",
   }) {
-    final result = <String, AcDDView>{};
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    acDataDictionary.views.forEach((name, data) {
-      result[name] = AcDDView.instanceFromJson(jsonData: data);
-    });
-    return result;
+    return acDataDictionary.views;
   }
 
   /* AcDoc({
@@ -476,12 +435,7 @@ class AcDataDictionary {
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    if (acDataDictionary.views.containsKey(viewName)) {
-      return AcDDView.instanceFromJson(
-        jsonData: acDataDictionary.views[viewName],
-      );
-    }
-    return null;
+    return acDataDictionary.views[viewName];
   }
 
   static AcDDViewColumn? getViewColumn({
@@ -637,7 +591,7 @@ class AcDataDictionary {
   }) */
   List<Map<String, dynamic>> getTableTriggersList({required String tableName}) {
     return triggers.values
-        .where((trigger) => trigger[AcDDTrigger.keyTableName] == tableName)
+        .where((trigger) => trigger.tableName == tableName)
         .cast<Map<String, dynamic>>()
         .toList();
   }

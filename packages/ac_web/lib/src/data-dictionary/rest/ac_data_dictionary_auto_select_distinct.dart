@@ -114,7 +114,7 @@ class AcDataDictionaryAutoSelectDistinct {
   }) */
   Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
-      var acWebRequest = args.request;
+      var acWebRequest = args.webRequest;
       final response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);

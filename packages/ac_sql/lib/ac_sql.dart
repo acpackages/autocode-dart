@@ -37,4 +37,6 @@ export './src/models/ac_sql_operation.dart';
 export './src/models/ac_sql_schema_difference.dart';
 export './src/models/ac_sql_statement.dart';
 
+export './src/utils/ac_sql_utils.dart';
+
 // TODO: Export any libraries intended for clients of this package.

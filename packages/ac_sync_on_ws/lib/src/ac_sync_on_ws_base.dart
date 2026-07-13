@@ -30,11 +30,11 @@ class AcSyncOnWs {
     _init();
   }
 
-  Future<AcResult> sync() async {
+  Future<AcResult> sync({String? syncId}) async {
     AcResult result = AcResult();
     if (socket != null && syncDestinationDatabase != null) {
       logger.log("[AcSyncOnWs] Initiating sync request from database...");
-      result = await this.syncDestinationDatabase!.sync();
+      result = await this.syncDestinationDatabase!.sync(syncId: syncId);
     } else {
       result.setFailure(message: "Socket not set");
     }
@@ -47,10 +47,13 @@ class AcSyncOnWs {
       this._destinationFilePath = destinationFilePath;
       Map<String,dynamic> data = {
         'syncAction':'getDatabaseFileForDestination',
-        'syncData':{}
+        'syncData':{
+          'clientDeviceId': syncDestinationDatabase!.deviceId,
+        }
       };
       this.socket!.emit(event: eventName,data:data );
       logger.log("[AcSyncOnWs] Getting database file from source...");
+      result.setSuccess(message: "Database file request sent");
     } else {
       result.setFailure(message: "Socket not set");
     }
@@ -262,7 +265,14 @@ class AcSyncOnWs {
                 // 1. Create temporary destination copy
                 tempFile.createSync(recursive: true);
                 logger.log("[AcSyncOnWs] Creating temporary destination copy for sync...");
-                await syncSourceDatabase!.createDatabaseFileForDestination(destinationPath: tempPath);
+                String? clientDeviceId = syncData.getString("clientDeviceId");
+                if (clientDeviceId.isEmpty) {
+                  clientDeviceId = null;
+                }
+                await syncSourceDatabase!.createDatabaseFileForDestination(
+                  destinationPath: tempPath,
+                  clientDeviceId: clientDeviceId,
+                );
                 logger.log("[AcSyncOnWs] Original file size : ${File(syncSourceDatabase!.dao!.sqlConnection.database).lengthSync()}");
                 logger.log("[AcSyncOnWs] Temporary file size : ${tempFile.lengthSync()}");
                 // 2. Send the data via stream from source to destination

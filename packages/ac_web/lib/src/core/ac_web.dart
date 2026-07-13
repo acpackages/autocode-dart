@@ -64,7 +64,9 @@ class AcWeb {
 
   final List<Map<String, dynamic>> rawContentMaps = [];
 
-  final List<Map<String, dynamic>> runtimeResolvers = [];
+  final Map<String, AcWebRuntimeResolverDefinition> runtimeStaticFileResolvers = {};
+
+  final Map<String, AcWebRuntimeResolverDefinition> runtimeRouteResolvers = {};
 
   /* AcDoc({"summary": "The port number for the HTTP server."}) */
   int port = 0;
@@ -440,7 +442,7 @@ class AcWeb {
     else if (routeDefinition.handler is Function) {
       try {
         logger.log("[AcWeb] Handing function route...");
-        AcWebRequestHandlerArgs args = AcWebRequestHandlerArgs(request: request,logger: requestLogger);
+        AcWebRequestHandlerArgs args = AcWebRequestHandlerArgs(webRequest: request,logger: requestLogger);
         return await (routeDefinition.handler as Function)(args);
       } catch (e) {
         return AcWebResponse.internalError(data: e.toString());
@@ -617,11 +619,17 @@ class AcWeb {
     return this;
   }
 
-  AcWeb staticFileRuntimeResolver({required Function(AcWebRuntimePathResolverArgs args) resolver, String prefix = ""}) {
-    // logger.log("[AcWeb] Registering raw files map : $map");
-    Map<String,dynamic> valueMap = {'prefix': prefix, 'resolver': resolver};
+  AcWeb staticFileRuntimeResolver({required Function(AcWebRuntimeResolverArgs args) resolver, String prefix = ""}) {
+    print("Adding runtime file resolver for $prefix");
+    var routeKey = '${AcEnumHttpMethod.get.value.toLowerCase()}>$prefix';
+    runtimeStaticFileResolvers[routeKey] = AcWebRuntimeResolverDefinition(resolver: resolver,prefix: prefix);
+    return this;
+  }
+
+  AcWeb runtimeResolver({required Function(AcWebRuntimeResolverArgs args) resolver, String prefix = "", AcEnumHttpMethod method = AcEnumHttpMethod.get}) {
     print("Adding runtime resolver for $prefix");
-    runtimeResolvers.add(valueMap);
+    var routeKey = '${method.value.toLowerCase()}>$prefix';
+    runtimeRouteResolvers[routeKey] = AcWebRuntimeResolverDefinition(resolver: resolver,prefix: prefix,method: method);
     return this;
   }
 

@@ -161,13 +161,13 @@ class AcWebOnJaguar extends AcWeb {
       );
       instance.staticFiles(url,directory);
     }
-    for (var runtimeResolver in runtimeResolvers){
-      String prefix = runtimeResolver['prefix'];
+    for (var runtimeResolver in runtimeStaticFileResolvers.values){
+      String prefix = runtimeResolver.prefix;
       if(!prefix.startsWith("/")){
         prefix = "/$prefix";
       }
       prefix = "$prefix/*";
-      Function(AcWebRuntimePathResolverArgs args) resolver = runtimeResolver['resolver'];
+      Function(AcWebRuntimeResolverArgs args) resolver = runtimeResolver.resolver;
       Route route = Route.get(prefix, (context) async {
         dynamic body = "";
         String? mimeType = 'text/html';
@@ -177,7 +177,7 @@ class AcWebOnJaguar extends AcWeb {
             routePath = routePath.substring(1);
           }
           print("Getting runtime path for $routePath using resolver for $prefix");
-          var args = AcWebRuntimePathResolverArgs();
+          var args = AcWebRuntimeResolverArgs();
           args.path = routePath;
           String localPath = await resolver(args);
           File localFile = File(localPath);
@@ -201,92 +201,64 @@ class AcWebOnJaguar extends AcWeb {
       });
       instance.addRoute(route);
     }
+    for (var runtimeResolver in runtimeRouteResolvers.values){
+      String prefix = runtimeResolver.prefix;
+      AcEnumHttpMethod method = runtimeResolver.method;
+      if(!prefix.startsWith("/")){
+        prefix = "/$prefix";
+      }
+      prefix = "$prefix/*";
+      Function(AcWebRuntimeResolverArgs args) resolver = runtimeResolver.resolver;
+      callback(context) async {
+        try {
+          String routePath = context.path;
+          if (routePath.startsWith("/")) {
+            routePath = routePath.substring(1);
+          }
+          print("Getting runtime path for $routePath using resolver for $prefix");
+          var args = AcWebRuntimeResolverArgs();
+          args.path = routePath;
+          args.method = method;
+          args.webRequest = await _createAcWebRequestFromJaguarContext(context);
+          var webResponse = await resolver(args);
+          if(webResponse == null){
+              final response = AcWebResponse.notFound();
+              _createJaguarResponseFromAcWebResponse(response,context);
+          }
+          else{
+            await _createJaguarResponseFromAcWebResponse(webResponse, context);
+          }
+
+        } catch (ex,stack) {
+          logger.error(ex);
+          logger.error(stack);
+          context.response = Response(statusCode: HttpStatus.notFound);
+        }
+      }
+      if(method == AcEnumHttpMethod.get){
+        instance.addRoute(Route.get(prefix, callback));
+      }
+      else if(method == AcEnumHttpMethod.post){
+        instance.addRoute(Route.post(prefix, callback));
+      }
+      else if(method == AcEnumHttpMethod.delete){
+        instance.addRoute(Route.delete(prefix, callback));
+      }
+      else if(method == AcEnumHttpMethod.options){
+        instance.addRoute(Route.options(prefix, callback));
+      }
+      else if(method == AcEnumHttpMethod.patch){
+        instance.addRoute(Route.patch(prefix, callback));
+      }
+      else if(method == AcEnumHttpMethod.put){
+        instance.addRoute(Route.put(prefix, callback));
+      }
+    }
     instance.after.add((ctx) async {
       ctx.response.headers.add('Access-Control-Allow-Origin', '*');
       ctx.response.headers.add('Access-Control-Allow-Methods', '*');
       ctx.response.headers.add('Access-Control-Allow-Headers', '*');
     });
-  }
-
-  _addStaticFilesRoute(String path, String directory,{Function? errorFunction,ResponseProcessor? responseProcessor,}) {
-    Route route = Route.get(path, (context) async {
-      dynamic body = "";
-      String? mimeType = 'text/html';
-      try {
-        String routePath = context.path;
-        if (routePath.startsWith("/")) {
-          routePath = routePath.substring(1);
-        }
-        String localPath = "$directory/${routePath.substring(path.replaceAll("*","").length)}";
-        if(routePath.startsWith("$directory/")){
-          // localPath = directoryroutePath.substring(path.replaceAll("*","").length);
-        }
-        File localFile = new File(localPath);
-        logger.log("Loading Static File for path $routePath : LocalPath = $localPath");
-        if(localFile.existsSync()){
-          String extension=AcFileUtils.getExtensionFromPath(routePath);
-          logger.log("Found LocalFile $routePath : Extension : $extension : Mime : $mimeType");
-          body = localFile.readAsBytesSync();
-          // mimeType = MimeList.fromExtension[extension];
-          mimeType = AcFileUtils.getMimeTypeFromPath(routePath);
-          context.response = ByteResponse(body: body, mimeType: mimeType);
-        }
-        else{
-          logger.log("Could not file static file for $routePath : LocalPath = $localPath");
-          context.response = Response(statusCode: HttpStatus.notFound);
-        }
-      } catch (ex,stack) {
-        logger.error(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
-        context.response = Response(statusCode: HttpStatus.notFound);
-        if (errorFunction != null) {
-          dynamic errorResponse =
-          errorFunction(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
-          if (errorResponse != null) {
-            context.response = Response.html(errorResponse);
-          }
-        }
-      }
-    }, responseProcessor: responseProcessor);
-    jaguarInstance!.addRoute(route);
-  }
-
-  _addStaticFilesRuntimeResolver(String path, Function resolver,{Function? errorFunction,ResponseProcessor? responseProcessor,}) {
-    Route route = Route.get(path, (context) async {
-      dynamic body = "";
-      String? mimeType = 'text/html';
-      try {
-        String routePath = context.path;
-        if (routePath.startsWith("/")) {
-          routePath = routePath.substring(1);
-        }
-        String localPath = resolver(path);
-        File localFile = new File(localPath);
-        logger.log("Loading Static File for path $routePath : LocalPath = $localPath");
-        if(localFile.existsSync()){
-          String extension=AcFileUtils.getExtensionFromPath(routePath);
-          logger.log("Found LocalFile $routePath : Extension : $extension : Mime : $mimeType");
-          body = localFile.readAsBytesSync();
-          // mimeType = MimeList.fromExtension[extension];
-          mimeType = AcFileUtils.getMimeTypeFromPath(routePath);
-          context.response = ByteResponse(body: body, mimeType: mimeType);
-        }
-        else{
-          logger.log("Could not file static file for $routePath : LocalPath = $localPath");
-          context.response = Response(statusCode: HttpStatus.notFound);
-        }
-      } catch (ex,stack) {
-        logger.error(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
-        context.response = Response(statusCode: HttpStatus.notFound);
-        if (errorFunction != null) {
-          dynamic errorResponse =
-          errorFunction(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
-          if (errorResponse != null) {
-            context.response = Response.html(errorResponse);
-          }
-        }
-      }
-    }, responseProcessor: responseProcessor);
-    jaguarInstance!.addRoute(route);
   }
 
   RoutePathInfo _normalizeRoutePath(String originalPath) {

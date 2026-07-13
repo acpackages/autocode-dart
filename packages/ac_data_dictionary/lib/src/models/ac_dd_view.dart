@@ -30,7 +30,7 @@ class AcDDView {
     "summary": "A map of column names to their corresponding `AcDDViewColumn` definitions."
   }) */
   @AcBindJsonProperty(key: keyViewColumns)
-  List<AcDDViewColumn> viewColumns = [];
+  Map<String,AcDDViewColumn> viewColumns = {};
 
   /* AcDoc({
     "summary": "Creates a new, empty instance of a view definition."
@@ -85,7 +85,7 @@ class AcDDView {
       (json[keyViewColumns] as Map).forEach((columnName, columnData) {
         final column = AcDDViewColumn.instanceFromJson(jsonData: columnData);
         // column. = this;
-        viewColumns.add(column);
+        viewColumns[columnName] = column;
       });
       json.remove(keyViewColumns);
     }
@@ -149,17 +149,18 @@ class AcDDView {
   }
 
   AcDDViewColumn? getColumn(String columnName) {
-    // Use a try/catch or a loop to safely find the column without throwing an error.
-    for (final column in viewColumns) {
-      if (column.columnName == columnName) {
-        return column;
-      }
-    }
-    return null;
+    return viewColumns[columnName];
+    // // Use a try/catch or a loop to safely find the column without throwing an error.
+    // for (final column in viewColumns) {
+    //   if (column.columnName == columnName) {
+    //     return column;
+    //   }
+    // }
+    // return null;
   }
 
   List<String> getColumnNames() {
-    return viewColumns.map((column) => column.columnName).toList();
+    return viewColumns.keys.toList();
   }
 
   List<String> getSearchQueryColumnNames() {
@@ -172,7 +173,7 @@ class AcDDView {
     "returns_type": "List<AcDDViewColumn>"
   }) */
   List<AcDDViewColumn> getSearchQueryColumns() {
-    return viewColumns
+    return viewColumns.values
         .where((column) => column.isUseForRowLikeFilter())
         .toList();
   }

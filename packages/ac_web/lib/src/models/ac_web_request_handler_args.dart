@@ -11,14 +11,14 @@ import 'package:autocode/autocode.dart';
 }) */
 @AcReflectable()
 class AcWebRequestHandlerArgs {
-  late AcWebRequest request;
+  late AcWebRequest webRequest;
 
   @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
   late AcLogger logger;
 
-  AcWebRequestHandlerArgs({AcWebRequest? request,AcLogger? logger}){
-    if(request != null){
-      this.request = request;
+  AcWebRequestHandlerArgs({AcWebRequest? webRequest,AcLogger? logger}){
+    if(webRequest != null){
+      this.webRequest = webRequest;
     }
     if(logger != null){
       this.logger = logger;

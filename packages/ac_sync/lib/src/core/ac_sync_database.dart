@@ -646,7 +646,7 @@ class AcSyncDatabase {
           columnsToSync.addAll(columnsToSyncMap[t]!);
         }
         else {
-          for (var tableColumn in table.tableColumns) {
+          for (var tableColumn in table.tableColumns.values) {
             columnsToSync.add(tableColumn.columnName);
           }
         }
