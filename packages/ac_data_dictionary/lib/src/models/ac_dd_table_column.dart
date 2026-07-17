@@ -30,7 +30,7 @@ class AcDDTableColumn {
   AcEnumDDColumnType columnType = AcEnumDDColumnType.text;
 
   /* AcDoc({"summary": "The current value of the column, used when this object represents a specific record's data."}) */
-  @AcBindJsonProperty(key: AcDDTableColumn.keyColumnValue)
+  @AcBindJsonProperty(key: AcDDTableColumn.keyColumnValue,skipInToJson: true,skipInFromJson: true)
   dynamic columnValue;
 
   /* AcDoc({
@@ -592,6 +592,15 @@ class AcDDTableColumn {
   }) */
   AcDDTableColumn fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
+    if(json.containsKey(keyColumnType)){
+      if(json[keyColumnType] is AcEnumDDColumnType){
+        columnType = json[keyColumnType];
+      }
+      else if(json[keyColumnType] is String){
+        columnType = AcEnumDDColumnType.fromValue(json[keyColumnType])!;
+      }
+      json.remove(keyColumnType);
+    }
     if (json.containsKey(keyColumnProperties) && json[keyColumnProperties] is Map) {
       jsonData[keyColumnProperties].forEach((key, value) {
         if(key is AcEnumDDColumnProperty){
@@ -621,7 +630,9 @@ class AcDDTableColumn {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result[keyColumnType] = columnType.value;
+    return result;
   }
 
   /* AcDoc({

@@ -114,6 +114,15 @@ class AcDDViewColumn {
       });
       json.remove(keyColumnProperties);
     }
+    if(json.containsKey(keyColumnType)){
+      if(json[keyColumnType] is AcEnumDDColumnProperty){
+        columnType = json[keyColumnType];
+      }
+      else if(json[keyColumnType] is String){
+        columnType = AcEnumDDColumnType.fromValue(json[keyColumnType])!;
+      }
+      json.remove(keyColumnType);
+    }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: json,
@@ -211,7 +220,9 @@ class AcDDViewColumn {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result[keyColumnType] = columnType.value;
+    return result;
   }
 
   /* AcDoc({

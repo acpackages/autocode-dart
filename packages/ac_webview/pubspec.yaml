@@ -14,9 +14,9 @@ dependencies:
     path: './../autocode'
   flutter_inappwebview: ^6.1.5
 #  flutter_inappwebview: ^6.2.0-beta.3
-  webview_flutter: ^4.13.1
-  webview_flutter_android: ^4.4.0
-  webview_win_floating: ^3.0.2
+  webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.13.0
+  webview_win_floating: ^3.0.3
 #  ac_cef:
 #    path: './../ac_cef'
 

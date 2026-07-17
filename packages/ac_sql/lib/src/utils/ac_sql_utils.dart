@@ -1,4 +1,5 @@
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 import '../../ac_sql.dart';
 
@@ -15,7 +16,7 @@ class AcSqlUtils{
       return listResult.join(",");
     }
     else if(value is DateTime){
-      return value.toIso8601String();
+      return value.toUtcIso8601String();
     }
     return "'$value'";
   }

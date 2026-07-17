@@ -73,7 +73,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           TblAcSyncDevices.isSourceOfTruth: 0,
           TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
           TblAcSyncDevices.syncDeviceId: clientDeviceId,
-          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toUtcIso8601String()
         });
       } else {
         AcSqliteDao destinationDao = AcSqliteDao();
@@ -92,14 +92,14 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           TblAcSyncDevices.isSourceOfTruth: 1,
           TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
           TblAcSyncDevices.syncDeviceId: deviceId,
-          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toUtcIso8601String()
         });
         logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Source Device $deviceId with last ID $lastChangeLogId");
         await destinationDao.insertRow(tableName: AcSyncTables.acSyncDevices, row: {
           TblAcSyncDevices.isSourceOfTruth: 0,
           TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
           TblAcSyncDevices.syncDeviceId: destinationDeviceId,
-          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toUtcIso8601String()
         });
         logger.log("[AcSyncSourceDatabase] Destination metadata: Registered Destination Device $destinationDeviceId with last ID $lastChangeLogId");
         logger.log("[AcSyncSourceDatabase] Registering new destination device in source database...");
@@ -107,7 +107,7 @@ class AcSyncSourceDatabase extends AcSyncDatabase {
           TblAcSyncDevices.isSourceOfTruth: 0,
           TblAcSyncDevices.lastSyncChangeLogId: lastChangeLogId,
           TblAcSyncDevices.syncDeviceId: destinationDeviceId,
-          TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+          TblAcSyncDevices.lastSyncedOn: DateTime.now().toUtcIso8601String()
         });
       }
       result.setSuccess();

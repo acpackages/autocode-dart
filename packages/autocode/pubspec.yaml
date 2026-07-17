@@ -8,11 +8,11 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
-  crypto: ^3.0.6
+  crypto: ^3.0.7
   encrypt: ^5.0.3
   http: ^1.6.0
-  intl: ^0.20.2
-  uuid: any
+  intl: ^0.20.3
+  uuid: 4.5.3
   ac_extensions:
     path: './../../packages/ac_extensions'
   ac_mirrors:

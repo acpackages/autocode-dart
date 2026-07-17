@@ -98,10 +98,8 @@ class AcDDRelationship {
       dataDictionaryName: dataDictionaryName,
     );
     for(var relationship in acDataDictionary.relationships){
-      if(relationship[keyDestinationTable] == destinationTable && relationship[keyDestinationColumn] == destinationColumn){
-        result.add(
-          AcDDRelationship.instanceFromJson(jsonData: relationship),
-        );
+      if(relationship.destinationTable == destinationTable && relationship.destinationColumn == destinationColumn){
+        result.add(relationship);
       }
     }
     return result;

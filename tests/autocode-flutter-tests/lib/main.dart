@@ -1,6 +1,7 @@
 import 'package:ac_mirrors/annotations.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:ac_webview/ac_webview.dart';
+import 'package:autocode_flutter_tests/data_dictionary/test_data_dictionary.dart';
 import 'package:autocode_tests/autocode_tests.dart';
 import 'package:flutter/material.dart';
 import 'package:autocode/autocode.dart';
@@ -70,7 +71,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _incrementCounter() {
     setState(() {
-      testWebOnJaguarAutoApi();
+      testDataDictionary()
+      ;
+      // testWebOnJaguarAutoApi();
 
       _counter++;
     });

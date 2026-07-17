@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import './ac_sync_provider.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 class AcSyncFileProvider implements AcSyncProvider {
   @override
@@ -93,7 +93,7 @@ class AcSyncFileProvider implements AcSyncProvider {
       'fileSize': fileSize,
       'chunkData': base64Encode(chunkBytes),
       'hash': fileHash,
-      'lastModified': currentFile.lastModifiedSync().toIso8601String(),
+      'lastModified': currentFile.lastModifiedSync().toUtcIso8601String(),
     };
 
     int nextFileIndex = fileIndex;

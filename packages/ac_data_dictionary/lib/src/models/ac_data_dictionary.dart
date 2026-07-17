@@ -23,10 +23,10 @@ class AcDataDictionary {
   static const String keyViews = "views";
 
   @AcBindJsonProperty(key: keyDataDictionaries)
-  static Map<String, dynamic> dataDictionaries = {};
+  static Map<String, AcDataDictionary> dataDictionaries = {};
 
   Map<String, AcDDFunction> functions = {};
-  List<Map<String, dynamic>> relationships = List.empty(growable: true);
+  List<AcDDRelationship> relationships = List.empty(growable: true);
 
   @AcBindJsonProperty(key: keyStoredProcedures)
   Map<String, AcDDStoredProcedure> storedProcedures = {};
@@ -112,9 +112,9 @@ class AcDataDictionary {
     "returns_type": "AcDataDictionary"
   }) */
   static AcDataDictionary getInstance({String dataDictionaryName = "default"}) {
-    final instance = AcDataDictionary();
+    var instance = AcDataDictionary();
     if (dataDictionaries.containsKey(dataDictionaryName)) {
-      instance.fromJson(jsonData: dataDictionaries[dataDictionaryName]);
+      instance = dataDictionaries[dataDictionaryName]!;
     }
     return instance;
   }
@@ -131,14 +131,10 @@ class AcDataDictionary {
   static List<AcDDRelationship> getRelationships({
     String dataDictionaryName = "default",
   }) {
-    final result = <AcDDRelationship>[];
     final acDataDictionary = getInstance(
       dataDictionaryName: dataDictionaryName,
     );
-    for(var relationship in acDataDictionary.relationships){
-      result.add(AcDDRelationship.instanceFromJson(jsonData: relationship));
-    }
-    return result;
+    return acDataDictionary.relationships;
   }
 
   /* AcDoc({
@@ -462,7 +458,9 @@ class AcDataDictionary {
     required Map<String, dynamic> jsonData,
     String dataDictionaryName = "default",
   }) {
-    dataDictionaries[dataDictionaryName] = jsonData;
+    final instance = AcDataDictionary();
+    instance.fromJson(jsonData: jsonData);
+    dataDictionaries[dataDictionaryName] = instance;
   }
 
   /* AcDoc({
@@ -494,6 +492,49 @@ class AcDataDictionary {
     "returns_type": "AcDataDictionary"
   }) */
   AcDataDictionary fromJson({required Map<String, dynamic> jsonData}) {
+    Map<String,dynamic> json = Map.from(jsonData);
+    if(json.containsKey(keyTables)){
+      Map<String,dynamic> jsonTables = Map.from(json[keyTables]);
+      for(var tableName in jsonTables.keys ){
+        tables[tableName] = AcDDTable.instanceFromJson(jsonData: jsonTables[tableName]);
+      }
+      json.remove(keyTables);
+    }
+    if(json.containsKey(keyViews)){
+      Map<String,dynamic> jsonViews = Map.from(json[keyViews]);
+      for(var viewName in jsonViews.keys ){
+        views[viewName] = AcDDView.instanceFromJson(jsonData: jsonViews[viewName]);
+      }
+      json.remove(keyViews);
+    }
+    if(json.containsKey(keyTriggers)){
+      Map<String,dynamic> jsonTriggers = Map.from(json[keyTriggers]);
+      for(var triggerName in jsonTriggers.keys ){
+        triggers[triggerName] = AcDDTrigger.instanceFromJson(jsonData: jsonTriggers[triggerName]);
+      }
+      json.remove(keyTriggers);
+    }
+    if(json.containsKey(keyStoredProcedures)){
+      Map<String,dynamic> jsonStoredProcedures = Map.from(json[keyStoredProcedures]);
+      for(var spName in jsonStoredProcedures.keys ){
+        storedProcedures[spName] = AcDDStoredProcedure.instanceFromJson(jsonData: jsonStoredProcedures[spName]);
+      }
+      json.remove(keyStoredProcedures);
+    }
+    if(json.containsKey(keyFunctions)){
+      Map<String,dynamic> jsonFunctions = Map.from(json[keyFunctions]);
+      for(var spName in jsonFunctions.keys ){
+        functions[spName] = AcDDFunction.instanceFromJson(jsonData: jsonFunctions[spName]);
+      }
+      json.remove(keyFunctions);
+    }
+    if(json.containsKey(keyRelationships)){
+      List<Map<String,dynamic>> jsonRelationships = List<Map<String,dynamic>>.from(json[keyRelationships]);
+      for(var relData in jsonRelationships ){
+        relationships.add(AcDDRelationship.instanceFromJson(jsonData: relData));
+      }
+      json.remove(keyRelationships);
+    }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: jsonData,
@@ -513,8 +554,13 @@ class AcDataDictionary {
     "returns": "A list of JSON maps, where each map represents a table.",
     "returns_type": "List<Map<String, dynamic>>"
   }) */
-  List<Map<String, dynamic>> getTablesList() =>
-      tables.values.cast<Map<String, dynamic>>().toList();
+  List<Map<String, dynamic>> getTablesList() {
+    List<Map<String, dynamic>> result = List.empty(growable: true);
+    for(var table in tables.values){
+      result.add(table.toJson());
+    }
+    return result;
+  }
 
   /* AcDoc({
     "summary": "Gets the names of all columns for a specific table.",
@@ -526,12 +572,7 @@ class AcDataDictionary {
   }) */
   List<String> getTableColumnNames({required String tableName}) {
     if (tables.containsKey(tableName)) {
-      final tableDetails = tables[tableName] as Map<String, dynamic>;
-      if (tableDetails.containsKey(AcDDTable.keyTableColumns)) {
-        final tableColumns =
-            tableDetails[AcDDTable.keyTableColumns] as Map<String, dynamic>;
-        return tableColumns.keys.toList();
-      }
+      return tables[tableName]!.tableColumns.keys.toList();
     }
     return [];
   }
@@ -545,15 +586,13 @@ class AcDataDictionary {
     "returns_type": "List<Map<String, dynamic>>"
   }) */
   List<Map<String, dynamic>> getTableColumnsList({required String tableName}) {
+    List<Map<String, dynamic>> result = List.empty(growable: true);
     if (tables.containsKey(tableName)) {
-      final tableDetails = tables[tableName] as Map<String, dynamic>;
-      if (tableDetails[AcDDTable.keyTableColumns] is Map) {
-        return (tableDetails[AcDDTable.keyTableColumns] as Map).values
-            .cast<Map<String, dynamic>>()
-            .toList();
+      for(var column in tables[tableName]!.tableColumns.values){
+        result.add(column.toJson());
       }
     }
-    return [];
+    return result;
   }
 
   /* AcDoc({
@@ -566,17 +605,22 @@ class AcDataDictionary {
     "returns": "A list of JSON maps, where each map represents a relationship.",
     "returns_type": "List<Map<String, dynamic>>"
   }) */
-  List<Map<String, dynamic>> getTableRelationshipsList({
+  List<AcDDRelationship> getTableRelationshipsList({
     required String tableName,
     bool asDestination = true,
   }) {
-    final result = <Map<String, dynamic>>[];
+    final result = <AcDDRelationship>[];
     for(var relationship in relationships){
-      final checkKey = asDestination ? AcDDRelationship.keyDestinationTable: AcDDRelationship.keySourceTable;
-      if (relationship[checkKey] == tableName) {
-        result.add(relationship);
+      if(asDestination){
+        if(relationship.destinationTable == tableName){
+          result.add(relationship);
+        }
       }
-
+      else{
+        if(relationship.sourceTable == tableName){
+          result.add(relationship);
+        }
+      }
     }
     return result;
   }
@@ -590,10 +634,13 @@ class AcDataDictionary {
     "returns_type": "List<Map<String, dynamic>>"
   }) */
   List<Map<String, dynamic>> getTableTriggersList({required String tableName}) {
-    return triggers.values
-        .where((trigger) => trigger.tableName == tableName)
-        .cast<Map<String, dynamic>>()
-        .toList();
+    List<Map<String, dynamic>> result = List.empty(growable: true);
+    for(var trigger in triggers.values){
+      if(trigger.tableName == tableName){
+        result.add(trigger.toJson());
+      }
+    }
+    return result;
   }
 
   /* AcDoc({

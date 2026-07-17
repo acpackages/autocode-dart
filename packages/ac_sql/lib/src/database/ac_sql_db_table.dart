@@ -641,7 +641,7 @@ class AcSqlDbTable extends AcSqlDbBase {
                       String format = 'yyyy-MM-dd';
                       value = dateTimeValue.fromFormatted(format);
                     } else {
-                      value = dateTimeValue.toIso8601String();
+                      value = dateTimeValue.toUtcIso8601String();
                     }
                   } catch (e) {
                     logger.warn(
@@ -742,7 +742,7 @@ class AcSqlDbTable extends AcSqlDbBase {
     bool getPasswordColumns = false,
   }) {
     Map<String, List<AcEnumDDColumnFormat>> result = {};
-    dynamic columns = acDDTable.tableColumns;
+    Map<String, dynamic> columns = acDDTable.tableColumns;
     String viewName = acDDTable.getSqlViewName();
     if (viewName.isNotEmpty) {
       var acDDView = AcDataDictionary.getView(
@@ -753,7 +753,7 @@ class AcSqlDbTable extends AcSqlDbBase {
         columns = acDDView.viewColumns;
       }
     }
-    for (final acDDTableColumn in columns) {
+    for (final acDDTableColumn in columns.values) {
       List<AcEnumDDColumnFormat> columnFormats = [];
       if (acDDTableColumn.columnType == AcEnumDDColumnType.json) {
         columnFormats.add(AcEnumDDColumnFormat.json);

@@ -47,11 +47,11 @@ enum AcEnumDDTableProperty {
     "params": [{"name": "value", "description": "The string to convert to an enum."}],
     "returns": "The matching enum constant, or null if not found."
   }) */
-  static AcEnumDDTableProperty? fromValue(String value) {
+  static AcEnumDDTableProperty fromValue(String value) {
     try {
       return AcEnumDDTableProperty.values.firstWhere((e) => e.value == value);
     } catch (_) {
-      return null;
+      return unknown;
     }
   }
 

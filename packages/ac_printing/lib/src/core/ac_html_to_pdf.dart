@@ -10,6 +10,7 @@ class AcHtmlToPdf {
   late Browser browser;
   bool available=false;
   bool launching=false;
+  String? executablePath;
   AcLogger logger = AcLogger(logMessages: true,logType: AcEnumLogType.text,logDirectory: "logs/html-to-pdf",envConfigTags: const["logs",'html-to-pdf']);
   _debug(dynamic message){
     logger.log(message);
@@ -26,6 +27,7 @@ class AcHtmlToPdf {
         launching = true;
         _debug("Launching puppeteer browser...");
         browser = await puppeteer.launch(
+          executablePath: executablePath,
             args: [
           "--disable-font-subpixel-positioning",
           "--disable-lcd-text","--enable-gpu"

@@ -16,10 +16,10 @@ dependencies:
     path: './../ac_extensions'
   ac_mirrors:
     path: './../ac_mirrors'
-  mysql_dart: ^1.0.0
+  mysql_dart: ^3.0.0
   path: ^1.9.1
-  postgres: ^3.5.6
-  sqlite3: ^3.3.0
+  postgres: ^3.5.12
+  sqlite3: ^3.4.0
   # path: ^1.8.0
 
 dev_dependencies:

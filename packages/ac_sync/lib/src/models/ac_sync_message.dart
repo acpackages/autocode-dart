@@ -1,5 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 @AcReflectable()
 class AcSyncMessage {
@@ -21,7 +22,7 @@ class AcSyncMessage {
     this.timestamp = "",
   }) {
     if (this.timestamp.isEmpty) {
-      this.timestamp = DateTime.now().toIso8601String();
+      this.timestamp = DateTime.now().toUtcIso8601String();
     }
   }
 

@@ -95,10 +95,10 @@ class AcLogger {
       String logFileDirectory = File("$logDirectory/$logFileName").parent.path;
       String fileExtension = File(logFileName).extension;
       String fileName = File(logFileName).fileName.replaceAll(".$fileExtension", "");
-      String filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}${DateTime.now().toIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
+      String filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}${DateTime.now().toUtcIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
 
       while(File(filePath).existsSync()){
-        filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}[${DateTime.now().toIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
+        filePath = "$logFileDirectory/$fileName${logFileNameTimestampPrefix}[${DateTime.now().toUtcIso8601String().replaceAll(":", "-")}${logFileNameTimestampSuffix}.$fileExtension";
       }
       logFilePath = filePath;
       logFileDirectory = logFileDirectory;

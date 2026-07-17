@@ -580,7 +580,7 @@ class AcSyncDatabase {
               TblAcSyncDevices.isSourceOfTruth: isDestination ? 0 : 1,
               TblAcSyncDevices.lastSyncChangeLogId: 0,
               TblAcSyncDevices.syncDeviceId: deviceId,
-              TblAcSyncDevices.lastSyncedOn: DateTime.now().toIso8601String()
+              TblAcSyncDevices.lastSyncedOn: DateTime.now().toUtcIso8601String()
             });
           }
           if (!typeSet) {
@@ -805,7 +805,7 @@ class AcSyncDatabase {
 
   Future<void> saveSessionState(AcSyncSessionState session) async {
     if (dao == null) return;
-    session.updatedAt = DateTime.now().toIso8601String();
+    session.updatedAt = DateTime.now().toUtcIso8601String();
     session.lastActivityAt = session.updatedAt;
     
     // Sync the map checkpoint values back into session.metadata

@@ -291,8 +291,8 @@ class AcDDTable {
     final result = <AcDDRelationship>[];
     final acDataDictionary = AcDataDictionary.getInstance();
     for(var relationship in acDataDictionary.relationships){
-      if(relationship[AcDDRelationship.keyDestinationTable] == tableName){
-        result.add(AcDDRelationship.instanceFromJson(jsonData: relationship));
+      if(relationship.destinationTable == tableName){
+        result.add(relationship);
       }
     }
     return result;
@@ -380,7 +380,7 @@ class AcDDTable {
     if (json.containsKey(keyTableProperties) &&
         json[keyTableProperties] is Map) {
       (json[keyTableProperties] as Map).forEach((propertyName, propertyData) {
-        tableProperties[propertyName] = AcDDTableProperty.instanceFromJson(jsonData: propertyData);
+        tableProperties[propertyName.toString()] = AcDDTableProperty.instanceFromJson(jsonData: propertyData);
       });
       json.remove(keyTableProperties);
     }

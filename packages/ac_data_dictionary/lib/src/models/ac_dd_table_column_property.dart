@@ -58,9 +58,19 @@ class AcDDTableColumnProperty {
     "returns_type": "AcDDTableColumnProperty"
   }) */
   AcDDTableColumnProperty fromJson({required Map<String, dynamic> jsonData}) {
+    Map<String, dynamic> json = Map.from(jsonData);
+    if(json.containsKey(keyPropertyName)){
+      if(json[keyPropertyName] is AcEnumDDColumnProperty){
+        propertyName = json[keyPropertyName];
+      }
+      else if(json[keyPropertyName] is String){
+        propertyName = AcEnumDDColumnProperty.fromValue(json[keyPropertyName])!;
+      }
+      json.remove(keyPropertyName);
+    }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
-      jsonData: jsonData,
+      jsonData: json,
     );
     return this;
   }
@@ -71,7 +81,9 @@ class AcDDTableColumnProperty {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result[keyPropertyName] = propertyName.value;
+    return result;
   }
 
   /* AcDoc({

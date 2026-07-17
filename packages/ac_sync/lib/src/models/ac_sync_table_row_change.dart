@@ -1,5 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 @AcReflectable()
 class AcSyncTableRowChange {
@@ -41,7 +42,7 @@ class AcSyncTableRowChange {
   Map<String, dynamic> toJson() {
     var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
     if (timestamp != null) {
-      data[keyTimestamp] = timestamp!.toIso8601String();
+      data[keyTimestamp] = timestamp!.toUtcIso8601String();
     }
     return data;
   }

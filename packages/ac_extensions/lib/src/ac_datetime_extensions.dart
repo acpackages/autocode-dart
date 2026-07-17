@@ -137,7 +137,7 @@ extension AcDateTimeExtensions on DateTime {
     ],
     "returns": "A boolean value: `true` if the two DateTime objects are exactly equal, `false` otherwise.",
     "returns_type": "bool",
-    "examples": ["final now = DateTime.now(); final alsoNow = DateTime.parse(now.toIso8601String()); now.isSame(alsoNow); // true"],
+    "examples": ["final now = DateTime.now(); final alsoNow = DateTime.parse(now.toUtcIso8601String()); now.isSame(alsoNow); // true"],
     "tags": ["compare", "equal", "same", "moment"]
   }) */
   bool isSame(DateTime other) {
@@ -213,5 +213,9 @@ extension AcDateTimeExtensions on DateTime {
       dateTime = dateTime.subtract(Duration(microseconds: microseconds));
     }
     return dateTime;
+  }
+
+  toUtcIso8601String(){
+    return toUtc().toIso8601String();
   }
 }

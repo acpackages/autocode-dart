@@ -1,4 +1,5 @@
 import 'package:autocode/autocode.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 import '../../ac_sync.dart';
 
 class AcSyncDestinationDatabase extends AcSyncDatabase{
@@ -147,7 +148,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
   Future<AcResult> syncClassic({bool isNested = false}) async {
     logger.log("[AcSyncDestinationDatabase] Starting classic sync (isNested: $isNested)...");
     final result = AcResult();
-    String startTimestamp = DateTime.now().toIso8601String();
+    String startTimestamp = DateTime.now().toUtcIso8601String();
     if (isSyncing && !isNested) {
       logger.log("[AcSyncDestinationDatabase] Sync already in progress, skipping.");
       return result.setFailure(message: "Synchronization already in progress");
@@ -238,7 +239,7 @@ class AcSyncDestinationDatabase extends AcSyncDatabase{
               var updateSelfSyncIdResult = await updateLastSyncChangeLogId(deviceId: deviceId!,lastSyncChangeLogId:newLastChangeLogId);
               if(updateSelfSyncIdResult.isSuccess()){
                 logger.log("[AcSyncDestinationDatabase] Self sync ID updated. Saving device sync log (COMPLETED)...");
-                String endTimestamp = DateTime.now().toIso8601String();
+                String endTimestamp = DateTime.now().toUtcIso8601String();
                 await saveDeviceSyncLog(
                   deviceId: deviceId!,
                   endTimestamp: endTimestamp,

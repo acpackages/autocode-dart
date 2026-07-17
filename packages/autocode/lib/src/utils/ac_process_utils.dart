@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:ac_extensions/ac_extensions.dart';
 /* AcDoc({
   "description": "Utility class for executing temporary batch (.bat) scripts in a Windows environment. It creates a temporary file, writes the provided batch script to it, runs it, and then cleans up.",
   "methods": {
@@ -16,7 +17,7 @@ import 'package:path/path.dart' as p;
 
 class AcProcessUtils {
   static Future<void> executeBatchCode(String batchScript, {String executionPath = ""}) async {
-    String timestamp = DateTime.now().toIso8601String().replaceAll(RegExp(r'[:.]'), '_');
+    String timestamp = DateTime.now().toUtcIso8601String().replaceAll(RegExp(r'[:.]'), '_');
     String tempFileName = "$timestamp.bat";
 
     if (executionPath.isNotEmpty) {

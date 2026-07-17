@@ -15,7 +15,7 @@ Builder acMirrorsBuilder(BuilderOptions options) {
 }
 
 class AcMirrorsAggregatingBuilder implements Builder {
-  File logFile = File('logs/ac-mirrors/ac-mirror-builder-log [ ${DateTime.now().toIso8601String().replaceAll(":", "-")} ].txt');
+  File logFile = File('logs/ac-mirrors/ac-mirror-builder-log [ ${DateTime.now().toUtcIso8601String().replaceAll(":", "-")} ].txt');
   bool logFileCreated = false;
 
   AcMirrorsAggregatingBuilder(){
@@ -27,7 +27,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
       logFileCreated = true;
       logFile.createSync(recursive: true);
     }
-    logFile.writeAsStringSync(DateTime.now().toIso8601String()+"  >>>  "+message+"\n",mode: FileMode.append);
+    logFile.writeAsStringSync(DateTime.now().toUtcIso8601String()+"  >>>  "+message+"\n",mode: FileMode.append);
     if(showInConsole){
       print('[ac_mirrors_builder] $message');
     }

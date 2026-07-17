@@ -1,5 +1,6 @@
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 @AcReflectable()
 class AcSyncSessionState {
@@ -39,13 +40,13 @@ class AcSyncSessionState {
     this.lastActivityAt = "",
     this.expiresAt = "",
   }) {
-    var now = DateTime.now().toIso8601String();
+    var now = DateTime.now().toUtcIso8601String();
     if (this.createdAt.isEmpty) this.createdAt = now;
     if (this.updatedAt.isEmpty) this.updatedAt = now;
     if (this.lastActivityAt.isEmpty) this.lastActivityAt = now;
     if (this.expiresAt.isEmpty) {
       // Default to 24 hours expiry
-      this.expiresAt = DateTime.now().add(Duration(hours: 24)).toIso8601String();
+      this.expiresAt = DateTime.now().add(Duration(hours: 24)).toUtcIso8601String();
     }
   }
 

@@ -21,7 +21,13 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
   );
 
+  bool ignoreFunctions = false;
+  bool ignoreTriggers = false;
+  bool ignoreViews = false;
+  bool ignoreStoredProcedures = false;
+
   bool skipSchema = false;
+
   /* AcDoc({
     "summary": "Creates a new schema manager instance.",
     "params": [
@@ -37,6 +43,48 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     logger.logType = AcEnumLogType.console;
   }
 
+  // Helper method - generates the actual trigger SQL
+  List<String> _generateUpdateAtTriggerSql({
+    required String tableName,
+    required String columnName,
+    required String triggerName,
+    required AcEnumSqlDatabaseType databaseType,
+  }) {
+    if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      return [
+        '''
+        CREATE TRIGGER IF NOT EXISTS $triggerName
+        BEFORE UPDATE ON $tableName
+        FOR EACH ROW
+        WHEN NEW.$columnName IS NULL
+        BEGIN
+          UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+        END;
+      ''',
+      ];
+    } else if (databaseType == AcEnumSqlDatabaseType.postgres) {
+      String functionName = '${triggerName}_func';
+      return [
+        '''
+        CREATE OR REPLACE FUNCTION $functionName() RETURNS TRIGGER AS \$\$ 
+        BEGIN 
+          IF NEW."$columnName" IS NULL THEN
+            NEW."$columnName" = CURRENT_TIMESTAMP; 
+          END IF;
+          RETURN NEW; 
+        END; \$\$ LANGUAGE plpgsql;''',
+        '''
+        CREATE TRIGGER $triggerName
+        BEFORE UPDATE ON "$tableName"
+        FOR EACH ROW
+        EXECUTE FUNCTION $functionName();
+      ''',
+      ];
+    } else {
+      return [''];
+    }
+  }
+
   /* AcDoc({
     "summary": "Checks if the live database schema version is older than the current data dictionary version.",
     "returns": "An `AcResult` with a boolean `value`: `true` if an update is available, `false` otherwise.",
@@ -45,7 +93,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> checkSchemaUpdateAvailableFromVersion() async {
     final result = AcResult();
     try {
-      logger.log('[AcSqlDbSchemaManager] Checking if database data dictionary version is same as the current data dictionary version...');
+      logger.log(
+        '[AcSqlDbSchemaManager] Checking if database data dictionary version is same as the current data dictionary version...',
+      );
 
       final versionResult = await dao!.getRows(
         statement: acSqlDDTableSchemaDetails.getSelectStatement(),
@@ -79,7 +129,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             result.setSuccess(value: true); // Update available
           }
         } else {
-          logger.log('[AcSqlDbSchemaManager] No version detail row found in details table.');
+          logger.log(
+            '[AcSqlDbSchemaManager] No version detail row found in details table.',
+          );
           result.setSuccess(value: true); // Update available
         }
       } else {
@@ -101,7 +153,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the overall success or failure.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> createDatabaseFunctions() async {
+  Future<AcResult> createDatabaseFunctions({
+    bool skipExistingDrop = false,
+  }) async {
     final result = AcResult();
     try {
       logger.log('[AcSqlDbSchemaManager] Creating functions in database...');
@@ -111,35 +165,45 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         dataDictionaryName: dataDictionaryName,
       ); //<List<AcDDFunction>
       for (final acDDFunction in functionList.values) {
-        final dropStatement = AcDDFunction.getDropFunctionStatement(
-          functionName: acDDFunction.functionName,
-          databaseType: databaseType,
-        ); // Made databaseType a class variable.
-        logger.log('[AcSqlDbSchemaManager] Executing drop function statement: $dropStatement');
-        final dropResult = await dao!.executeStatement(
-          statement: dropStatement,
-          operation: AcEnumDDRowOperation.unknown,
-        );
-        if (dropResult.isSuccess()) {
-          logger.log('[AcSqlDbSchemaManager] Drop statement executed successfully.');
-        } else {
-          return result.setFromResult(
-            result: dropResult,
-            message: 'Error executing drop statement',
-            logger: logger,
+        if (!skipExistingDrop) {
+          final dropStatement = AcDDFunction.getDropFunctionStatement(
+            functionName: acDDFunction.functionName,
+            databaseType: databaseType,
+          ); // Made databaseType a class variable.
+          logger.log(
+            '[AcSqlDbSchemaManager] Executing drop function statement: $dropStatement',
           );
+          final dropResult = await dao!.executeStatement(
+            statement: dropStatement,
+            operation: AcEnumDDRowOperation.unknown,
+          );
+
+          await saveSchemaLogEntry({
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function.value,
+            TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
+            TblSchemaLogs.acSchemaOperation: 'drop',
+            TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+            TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                .toUtcIso8601String(),
+          });
+          if (dropResult.isSuccess()) {
+            logger.log(
+              '[AcSqlDbSchemaManager] Drop statement executed successfully.',
+            );
+          } else {
+            return result.setFromResult(
+              result: dropResult,
+              message: 'Error executing drop statement',
+              logger: logger,
+            );
+          }
         }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.function.value,
-          TblSchemaLogs.acSchemaEntityName: acDDFunction.functionName,
-          TblSchemaLogs.acSchemaOperation: 'drop',
-          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
 
         final createStatement = acDDFunction.getCreateFunctionStatement();
-        logger.log('[AcSqlDbSchemaManager] Creating function with statement: $createStatement');
+        logger.log(
+          '[AcSqlDbSchemaManager] Creating function with statement: $createStatement',
+        );
         final createResult = await dao!.executeStatement(
           statement: createStatement,
           operation: AcEnumDDRowOperation.unknown,
@@ -159,7 +223,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
           TblSchemaLogs.acSchemaOperationStatement: createStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+              .toUtcIso8601String(),
         });
       }
       result.setSuccess(
@@ -185,7 +250,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       bool continueOperation = true;
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
         const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
-        logger.log('[AcSqlDbSchemaManager] Executing disable check statement: $disableCheckStatement');
+        logger.log(
+          '[AcSqlDbSchemaManager] Executing disable check statement: $disableCheckStatement',
+        );
         final setCheckResult = await dao!.executeStatement(
           statement: disableCheckStatement,
           operation: AcEnumDDRowOperation.unknown,
@@ -202,7 +269,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         }
 
         if (continueOperation) {
-          logger.log('[AcSqlDbSchemaManager] Getting and dropping existing relationships...');
+          logger.log(
+            '[AcSqlDbSchemaManager] Getting and dropping existing relationships...',
+          );
           const getDropRelationshipsStatements =
               "SELECT CONCAT('ALTER TABLE `', table_name, '` DROP FOREIGN KEY `', constraint_name, '`;') AS drop_query, constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = @databaseName";
           final getResult = await dao!.getRows(
@@ -228,7 +297,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   logger: logger,
                 );
               } else {
-                logger.log('[AcSqlDbSchemaManager] Executed drop relation statement successfully.');
+                logger.log(
+                  '[AcSqlDbSchemaManager] Executed drop relation statement successfully.',
+                );
               }
               await saveSchemaLogEntry({
                 TblSchemaLogs.acSchemaEntityType:
@@ -238,7 +309,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 TblSchemaLogs.acSchemaOperationResult: dropResponse.status,
                 TblSchemaLogs.acSchemaOperationStatement:
                     dropRelationshipStatement,
-                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                    .toUtcIso8601String(),
               });
             }
           } else {
@@ -257,7 +329,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
         for (final acDDRelationship in relationshipList) {
           if (continueOperation) {
-            logger.log('[AcSqlDbSchemaManager] Creating relationship for: $acDDRelationship');
+            logger.log(
+              '[AcSqlDbSchemaManager] Creating relationship for: $acDDRelationship',
+            );
             final createRelationshipStatement = acDDRelationship
                 .getCreateRelationshipStatement(databaseType: databaseType);
             logger.log(
@@ -278,7 +352,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               );
               break;
             } else {
-              logger.log('[AcSqlDbSchemaManager] Relationship created successfully.');
+              logger.log(
+                '[AcSqlDbSchemaManager] Relationship created successfully.',
+              );
             }
             await saveSchemaLogEntry({
               TblSchemaLogs.acSchemaEntityType:
@@ -289,7 +365,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               TblSchemaLogs.acSchemaOperationResult: createResult.status,
               TblSchemaLogs.acSchemaOperationStatement:
                   createRelationshipStatement,
-              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
             });
           }
         }
@@ -313,7 +390,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the overall success or failure.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> createDatabaseStoredProcedures() async {
+  Future<AcResult> createDatabaseStoredProcedures({
+    bool skipExistingDrop = false,
+  }) async {
     final result = AcResult();
     try {
       logger.log('[AcSqlDbSchemaManager] Creating stored procedures...');
@@ -321,34 +400,42 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         dataDictionaryName: dataDictionaryName,
       );
       for (final acDDStoredProcedure in storedProcedureList.values) {
-        final dropStatement =
-            AcDDStoredProcedure.getDropStoredProcedureStatement(
-              storedProcedureName: acDDStoredProcedure.storedProcedureName,
-              databaseType: databaseType,
-            );
-        logger.log('[AcSqlDbSchemaManager] Executing drop stored procedure statement: $dropStatement');
-        final dropResult = await dao!.executeStatement(
-          statement: dropStatement,
-        );
-        if (dropResult.isSuccess()) {
-          logger.log('[AcSqlDbSchemaManager] Drop statement executed successfully.');
-        } else {
-          return result.setFromResult(
-            result: dropResult,
-            message: 'Error executing drop statement',
-            logger: logger,
+        if (!skipExistingDrop) {
+          final dropStatement =
+              AcDDStoredProcedure.getDropStoredProcedureStatement(
+                storedProcedureName: acDDStoredProcedure.storedProcedureName,
+                databaseType: databaseType,
+              );
+          logger.log(
+            '[AcSqlDbSchemaManager] Executing drop stored procedure statement: $dropStatement',
           );
+          final dropResult = await dao!.executeStatement(
+            statement: dropStatement,
+          );
+
+          await saveSchemaLogEntry({
+            TblSchemaLogs.acSchemaEntityType:
+                AcEnumSqlEntity.storedProcedure.value,
+            TblSchemaLogs.acSchemaEntityName:
+                acDDStoredProcedure.storedProcedureName,
+            TblSchemaLogs.acSchemaOperation: 'drop',
+            TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+            TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                .toUtcIso8601String(),
+          });
+          if (dropResult.isSuccess()) {
+            logger.log(
+              '[AcSqlDbSchemaManager] Drop statement executed successfully.',
+            );
+          } else {
+            return result.setFromResult(
+              result: dropResult,
+              message: 'Error executing drop statement',
+              logger: logger,
+            );
+          }
         }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType:
-              AcEnumSqlEntity.storedProcedure.value,
-          TblSchemaLogs.acSchemaEntityName:
-              acDDStoredProcedure.storedProcedureName,
-          TblSchemaLogs.acSchemaOperation: 'drop',
-          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
 
         final createStatement = acDDStoredProcedure
             .getCreateStoredProcedureStatement(databaseType: databaseType);
@@ -357,7 +444,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           statement: createStatement,
         );
         if (createResult.isSuccess()) {
-          logger.log('[AcSqlDbSchemaManager] Stored procedure created successfully.');
+          logger.log(
+            '[AcSqlDbSchemaManager] Stored procedure created successfully.',
+          );
         } else {
           return result.setFromResult(
             result: createResult,
@@ -373,7 +462,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
           TblSchemaLogs.acSchemaOperationStatement: createStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+              .toUtcIso8601String(),
         });
       }
       result.setSuccess(
@@ -416,16 +506,22 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   dataDictionaryName != AcSMDataDictionary.dataDictionaryName,
             ).values) {
           if (continueOperation) {
-            logger.log('[AcSqlDbSchemaManager] Creating table ${acDDTable.tableName}');
+            logger.log(
+              '[AcSqlDbSchemaManager] Creating table ${acDDTable.tableName}',
+            );
             final createStatement = acDDTable.getCreateTableStatement(
               databaseType: databaseType,
             );
-            logger.log('[AcSqlDbSchemaManager] Executing create table statement: $createStatement');
+            logger.log(
+              '[AcSqlDbSchemaManager] Executing create table statement: $createStatement',
+            );
             final createResult = await dao!.executeStatement(
               statement: createStatement,
             );
             if (createResult.isSuccess()) {
-              logger.log('[AcSqlDbSchemaManager] Create statement executed successfully.');
+              logger.log(
+                '[AcSqlDbSchemaManager] Create statement executed successfully.',
+              );
             } else {
               continueOperation = false;
               result.setFromResult(
@@ -442,7 +538,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                 TblSchemaLogs.acSchemaOperation: 'create',
                 TblSchemaLogs.acSchemaOperationResult: createResult.status,
                 TblSchemaLogs.acSchemaOperationStatement: createStatement,
-                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                    .toUtcIso8601String(),
               });
             }
           }
@@ -466,7 +563,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the overall success or failure.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> createDatabaseTriggers() async {
+  Future<AcResult> createDatabaseTriggers({
+    bool skipExistingDrop = false,
+  }) async {
     final result = AcResult();
     try {
       logger.log('[AcSqlDbSchemaManager] Creating triggers...');
@@ -477,38 +576,48 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             in AcDataDictionary.getTriggers(
               dataDictionaryName: dataDictionaryName,
             ).values) {
-          logger.log('[AcSqlDbSchemaManager] Creating trigger ${acDDTrigger.triggerName}');
-          final dropStatement = AcDDTrigger.getDropTriggerStatement(
-            triggerName: acDDTrigger.triggerName,
-            tableName: acDDTrigger.tableName,
-            databaseType: databaseType,
+          logger.log(
+            '[AcSqlDbSchemaManager] Creating trigger ${acDDTrigger.triggerName}',
           );
-          logger.log('[AcSqlDbSchemaManager] Executing drop trigger statement: $dropStatement');
-          final dropResult = await dao!.executeStatement(
-            statement: dropStatement,
-          );
-          if (dropResult.isSuccess()) {
-            logger.log('[AcSqlDbSchemaManager] Drop statement executed successfully.');
-          } else {
-            return result.setFromResult(
-              result: dropResult,
-              message: 'Error executing drop statement',
-              logger: logger,
+          if (!skipExistingDrop) {
+            final dropStatement = AcDDTrigger.getDropTriggerStatement(
+              triggerName: acDDTrigger.triggerName,
+              tableName: acDDTrigger.tableName,
+              databaseType: databaseType,
             );
+            logger.log(
+              '[AcSqlDbSchemaManager] Executing drop trigger statement: $dropStatement',
+            );
+            final dropResult = await dao!.executeStatement(
+              statement: dropStatement,
+            );
+            await saveSchemaLogEntry({
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+              TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
+              TblSchemaLogs.acSchemaOperation: 'drop',
+              TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+            });
+            if (dropResult.isSuccess()) {
+              logger.log(
+                '[AcSqlDbSchemaManager] Drop statement executed successfully.',
+              );
+            } else {
+              return result.setFromResult(
+                result: dropResult,
+                message: 'Error executing drop statement',
+                logger: logger,
+              );
+            }
           }
-          await saveSchemaLogEntry({
-            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
-            TblSchemaLogs.acSchemaEntityName: acDDTrigger.triggerName,
-            TblSchemaLogs.acSchemaOperation: 'drop',
-            TblSchemaLogs.acSchemaOperationResult: dropResult.status,
-            TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-          });
 
           final createStatement = acDDTrigger.getCreateTriggerStatement(
             databaseType: databaseType,
           );
-          logger.log('[AcSqlDbSchemaManager] Create statement: $createStatement');
+          logger.log(
+            '[AcSqlDbSchemaManager] Create statement: $createStatement',
+          );
           final createResult = await dao!.executeStatement(
             statement: createStatement,
           );
@@ -527,7 +636,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             TblSchemaLogs.acSchemaOperation: 'create',
             TblSchemaLogs.acSchemaOperationResult: createResult.status,
             TblSchemaLogs.acSchemaOperationStatement: createStatement,
-            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                .toUtcIso8601String(),
           });
         }
         result.setSuccess(
@@ -549,7 +659,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the overall success or failure.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> createDatabaseViews() async {
+  Future<AcResult> createDatabaseViews({bool skipExistingDrop = false}) async {
     final result = AcResult();
     try {
       logger.log('[AcSqlDbSchemaManager] Creating views...');
@@ -559,31 +669,37 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       List<AcDDView> errorViews = [];
       for (final acDDView in viewList.values) {
         logger.log('[AcSqlDbSchemaManager] Creating view ${acDDView.viewName}');
-        final dropStatement = AcDDView.getDropViewStatement(
-          viewName: acDDView.viewName,
-          databaseType: databaseType,
-        );
-        logger.log('[AcSqlDbSchemaManager] Executing drop view statement: $dropStatement');
-        final dropResult = await dao!.executeStatement(
-          statement: dropStatement,
-        );
-        if (dropResult.isSuccess()) {
-          logger.log('[AcSqlDbSchemaManager] Drop statement executed successfully.');
-        } else {
-          return result.setFromResult(
-            result: dropResult,
-            message: 'Error executing drop statement',
-            logger: logger,
+        if (!skipExistingDrop) {
+          final dropStatement = AcDDView.getDropViewStatement(
+            viewName: acDDView.viewName,
+            databaseType: databaseType,
           );
+          logger.log(
+            '[AcSqlDbSchemaManager] Executing drop view statement: $dropStatement',
+          );
+          final dropResult = await dao!.executeStatement(
+            statement: dropStatement,
+          );
+          await saveSchemaLogEntry({
+            TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
+            TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
+            TblSchemaLogs.acSchemaOperation: 'drop',
+            TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+            TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+            TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          });
+          if (dropResult.isSuccess()) {
+            logger.log(
+              '[AcSqlDbSchemaManager] Drop statement executed successfully.',
+            );
+          } else {
+            return result.setFromResult(
+              result: dropResult,
+              message: 'Error executing drop statement',
+              logger: logger,
+            );
+          }
         }
-        await saveSchemaLogEntry({
-          TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
-          TblSchemaLogs.acSchemaEntityName: acDDView.viewName,
-          TblSchemaLogs.acSchemaOperation: 'drop',
-          TblSchemaLogs.acSchemaOperationResult: dropResult.status,
-          TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
-        });
 
         final createStatement = acDDView.getCreateViewStatement(
           databaseType: databaseType,
@@ -604,12 +720,15 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           TblSchemaLogs.acSchemaOperation: 'create',
           TblSchemaLogs.acSchemaOperationResult: createResult.status,
           TblSchemaLogs.acSchemaOperationStatement: createStatement,
-          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+          TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+              .toUtcIso8601String(),
         });
       }
 
       if (errorViews.isNotEmpty) {
-        logger.log('[AcSqlDbSchemaManager] Retrying creating ${errorViews.length} views with errors');
+        logger.log(
+          '[AcSqlDbSchemaManager] Retrying creating ${errorViews.length} views with errors',
+        );
         int retryCount = 0;
         List<AcDDView> retryViews = [];
         while (errorViews.isNotEmpty && retryCount < 10) {
@@ -639,7 +758,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               TblSchemaLogs.acSchemaOperation: 'create',
               TblSchemaLogs.acSchemaOperationResult: createResult.status,
               TblSchemaLogs.acSchemaOperationStatement: createStatement,
-              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
             });
           }
           logger.log(
@@ -693,16 +813,16 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the overall success or failure of the entire process.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> createSchema() async {
+  Future<AcResult> createSchema({bool ignoreViews = false,bool ignoreTriggers = false,bool ignoreStoredProcedures = false,bool ignoreFunctions = false}) async {
     final result = AcResult();
     try {
       logger.log(
         '[AcSqlDbSchemaManager] Creating schema in database for data dictionary $dataDictionaryName...',
       );
-      if(databaseType == AcEnumSqlDatabaseType.sqlite){
+      if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         logger.log("[AcSqlDbSchemaManager] Database type is sqlite");
       }
-      if(databaseType == AcEnumSqlDatabaseType.postgres){
+      if (databaseType == AcEnumSqlDatabaseType.postgres) {
         logger.log("[AcSqlDbSchemaManager] Database type is postgres");
       }
       logger.log(
@@ -719,15 +839,17 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
       }
 
-      final createViewsResult = await createDatabaseViews();
-      if (createViewsResult.isSuccess()) {
-        logger.log('[AcSqlDbSchemaManager] Views created successfully');
-      } else {
-        return result.setFromResult(
-          result: createViewsResult,
-          message: 'Error creating schema database views',
-          logger: logger,
-        );
+      if(!ignoreViews){
+        final createViewsResult = await createDatabaseViews();
+        if (createViewsResult.isSuccess()) {
+          logger.log('[AcSqlDbSchemaManager] Views created successfully');
+        } else {
+          return result.setFromResult(
+            result: createViewsResult,
+            message: 'Error creating schema database views',
+            logger: logger,
+          );
+        }
       }
 
       // final createRelationshipsResult = await createDatabaseRelationships();
@@ -740,38 +862,45 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       //     logger: logger,
       //   );
       // }
-      final createTriggersResult = await createDatabaseTriggers();
-      if (createTriggersResult.isSuccess()) {
-        logger.log('[AcSqlDbSchemaManager] Triggers created successfully');
-      } else {
-        return result.setFromResult(
-          result: createTriggersResult,
-          message: 'Error creating schema database triggers',
-          logger: logger,
-        );
+      if(!ignoreTriggers){
+        final createTriggersResult = await createDatabaseTriggers();
+        if (createTriggersResult.isSuccess()) {
+          logger.log('[AcSqlDbSchemaManager] Triggers created successfully');
+        } else {
+          return result.setFromResult(
+            result: createTriggersResult,
+            message: 'Error creating schema database triggers',
+            logger: logger,
+          );
+        }
       }
 
-      final createStoredProceduresResult =
-          await createDatabaseStoredProcedures();
-      if (createStoredProceduresResult.isSuccess()) {
-        logger.log('[AcSqlDbSchemaManager] Stored procedures created successfully');
-      } else {
-        return result.setFromResult(
-          result: createStoredProceduresResult,
-          message: 'Error creating schema database stored procedures',
-          logger: logger,
-        );
+      if(!ignoreStoredProcedures){
+        final createStoredProceduresResult = await createDatabaseStoredProcedures();
+        if (createStoredProceduresResult.isSuccess()) {
+          logger.log(
+            '[AcSqlDbSchemaManager] Stored procedures created successfully',
+          );
+        } else {
+          return result.setFromResult(
+            result: createStoredProceduresResult,
+            message: 'Error creating schema database stored procedures',
+            logger: logger,
+          );
+        }
       }
 
-      final createFunctionsResult = await createDatabaseFunctions();
-      if (createFunctionsResult.isSuccess()) {
-        logger.log('[AcSqlDbSchemaManager] Functions created successfully');
-      } else {
-        return result.setFromResult(
-          result: createFunctionsResult,
-          message: 'Error creating schema database functions',
-          logger: logger,
-        );
+      if(!ignoreFunctions){
+        final createFunctionsResult = await createDatabaseFunctions();
+        if (createFunctionsResult.isSuccess()) {
+          logger.log('[AcSqlDbSchemaManager] Functions created successfully');
+        } else {
+          return result.setFromResult(
+            result: createFunctionsResult,
+            message: 'Error creating schema database functions',
+            logger: logger,
+          );
+        }
       }
 
       result.setSuccess(message: 'Schema created successfully', logger: logger);
@@ -790,7 +919,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         // Optional: same foreign key enabling block as in your table creation
         if (databaseType == AcEnumSqlDatabaseType.sqlite &&
             dataDictionaryName == AcSMDataDictionary.dataDictionaryName) {
-          logger.log("[AcSqlDbSchemaManager] Enabling foreign keys for sqlite (triggers phase)");
+          logger.log(
+            "[AcSqlDbSchemaManager] Enabling foreign keys for sqlite (triggers phase)",
+          );
           final enableForeignKeyResult = await dao!.executeStatement(
             statement: 'PRAGMA foreign_keys = ON;',
           );
@@ -816,7 +947,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             final tableName = acDDTable.tableName;
             final triggerName = 'ac_tr_${tableName}_set_upd_ts';
 
-            logger.log('[AcSqlDbSchemaManager] Creating update trigger for $tableName → $triggerName');
+            logger.log(
+              '[AcSqlDbSchemaManager] Creating update trigger for $tableName → $triggerName',
+            );
 
             final createTriggerStmt = _generateUpdateAtTriggerSql(
               tableName: tableName,
@@ -825,13 +958,18 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               databaseType: databaseType,
             );
 
-            logger.log(['[AcSqlDbSchemaManager] Executing trigger statements :',createTriggerStmt]);
-            for(var stmt in createTriggerStmt){
+            logger.log([
+              '[AcSqlDbSchemaManager] Executing trigger statements :',
+              createTriggerStmt,
+            ]);
+            for (var stmt in createTriggerStmt) {
               final triggerResult = await dao!.executeStatement(
                 statement: stmt,
               );
               if (triggerResult.isSuccess()) {
-                logger.log('[AcSqlDbSchemaManager] Trigger $triggerName created successfully.');
+                logger.log(
+                  '[AcSqlDbSchemaManager] Trigger $triggerName created successfully.',
+                );
               } else {
                 continueOperation = false;
                 result.setFromResult(
@@ -843,21 +981,19 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               }
               if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
                 await saveSchemaLogEntry({
-                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.trigger.value,
+                  TblSchemaLogs.acSchemaEntityType:
+                      AcEnumSqlEntity.trigger.value,
                   TblSchemaLogs.acSchemaEntityName: triggerName,
                   TblSchemaLogs.acSchemaOperation: 'create',
                   TblSchemaLogs.acSchemaOperationResult: triggerResult.status,
                   TblSchemaLogs.acSchemaOperationStatement: stmt,
-                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                      .toUtcIso8601String(),
                 });
               }
             }
 
-
-
-
             // Optional: log schema change (same as your table creation)
-
           }
         }
 
@@ -877,11 +1013,80 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
+  Future<AcResult> dropDatabaseFunctions() async {
+    final result = AcResult();
+    try {
+      logger.log('[AcSqlDbSchemaManager] Dropping functions...');
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        // MySql Implementation Pending
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        result.setSuccess();
+      }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+    return result;
+  }
+
+  Future<AcResult> dropDatabaseStoredProcedures() async {
+    final result = AcResult();
+    try {
+      logger.log('[AcSqlDbSchemaManager] Dropping stored procedures...');
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        // MySql Implementation Pending
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        result.setSuccess();
+      }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+    return result;
+  }
+
+  Future<AcResult> dropDatabaseTables() async {
+    final result = AcResult();
+    try {
+      logger.log('[AcSqlDbSchemaManager] Dropping tables...');
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        // MySql Implementation Pending
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        AcSqlDaoResult selectResult = await dao!.getRows(
+          statement:
+              "SELECT name,'DROP TABLE IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'table';",
+        );
+        if (selectResult.isSuccess()) {
+          List<Map<String, dynamic>> rows = selectResult.rows;
+          for (var row in rows) {
+            String dropStatement = row.getString('drop_statement');
+            var dropResult = await dao!.executeStatement(
+              statement: dropStatement,
+            );
+            await saveSchemaLogEntry({
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+              TblSchemaLogs.acSchemaEntityName: row.getString('name'),
+              TblSchemaLogs.acSchemaOperation: 'drop',
+              TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
+            });
+          }
+        }
+        result.setFromResult(result: selectResult);
+      }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+    return result;
+  }
+
   Future<AcResult> dropDatabaseTriggers() async {
     final result = AcResult();
     try {
       logger.log('[AcSqlDbSchemaManager] Dropping triggers...');
-      if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        // MySql Implementation Pending
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         AcSqlDaoResult selectResult = await dao!.getRows(
           statement:
               "SELECT name,'DROP TRIGGER IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'trigger';",
@@ -899,7 +1104,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               TblSchemaLogs.acSchemaOperation: 'drop',
               TblSchemaLogs.acSchemaOperationResult: dropResult.status,
               TblSchemaLogs.acSchemaOperationStatement: dropStatement,
-              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
             });
           }
         }
@@ -911,42 +1117,41 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  // Helper method - generates the actual trigger SQL
-  List<String> _generateUpdateAtTriggerSql({
-    required String tableName,
-    required String columnName,
-    required String triggerName,
-    required AcEnumSqlDatabaseType databaseType,
-  }) {
-    if (databaseType == AcEnumSqlDatabaseType.sqlite) {
-      return ['''
-        CREATE TRIGGER IF NOT EXISTS $triggerName
-        BEFORE UPDATE ON $tableName
-        FOR EACH ROW
-        WHEN NEW.$columnName IS NULL
-        BEGIN
-          UPDATE $tableName SET $columnName = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
-        END;
-      '''];
-    } else if (databaseType == AcEnumSqlDatabaseType.postgres) {
-      String functionName = '${triggerName}_func';
-      return ['''
-        CREATE OR REPLACE FUNCTION $functionName() RETURNS TRIGGER AS \$\$ 
-        BEGIN 
-          IF NEW."$columnName" IS NULL THEN
-            NEW."$columnName" = CURRENT_TIMESTAMP; 
-          END IF;
-          RETURN NEW; 
-        END; \$\$ LANGUAGE plpgsql;''',
-    '''
-        CREATE TRIGGER $triggerName
-        BEFORE UPDATE ON "$tableName"
-        FOR EACH ROW
-        EXECUTE FUNCTION $functionName();
-      '''];
-    } else {
-      return [''];
+  Future<AcResult> dropDatabaseViews() async {
+    final result = AcResult();
+    try {
+      logger.log('[AcSqlDbSchemaManager] Dropping triggers...');
+      if (databaseType == AcEnumSqlDatabaseType.mysql) {
+        // MySql Implementation Pending
+      } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
+        AcSqlDaoResult selectResult = await dao!.getRows(
+          statement:
+              "SELECT name,'DROP VIEW IF EXISTS \"' || name || '\";' as drop_statement FROM sqlite_master WHERE type = 'view';",
+        );
+        if (selectResult.isSuccess()) {
+          List<Map<String, dynamic>> rows = selectResult.rows;
+          for (var row in rows) {
+            String dropStatement = row.getString('drop_statement');
+            var dropResult = await dao!.executeStatement(
+              statement: dropStatement,
+            );
+            await saveSchemaLogEntry({
+              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.view.value,
+              TblSchemaLogs.acSchemaEntityName: row.getString('name'),
+              TblSchemaLogs.acSchemaOperation: 'drop',
+              TblSchemaLogs.acSchemaOperationResult: dropResult.status,
+              TblSchemaLogs.acSchemaOperationStatement: dropStatement,
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
+            });
+          }
+        }
+        result.setFromResult(result: selectResult);
+      }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
+    return result;
   }
 
   /* AcDoc({
@@ -1074,18 +1279,24 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> initDatabase() async {
     final result = AcResult();
     try {
-      logger.log("[AcSqlDbSchemaManager] Initializing database for data dictionary $dataDictionaryName...");
+      logger.log(
+        "[AcSqlDbSchemaManager] Initializing database for data dictionary $dataDictionaryName...",
+      );
       final schemaResult = await initSchemaDataDictionary();
       if (schemaResult.isSuccess()) {
         final checkResult = await dao!.checkDatabaseExist();
         if (checkResult.isSuccess()) {
           bool updateDataDictionaryVersion = false;
-          logger.log("[AcSqlDbSchemaManager] Database Exists : ${checkResult.value}");
+          logger.log(
+            "[AcSqlDbSchemaManager] Database Exists : ${checkResult.value}",
+          );
           if (checkResult.value == false) {
             logger.log("[AcSqlDbSchemaManager] Creating database...");
             final createDbResult = await dao!.createDatabase();
             if (createDbResult.isSuccess()) {
-              logger.log("[AcSqlDbSchemaManager] Database created successfully");
+              logger.log(
+                "[AcSqlDbSchemaManager] Database created successfully",
+              );
               final createSchemaResult = await createSchema();
               if (createSchemaResult.isSuccess()) {
                 updateDataDictionaryVersion = true;
@@ -1093,22 +1304,37 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   message: 'Schema created successfully',
                   logger: logger,
                 );
+                String createdOnTime = DateTime.now()
+                    .toUtcIso8601String();
                 var createdOnResponse = await saveSchemaDetail({
                   TblSchemaDetails.acSchemaDetailKey:
-                  SchemaDetails.keyCreatedOn,
-                  TblSchemaDetails.acSchemaDetailStringValue: DateTime.now(),
+                      SchemaDetails.keyCreatedOn,
+                  TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
                 });
                 if (createdOnResponse.isFailure()) {
-                  result.setFromResult(
+                  return result.setFromResult(
                     result: createdOnResponse,
                     message: 'error saving created on schema detail',
+                  );
+                }
+
+                var createdSchemaOnResponse = await saveSchemaDetail({
+                  TblSchemaDetails.acSchemaDetailKey:
+                      "${SchemaDetails.keyCreatedOn}[$dataDictionaryName]",
+                  TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
+                });
+                if (createdSchemaOnResponse.isFailure()) {
+                  return result.setFromResult(
+                    result: createdSchemaOnResponse,
+                    message:
+                        'error saving created on schema data dictionary detail',
                   );
                 }
               } else {
                 return result.setFromResult(
                   result: createSchemaResult,
                   message:
-                  "Error creating database schema from data dictionary",
+                      "Error creating database schema from data dictionary",
                   logger: logger,
                 );
               }
@@ -1120,7 +1346,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               );
             }
           } else {
-            final checkUpdateResult = await checkSchemaUpdateAvailableFromVersion();
+            final checkUpdateResult =
+                await checkSchemaUpdateAvailableFromVersion();
             if (checkUpdateResult.isSuccess()) {
               if (checkUpdateResult.value == true) {
                 final updateSchemaResult = await updateSchema();
@@ -1130,14 +1357,28 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                     message: 'Schema updated successfully',
                     logger: logger,
                   );
+                  String updatedOnTime = DateTime.now()
+                      .toUtcIso8601String();
                   var updatedOnResponse = await saveSchemaDetail({
                     TblSchemaDetails.acSchemaDetailKey:
-                    SchemaDetails.keyLastUpdatedOn,
-                    TblSchemaDetails.acSchemaDetailStringValue: DateTime.now(),
+                        SchemaDetails.keyLastUpdatedOn,
+                    TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
                   });
                   if (updatedOnResponse.isFailure()) {
-                    result.setFromResult(
+                    return result.setFromResult(
                       result: updatedOnResponse,
+                      message: 'error saving updated on schema detail',
+                    );
+                  }
+
+                  var updatedOnDataDictionaryResponse = await saveSchemaDetail({
+                    TblSchemaDetails.acSchemaDetailKey:
+                        "${SchemaDetails.keyLastUpdatedOn}[$dataDictionaryName]",
+                    TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
+                  });
+                  if (updatedOnDataDictionaryResponse.isFailure()) {
+                    return result.setFromResult(
+                      result: updatedOnDataDictionaryResponse,
                       message: 'error saving updated on schema detail',
                     );
                   }
@@ -1145,7 +1386,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   return result.setFromResult(
                     result: updateSchemaResult,
                     message:
-                    "Error updating database schema from data dictionary",
+                        "Error updating database schema from data dictionary",
                     logger: logger,
                   );
                 }
@@ -1166,9 +1407,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           if (updateDataDictionaryVersion) {
             var versionLogResponse = await saveSchemaDetail({
               TblSchemaDetails.acSchemaDetailKey:
-              "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
+                  "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
               TblSchemaDetails.acSchemaDetailNumericValue:
-              acDataDictionary.version,
+                  acDataDictionary.version,
             });
             if (versionLogResponse.isFailure()) {
               result.setFromResult(
@@ -1191,7 +1432,422 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           logger: logger,
         );
       }
+    } on Exception catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+    }
+    return result;
+  }
 
+  Future<AcResult> initMultipleDataDictionaryDatabase({
+    required List<String> dataDictionaryNames,
+    Future<void> Function({required Map<String,double> oldSchemaVersions, required AcBaseSqlDao dao})? afterTablesUpdateCallback
+  }) async {
+    final result = AcResult();
+    try {
+      logger.log(
+        "[AcSqlDbSchemaManager] Initializing database for multiple data dictionaries...",
+      );
+      Map<String, AcSqlDbSchemaManager> schemaManagers = {};
+      List<String> schemaUpdateVersions = List.empty(growable: true);
+
+      List<String> schemaMissing = List.empty(growable: true);
+      List<String> schemaHasUpdates = List.empty(growable: true);
+      List<String> schemaUpToDate = List.empty(growable: true);
+
+      Future<AcResult> createDataDictionarySchema(String ddName, [bool isExisting = false]) async {
+        AcResult result = AcResult();
+        logger.log(
+          "[AcSqlDbSchemaManager] Creating schema for data dictionary $ddName...",
+        );
+        if(!isExisting){
+          final createSchemaResult = await schemaManagers[ddName]!.createSchema(ignoreViews: true,ignoreFunctions: true,ignoreStoredProcedures: true,ignoreTriggers: true);
+          if (createSchemaResult.isFailure()) {
+            return result.setFromResult(
+              result: createSchemaResult,
+              logger: logger,
+            );
+          }
+        }
+        else if(isExisting){
+          final createSchemaResult = await schemaManagers[ddName]!.updateSchema(ignoreViews: true,ignoreFunctions: true,ignoreStoredProcedures: true,ignoreTriggers: true);
+          if (createSchemaResult.isFailure()) {
+            return result.setFromResult(
+              result: createSchemaResult,
+              logger: logger,
+            );
+          }
+        }
+
+        logger.log(
+          "[AcSqlDbSchemaManager] Updating Created on timestamp for data dictionary $ddName...",
+        );
+
+        var createdOnResponse = await saveSchemaDetail({
+          TblSchemaDetails.acSchemaDetailKey:
+              "${SchemaDetails.keyCreatedOn}[$ddName]",
+          TblSchemaDetails.acSchemaDetailStringValue: DateTime.now()
+              .toUtcIso8601String(),
+        });
+        if (createdOnResponse.isFailure()) {
+          return result.setFromResult(
+            result: createdOnResponse,
+            logger: logger,
+            message: 'error saving created on schema detail',
+          );
+        }
+        schemaUpdateVersions.add(ddName);
+        result.setSuccess();
+        return result;
+      }
+
+      Future<AcResult> createDataDictionarySchemaEntities() async {
+        AcResult result = AcResult();
+        for (var ddName in schemaManagers.keys) {
+          logger.log(
+            "[AcSqlDbSchemaManager] Creating views from data dictionary schema $ddName...",
+          );
+          var createViewsResult = await schemaManagers[ddName]!
+              .createDatabaseViews(skipExistingDrop: true);
+          if (createViewsResult.isFailure()) {
+            return result.setFromResult(result: createViewsResult,logger: logger);
+          }
+
+          logger.log(
+            "[AcSqlDbSchemaManager] Creating triggers from data dictionary schema $ddName...",
+          );
+          var createTriggersResult = await schemaManagers[ddName]!
+              .createDatabaseTriggers(skipExistingDrop: true);
+          if (createTriggersResult.isFailure()) {
+            return result.setFromResult(result: createTriggersResult,logger: logger);
+          }
+
+          logger.log(
+            "[AcSqlDbSchemaManager] Creating stored procedures from data dictionary schema $ddName...",
+          );
+          var createStoredProceduresResult = await schemaManagers[ddName]!
+              .createDatabaseStoredProcedures(skipExistingDrop: true);
+          if (createStoredProceduresResult.isFailure()) {
+            return result.setFromResult(result: createStoredProceduresResult,logger: logger);
+          }
+
+          logger.log(
+            "[AcSqlDbSchemaManager] Creating functions from data dictionary schema $ddName...",
+          );
+          var createFunctionsResult = await schemaManagers[ddName]!
+              .createDatabaseFunctions(skipExistingDrop: true);
+          if (createFunctionsResult.isFailure()) {
+            return result.setFromResult(result: createFunctionsResult,logger: logger);
+          }
+        }
+        result.setSuccess();
+        return result;
+      }
+
+      for (var ddName in dataDictionaryNames) {
+        if (AcDataDictionary.dataDictionaries.containsKey(ddName)) {
+          logger.log(
+            "[AcSqlDbSchemaManager] $ddName data dictionary for schema changes...",
+          );
+          schemaManagers[ddName] = AcSqlDbSchemaManager(
+            dataDictionaryName: ddName,dao: dao
+          );
+          schemaManagers[ddName]!.logger = logger;
+        } else {
+          logger.log(
+            "[AcSqlDbSchemaManager] $ddName data dictionary is not registered so excluding from  schema changes...",
+          );
+        }
+      }
+
+      logger.log("[AcSqlDbSchemaManager] Checking database exist");
+
+      final checkResult = await dao!.checkDatabaseExist();
+      if (checkResult.isSuccess()) {
+        if (checkResult.value == false) {
+          logger.log("[AcSqlDbSchemaManager] Creating database...");
+          final createDbResult = await dao!.createDatabase();
+          if (createDbResult.isSuccess()) {
+            logger.log(
+              "[AcSqlDbSchemaManager] Database Exists : ${checkResult.value}",
+            );
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Initializing schema data dictionary",
+            );
+            final schemaResult = await initSchemaDataDictionary();
+            if (schemaResult.isFailure()) {
+              return result.setFromResult(result: schemaResult, logger: logger);
+            }
+
+            for (var ddName in schemaManagers.keys) {
+              schemaMissing.add(ddName);
+              var createSchemaResult = await createDataDictionarySchema(ddName);
+              if (createSchemaResult.isFailure()) {
+                return result.setFromResult(result: createSchemaResult);
+              }
+            }
+
+            var createEntitiesResponse =
+                await createDataDictionarySchemaEntities();
+            if (createEntitiesResponse.isFailure()) {
+              return result.setFromResult(
+                result: createEntitiesResponse,
+                message: 'error creating schema entities',
+              );
+            }
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Saving database created on details in schema",
+            );
+            var createdOnResponse = await saveSchemaDetail({
+              TblSchemaDetails.acSchemaDetailKey: SchemaDetails.keyCreatedOn,
+              TblSchemaDetails.acSchemaDetailStringValue: DateTime.now()
+                  .toUtcIso8601String(),
+            });
+            if (createdOnResponse.isFailure()) {
+              return result.setFromResult(
+                result: createdOnResponse,
+                message: 'error saving created on schema detail',
+                logger: logger,
+              );
+            }
+          } else {
+            return result.setFromResult(
+              result: createDbResult,
+              message: "Error creating database",
+              logger: logger,
+            );
+          }
+        } else {
+          logger.log(
+            "[AcSqlDbSchemaManager] Database alrerady exist",
+          );
+          logger.log(
+            "[AcSqlDbSchemaManager] Initializing schema data dictionary",
+          );
+          final schemaResult = await initSchemaDataDictionary();
+          if (schemaResult.isFailure()) {
+            return result.setFromResult(result: schemaResult, logger: logger);
+          }
+
+          Map<String,double> oldSchemaVersions = {};
+          List<String> keys = List.empty(growable: true);
+          for(var key in schemaManagers.keys){
+            keys.add("${SchemaDetails.keyDataDictionaryVersion}[$key]");
+          }
+
+          logger.log(
+            "[AcSqlDbSchemaManager] Getting current versions of data dictionary schemas",
+          );
+          final versionResult = await dao!.getRows(
+            statement: acSqlDDTableSchemaDetails.getSelectStatement(),
+            condition: "${TblSchemaDetails.acSchemaDetailKey} IN (@keys)",
+            parameters: {
+              "@keys": keys,
+            },
+            mode: AcEnumDDSelectMode.first, //important
+          );
+
+          if (versionResult.isSuccess()) {
+            if (versionResult.rows.isNotEmpty) {
+              for (var row in versionResult.rows) {
+                final databaseVersion = versionResult.rows.first.getDouble(
+                  TblSchemaDetails.acSchemaDetailNumericValue,
+                );
+                String ddName = row.getString(TblSchemaDetails.acSchemaDetailKey).substring(SchemaDetails.keyDataDictionaryVersion.length+1);
+                ddName = ddName.substring(0, ddName.length - 1);
+                logger.log(
+                  "[AcSqlDbSchemaManager] Found version $databaseVersion of data dictionary $ddName. Latest version is ${schemaManagers[ddName]!.acDataDictionary.version}",
+                );
+                if (schemaManagers[ddName]!.acDataDictionary.version > databaseVersion) {
+                  oldSchemaVersions[ddName] = databaseVersion;
+                  schemaHasUpdates.add(ddName);
+                  logger.log(
+                    "[AcSqlDbSchemaManager] Added data dictionary $ddName to update list",
+                  );
+                } else {
+                  logger.log(
+                    "[AcSqlDbSchemaManager] Added data dictionary $ddName to no change list",
+                  );
+                  schemaUpToDate.add(ddName);
+                }
+              }
+            }
+          } else {
+            return result.setFromResult(
+              result: versionResult,
+              message: 'Error checking schema version',
+              logger: logger,
+            );
+          }
+
+          for (var ddName in schemaManagers.keys) {
+            if (!schemaHasUpdates.contains(ddName) &&
+                !schemaUpToDate.contains(ddName)) {
+              logger.log(
+                "[AcSqlDbSchemaManager] Added data dictionary $ddName to create list",
+              );
+              schemaMissing.add(ddName);
+            }
+          }
+
+          if (schemaMissing.isNotEmpty || schemaHasUpdates.isNotEmpty) {
+            logger.log(
+              "[AcSqlDbSchemaManager] Removing all database functions",
+            );
+            var dropFunctionsResult = await dropDatabaseFunctions();
+            if (dropFunctionsResult.isFailure()) {
+              return result.setFromResult(
+                result: dropFunctionsResult,
+                logger: logger,
+              );
+            }
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Removing all database stored procedures",
+            );
+            var dropStoredProceduresResult =
+                await dropDatabaseStoredProcedures();
+            if (dropStoredProceduresResult.isFailure()) {
+              return result.setFromResult(
+                result: dropStoredProceduresResult,
+                logger: logger,
+              );
+            }
+
+            logger.log("[AcSqlDbSchemaManager] Removing all database triggers");
+            var dropTriggersResult = await dropDatabaseTriggers();
+            if (dropTriggersResult.isFailure()) {
+              return result.setFromResult(
+                result: dropTriggersResult,
+                logger: logger,
+              );
+            }
+
+            logger.log("[AcSqlDbSchemaManager] Removing all database views");
+            var dropViewsResult = await dropDatabaseViews();
+            if (dropViewsResult.isFailure()) {
+              return result.setFromResult(
+                result: dropViewsResult,
+                logger: logger,
+              );
+            }
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Creating missing data dictionary schemas...",
+            );
+            for (var ddName in schemaMissing) {
+              var createSchemaResult = await createDataDictionarySchema(ddName,true);
+              if (createSchemaResult.isFailure()) {
+                return result.setFromResult(result: createSchemaResult);
+              }
+            }
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Updating changed data dictionary schemas...",
+            );
+            for (var ddName in schemaHasUpdates) {
+              final updateSchemaResult =
+                  await schemaManagers[ddName]!.updateDatabaseDifferences();
+              if (updateSchemaResult.isSuccess()) {
+                schemaUpdateVersions.add(ddName);
+                var versionUpdatedOnResponse = await saveSchemaDetail({
+                  TblSchemaDetails.acSchemaDetailKey:
+                      "${SchemaDetails.keyLastUpdatedOn}[$ddName]",
+                  TblSchemaDetails.acSchemaDetailStringValue: DateTime.now()
+                      .toUtcIso8601String(),
+                });
+                if (versionUpdatedOnResponse.isFailure()) {
+                  return result.setFromResult(
+                    result: versionUpdatedOnResponse,
+                    message: 'error saving version schema detail',
+                    logger: logger,
+                  );
+                }
+              } else {
+                return result.setFromResult(
+                  result: updateSchemaResult,
+                  message:
+                      "Error updating database schema from data dictionary",
+                  logger: logger,
+                );
+              }
+            }
+
+            if(afterTablesUpdateCallback != null){
+              await afterTablesUpdateCallback(oldSchemaVersions: oldSchemaVersions,dao:dao!);
+            }
+
+            logger.log(
+              "[AcSqlDbSchemaManager] Creating data dictionary entities...",
+            );
+            var createEntitiesResponse = await createDataDictionarySchemaEntities();
+            if (createEntitiesResponse.isFailure()) {
+              return result.setFromResult(
+                result: createEntitiesResponse,
+                message: 'error creating schema entities',
+                logger: logger,
+              );
+            }
+          }
+        }
+        if (schemaUpdateVersions.isNotEmpty) {
+          logger.log(
+            "[AcSqlDbSchemaManager] Updating versions of data dictionary schemas in schema details...",
+          );
+          for (var ddName in schemaUpdateVersions) {
+            logger.log(
+              "[AcSqlDbSchemaManager] Updating version of $ddName to ${schemaManagers[ddName]!.acDataDictionary.version}",
+            );
+            var versionLogResponse = await saveSchemaDetail({
+              TblSchemaDetails.acSchemaDetailKey:
+                  "${SchemaDetails.keyDataDictionaryVersion}[$ddName]",
+              TblSchemaDetails.acSchemaDetailNumericValue:
+                  schemaManagers[ddName]!.acDataDictionary.version,
+            });
+            if (versionLogResponse.isSuccess()) {
+            } else {
+              return result.setFromResult(
+                result: versionLogResponse,
+                message: 'error saving version schema detail',
+                logger: logger,
+              );
+            }
+          }
+
+          logger.log(
+            "[AcSqlDbSchemaManager] Updating last updated details of data dictionary in schema details...",
+          );
+          var versionUpdatedOnResponse = await saveSchemaDetail({
+            TblSchemaDetails.acSchemaDetailKey: SchemaDetails.keyLastUpdatedOn,
+            TblSchemaDetails.acSchemaDetailStringValue: DateTime.now()
+                .toUtcIso8601String(),
+          });
+          if (versionUpdatedOnResponse.isFailure()) {
+            return result.setFromResult(
+              result: versionUpdatedOnResponse,
+              message: 'error saving version schema detail',
+              logger: logger,
+            );
+          }
+        }
+        logger.log(
+          "[AcSqlDbSchemaManager] initMultipleDataDictionaryDatabase completed with status success.",
+        );
+        result.setSuccess(
+          value: {
+            "created": schemaMissing,
+            "updated": schemaHasUpdates,
+            "not_change": schemaUpToDate,
+          },
+        );
+      } else {
+        return result.setFromResult(
+          result: checkResult,
+          message: "Error checking if database exists",
+          logger: logger,
+        );
+      }
     } on Exception catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
@@ -1211,7 +1867,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         result.setSuccess();
         return result;
       } else {
-        logger.log("[AcSqlDbSchemaManager] Registering schema data dictionary...");
+        logger.log(
+          "[AcSqlDbSchemaManager] Registering schema data dictionary...",
+        );
         AcDataDictionary.registerDataDictionary(
           jsonData: AcSMDataDictionary.dataDictionary,
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
@@ -1316,7 +1974,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               statement: createStatement,
             );
             if (createResult.isSuccess()) {
-              logger.log("[AcSqlDbSchemaManager] Create statement executed successfully");
+              logger.log(
+                "[AcSqlDbSchemaManager] Create statement executed successfully",
+              );
             } else {
               return result.setFromResult(result: createResult, logger: logger);
             }
@@ -1326,7 +1986,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               TblSchemaLogs.acSchemaOperation: 'create',
               TblSchemaLogs.acSchemaOperationResult: createResult.status,
               TblSchemaLogs.acSchemaOperationStatement: createStatement,
-              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                  .toUtcIso8601String(),
             });
           }
         }
@@ -1337,7 +1998,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             if (modificationDetails.missingColumnsInDatabase.isNotEmpty) {
               for (final columnName
                   in modificationDetails.missingColumnsInDatabase) {
-                logger.log("[AcSqlDbSchemaManager] Adding table column $columnName");
+                logger.log(
+                  "[AcSqlDbSchemaManager] Adding table column $columnName",
+                );
                 final acDDTableColumn = AcDDTableColumn.getInstance(
                   tableName: tableName,
                   columnName: columnName,
@@ -1347,14 +2010,17 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   tableName: tableName,
                   databaseType: databaseType,
                 );
-                logger.log(["[AcSqlDbSchemaManager] Executing add table column statement...",
+                logger.log([
+                  "[AcSqlDbSchemaManager] Executing add table column statement...",
                   addStatement,
                 ]);
                 final createResult = await dao!.executeStatement(
                   statement: addStatement,
                 );
                 if (createResult.isSuccess()) {
-                  logger.log("[AcSqlDbSchemaManager] Add statement executed successfully");
+                  logger.log(
+                    "[AcSqlDbSchemaManager] Add statement executed successfully",
+                  );
                 } else {
                   return result.setFromResult(
                     result: createResult,
@@ -1367,7 +2033,8 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
                   TblSchemaLogs.acSchemaOperation: 'modify',
                   TblSchemaLogs.acSchemaOperationResult: createResult.status,
                   TblSchemaLogs.acSchemaOperationStatement: addStatement,
-                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now(),
+                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                      .toUtcIso8601String(),
                 });
               }
             }
@@ -1425,7 +2092,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     "returns": "An `AcResult` indicating the outcome of the full update process.",
     "returns_type": "Future<AcResult>"
   }) */
-  Future<AcResult> updateSchema() async {
+  Future<AcResult> updateSchema({bool ignoreViews = false,bool ignoreTriggers = false,bool ignoreStoredProcedures = false,bool ignoreFunctions = false}) async {
     final result = AcResult();
     bool continueOperation = true;
     final updateDifferenceResult = await updateDatabaseDifferences();
@@ -1438,7 +2105,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         logger: logger,
       );
     }
-    if (continueOperation) {
+    if (continueOperation && !ignoreViews) {
       final createViewsResult = await createDatabaseViews();
       if (createViewsResult.isSuccess()) {
       } else {
@@ -1450,20 +2117,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
       }
     }
-    if (continueOperation) {
-      var dropTriggersResult = await dropDatabaseTriggers();
-      if (dropTriggersResult.isSuccess()) {
-        logger.log('[AcSqlDbSchemaManager] Triggers dropped successfully');
-      } else {
-        continueOperation = false;
-        result.setFromResult(
-          result: dropTriggersResult,
-          message: 'Error dropping schema database triggers',
-          logger: logger,
-        );
-      }
-    }
-    if (continueOperation) {
+    if (continueOperation && !ignoreTriggers) {
       final createTriggersResult = await createDatabaseTriggers();
       if (createTriggersResult.isSuccess()) {
       } else {
@@ -1475,7 +2129,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
       }
     }
-    if (continueOperation) {
+    if (continueOperation && !ignoreStoredProcedures) {
       final createStoredProceduresResult =
           await createDatabaseStoredProcedures();
       if (createStoredProceduresResult.isSuccess()) {
@@ -1488,7 +2142,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         );
       }
     }
-    if (continueOperation) {
+    if (continueOperation && !ignoreFunctions) {
       final createFunctionsResult = await createDatabaseFunctions();
       if (createFunctionsResult.isSuccess()) {
       } else {
