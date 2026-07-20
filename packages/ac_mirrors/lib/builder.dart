@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:glob/glob.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:ac_mirrors/annotations.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 
 Builder acMirrorsBuilder(BuilderOptions options) {
   return AcMirrorsAggregatingBuilder();
