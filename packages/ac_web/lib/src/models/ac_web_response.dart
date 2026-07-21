@@ -143,6 +143,18 @@ class AcWebResponse {
     return response;
   }
 
+  static AcWebResponse html({
+    required String html,
+    AcEnumHttpResponseCode responseCode = AcEnumHttpResponseCode.ok,
+  }) {
+    final response = AcWebResponse();
+    response.responseCode = responseCode;
+    response.responseType = AcEnumWebResponseType.html;
+    response.content = html;
+    response.headers['Content-Type'] = 'text/html; charset=utf-8';
+    return response;
+  }
+
   /* AcDoc({
     "summary": "Creates a standard Not Found (404) response.",
     "returns": "A configured `AcWebResponse` with a 404 status code.",

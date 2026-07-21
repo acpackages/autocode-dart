@@ -34,6 +34,20 @@ class AcWebOnJaguar extends AcWeb {
 
   /* AcDoc({"summary": "The underlying Jaguar server instance for HTTPS/SSL."}) */
   Jaguar? jaguarSecureInstance;
+  
+  Future<Response> _getNotFoundResponse({required Context context}) async {
+    if(notFoundResolver != null){
+      AcWebResolverArgs args =AcWebResolverArgs();
+      args.path = context.path;
+      args.method = AcEnumHttpMethod.fromValue(context.method)!;
+      args.webRequest = await _createAcWebRequestFromJaguarContext(context);
+      await _createJaguarResponseFromAcWebResponse(await notFoundResolver!(args), context);
+      return context.response;
+    }
+    else{
+      return Response(statusCode: HttpStatus.notFound);
+    }
+  }
 
   /* AcDoc({
     "summary": "Initializes a new Jaguar-based web server instance.",
@@ -89,7 +103,10 @@ class AcWebOnJaguar extends AcWeb {
         } catch (ex,stack) {
           logger.error(ex);
           logger.error(stack);
-          context.response = Response(statusCode: HttpStatus.notFound);
+          context.response = Response(statusCode: HttpStatus.internalServerError,body:jsonEncode({
+            "message":ex,
+            "stack":stack
+          }));
           // if (errorFunction != null) {
           //   dynamic errorResponse =
           //   errorFunction(Simplify.getExceptionMessage(ex,stack: stack));
@@ -106,7 +123,6 @@ class AcWebOnJaguar extends AcWeb {
       String fallbackUrl = rawMap['fallbackUrl'];
       Map<String,dynamic> filesMap = rawMap['map'];
       Route route = Route.get(prefix, (context) async {
-        dynamic body = "";
         String? mimeType = 'text/html';
         try {
           String routePath = context.path;
@@ -133,12 +149,15 @@ class AcWebOnJaguar extends AcWeb {
             );
           }
           else{
-            context.response = Response(statusCode: HttpStatus.notFound);
+            context.response = await _getNotFoundResponse(context:context);
           }
         } catch (ex,stack) {
           logger.error(ex);
           logger.error(stack);
-          context.response = Response(statusCode: HttpStatus.notFound);
+          context.response = Response(statusCode: HttpStatus.internalServerError,body: jsonEncode({
+            "message":ex,
+            "stack":stack
+          }));
           // if (errorFunction != null) {
           //   dynamic errorResponse =
           //   errorFunction(Simplify.getExceptionMessage(ex,stack: stack));
@@ -167,7 +186,7 @@ class AcWebOnJaguar extends AcWeb {
         prefix = "/$prefix";
       }
       prefix = "$prefix/*";
-      Function(AcWebRuntimeResolverArgs args) resolver = runtimeResolver.resolver;
+      Function(AcWebResolverArgs args) resolver = runtimeResolver.resolver;
       Route route = Route.get(prefix, (context) async {
         dynamic body = "";
         String? mimeType = 'text/html';
@@ -177,7 +196,7 @@ class AcWebOnJaguar extends AcWeb {
             routePath = routePath.substring(1);
           }
           print("Getting runtime path for $routePath using resolver for $prefix");
-          var args = AcWebRuntimeResolverArgs();
+          var args = AcWebResolverArgs();
           args.path = routePath;
           String localPath = await resolver(args);
           File localFile = File(localPath);
@@ -191,12 +210,15 @@ class AcWebOnJaguar extends AcWeb {
           }
           else{
             logger.log("Could not file static file for $routePath : LocalPath = $localPath");
-            context.response = Response(statusCode: HttpStatus.notFound);
+            context.response = await _getNotFoundResponse(context:context);
           }
         } catch (ex,stack) {
           logger.error(ex);
           logger.error(stack);
-          context.response = Response(statusCode: HttpStatus.notFound);
+          context.response = Response(statusCode: HttpStatus.internalServerError,body:jsonEncode({
+            "message":ex,
+            "stack":stack
+          }));
         }
       });
       instance.addRoute(route);
@@ -208,7 +230,7 @@ class AcWebOnJaguar extends AcWeb {
         prefix = "/$prefix";
       }
       prefix = "$prefix/*";
-      Function(AcWebRuntimeResolverArgs args) resolver = runtimeResolver.resolver;
+      Function(AcWebResolverArgs args) resolver = runtimeResolver.resolver;
       callback(context) async {
         try {
           String routePath = context.path;
@@ -216,7 +238,7 @@ class AcWebOnJaguar extends AcWeb {
             routePath = routePath.substring(1);
           }
           print("Getting runtime path for $routePath using resolver for $prefix");
-          var args = AcWebRuntimeResolverArgs();
+          var args = AcWebResolverArgs();
           args.path = routePath;
           args.method = method;
           args.webRequest = await _createAcWebRequestFromJaguarContext(context);
@@ -232,7 +254,10 @@ class AcWebOnJaguar extends AcWeb {
         } catch (ex,stack) {
           logger.error(ex);
           logger.error(stack);
-          context.response = Response(statusCode: HttpStatus.notFound);
+          context.response = Response(statusCode: HttpStatus.internalServerError,body: jsonEncode({
+            "message":ex,
+            "stack":stack
+          }));
         }
       }
       if(method == AcEnumHttpMethod.get){
@@ -392,7 +417,10 @@ class AcWebOnJaguar extends AcWeb {
       }
     } catch (ex, stack) {
       response = Response(
-        body: Autocode.getExceptionMessage(exception: ex, stackTrace: stack),
+        body: jsonEncode({
+          "message":ex,
+          "stack":stack
+        }),
         statusCode: AcEnumHttpResponseCode.internalServerError.value,
       );
     }

@@ -1282,14 +1282,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
       logger.log(
         "[AcSqlDbSchemaManager] Initializing database for data dictionary $dataDictionaryName...",
       );
-      final schemaResult = await initSchemaDataDictionary();
-      if (schemaResult.isSuccess()) {
-        final checkResult = await dao!.checkDatabaseExist();
-        if (checkResult.isSuccess()) {
-          bool updateDataDictionaryVersion = false;
-          logger.log(
-            "[AcSqlDbSchemaManager] Database Exists : ${checkResult.value}",
-          );
+      final checkResult = await dao!.checkDatabaseExist();
+      if (checkResult.isSuccess()) {
+        bool updateDataDictionaryVersion = false;
           if (checkResult.value == false) {
             logger.log("[AcSqlDbSchemaManager] Creating database...");
             final createDbResult = await dao!.createDatabase();
@@ -1297,44 +1292,54 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               logger.log(
                 "[AcSqlDbSchemaManager] Database created successfully",
               );
-              final createSchemaResult = await createSchema();
-              if (createSchemaResult.isSuccess()) {
-                updateDataDictionaryVersion = true;
-                result.setSuccess(
-                  message: 'Schema created successfully',
-                  logger: logger,
-                );
-                String createdOnTime = DateTime.now()
-                    .toUtcIso8601String();
-                var createdOnResponse = await saveSchemaDetail({
-                  TblSchemaDetails.acSchemaDetailKey:
-                      SchemaDetails.keyCreatedOn,
-                  TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
-                });
-                if (createdOnResponse.isFailure()) {
-                  return result.setFromResult(
-                    result: createdOnResponse,
-                    message: 'error saving created on schema detail',
+              final schemaResult = await initSchemaDataDictionary();
+              if (schemaResult.isSuccess()) {
+                final createSchemaResult = await createSchema();
+                if (createSchemaResult.isSuccess()) {
+                  updateDataDictionaryVersion = true;
+                  result.setSuccess(
+                    message: 'Schema created successfully',
+                    logger: logger,
                   );
-                }
+                  String createdOnTime = DateTime.now()
+                      .toUtcIso8601String();
+                  var createdOnResponse = await saveSchemaDetail({
+                    TblSchemaDetails.acSchemaDetailKey:
+                    SchemaDetails.keyCreatedOn,
+                    TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
+                  });
+                  if (createdOnResponse.isFailure()) {
+                    return result.setFromResult(
+                      result: createdOnResponse,
+                      message: 'error saving created on schema detail',
+                    );
+                  }
 
-                var createdSchemaOnResponse = await saveSchemaDetail({
-                  TblSchemaDetails.acSchemaDetailKey:
-                      "${SchemaDetails.keyCreatedOn}[$dataDictionaryName]",
-                  TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
-                });
-                if (createdSchemaOnResponse.isFailure()) {
+                  var createdSchemaOnResponse = await saveSchemaDetail({
+                    TblSchemaDetails.acSchemaDetailKey:
+                    "${SchemaDetails.keyCreatedOn}[$dataDictionaryName]",
+                    TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
+                  });
+                  if (createdSchemaOnResponse.isFailure()) {
+                    return result.setFromResult(
+                      result: createdSchemaOnResponse,
+                      message:
+                      'error saving created on schema data dictionary detail',
+                    );
+                  }
+                } else {
                   return result.setFromResult(
-                    result: createdSchemaOnResponse,
+                    result: createSchemaResult,
                     message:
-                        'error saving created on schema data dictionary detail',
+                    "Error creating database schema from data dictionary",
+                    logger: logger,
                   );
                 }
-              } else {
+              }
+              else {
                 return result.setFromResult(
-                  result: createSchemaResult,
-                  message:
-                      "Error creating database schema from data dictionary",
+                  result: schemaResult,
+                  message: "Error initializing schema",
                   logger: logger,
                 );
               }
@@ -1346,60 +1351,70 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               );
             }
           } else {
-            final checkUpdateResult =
-                await checkSchemaUpdateAvailableFromVersion();
-            if (checkUpdateResult.isSuccess()) {
-              if (checkUpdateResult.value == true) {
-                final updateSchemaResult = await updateSchema();
-                if (updateSchemaResult.isSuccess()) {
-                  updateDataDictionaryVersion = true;
-                  result.setSuccess(
-                    message: 'Schema updated successfully',
-                    logger: logger,
-                  );
-                  String updatedOnTime = DateTime.now()
-                      .toUtcIso8601String();
-                  var updatedOnResponse = await saveSchemaDetail({
-                    TblSchemaDetails.acSchemaDetailKey:
-                        SchemaDetails.keyLastUpdatedOn,
-                    TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
-                  });
-                  if (updatedOnResponse.isFailure()) {
-                    return result.setFromResult(
-                      result: updatedOnResponse,
-                      message: 'error saving updated on schema detail',
+            final schemaResult = await initSchemaDataDictionary();
+            if (schemaResult.isSuccess()) {
+              final checkUpdateResult =
+              await checkSchemaUpdateAvailableFromVersion();
+              if (checkUpdateResult.isSuccess()) {
+                if (checkUpdateResult.value == true) {
+                  final updateSchemaResult = await updateSchema();
+                  if (updateSchemaResult.isSuccess()) {
+                    updateDataDictionaryVersion = true;
+                    result.setSuccess(
+                      message: 'Schema updated successfully',
+                      logger: logger,
                     );
-                  }
+                    String updatedOnTime = DateTime.now()
+                        .toUtcIso8601String();
+                    var updatedOnResponse = await saveSchemaDetail({
+                      TblSchemaDetails.acSchemaDetailKey:
+                      SchemaDetails.keyLastUpdatedOn,
+                      TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
+                    });
+                    if (updatedOnResponse.isFailure()) {
+                      return result.setFromResult(
+                        result: updatedOnResponse,
+                        message: 'error saving updated on schema detail',
+                      );
+                    }
 
-                  var updatedOnDataDictionaryResponse = await saveSchemaDetail({
-                    TblSchemaDetails.acSchemaDetailKey:
-                        "${SchemaDetails.keyLastUpdatedOn}[$dataDictionaryName]",
-                    TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
-                  });
-                  if (updatedOnDataDictionaryResponse.isFailure()) {
+                    var updatedOnDataDictionaryResponse = await saveSchemaDetail({
+                      TblSchemaDetails.acSchemaDetailKey:
+                      "${SchemaDetails.keyLastUpdatedOn}[$dataDictionaryName]",
+                      TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
+                    });
+                    if (updatedOnDataDictionaryResponse.isFailure()) {
+                      return result.setFromResult(
+                        result: updatedOnDataDictionaryResponse,
+                        message: 'error saving updated on schema detail',
+                      );
+                    }
+                  } else {
                     return result.setFromResult(
-                      result: updatedOnDataDictionaryResponse,
-                      message: 'error saving updated on schema detail',
+                      result: updateSchemaResult,
+                      message:
+                      "Error updating database schema from data dictionary",
+                      logger: logger,
                     );
                   }
                 } else {
-                  return result.setFromResult(
-                    result: updateSchemaResult,
-                    message:
-                        "Error updating database schema from data dictionary",
+                  result.setSuccess(
+                    message: 'Schema is latest. No changes required',
                     logger: logger,
                   );
                 }
               } else {
-                result.setSuccess(
-                  message: 'Schema is latest. No changes required',
+                return result.setFromResult(
+                  result: checkUpdateResult,
+                  message: "Error checking for schema updates",
                   logger: logger,
                 );
               }
-            } else {
+            }
+            else {
               return result.setFromResult(
-                result: checkUpdateResult,
-                message: "Error checking for schema updates",
+                result: schemaResult,
+                message: "Error initializing schema",
                 logger: logger,
               );
             }
@@ -1407,9 +1422,9 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
           if (updateDataDictionaryVersion) {
             var versionLogResponse = await saveSchemaDetail({
               TblSchemaDetails.acSchemaDetailKey:
-                  "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
+              "${SchemaDetails.keyDataDictionaryVersion}[$dataDictionaryName]",
               TblSchemaDetails.acSchemaDetailNumericValue:
-                  acDataDictionary.version,
+              acDataDictionary.version,
             });
             if (versionLogResponse.isFailure()) {
               result.setFromResult(
@@ -1418,17 +1433,11 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
               );
             }
           }
-        } else {
-          return result.setFromResult(
-            result: checkResult,
-            message: "Error checking if database exists",
-            logger: logger,
-          );
-        }
-      } else {
+      }
+      else {
         return result.setFromResult(
-          result: schemaResult,
-          message: "Error initializing schema data dictionary",
+          result: checkResult,
+          message: "Error checking if database exists",
           logger: logger,
         );
       }
@@ -1438,10 +1447,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> initMultipleDataDictionaryDatabase({
-    required List<String> dataDictionaryNames,
-    Future<void> Function({required Map<String,double> oldSchemaVersions, required AcBaseSqlDao dao})? afterTablesUpdateCallback
-  }) async {
+  Future<AcResult> initMultipleDataDictionaryDatabase({required List<String> dataDictionaryNames,Future<void> Function({required Map<String,double> oldSchemaVersions, required AcBaseSqlDao dao})? afterTablesUpdateCallback}) async {
     final result = AcResult();
     try {
       logger.log(
@@ -1895,17 +1901,102 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         acSchemaManager.useDataDictionary(
           dataDictionaryName: AcSMDataDictionary.dataDictionaryName,
         );
-        // acSchemaManager.acDataDictionary = acDataDictionary;
-        final initSchemaResult = await acSchemaManager.initDatabase();
-        if (initSchemaResult.isSuccess()) {
-          result.setSuccess(
-            message: 'Schema data dictionary initialized successfully',
-            logger: logger,
-          );
-        } else {
+        AcSqlDaoResult getTablesResult = await dao!.getDatabaseTables();
+        if(getTablesResult.isSuccess()){
+          bool foundSchemaTables = false;
+          for(var row in getTablesResult.rows){
+            if(row[AcDDTable.keyTableName] == AcSchemaManagerTables.schemaDetails){
+              foundSchemaTables = true;
+              break;
+            }
+          }
+          if(!foundSchemaTables){
+            var createResult = await acSchemaManager.createSchema();
+            if(createResult.isSuccess()){
+              String createdOnTime = DateTime.now()
+                  .toUtcIso8601String();
+              var createdOnResponse = await saveSchemaDetail({
+                TblSchemaDetails.acSchemaDetailKey:
+                SchemaDetails.keyCreatedOn,
+                TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
+              });
+              if (createdOnResponse.isFailure()) {
+                return result.setFromResult(
+                  result: createdOnResponse,
+                  message: 'error saving created on schema detail',
+                );
+              }
+
+              var createdSchemaOnResponse = await saveSchemaDetail({
+                TblSchemaDetails.acSchemaDetailKey:
+                "${SchemaDetails.keyCreatedOn}[$dataDictionaryName]",
+                TblSchemaDetails.acSchemaDetailStringValue: createdOnTime,
+              });
+              if (createdSchemaOnResponse.isFailure()) {
+                return result.setFromResult(
+                  result: createdSchemaOnResponse,
+                  message:
+                  'error saving created on schema data dictionary detail',
+                );
+              }
+
+              result.setSuccess();
+            }
+            else{
+              return createResult;
+            }
+          }
+          else{
+            var updateResult = await acSchemaManager.checkSchemaUpdateAvailableFromVersion();
+            if(updateResult.isSuccess()){
+              if(updateResult.value){
+                var updateSchemaResult =  await acSchemaManager.updateDatabaseDifferences();
+                if(updateSchemaResult.isSuccess()){
+                 String updatedOnTime = DateTime.now()
+                     .toUtcIso8601String();
+                 var updatedOnResponse = await saveSchemaDetail({
+                   TblSchemaDetails.acSchemaDetailKey:
+                   SchemaDetails.keyLastUpdatedOn,
+                   TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
+                 });
+                 if (updatedOnResponse.isFailure()) {
+                   return result.setFromResult(
+                     result: updatedOnResponse,
+                     message: 'error saving updated on schema detail',
+                   );
+                 }
+
+                 var updatedOnDataDictionaryResponse = await saveSchemaDetail({
+                   TblSchemaDetails.acSchemaDetailKey:
+                   "${SchemaDetails.keyLastUpdatedOn}[${AcSMDataDictionary.dataDictionaryName}]",
+                   TblSchemaDetails.acSchemaDetailStringValue: updatedOnTime,
+                 });
+                 if (updatedOnDataDictionaryResponse.isFailure()) {
+                   return result.setFromResult(
+                     result: updatedOnDataDictionaryResponse,
+                     message: 'error saving updated on schema detail',
+                   );
+                 }
+
+                 result.setSuccess();
+               }
+               else{
+                 return updateSchemaResult;
+               }
+              }
+              else{
+                result.setSuccess();
+              }
+            }
+            else{
+              return updateResult;
+            }
+          }
+        }
+        else{
           return result.setFromResult(
-            result: initSchemaResult,
-            message: "Error setting schema entities in database",
+            result: getTablesResult,
+            message: "Error getting database tables",
             logger: logger,
           );
         }

@@ -67,7 +67,7 @@ class AcWebOnWs {
             }
           }
           else{
-            AcWebRuntimeResolverDefinition? resolverDefinition;
+            AcWebResolverDefinition? resolverDefinition;
             for (var entry in app.runtimeRouteResolvers.values) {
               final routeMethod = entry.method.value.toLowerCase();
               final routePath = entry.prefix;
@@ -84,7 +84,7 @@ class AcWebOnWs {
               final acWebRequest = _createAcWebRequestFromWsData(requestData, socket);
               acWebRequest.pathParameters = pathParams;
               acWebRequest.internalParams['ac_web_on_ws'] = AcWebOnWsParams(socket: socket);
-              AcWebRuntimeResolverArgs args = AcWebRuntimeResolverArgs();
+              AcWebResolverArgs args = AcWebResolverArgs();
               args.path = cleanUrl;
               args.method = resolverDefinition.method;
               args.webRequest = acWebRequest;

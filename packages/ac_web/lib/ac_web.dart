@@ -75,10 +75,12 @@ export './src/models/ac_web_request.dart';
 export './src/models/ac_web_request_handler_args.dart';
 export './src/models/ac_web_response.dart';
 export './src/models/ac_web_route_definition.dart';
-export './src/models/ac_web_runtime_resolver_args.dart';
-export './src/models/ac_web_runtime_resolver_definition.dart';
+export './src/models/ac_web_resolver_args.dart';
+export './src/models/ac_web_resolver_definition.dart';
 
 export './src/interceptors/ac_web_interceptor.dart';
 export './src/interceptors/ac_web_jwt_interceptor.dart';
+
+export './src/utils/ac_web_utils.dart';
 
 // TODO: Export any libraries intended for clients of this package.

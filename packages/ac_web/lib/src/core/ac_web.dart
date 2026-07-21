@@ -15,7 +15,6 @@ import '../annotations/ac_web_value_from_header.dart';
 import '../annotations/ac_web_value_from_path.dart';
 import '../annotations/ac_web_value_from_query.dart';
 import '../api-docs/models/ac_api_doc.dart';
-import '../api-docs/models/ac_api_doc_operation.dart';
 import '../api-docs/models/ac_api_doc_path.dart';
 import '../api-docs/models/ac_api_doc_parameter.dart';
 import '../api-docs/models/ac_api_doc_request_body.dart';
@@ -64,9 +63,12 @@ class AcWeb {
 
   final List<Map<String, dynamic>> rawContentMaps = [];
 
-  final Map<String, AcWebRuntimeResolverDefinition> runtimeStaticFileResolvers = {};
+  final Map<String, AcWebResolverDefinition> runtimeStaticFileResolvers = {};
 
-  final Map<String, AcWebRuntimeResolverDefinition> runtimeRouteResolvers = {};
+  final Map<String, AcWebResolverDefinition> runtimeRouteResolvers = {};
+
+  Function(AcWebResolverArgs args)? errorResolver;
+  Function(AcWebResolverArgs args)? notFoundResolver;
 
   /* AcDoc({"summary": "The port number for the HTTP server."}) */
   int port = 0;
@@ -619,17 +621,17 @@ class AcWeb {
     return this;
   }
 
-  AcWeb staticFileRuntimeResolver({required Function(AcWebRuntimeResolverArgs args) resolver, String prefix = ""}) {
+  AcWeb staticFileRuntimeResolver({required Function(AcWebResolverArgs args) resolver, String prefix = ""}) {
     print("Adding runtime file resolver for $prefix");
     var routeKey = '${AcEnumHttpMethod.get.value.toLowerCase()}>$prefix';
-    runtimeStaticFileResolvers[routeKey] = AcWebRuntimeResolverDefinition(resolver: resolver,prefix: prefix);
+    runtimeStaticFileResolvers[routeKey] = AcWebResolverDefinition(resolver: resolver,prefix: prefix);
     return this;
   }
 
-  AcWeb runtimeResolver({required Function(AcWebRuntimeResolverArgs args) resolver, String prefix = "", AcEnumHttpMethod method = AcEnumHttpMethod.get}) {
+  AcWeb runtimeResolver({required Function(AcWebResolverArgs args) resolver, String prefix = "", AcEnumHttpMethod method = AcEnumHttpMethod.get}) {
     print("Adding runtime resolver for $prefix");
     var routeKey = '${method.value.toLowerCase()}>$prefix';
-    runtimeRouteResolvers[routeKey] = AcWebRuntimeResolverDefinition(resolver: resolver,prefix: prefix,method: method);
+    runtimeRouteResolvers[routeKey] = AcWebResolverDefinition(resolver: resolver,prefix: prefix,method: method);
     return this;
   }
 

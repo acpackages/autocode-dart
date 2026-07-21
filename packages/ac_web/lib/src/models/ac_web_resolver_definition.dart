@@ -7,27 +7,37 @@ import '../api-docs/models/ac_api_doc_operation.dart';
 /* AcDoc({
   "summary": "Represents the definition of a single web API route.",
   "description": "This class encapsulates all the necessary information to define an API endpoint, including its URL path, HTTP method, the controller and handler function that process requests, and its associated API documentation.",
-  "example": "final userRoute = AcWebRuntimePathResolverArgs()\n  ..url = '/api/users/{id}'\n  ..method = 'GET'\n  ..controller = UserController()\n  ..handler = (UserController c, AcWebRequest r) => c.getUserById(r)\n  ..documentation = AcApiDocRoute(summary: 'Gets a single user by their ID.');"
+  "example": "final userRoute = AcWebResolverDefinition()\n  ..url = '/api/users/{id}'\n  ..method = 'GET'\n  ..controller = UserController()\n  ..handler = (UserController c, AcWebRequest r) => c.getUserById(r)\n  ..documentation = AcApiDocRoute(summary: 'Gets a single user by their ID.');"
 }) */
 @AcReflectable()
-class AcWebRuntimeResolverArgs {
+class AcWebResolverDefinition {
   // Renamed static consts to follow lowerCamelCase Dart naming conventions.
-  static const String keyPath = 'path';
+  static const String keyPrefix = 'controller';
+  static const String keyResolver = 'resolver';
   static const String keyMethod = 'method';
+  static const String keyInterceptors = 'interceptors';
 
-  String path = '';
+  @AcBindJsonProperty(key: keyPrefix)
+  String prefix = "";
+
+  @AcBindJsonProperty(key: keyResolver)
+  dynamic resolver;
+
+  @AcBindJsonProperty(key: keyMethod)
   AcEnumHttpMethod method = AcEnumHttpMethod.get;
-  AcWebRequest webRequest = AcWebRequest();
 
-  AcWebRuntimeResolverArgs();
+  @AcBindJsonProperty(key: keyInterceptors)
+  List<String> interceptors = [];
 
-  factory AcWebRuntimeResolverArgs.instanceFromJson(Map<String, dynamic> jsonData) {
-    final instance = AcWebRuntimeResolverArgs();
+  AcWebResolverDefinition({this.method = AcEnumHttpMethod.get,this.prefix = '',this.resolver,this.interceptors = const []}){}
+
+  factory AcWebResolverDefinition.instanceFromJson(Map<String, dynamic> jsonData) {
+    final instance = AcWebResolverDefinition();
     instance.fromJson(jsonData);
     return instance;
   }
 
-  AcWebRuntimeResolverArgs fromJson(Map<String, dynamic> jsonData) {
+  AcWebResolverDefinition fromJson(Map<String, dynamic> jsonData) {
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: jsonData,
