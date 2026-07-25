@@ -10,6 +10,7 @@ import '../../api-docs/models/ac_api_doc_route.dart';
 import '../../api-docs/models/ac_api_doc_request_body.dart';
 import '../../api-docs/models/ac_api_doc_media_type.dart';
 import '../../api-docs/utils/ac_api_doc_utils.dart';
+import '../models/ac_data_dictionary_web_auto_execute_result.dart';
 import '../utils/ac_web_data_dictionary_utils.dart';
 import './ac_data_dictionary_auto_api_config.dart';
 import './ac_data_dictionary_auto_api.dart';
@@ -105,21 +106,13 @@ class AcDataDictionaryAutoInsert {
   Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
       var acWebRequest = args.webRequest;
-      final response = AcWebApiResponse();
+      AcWebApiResponse response = AcWebApiResponse();
       try {
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
         if(sqlDbTableResult.isSuccess()){
           AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
-          if (acWebRequest.post.containsKey('row')) {
-            return response.setFromSqlDaoResult(
-                result: await acSqlDbTable.insertRow(
-                    row: acWebRequest.post['row'])).toWebResponse();
-          } else if (acWebRequest.post.containsKey('rows')) {
-            response.setFromSqlDaoResult(result: await acSqlDbTable.insertRows(
-                rows: acWebRequest.post['rows'])).toWebResponse();
-          } else {
-            response.message = 'parameters missing';
-          }
+          AcDataDictionaryWebAutoExecuteResult autoApiResult = await AcWebDataDictionaryUtils.handleAutoInsertWebRequest(logger: args.logger, request: args.webRequest, dao: acSqlDbTable.dao!, tableName:acDDTable.tableName);
+          response = autoApiResult.webApiResponse!;
         }
         else{
           response.setFromResult(result: sqlDbTableResult);

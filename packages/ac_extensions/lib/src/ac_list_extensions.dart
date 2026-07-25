@@ -26,7 +26,13 @@ extension AcListExtensions<T> on List<T> {
   }
 
   List<T> prepend(T value) {
-    return [value, ...this];
+    if(isEmpty){
+      add(value);
+    }
+    else{
+      insert(0, value);
+    }
+    return this;
   }
 
   Map<String, dynamic> mapByKey(String key) {

@@ -1,17 +1,9 @@
 import '../../ac_web_internal.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
-import '../../models/ac_web_request.dart';
-import '../../models/ac_web_response.dart';
-import '../../models/ac_web_request_handler_args.dart';
-import '../../models/ac_web_api_response.dart';
-import '../../api-docs/models/ac_api_doc_route.dart';
-import '../../api-docs/models/ac_api_doc_parameter.dart';
-import '../../api-docs/utils/ac_api_doc_utils.dart';
-import '../utils/ac_web_data_dictionary_utils.dart';
-import './ac_data_dictionary_auto_api_config.dart';
-import './ac_data_dictionary_auto_api.dart';
 import 'package:autocode/autocode.dart';
+
+import '../models/ac_data_dictionary_web_auto_execute_result.dart';
 /* AcDoc({
   "summary": "Automatically generates a 'SELECT DISTINCT' API route for a specific table column.",
   "description": "This class is a route generator used by `AcDataDictionaryAutoApi`. Upon instantiation, it creates and registers a `GET` endpoint for fetching the unique values from a single column in a table. This is useful for populating dropdowns or autocomplete fields in a UI.",
@@ -115,15 +107,18 @@ class AcDataDictionaryAutoSelectDistinct {
   Function(AcWebRequestHandlerArgs args) getHandler() {
     return (AcWebRequestHandlerArgs args) async {
       var acWebRequest = args.webRequest;
-      final response = AcWebApiResponse();
+      AcWebApiResponse response = AcWebApiResponse();
       try{
         AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
         if(sqlDbTableResult.isSuccess()){
           AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
-          final getResponse = await acSqlDbTable.getDistinctColumnValues(
-            columnName: acDDTableColumn.columnName,
+          AcDataDictionaryWebAutoExecuteResult autoApiResult = await AcWebDataDictionaryUtils.handleAutoSelectDistinctWebRequest(logger: args.logger,
+              request: args.webRequest,
+              dao: acSqlDbTable.dao!,
+              tableName:acDDTable.tableName,
+            columnName:acDDTableColumn.columnName
           );
-          response.setFromSqlDaoResult(result: getResponse);
+          response = autoApiResult.webApiResponse!;
         }
         else{
           response.setFromResult(result: sqlDbTableResult);

@@ -11,6 +11,7 @@ import '../../api-docs/models/ac_api_doc_parameter.dart';
 import '../../api-docs/models/ac_api_doc_request_body.dart';
 import '../../api-docs/models/ac_api_doc_media_type.dart';
 import '../../api-docs/utils/ac_api_doc_utils.dart';
+import '../models/ac_data_dictionary_web_auto_execute_result.dart';
 import '../utils/ac_web_data_dictionary_utils.dart';
 import './ac_data_dictionary_auto_api_config.dart';
 import './ac_data_dictionary_auto_api.dart';
@@ -172,7 +173,7 @@ class AcDataDictionaryAutoDelete {
     return (AcWebRequestHandlerArgs args) async {
       AcLogger logger = args.logger;
       AcWebRequest acWebRequest = args.webRequest;
-      final response = AcWebApiResponse();
+      AcWebApiResponse response = AcWebApiResponse();
       try{
         logger.log("Deleting row from table ${acDDTable.tableName}");
         final key = acDDTable.getPrimaryKeyColumnName();
@@ -182,9 +183,8 @@ class AcDataDictionaryAutoDelete {
           AcResult sqlDbTableResult = await acDataDictionaryAutoApi.getAcSqlDbTable(request:acWebRequest,acDDTable: acDDTable);
           if(sqlDbTableResult.isSuccess()){
             AcSqlDbTable acSqlDbTable = sqlDbTableResult.value;
-            response.setFromSqlDaoResult(result: await acSqlDbTable.deleteRows(
-              primaryKeyValue: acWebRequest.post[key],
-            )).toWebResponse();
+            AcDataDictionaryWebAutoExecuteResult autoApiResult = await AcWebDataDictionaryUtils.handleAutoDeleteWebRequest(logger: logger, request: args.webRequest, dao: acSqlDbTable.dao!, tableName:acDDTable.tableName);
+            response = autoApiResult.webApiResponse!;
           }
           else{
             response.setFromResult(result: sqlDbTableResult);
