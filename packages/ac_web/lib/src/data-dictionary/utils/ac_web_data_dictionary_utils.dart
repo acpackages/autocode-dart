@@ -271,6 +271,36 @@ class AcWebDataDictionaryUtils {
           acDDSelectStatement.selectFrom = selectFrom;
         }
 
+        List<String> queryColumns = List.empty(growable: true);
+        List<String> columnNames = List.empty(growable: true);
+
+        if(tableName.isNotEmpty){
+          var acDDTable = AcDataDictionary.getTable(
+            tableName: tableName,
+            dataDictionaryName: dataDictionaryName,
+          );
+          if(acDDTable!=null){
+            acDDSelectStatement.selectFrom = acDDTable.getSelectQueryFromName();
+            queryColumns = acDDTable.getSearchQueryColumnNames();
+            columnNames = acDDTable.getColumnNames();
+            if(acDDTable.getSqlViewName().isNotEmpty){
+              if(viewName.isEmpty){
+                viewName = acDDTable.getSqlViewName();
+              }
+            }
+          }
+        }
+        if(viewName.isNotEmpty){
+          var acDDView = AcDataDictionary.getView(
+            viewName: viewName,
+            dataDictionaryName: dataDictionaryName,
+          );
+          if(acDDView!=null){
+            queryColumns = acDDView.getSearchQueryColumnNames();
+            columnNames = acDDView.getColumnNames();
+          }
+        }
+
         if(httpMethod == AcEnumHttpMethod.post){
           if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterIncludeColumnsKey)) {
             logger.log("[AcWebDataDictionaryUtils] : Found include columns key");
@@ -286,25 +316,6 @@ class AcWebDataDictionaryUtils {
           }
           if (request.post.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
             logger.log("[AcWebDataDictionaryUtils] : Found select query key");
-            List<String> queryColumns = List.empty(growable: true);
-            if(acDDSelectStatement.tableName.isNotEmpty){
-              var acDDTable = AcDataDictionary.getTable(
-                tableName: acDDSelectStatement.tableName,
-                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-              );
-              if(acDDTable!=null){
-                queryColumns = acDDTable.getSearchQueryColumnNames();
-              }
-            }
-            else if(acDDSelectStatement.viewName.isNotEmpty){
-              var acDDView = AcDataDictionary.getView(
-                viewName: acDDSelectStatement.viewName,
-                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-              );
-              if(acDDView!=null){
-                queryColumns = acDDView.getSearchQueryColumnNames();
-              }
-            }
             acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
             for (final columnName in queryColumns) {
               logger.log("[AcWebDataDictionaryUtils] : Using column name for select query contains operation");
@@ -330,35 +341,10 @@ class AcWebDataDictionaryUtils {
             }
           }
 
-          if(acDDSelectStatement.tableName.isNotEmpty){
-            var acDDTable = AcDataDictionary.getTable(
-              tableName: acDDSelectStatement.tableName,
-              dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-            );
-            if(acDDTable!=null){
-              if(selectFrom.isEmpty){
-                acDDSelectStatement.selectFrom = acDDTable.getSelectQueryFromName();
-              }
-              for (var columnName in acDDTable.getColumnNames()) {
-                logger.log('[AcWebDataDictionaryUtils] : Checking request for column $columnName');
-                if(request.post.containsKey(columnName)){
-                  acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: request.post.get(columnName));
-                }
-              }
-            }
-          }
-          else if(acDDSelectStatement.viewName.isNotEmpty){
-            var acDDView = AcDataDictionary.getView(
-              viewName: acDDSelectStatement.viewName,
-              dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-            );
-            if(acDDView!=null){
-              for (var columnName in acDDView.getColumnNames()) {
-                logger.log('[AcWebDataDictionaryUtils] : Checking request for column $columnName');
-                if(request.post.containsKey(columnName)){
-                  acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: request.post.get(columnName));
-                }
-              }
+          for (var columnName in columnNames) {
+            logger.log('[AcWebDataDictionaryUtils] : Checking request for column $columnName');
+            if(request.post.containsKey(columnName)){
+              acDDSelectStatement.conditionGroup.addCondition(key: columnName, operator: AcEnumConditionOperator.equalTo, value: request.post.get(columnName));
             }
           }
 
@@ -391,46 +377,6 @@ class AcWebDataDictionaryUtils {
         }
         else{
           if (request.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterQueryKey)) {
-            List<String> queryColumns = List.empty(growable: true);
-            if(acDDSelectStatement.tableName.isNotEmpty){
-              var acDDTable = AcDataDictionary.getTable(
-                tableName: acDDSelectStatement.tableName,
-                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-              );
-              if(acDDTable!=null){
-                if(selectFrom.isEmpty) {
-                  acDDSelectStatement.selectFrom =  acDDTable.getSelectQueryFromName();
-                }
-                queryColumns = acDDTable.getSearchQueryColumnNames();
-                for (final col in acDDTable.tableColumns.values) {
-                  if (request.get.containsKey(col.columnName)) {
-                    acDDSelectStatement.addCondition(
-                      key: col.columnName,
-                      operator: AcEnumConditionOperator.contains,
-                      value: request.get[col.columnName],
-                    );
-                  }
-                }
-              }
-            }
-            else if(acDDSelectStatement.viewName.isNotEmpty){
-              var acDDView = AcDataDictionary.getView(
-                viewName: acDDSelectStatement.viewName,
-                dataDictionaryName: acDDSelectStatement.dataDictionaryName,
-              );
-              if(acDDView!=null){
-                queryColumns = acDDView.getSearchQueryColumnNames();
-                for (final col in acDDView.viewColumns.values) {
-                  if (request.get.containsKey(col.columnName)) {
-                    acDDSelectStatement.addCondition(
-                      key: col.columnName,
-                      operator: AcEnumConditionOperator.contains,
-                      value: request.get[col.columnName],
-                    );
-                  }
-                }
-              }
-            }
             acDDSelectStatement.startGroup(operator: AcEnumLogicalOperator.or);
             for (final columnName in queryColumns) {
               acDDSelectStatement.addCondition(
@@ -442,8 +388,6 @@ class AcWebDataDictionaryUtils {
             acDDSelectStatement.endGroup();
           }
 
-
-
           bool allRows = false;
 
           if(request.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterAllRows)){
@@ -453,8 +397,7 @@ class AcWebDataDictionaryUtils {
           }
 
           if(!allRows){
-            acDDSelectStatement.pageNumber =
-            request.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
+            acDDSelectStatement.pageNumber = request.get.containsKey(AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey)
                 ? int.tryParse(request.get[AcDataDictionaryAutoApiConfig.selectParameterPageNumberKey] ?? '') ?? 1
                 : 1;
             acDDSelectStatement.pageSize =
@@ -470,13 +413,13 @@ class AcWebDataDictionaryUtils {
 
 
 
-        logger.log(["[AcWebDataDictionaryUtils] : Getting response from database for sql statement",acDDSelectStatement]);
+        logger.log(["[AcWebDataDictionaryUtils] : Getting response from database for sql statement",acDDSelectStatement.getSqlStatement()]);
         AcSqlDbTable acSqlDbTable = AcSqlDbTable(tableName: tableName,dao: dao);
         final getResponse = await acSqlDbTable.getRowsFromAcDDStatement(
             acDDSelectStatement: acDDSelectStatement
         );
       result.selectStatement = acDDSelectStatement;
-        logger.log(["[AcWebDataDictionaryUtils] : Response : ",getResponse]);
+        // logger.log(["[AcWebDataDictionaryUtils] : Response : ",getResponse]);
         response.setFromSqlDaoResult(result: getResponse);
     }
     catch(ex,stack){
