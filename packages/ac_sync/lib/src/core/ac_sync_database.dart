@@ -5,8 +5,6 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:autocode/autocode.dart';
 import '../../ac_sync.dart';
-import './ac_sync_provider.dart';
-import './ac_sync_database_provider.dart';
 
 class AcSyncDatabase {
   AcBaseSqlDao? dao;

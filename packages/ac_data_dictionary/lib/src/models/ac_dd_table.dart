@@ -298,6 +298,16 @@ class AcDDTable {
     return result;
   }
 
+  String getOrderByValue() {
+    String result = "";
+    for (var property in tableProperties.values) {
+      if (property.propertyName == AcEnumDDTableProperty.orderBy) {
+        result = property.propertyValue;
+      }
+    }
+    return result;
+  }
+
   /* AcDoc({
     "summary": "Gets the plural form of the table name from its properties.",
     "returns": "The defined plural name, or the table name itself if not defined.",

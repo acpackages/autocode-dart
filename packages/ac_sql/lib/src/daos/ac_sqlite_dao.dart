@@ -1240,4 +1240,193 @@ class AcSqliteDao extends AcBaseSqlDao {
     }
     return result;
   }
+
+  Future<AcResult> _rebuildTable({
+    required String tableName,
+    List<String>? columnsToExclude,
+    List<String>? foreignKeysToExcludeByFromColumn,
+    List<AcDDRelationship>? foreignKeysToAdd,
+  }) async {
+    final result = AcResult();
+    Database? db;
+    try {
+      db = await _getConnection();
+      if (db == null) {
+        return result.setFailure(message: 'Error connecting database');
+      }
+
+      // 1. Get current columns from PRAGMA table_info
+      final tableInfo = db.select("PRAGMA table_info(`$tableName`)");
+      if (tableInfo.isEmpty) {
+        return result.setFailure(message: 'Table $tableName not found');
+      }
+
+      // 2. Get current foreign keys from PRAGMA foreign_key_list
+      final foreignKeysList = db.select("PRAGMA foreign_key_list(`$tableName`)");
+
+      // 3. Construct column definitions for the new table
+      final newColumnDefs = <String>[];
+      final selectColumns = <String>[];
+
+      for (final col in tableInfo) {
+        final colName = col['name'] as String;
+        if (columnsToExclude != null && columnsToExclude.contains(colName)) {
+          continue;
+        }
+
+        selectColumns.add("`$colName`");
+
+        var colDef = "`$colName` ${col['type']}";
+        if (col['notnull'] == 1) {
+          colDef += " NOT NULL";
+        }
+        if (col['dflt_value'] != null) {
+          final dflt = col['dflt_value'].toString();
+          if (dflt.startsWith('(') && dflt.endsWith(')')) {
+            colDef += " DEFAULT $dflt";
+          } else {
+            colDef += " DEFAULT ($dflt)";
+          }
+        }
+        if (col['pk'] == 1) {
+          colDef += " PRIMARY KEY";
+        }
+        newColumnDefs.add(colDef);
+      }
+
+      // 4. Construct foreign key definitions
+      // Group foreign key components by 'id'
+      final fkGroups = <int, List<Map<String, dynamic>>>{};
+      for (final fk in foreignKeysList) {
+        final id = fk['id'] as int;
+        fkGroups.putIfAbsent(id, () => []).add(Map<String, dynamic>.from(fk));
+      }
+
+      for (final entry in fkGroups.entries) {
+        final components = entry.value;
+        // Sort components by seq
+        components.sort((a, b) => (a['seq'] as int).compareTo(b['seq'] as int));
+
+        // Check if this FK should be excluded
+        final fromColumns = components.map((c) => c['from'] as String).toList();
+        if (foreignKeysToExcludeByFromColumn != null &&
+            fromColumns.any((col) => foreignKeysToExcludeByFromColumn.contains(col))) {
+          continue;
+        }
+        if (columnsToExclude != null &&
+            fromColumns.any((col) => columnsToExclude.contains(col))) {
+          continue;
+        }
+
+        final toColumns = components.map((c) => c['to'] as String).toList();
+        final parentTable = components.first['table'] as String;
+        final onDelete = components.first['on_delete'] as String;
+        final onUpdate = components.first['on_update'] as String;
+
+        var fkDef = "FOREIGN KEY (${fromColumns.map((c) => '`$c`').join(', ')}) REFERENCES `$parentTable` (${toColumns.map((c) => '`$c`').join(', ')})";
+        if (onDelete != "NO ACTION" && onDelete != "RESTRICT" && onDelete.isNotEmpty) {
+          fkDef += " ON DELETE $onDelete";
+        }
+        if (onUpdate != "NO ACTION" && onUpdate != "RESTRICT" && onUpdate.isNotEmpty) {
+          fkDef += " ON UPDATE $onUpdate";
+        }
+        newColumnDefs.add(fkDef);
+      }
+
+      // 5. Add new foreign keys
+      if (foreignKeysToAdd != null) {
+        for (final relationship in foreignKeysToAdd) {
+          var fkDef = "FOREIGN KEY (`${relationship.destinationColumn}`) REFERENCES `${relationship.sourceTable}` (`${relationship.sourceColumn}`)";
+          if (relationship.cascadeDeleteDestination) {
+            fkDef += " ON DELETE CASCADE";
+          }
+          newColumnDefs.add(fkDef);
+        }
+      }
+
+      // 6. Perform the table rebuild
+      // Disable foreign keys BEFORE beginning the transaction (PRAGMA foreign_keys has no effect inside a transaction)
+      db.execute("PRAGMA foreign_keys = OFF;");
+      db.execute("BEGIN TRANSACTION;");
+      try {
+        final tempTableName = "${tableName}_new_temp";
+        db.execute("DROP TABLE IF EXISTS `$tempTableName`;");
+
+        final createSql = "CREATE TABLE `$tempTableName` (${newColumnDefs.join(', ')});";
+        db.execute(createSql);
+
+        if (selectColumns.isNotEmpty) {
+          final insertSql = "INSERT INTO `$tempTableName` (${selectColumns.join(', ')}) SELECT ${selectColumns.join(', ')} FROM `$tableName`;";
+          db.execute(insertSql);
+        }
+
+        db.execute("DROP TABLE `$tableName`;");
+        db.execute("ALTER TABLE `$tempTableName` RENAME TO `$tableName`;");
+
+        db.execute("COMMIT;");
+        result.setSuccess(message: 'Table rebuilt successfully');
+      } catch (e) {
+        db.execute("ROLLBACK;");
+        rethrow;
+      } finally {
+        // Re-enable foreign keys
+        db.execute("PRAGMA foreign_keys = ON;");
+      }
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    }
+    return result;
+  }
+
+  @override
+  Future<AcResult> dropColumns({
+    required String tableName,
+    required List<String> columnNames,
+  }) async {
+    return _rebuildTable(
+      tableName: tableName,
+      columnsToExclude: columnNames,
+    );
+  }
+
+  @override
+  Future<AcResult> dropRelationshipsByColumnName({
+    required String tableName,
+    required String columnName,
+  }) async {
+    return _rebuildTable(
+      tableName: tableName,
+      foreignKeysToExcludeByFromColumn: [columnName],
+    );
+  }
+
+  @override
+  Future<AcResult> createRelationships({
+    required List<AcDDRelationship> relationships,
+  }) async {
+    final result = AcResult();
+    try {
+      final grouped = <String, List<AcDDRelationship>>{};
+      for (final rel in relationships) {
+        grouped.putIfAbsent(rel.destinationTable, () => []).add(rel);
+      }
+
+      for (final entry in grouped.entries) {
+        final tableName = entry.key;
+        final tableRels = entry.value;
+        final rebuildResult = await _rebuildTable(
+          tableName: tableName,
+          foreignKeysToAdd: tableRels,
+        );
+        if (rebuildResult.isFailure()) {
+          return rebuildResult;
+        }
+      }
+      result.setSuccess(message: 'Relationships created successfully');
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    }
+    return result;
+  }
 }
+

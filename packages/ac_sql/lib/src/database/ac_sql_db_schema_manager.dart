@@ -1447,7 +1447,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     return result;
   }
 
-  Future<AcResult> initMultipleDataDictionaryDatabase({required List<String> dataDictionaryNames,Future<void> Function({required Map<String,double> oldSchemaVersions, required AcBaseSqlDao dao})? afterTablesUpdateCallback}) async {
+  Future<AcResult> initMultipleDataDictionaryDatabase({required List<String> dataDictionaryNames,Future<AcResult> Function({required Map<String,double> oldSchemaVersions, required AcBaseSqlDao dao})? afterTablesUpdateCallback}) async {
     final result = AcResult();
     try {
       logger.log(
@@ -1781,7 +1781,10 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
             }
 
             if(afterTablesUpdateCallback != null){
-              await afterTablesUpdateCallback(oldSchemaVersions: oldSchemaVersions,dao:dao!);
+              var afterResult = await afterTablesUpdateCallback(oldSchemaVersions: oldSchemaVersions,dao:dao!);
+              if(afterResult.isFailure()){
+                return afterResult;
+              }
             }
 
             logger.log(

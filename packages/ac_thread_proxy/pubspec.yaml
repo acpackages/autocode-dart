@@ -1,0 +1,13 @@
+name: ac_thread_proxy
+description: A simple, short, and transparent Dart isolate RPC proxy library using dynamic noSuchMethod.
+version: 0.0.1
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  meta: ^1.11.0
+  ac_mirrors:
+    path: '../ac_mirrors'
+
+dev_dependencies:
+  test: ^1.24.0

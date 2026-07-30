@@ -299,7 +299,26 @@ class AcBaseSqlDao {
   }) */
   Future<AcSqlDaoResult> getViewColumns({required String viewName}) async {
     return AcSqlDaoResult();
+  }  Future<AcResult> dropColumns({
+    required String tableName,
+    required List<String> columnNames,
+  }) async {
+    return AcResult();
   }
+
+  Future<AcResult> dropRelationshipsByColumnName({
+    required String tableName,
+    required String columnName,
+  }) async {
+    return AcResult();
+  }
+
+  Future<AcResult> createRelationships({
+    required List<AcDDRelationship> relationships,
+  }) async {
+    return AcResult();
+  }
+
 
   /* AcDoc({
     "summary": "Inserts a single row into a table.",

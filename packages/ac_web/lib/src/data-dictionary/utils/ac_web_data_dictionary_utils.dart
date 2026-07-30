@@ -288,6 +288,9 @@ class AcWebDataDictionaryUtils {
                 viewName = acDDTable.getSqlViewName();
               }
             }
+            if(acDDTable.getOrderByValue().isNotEmpty){
+              acDDSelectStatement.orderBy = acDDTable.getOrderByValue();
+            }
           }
         }
         if(viewName.isNotEmpty){
