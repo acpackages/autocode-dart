@@ -10,6 +10,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  autocode:
+    path: './../autocode'
+  ac_extensions:
+    path: './../ac_extensions'
+  ac_mirrors:
+    path: './../ac_mirrors'
+
+  emoji_picker_flutter: ^4.5.3
+  sticky_headers: ^0.3.0+2
 #  intl: ^0.18.0  # For date formatting
 #  image_picker: ^1.0.0  # For attachments
 #  file_picker: ^6.0.0  # For file picking
