@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/ac_chat.dart';
 import '../../common/chat_colors.dart';
-import '../../common/mock_data.dart' as mock;
 
 class ReplyBar extends StatelessWidget {
   final AcChatMessage message;
@@ -13,10 +12,11 @@ class ReplyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final api = AcChatApiProvider.of(context);
     final senderName =
-    message.senderId == mock.currentUser['id']
+    message.senderId == api.getCurrentUser().userId
         ? 'You'
-        : mock.getUserById(message.senderId)?.name ??
+        : api.getUserById(message.senderId)?.name ??
         'Unknown';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

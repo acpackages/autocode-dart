@@ -5,11 +5,12 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:flutter/material.dart';
 import '../../core/ac_chat.dart';
 import '../../common/chat_colors.dart';
-import '../../common/mock_data.dart' as mock;
 import 'message_action_row.dart';
 import 'message_bubbles/audio_message_bubble.dart';
 import 'message_bubbles/document_message_bubble.dart';
 import 'message_bubbles/video_message_bubble.dart';
+import 'message_bubbles/location_message_bubble.dart';
+import 'message_bubbles/contact_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final AcChatMessage message;
@@ -19,6 +20,9 @@ class MessageBubble extends StatelessWidget {
   final void Function(AcChatMessage) onReply;
   final void Function(String) onCopy;
 
+  final bool isSenderChanged;
+  final bool showTail;
+
   const MessageBubble({
     required this.message,
     required this.ct,
@@ -26,11 +30,14 @@ class MessageBubble extends StatelessWidget {
     required this.isGroup,
     required this.onReply,
     required this.onCopy,
+    this.isSenderChanged = false,
+    this.showTail = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isMe = message.senderId == mock.currentUser['id'];
+    final api = AcChatApiProvider.of(context);
+    final isMe = message.senderId == api.getCurrentUser().userId;
     final type = message.type;
     final time = message.time;
     final status = message.status;
@@ -52,7 +59,7 @@ class MessageBubble extends StatelessWidget {
         onTap: (type == 'image' || type == 'video' || type == 'document')
             ? () {
                 if (!message.isDownloaded) return;
-                final sender = mock.getUserById(message.senderId);
+                final sender = api.getUserById(message.senderId);
                 final senderName = isMe
                     ? 'You'
                     : (sender?.name ?? 'Unknown');
@@ -75,74 +82,69 @@ class MessageBubble extends StatelessWidget {
             margin: EdgeInsets.only(
               left: isMe ? 60 : 4,
               right: isMe ? 4 : 60,
-              top: 1,
+              top: isSenderChanged ? 8 : 1,
               bottom: 2,
             ),
-            child: Stack(clipBehavior: Clip.none, children: [
-              Container(
-                padding: _bubblePadding(type),
-                decoration: BoxDecoration(
-                  color: isMe ? ct.sentBubble : ct.recvBubble,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(12),
-                    topRight: const Radius.circular(12),
-                    bottomLeft: Radius.circular(isMe ? 12 : 2),
-                    bottomRight: Radius.circular(isMe ? 2 : 12),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                        color: ct.black.withOpacity(0.12),
-                        blurRadius: 3,
-                        offset: const Offset(0, 1)),
-                  ],
-                ),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Sender name (group only, received)
-                      if (isGroup && !isMe)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Text(
-                            mock.getUserById(message.senderId)?.name ??
-                                'Unknown',
-                            style: TextStyle(
-                                color: avatarColor(message.senderId),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700),
-                          ),
-                        ),
-
-                      // Reply preview
-                      if (message.replyTo != null)
-                        _ReplyPreview(
-                            replyTo: message.replyTo!,
-                            ct: ct),
-
-                      // Message content
-                      _buildContent(type, ct),
-
-                      // Time + ticks
-                      const SizedBox(height: 3),
-                      Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              time.format('hh:mm a'),
-                              style: TextStyle(
-                                  color: ct.subText.withOpacity(0.9),
-                                  fontSize: 10),
-                            ),
-                            if (isMe) ...[
-                              const SizedBox(width: 3),
-                              _TickIcon(status: status, ct: ct),
-                            ],
-                          ]),
-                    ]),
+            child: CustomPaint(
+              painter: BubbleBackgroundPainter(
+                isMe: isMe,
+                showTail: showTail,
+                color: isMe ? ct.sentBubble : ct.recvBubble,
+                shadowColor: ct.black.withOpacity(0.12),
               ),
-            ]),
+              child: Container(
+                padding: _bubblePadding(type),
+                child: IntrinsicWidth(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Sender name (group only, received)
+                        if (isGroup && !isMe)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              api.getUserById(message.senderId)?.name ??
+                                  'Unknown',
+                              style: TextStyle(
+                                  color: avatarColor(message.senderId),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ),
+  
+                        // Reply preview
+                        if (message.replyTo != null)
+                          _ReplyPreview(
+                              replyTo: message.replyTo!,
+                              ct: ct),
+  
+                        // Message content
+                        _buildContent(type, ct),
+  
+                        // Time + ticks
+                        const SizedBox(height: 3),
+                        Align(
+                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  time.format('hh:mm a'),
+                                  style: TextStyle(
+                                      color: ct.subText.withOpacity(0.9),
+                                      fontSize: 10),
+                                ),
+                                if (isMe) ...[
+                                  const SizedBox(width: 3),
+                                  _TickIcon(status: status, ct: ct),
+                                ],
+                              ]), 
+                        ),
+                      ]),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -169,7 +171,14 @@ class MessageBubble extends StatelessWidget {
         content = DocumentMessageBubble(message: message, ct: ct);
         break;
       case 'audio':
+      case 'voice_note':
         content = AudioMessageBubble(message: message, ct: ct);
+        break;
+      case 'location':
+        content = LocationMessageBubble(message: message, ct: ct);
+        break;
+      case 'contact':
+        content = ContactMessageBubble(message: message, ct: ct);
         break;
       default:
         content = Text(
@@ -265,4 +274,173 @@ class _ReplyPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+class BubbleBackgroundPainter extends CustomPainter {
+  final bool isMe;
+  final bool showTail;
+  final Color color;
+  final Color shadowColor;
+
+  const BubbleBackgroundPainter({
+    required this.isMe,
+    required this.showTail,
+    required this.color,
+    required this.shadowColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final RRect rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      const Radius.circular(12),
+    );
+    Path unifiedPath = Path()..addRRect(rrect);
+
+    if (showTail) {
+      final Size tailSize = const Size(14, 14);
+      final Path tailPath = isMe
+          ? RightTailPainter.getClipPath(tailSize)
+          : LeftTailPainter.getClipPath(tailSize);
+
+      final double tailY = size.height - 20;
+      final double tailX = isMe ? size.width - 1 : -13;
+
+      final Path shiftedTailPath = tailPath.shift(Offset(tailX, tailY));
+      unifiedPath = Path.combine(PathOperation.union, unifiedPath, shiftedTailPath);
+    }
+
+    // Draw continuous shadow
+    final double blurSigma = 3.0 * 0.57735 + 0.5;
+    canvas.drawPath(
+      unifiedPath.shift(const Offset(0, 1)),
+      Paint()
+        ..color = shadowColor
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma),
+    );
+
+    // Draw bubble fill
+    canvas.drawPath(
+      unifiedPath,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant BubbleBackgroundPainter oldDelegate) =>
+      oldDelegate.isMe != isMe ||
+      oldDelegate.showTail != showTail ||
+      oldDelegate.color != color ||
+      oldDelegate.shadowColor != shadowColor;
+}
+
+class RightTailPainter extends CustomPainter {
+  final Color color;
+  final Color? shadowColor;
+
+  const RightTailPainter({
+    required this.color,
+    this.shadowColor,
+  });
+
+  static Path getClipPath(Size size) {
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, size.height)
+      ..lineTo(size.width - 6, size.height)
+      ..cubicTo(
+        size.width - 3, size.height,
+        size.width, size.height - 2,
+        size.width, size.height - 8,
+      )
+      ..cubicTo(
+        size.width, size.height - 2,
+        size.width - 6, size.height - 3,
+        size.width - 12, size.height - 10,
+      )
+      ..lineTo(size.width - 14, 0)
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = getClipPath(size);
+
+    if (shadowColor != null) {
+      canvas.drawPath(
+        path.shift(const Offset(0, 1)),
+        Paint()
+          ..color = shadowColor!
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..isAntiAlias = false,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant RightTailPainter oldDelegate) =>
+      oldDelegate.color != color ||
+          oldDelegate.shadowColor != shadowColor;
+}
+
+class LeftTailPainter extends CustomPainter {
+  final Color color;
+  final Color? shadowColor;
+
+  const LeftTailPainter({
+    required this.color,
+    this.shadowColor,
+  });
+
+  static Path getClipPath(Size size) {
+    return Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(6, size.height)
+      ..cubicTo(
+        3, size.height,
+        0, size.height - 2,
+        0, size.height - 8,
+      )
+      ..cubicTo(
+        0, size.height - 2,
+        6, size.height - 3,
+        12, size.height - 10,
+      )
+      ..lineTo(14, 0)
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = getClipPath(size);
+
+    if (shadowColor != null && false) {
+      canvas.drawPath(
+        path.shift(const Offset(0, 1)),
+        Paint()
+          ..color = shadowColor!
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant LeftTailPainter oldDelegate) =>
+      oldDelegate.color != color ||
+          oldDelegate.shadowColor != shadowColor;
 }

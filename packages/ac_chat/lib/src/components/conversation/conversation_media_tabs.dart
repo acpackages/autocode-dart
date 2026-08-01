@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/ac_chat.dart';
 import '../../common/chat_colors.dart';
-import '../../common/mock_data.dart' as mock;
 import 'media_viewer_screen.dart';
 
 class ConversationMediaTabs extends StatefulWidget {
@@ -45,8 +44,9 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
       );
       return;
     }
-    final sender = mock.getUserById(msg.senderId);
-    final senderName = msg.senderId == mock.currentUser['id']
+    final api = AcChatApiProvider.of(context);
+    final sender = api.getUserById(msg.senderId);
+    final senderName = msg.senderId == api.getCurrentUser().userId
         ? 'You'
         : (sender?.name ?? 'Unknown');
     Navigator.push(

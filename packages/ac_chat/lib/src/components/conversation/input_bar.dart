@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-
+import 'package:audio_waveforms/audio_waveforms.dart';
 import '../../common/chat_colors.dart';
 
 class InputBar extends StatefulWidget {
@@ -13,6 +13,8 @@ class InputBar extends StatefulWidget {
   final VoidCallback onAttach;
   final VoidCallback onMicStart;
   final VoidCallback onMicStop;
+  final VoidCallback? onMicCancel;
+  final VoidCallback? onMicTap;
   final FocusNode focusNode;
   final bool showEmojiPicker;
   final VoidCallback onEmojiToggle;
@@ -27,6 +29,8 @@ class InputBar extends StatefulWidget {
     required this.onAttach,
     required this.onMicStart,
     required this.onMicStop,
+    this.onMicCancel,
+    this.onMicTap,
     required this.focusNode,
     required this.showEmojiPicker,
     required this.onEmojiToggle,
@@ -38,14 +42,69 @@ class InputBar extends StatefulWidget {
 
 class _InputBarState extends State<InputBar> {
   bool _hasText = false;
+  int _secondsElapsed = 0;
+  Timer? _recordingTimer;
+  late final RecorderController _recorderController;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(() {
-      final has = widget.controller.text.trim().isNotEmpty;
-      if (has != _hasText) setState(() => _hasText = has);
+    widget.controller.addListener(_handleTextChanged);
+    _recorderController = RecorderController()
+      ..updateFrequency = const Duration(milliseconds: 50);
+  }
+
+  @override
+  void didUpdateWidget(InputBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRecording != oldWidget.isRecording) {
+      if (widget.isRecording) {
+        _startRecordingTimers();
+      } else {
+        _stopRecordingTimers();
+      }
+    }
+  }
+
+  void _handleTextChanged() {
+    final has = widget.controller.text.trim().isNotEmpty;
+    if (has != _hasText) setState(() => _hasText = has);
+  }
+
+  Future<void> _startRecordingTimers() async {
+    _secondsElapsed = 0;
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _secondsElapsed++;
+      });
     });
+
+    final hasPermission = await _recorderController.checkPermission();
+    if (hasPermission) {
+      await _recorderController.record();
+    }
+  }
+
+  Future<void> _stopRecordingTimers() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    await _recorderController.stop();
+    _secondsElapsed = 0;
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleTextChanged);
+    _recordingTimer?.cancel();
+    _recorderController.dispose();
+    super.dispose();
+  }
+
+  String _formatRecordingTime(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -54,111 +113,155 @@ class _InputBarState extends State<InputBar> {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
       color: ct.scaffold,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        // Payment quick action (only when not recording)
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          // Input field container
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: ct.inputFill,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Emoji
-                    IconButton(
-                      padding: const EdgeInsets.all(8),
-                      icon: Icon(
-                          widget.showEmojiPicker
-                              ? Icons.keyboard_rounded
-                              : Icons.emoji_emotions_outlined,
-                          color: ct.iconColor,
-                          size: 22),
-                      onPressed: widget.onEmojiToggle,
-                    ),
-                    // Text field
-                    Expanded(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: widget.focusNode,
-                        style: TextStyle(color: ct.inputText, fontSize: 15),
-                        maxLines: 5,
-                        minLines: 1,
-                        decoration: InputDecoration(
-                          hintText: widget.isRecording
-                              ? 'Recording…'
-                              : 'Message',
-                          hintStyle:
-                          TextStyle(color: ct.inputHint, fontSize: 15),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                          const EdgeInsets.symmetric(vertical: 9),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (widget.isRecording) ...[
+                // Pulsing recording indicator
+                AnimatedBuilder(
+                  animation: widget.micAnim,
+                  builder: (context, _) {
+                    return Opacity(
+                      opacity: widget.micAnim.value,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
                         ),
-                        onSubmitted: (_) => widget.onSend(),
                       ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatRecordingTime(_secondsElapsed),
+                  style: TextStyle(
+                    color: ct.text,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Live Waveform visualizer
+                Expanded(
+                  child: AudioWaveforms(
+                    enableGesture: false,
+                    size: Size(MediaQuery.of(context).size.width * 0.4, 40.0),
+                    recorderController: _recorderController,
+                    waveStyle: WaveStyle(
+                      waveColor: ct.unreadBadgeBg,
+                      spacing: 4.0,
+                      showMiddleLine: false,
+                      extendWaveform: true,
                     ),
-                    // Attach
-                    _buildAttachButton(context, ct),
-                    // Camera
-                    IconButton(
-                      padding: const EdgeInsets.all(8),
-                      icon: Icon(Icons.camera_alt_outlined,
-                          color: ct.iconColor, size: 22),
-                      onPressed: () {},
+                  ),
+                ),
+                
+                // Cancel Button
+                TextButton(
+                  onPressed: widget.onMicCancel,
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: ct.messageDestructive,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
-                  ]),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Send / Mic button
-          GestureDetector(
-            onTap: _hasText ? widget.onSend : null,
-            onLongPressStart: _hasText
-                ? null
-                : (_) => widget.onMicStart(),
-            onLongPressEnd: _hasText
-                ? null
-                : (_) => widget.onMicStop(),
-            child: AnimatedBuilder(
-              animation: widget.micAnim,
-              builder: (_, __) {
-                final scale = widget.isRecording
-                    ? 1.0 + widget.micAnim.value * 0.15
-                    : 1.0;
-                return Transform.scale(
-                  scale: scale,
+                  ),
+                ),
+              ] else ...[
+                // Attachment Button (left most, '+' icon)
+                _buildAttachButton(context, ct),
+                // Emoji Picker Button (next to it)
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  icon: Icon(
+                    widget.showEmojiPicker
+                        ? Icons.keyboard_rounded
+                        : Icons.emoji_emotions_outlined,
+                    color: ct.iconColor,
+                    size: 22,
+                  ),
+                  onPressed: widget.onEmojiToggle,
+                ),
+                const SizedBox(width: 4),
+                // Input field container (flat/inline)
+                Expanded(
                   child: Container(
-                    width: 48,
-                    height: 48,
                     decoration: BoxDecoration(
-                      color: ct.activeTabColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: ct.activeTabColor.withOpacity(0.4),
-                          blurRadius: widget.isRecording ? 10 : 4,
+                      color: ct.inputFill,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: widget.controller,
+                            focusNode: widget.focusNode,
+                            style: TextStyle(color: ct.inputText, fontSize: 15),
+                            maxLines: 5,
+                            minLines: 1,
+                            decoration: InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(color: ct.inputHint, fontSize: 15),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                            ),
+                            onSubmitted: (_) => widget.onSend(),
+                          ),
                         ),
                       ],
                     ),
-                    child: Icon(
-                      _hasText
-                          ? Icons.send_rounded
-                          : (widget.isRecording
-                          ? Icons.stop_rounded
-                          : Icons.mic_rounded),
-                      color: ct.white,
-                      size: 22,
-                    ),
                   ),
-                );
-              },
-            ),
+                ),
+              ],
+              const SizedBox(width: 4),
+              // Send / Mic button (inline, right most)
+              GestureDetector(
+                onTap: () {
+                  if (_hasText) {
+                    widget.onSend();
+                  } else {
+                    widget.onMicTap?.call();
+                  }
+                },
+                onLongPressStart: _hasText ? null : (_) => widget.onMicStart(),
+                onLongPressEnd: _hasText ? null : (_) => widget.onMicStop(),
+                child: AnimatedBuilder(
+                  animation: widget.micAnim,
+                  builder: (_, __) {
+                    final scale = widget.isRecording ? 1.0 + widget.micAnim.value * 0.15 : 1.0;
+                    return Transform.scale(
+                      scale: scale,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          _hasText
+                              ? Icons.send_rounded
+                              : (widget.isRecording ? Icons.stop_rounded : Icons.mic_rounded),
+                          color: _hasText
+                              ? ct.activeTabColor
+                              : (widget.isRecording ? Colors.red : ct.iconColor),
+                          size: 22,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ]),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -167,11 +270,10 @@ class _InputBarState extends State<InputBar> {
     final isDesktop = width >= 768; // Desktop mode
 
     if (isDesktop) {
-      // Return a PopupMenuButton that shows attachment options
       return PopupMenuButton<String>(
-        icon: Icon(Icons.attach_file_rounded, color: ct.iconColor, size: 22),
+        icon: Icon(Icons.add, color: ct.iconColor, size: 22),
         color: ct.surface,
-        offset: const Offset(0, -280), // Show dropdown above the input bar
+        offset: const Offset(0, -280),
         onSelected: (label) {
           _toast(context, '$label — coming soon');
         },
@@ -185,10 +287,9 @@ class _InputBarState extends State<InputBar> {
         ],
       );
     } else {
-      // Bottom sheet (on mobile/tablet)
       return IconButton(
         padding: const EdgeInsets.all(8),
-        icon: Icon(Icons.attach_file_rounded, color: ct.iconColor, size: 22),
+        icon: Icon(Icons.add, color: ct.iconColor, size: 22),
         onPressed: widget.onAttach,
       );
     }

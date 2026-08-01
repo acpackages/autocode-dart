@@ -14,6 +14,7 @@ export '../models/ac_chat_message.dart';
 export '../models/ac_chat_conversation_user.dart';
 export '../chat_profile_screen.dart';
 export 'ac_chat_api.dart';
+export 'ac_chat_audio_player.dart';
 export '../common/chat_colors.dart';
 
 class AcChatApiProvider extends InheritedWidget {
@@ -394,6 +395,8 @@ class _ChatTab extends StatefulWidget {
 class _ChatTabState extends State<_ChatTab> {
   String _query = '';
   final _searchCtrl = TextEditingController();
+  final Map<String, AcChatUser> _userCache = {};
+  final Map<String, List<AcChatConversationUser>> _memberCache = {};
 
   List<AcChatConversation> get _filteredChats {
     final api = AcChatApiProvider.of(context);
@@ -401,13 +404,19 @@ class _ChatTabState extends State<_ChatTab> {
       final isGroup = c.type == 'group';
       AcChatUser? otherUser;
       if (!isGroup) {
-        final members = api.getConversationUsers(c.conversationId);
+        final members = _memberCache.putIfAbsent(
+          c.conversationId,
+          () => api.getConversationUsers(c.conversationId),
+        );
         final otherMember = members.firstWhere(
           (m) => m.userId != api.getCurrentUser().userId,
           orElse: () => AcChatConversationUser(),
         );
         if (otherMember.userId.isNotEmpty) {
-          otherUser = api.getUserById(otherMember.userId);
+          otherUser = _userCache.putIfAbsent(
+            otherMember.userId,
+            () => api.getUserById(otherMember.userId) ?? AcChatUser(),
+          );
         }
       }
       final name = isGroup
@@ -530,11 +539,26 @@ class _ChatTabState extends State<_ChatTab> {
                   itemBuilder: (_, i) {
                     final chat = filtered[i];
                     final isSelected = widget.selectedChatId == chat.conversationId;
+                    AcChatUser? otherUser;
+                    if (chat.type != 'group') {
+                      final members = _memberCache[chat.conversationId];
+                      if (members != null && members.isNotEmpty) {
+                        final api = AcChatApiProvider.of(context);
+                        final otherMember = members.firstWhere(
+                          (m) => m.userId != api.getCurrentUser().userId,
+                          orElse: () => AcChatConversationUser(),
+                        );
+                        if (otherMember.userId.isNotEmpty) {
+                          otherUser = _userCache[otherMember.userId];
+                        }
+                      }
+                    }
                     return ConversationListItem(
                       chat: chat,
                       ct: widget.ct,
                       isDark: widget.isDark,
                       isSelected: isSelected,
+                      otherUser: otherUser,
                       onTap: () async {
                         // Mark as read
                         final api = AcChatApiProvider.of(context);

@@ -9,20 +9,22 @@ class ConversationListItem extends StatelessWidget {
   final bool isDark;
   final bool isSelected;
   final VoidCallback onTap;
+  final AcChatUser? otherUser;
 
   const ConversationListItem(
       {required this.chat,
         required this.ct,
         required this.isDark,
         required this.isSelected,
-        required this.onTap});
+        required this.onTap,
+        this.otherUser});
 
   @override
   Widget build(BuildContext context) {
     final api = AcChatApiProvider.of(context);
     final isGroup = chat.type == 'group';
-    AcChatUser? user;
-    if (!isGroup) {
+    AcChatUser? user = otherUser;
+    if (user == null && !isGroup) {
       final members = api.getConversationUsers(chat.conversationId);
       final otherMember = members.firstWhere(
         (m) => m.userId != api.getCurrentUser().userId,

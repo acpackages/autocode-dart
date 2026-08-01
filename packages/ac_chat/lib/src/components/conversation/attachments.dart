@@ -75,6 +75,48 @@ class Attachments extends StatelessWidget {
           ))
               .toList(),
         ),
+        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Recent Media',
+            style: TextStyle(
+              color: ct.text,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: 4,
+            itemBuilder: (context, index) {
+              final mockMedias = [
+                'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=150',
+                'https://images.unsplash.com/photo-1534972195531-d756b9bda9f2?w=150',
+                'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=150',
+                'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=150',
+              ];
+              return GestureDetector(
+                onTap: () => onSelect('Recent Media ${index + 1}'),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  width: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: NetworkImage(mockMedias[index]),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ]),
     );
   }

@@ -267,9 +267,6 @@ class AcWebDataDictionaryUtils {
             logger: logger,
           dataDictionaryName: dataDictionaryName
         );
-        if(selectFrom.isNotEmpty){
-          acDDSelectStatement.selectFrom = selectFrom;
-        }
 
         List<String> queryColumns = List.empty(growable: true);
         List<String> columnNames = List.empty(growable: true);
@@ -299,9 +296,13 @@ class AcWebDataDictionaryUtils {
             dataDictionaryName: dataDictionaryName,
           );
           if(acDDView!=null){
+            acDDSelectStatement.selectFrom = viewName;
             queryColumns = acDDView.getSearchQueryColumnNames();
             columnNames = acDDView.getColumnNames();
           }
+        }
+        if(selectFrom.isNotEmpty){
+          acDDSelectStatement.selectFrom = selectFrom;
         }
 
         if(httpMethod == AcEnumHttpMethod.post){

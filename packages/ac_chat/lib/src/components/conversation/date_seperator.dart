@@ -2,23 +2,53 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:flutter/material.dart';
 import '../../common/chat_colors.dart';
 
-class DateSeparator extends StatelessWidget {
+class DateSeparator extends StatefulWidget {
   final DateTime date;
   final AcChatTheme ct;
-  const DateSeparator({required this.date, required this.ct});
+  final ValueChanged<BuildContext>? onMounted;
+  final ValueChanged<BuildContext>? onUnmounted;
+
+  const DateSeparator({
+    super.key,
+    required this.date,
+    required this.ct,
+    this.onMounted,
+    this.onUnmounted,
+  });
+
+  @override
+  State<DateSeparator> createState() => _DateSeparatorState();
+}
+
+class _DateSeparatorState extends State<DateSeparator> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.onMounted?.call(context);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.onUnmounted?.call(context);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     String label;
-    if (date.year == now.year && date.month == now.month &&
-        date.day == now.day) {
+    if (widget.date.year == now.year && widget.date.month == now.month &&
+        widget.date.day == now.day) {
       label = 'Today';
-    } else if (date.year == now.year && date.month == now.month &&
-        date.day == now.day - 1) {
+    } else if (widget.date.year == now.year && widget.date.month == now.month &&
+        widget.date.day == now.day - 1) {
       label = 'Yesterday';
     } else {
-      label = date.format('MMMM d, y');
+      label = widget.date.format('MMMM d, y');
     }
 
     return Center(
@@ -26,15 +56,15 @@ class DateSeparator extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 10),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: ct.dateChip.withOpacity(0.9),
+          color: widget.ct.dateChip.withOpacity(0.9),
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
-            BoxShadow(color: ct.black.withOpacity(0.1), blurRadius: 2)
+            BoxShadow(color: widget.ct.black.withOpacity(0.1), blurRadius: 2)
           ],
         ),
         child: Text(label,
             style: TextStyle(
-                color: ct.subText, fontSize: 12, fontWeight: FontWeight.w500)),
+                color: widget.ct.subText, fontSize: 12, fontWeight: FontWeight.w500)),
       ),
     );
   }

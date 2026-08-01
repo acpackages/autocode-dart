@@ -1,4 +1,4 @@
-import '../core/ac_chat.dart';
+import 'package:ac_chat/ac_chat.dart';
 
 // ============================================================
 // mock_data.dart — All in-memory data for the Accountea prototype
@@ -481,7 +481,6 @@ void deleteCategory(int id) {
 }
 
 // --- Chats ---
-// --- Chats -----
 int _chatUuidCounter = 101;
 
 AcChatConversation insertConversation(AcChatConversation data, [String? targetUserId]) {

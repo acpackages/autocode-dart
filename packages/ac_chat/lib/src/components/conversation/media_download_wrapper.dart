@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/ac_chat.dart';
-import '../../common/mock_data.dart' as mock;
 
 class MediaDownloadWrapper extends StatefulWidget {
   final AcChatMessage message;
@@ -32,6 +31,7 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
 
   void _startDownload() {
     if (_isDownloading) return;
+    final api = AcChatApiProvider.of(context);
     setState(() {
       _isDownloading = true;
       _progress = 0.0;
@@ -45,7 +45,7 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
           _isDownloading = false;
           widget.message.isDownloaded = true;
           widget.message.localPath = widget.message.text;
-          mock.updateMessage(widget.message.messageId, {
+          api.updateMessage?.call(widget.message.messageId, {
             'isDownloaded': true,
             'localPath': widget.message.text,
           });
