@@ -6,7 +6,6 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:jaguar/jaguar.dart';
-import 'package:jaguar_cors/jaguar_cors.dart';
 
 class RoutePathInfo {
   final String path;

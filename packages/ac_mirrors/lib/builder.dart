@@ -343,7 +343,7 @@ class AcMirrorsAggregatingBuilder implements Builder {
     buffer.writeln('// ignore_for_file: constant_identifier_names, non_constant_identifier_names, unnecessary_brace_in_string_interps, unused_import, unnecessary_lambdas, prefer_const_constructors, prefer_const_literals_to_create_immutables');
     buffer.writeln("import 'package:ac_mirrors/ac_mirrors.dart' hide initializeAcMirrors;");
     buffer.writeln("import 'package:ac_mirrors/src/impl/generated.dart';");
-    buffer.writeln("import 'package:dart:convert';");
+    buffer.writeln("import 'dart:typed_data';");
     bool foundIo = false;
     bool foundConvert = false;
     for (final uri in uris.where((u) => u.scheme != 'dart')) {

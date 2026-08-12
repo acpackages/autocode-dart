@@ -1,0 +1,26 @@
+name: ac_sync_on_firebase
+description: Firebase Firestore transport adapter for ac_sync. Uses Cloud Firestore as a message bus to synchronize SQLite databases between devices. SQLite remains the source of truth on every device. No Firebase Auth dependency.
+version: 0.0.1
+publish_to: none
+repository: https://github.com/acpackages/autocode-dart
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.27.4"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_sync:
+    path: ../ac_sync
+  ac_extensions:
+    path: ../ac_extensions
+  autocode:
+    path: ../autocode
+  cloud_firestore: ^5.0.0
+  firebase_core: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^2.0.0

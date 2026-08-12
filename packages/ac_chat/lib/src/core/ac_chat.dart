@@ -72,6 +72,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    print("[AcChat] Rendering ac chat widget");
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final width = MediaQuery.sizeOf(context).width;
@@ -118,6 +119,9 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   ct: ct,
                   isDark: isDark,
                   selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+                  showSearch: widget.api.searchConversations,
+                  pinningEnabled: widget.api.pinConversations,
+                  showOnlineStatus: widget.api.showOnlineStatus,
                   onChatSelected: (chat) {
                     if (isLarge) {
                       setState(() {
@@ -144,6 +148,9 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   ct: ct,
                   isDark: isDark,
                   selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+                  showSearch: widget.api.searchConversations,
+                  pinningEnabled: widget.api.pinConversations,
+                  showOnlineStatus: widget.api.showOnlineStatus,
                   onChatSelected: (chat) {
                     if (isLarge) {
                       setState(() {
@@ -171,6 +178,9 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
               ct: ct,
               isDark: isDark,
               selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+              showSearch: widget.api.searchConversations,
+              pinningEnabled: widget.api.pinConversations,
+              showOnlineStatus: widget.api.showOnlineStatus,
               onChatSelected: (chat) {
                 if (isLarge) {
                   setState(() {
@@ -190,33 +200,35 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
               },
               onRefresh: () => setState(() {}),
             ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: ct.activeTabColor,
-        child: Icon(Icons.chat_rounded, color: ct.chatFloatingActionButtonColor),
-        onPressed: () async {
-          final result = await Navigator.of(context)
-              .push<AcChatConversation>(MaterialPageRoute(builder: (_) => NewChatScreen(api: widget.api)));
-          if (result != null) {
-            if (isLarge) {
-              setState(() {
-                _selectedChat = result;
-              });
-            } else {
-              if (mounted) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => Conversation(
-                      chat: result,
-                      isEmbedded: false,
-                      api: widget.api,
-                    ),
-                  ),
-                );
-              }
-            }
-          }
-        },
-      ),
+      floatingActionButton: widget.api.showNewConversationButton
+          ? FloatingActionButton(
+              backgroundColor: ct.activeTabColor,
+              child: Icon(Icons.chat_rounded, color: ct.chatFloatingActionButtonColor),
+              onPressed: () async {
+                final result = await Navigator.of(context)
+                    .push<AcChatConversation>(MaterialPageRoute(builder: (_) => NewChatScreen(api: widget.api)));
+                if (result != null) {
+                  if (isLarge) {
+                    setState(() {
+                      _selectedChat = result;
+                    });
+                  } else {
+                    if (mounted) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => Conversation(
+                            chat: result,
+                            isEmbedded: false,
+                            api: widget.api,
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+            )
+          : null,
     );
 
     if (!isLarge) {
@@ -378,6 +390,9 @@ class _ChatTab extends StatefulWidget {
   final VoidCallback onRefresh;
   final Function(AcChatConversation) onChatSelected;
   final dynamic selectedChatId;
+  final bool showSearch;
+  final bool pinningEnabled;
+  final bool showOnlineStatus;
 
   const _ChatTab({
     required this.chats,
@@ -386,6 +401,9 @@ class _ChatTab extends StatefulWidget {
     required this.onRefresh,
     required this.onChatSelected,
     this.selectedChatId,
+    this.showSearch = true,
+    this.pinningEnabled = false,
+    this.showOnlineStatus = true,
   });
 
   @override
@@ -446,79 +464,80 @@ class _ChatTabState extends State<_ChatTab> {
     return Column(
       children: [
         // Search & Actions Row inside Tab
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: widget.ct.chatHeaderBg,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    style: TextStyle(color: widget.ct.text, fontSize: 14),
-                    onChanged: (v) => setState(() => _query = v),
-                    decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.search, color: widget.ct.subText, size: 20),
-                      hintText: 'Search conversations...',
-                      hintStyle: TextStyle(color: widget.ct.subText, fontSize: 13),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      suffixIcon: _query.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(Icons.clear, color: widget.ct.subText, size: 16),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                setState(() => _query = '');
-                              },
-                            )
-                          : null,
+        if (widget.showSearch)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: widget.ct.chatHeaderBg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      controller: _searchCtrl,
+                      style: TextStyle(color: widget.ct.text, fontSize: 14),
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(Icons.search, color: widget.ct.subText, size: 20),
+                        hintText: 'Search conversations...',
+                        hintStyle: TextStyle(color: widget.ct.subText, fontSize: 13),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        suffixIcon: _query.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(Icons.clear, color: widget.ct.subText, size: 16),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _query = '');
+                                },
+                              )
+                            : null,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: widget.isDark ? widget.ct.white70 : widget.ct.black54),
-                color: widget.ct.chatBubbleMenuBg,
-                onSelected: (v) {
-                  if (v == 'new_group') {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('New Group — coming soon')));
-                  } else if (v == 'starred') {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Starred Messages')));
-                  }
-                },
-                itemBuilder: (_) {
-                  final api = AcChatApiProvider.of(context);
-                  return [
-                    if (api.enableGroupsAndStatuses)
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: widget.isDark ? widget.ct.white70 : widget.ct.black54),
+                  color: widget.ct.chatBubbleMenuBg,
+                  onSelected: (v) {
+                    if (v == 'new_group') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('New Group — coming soon')));
+                    } else if (v == 'starred') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Starred Messages')));
+                    }
+                  },
+                  itemBuilder: (_) {
+                    final api = AcChatApiProvider.of(context);
+                    return [
+                      if (api.enableGroupsAndStatuses)
+                        PopupMenuItem(
+                          value: 'new_group',
+                          child: Row(children: [
+                            Icon(Icons.group_add, size: 18, color: widget.ct.subText),
+                            const SizedBox(width: 10),
+                            Text('New Group', style: TextStyle(color: widget.ct.text, fontSize: 14)),
+                          ]),
+                        ),
                       PopupMenuItem(
-                        value: 'new_group',
+                        value: 'starred',
                         child: Row(children: [
-                          Icon(Icons.group_add, size: 18, color: widget.ct.subText),
+                          Icon(Icons.star_outline, size: 18, color: widget.ct.subText),
                           const SizedBox(width: 10),
-                          Text('New Group', style: TextStyle(color: widget.ct.text, fontSize: 14)),
+                          Text('Starred Messages', style: TextStyle(color: widget.ct.text, fontSize: 14)),
                         ]),
                       ),
-                    PopupMenuItem(
-                      value: 'starred',
-                      child: Row(children: [
-                        Icon(Icons.star_outline, size: 18, color: widget.ct.subText),
-                        const SizedBox(width: 10),
-                        Text('Starred Messages', style: TextStyle(color: widget.ct.text, fontSize: 14)),
-                      ]),
-                    ),
-                  ];
-                },
-              ),
-            ],
+                    ];
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
         // Conversation List
         Expanded(
           child: filtered.isEmpty
@@ -559,6 +578,8 @@ class _ChatTabState extends State<_ChatTab> {
                       isDark: widget.isDark,
                       isSelected: isSelected,
                       otherUser: otherUser,
+                      showOnlineStatus: widget.showOnlineStatus,
+                      pinningEnabled: widget.pinningEnabled,
                       onTap: () async {
                         // Mark as read
                         final api = AcChatApiProvider.of(context);

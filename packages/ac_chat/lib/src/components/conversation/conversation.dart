@@ -336,14 +336,15 @@ class _ConversationState extends State<Conversation>
                                       color: ct.white,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600)),
-                              Text(
-                                _isGroup ? _groupSubtitle() : 'Online',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
+                              if (_isGroup || widget.api.showOnlineStatus)
+                                Text(
+                                  _isGroup ? _groupSubtitle() : 'Online',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
                                       color: ct.white.withOpacity(0.8),
                                       fontSize: 12),
-                              ),
+                                ),
                             ]),
                       ),
                     ]),
@@ -371,36 +372,39 @@ class _ConversationState extends State<Conversation>
                         });
                       },
                     ),
-                    IconButton(
-                      icon: Icon(Icons.videocam_outlined, color: ct.white),
-                      onPressed: () => _toast(context, 'Video call — coming soon'),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.call_outlined, color: ct.white),
-                      onPressed: () => _toast(context, 'Voice call — coming soon'),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: Icon(Icons.more_vert, color: ct.white),
-                      color: ct.surface,
-                      onSelected: (v) {
-                        if (v == 'View Contact') {
-                          _showProfileSheet(context, ct, name, color);
-                        } else if (v == 'Search') {
-                          setState(() {
-                            _showSearch = true;
-                          });
-                        } else {
-                          _toast(context, '$v — coming soon');
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        _menuItem('View Contact', ct),
-                        _menuItem('Media, Links and Docs', ct),
-                        _menuItem('Search', ct),
-                        _menuItem('Mute Notifications', ct),
-                        _menuItem('Clear Chat', ct),
-                      ],
-                    ),
+                    if (widget.api.enableVideoCall)
+                      IconButton(
+                        icon: Icon(Icons.videocam_outlined, color: ct.white),
+                        onPressed: () => _toast(context, 'Video call — coming soon'),
+                      ),
+                    if (widget.api.enableVoiceCall)
+                      IconButton(
+                        icon: Icon(Icons.call_outlined, color: ct.white),
+                        onPressed: () => _toast(context, 'Voice call — coming soon'),
+                      ),
+                    if (widget.api.showConversationMenu)
+                      PopupMenuButton<String>(
+                        icon: Icon(Icons.more_vert, color: ct.white),
+                        color: ct.surface,
+                        onSelected: (v) {
+                          if (v == 'View Contact') {
+                            _showProfileSheet(context, ct, name, color);
+                          } else if (v == 'Search') {
+                            setState(() {
+                              _showSearch = true;
+                            });
+                          } else {
+                            _toast(context, '$v — coming soon');
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          _menuItem('View Contact', ct),
+                          _menuItem('Media, Links and Docs', ct),
+                          _menuItem('Search', ct),
+                          _menuItem('Mute Notifications', ct),
+                          _menuItem('Clear Chat', ct),
+                        ],
+                      ),
                   ],
           ),
           body: Stack(children: [
@@ -433,7 +437,12 @@ class _ConversationState extends State<Conversation>
                             controller: _scrollController,
                             child: ListView.builder(
                               controller: _scrollController,
-                              padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
+                              padding: EdgeInsets.fromLTRB(
+                                MediaQuery.sizeOf(context).width >= 768 ? 40.0 : 12.0,
+                                12,
+                                MediaQuery.sizeOf(context).width >= 768 ? 40.0 : 12.0,
+                                8,
+                              ),
                               reverse: true,
                               itemCount: _flatItems.length,
                               itemBuilder: (context, index) {
@@ -516,14 +525,18 @@ class _ConversationState extends State<Conversation>
               ),
   
               // Reply preview bar
-              if (_replyTo != null)
+              if (!widget.api.readOnly && _replyTo != null)
                 ReplyBar(
                   message: _replyTo!,
                   ct: ct,
                   onCancel: () => setState(() => _replyTo = null),
                 ),
   
-              // Input bar
+              // Custom input builder (overrides default InputBar when provided)
+              if (widget.api.customInputBuilder != null)
+                widget.api.customInputBuilder!(context, widget.chat) ?? const SizedBox.shrink()
+              // Standard input bar
+              else if (!widget.api.readOnly)
               InputBar(
                 controller: _controller,
                 ct: ct,

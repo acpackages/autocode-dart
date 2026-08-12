@@ -1,0 +1,24 @@
+name: ac_chat_sqlite
+description: Offline-first SQLite cache layer for ac_chat. Pluggable channel interface supports Firebase, REST, WebSocket, or any remote backend.
+version: 0.1.0
+
+environment:
+  sdk: ^3.6.2
+  flutter: ">=3.27.4"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_chat:
+    path: './../ac_chat'
+  ac_sql:
+    path: './../ac_sql'
+  ac_data_dictionary:
+    path: './../ac_data_dictionary'
+  autocode:
+    path: './../autocode'
+  uuid: ^4.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

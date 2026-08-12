@@ -7,3 +7,5 @@ export './src/models/ac_chat_conversation.dart';
 export './src/models/ac_chat_conversation_user.dart';
 export './src/models/ac_chat_message.dart';
 export './src/models/ac_chat_user.dart';
+
+export 'src/sync/ac_chat_sync_channel.dart';

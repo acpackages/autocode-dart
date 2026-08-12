@@ -215,7 +215,7 @@ extension AcDateTimeExtensions on DateTime {
     return dateTime;
   }
 
-  toUtcIso8601String(){
+  String toUtcIso8601String(){
     return toUtc().toIso8601String();
   }
 }

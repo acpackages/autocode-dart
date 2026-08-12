@@ -56,25 +56,29 @@ class MessageBubble extends StatelessWidget {
       ),
       child: GestureDetector(
         onLongPress: () => _showBubbleMenu(context),
-        onTap: (type == 'image' || type == 'video' || type == 'document')
-            ? () {
-                if (!message.isDownloaded) return;
-                final sender = api.getUserById(message.senderId);
-                final senderName = isMe
-                    ? 'You'
-                    : (sender?.name ?? 'Unknown');
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => MediaViewerScreen(
-                      message: message,
-                      ct:ct,
-                      senderName: senderName,
-                    ),
-                  ),
-                );
-              }
-            : null,
+        onTap: () {
+          // Let the caller intercept any tap first.
+          if (api.onMessageTap != null) {
+            api.onMessageTap!(message);
+            return;
+          }
+          // Default: open media viewer for downloadable types.
+          if (type == 'image' || type == 'video' || type == 'document') {
+            if (!message.isDownloaded) return;
+            final sender = api.getUserById(message.senderId);
+            final senderName = isMe ? 'You' : (sender?.name ?? 'Unknown');
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MediaViewerScreen(
+                  message: message,
+                  ct: ct,
+                  senderName: senderName,
+                ),
+              ),
+            );
+          }
+        },
         child: Align(
           alignment:
           isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -120,7 +124,7 @@ class MessageBubble extends StatelessWidget {
                               ct: ct),
   
                         // Message content
-                        _buildContent(type, ct),
+                        _buildContent(context, type, ct),
   
                         // Time + ticks
                         const SizedBox(height: 3),
@@ -139,7 +143,7 @@ class MessageBubble extends StatelessWidget {
                                   const SizedBox(width: 3),
                                   _TickIcon(status: status, ct: ct),
                                 ],
-                              ]), 
+                              ]),
                         ),
                       ]),
                 ),
@@ -158,7 +162,7 @@ class MessageBubble extends StatelessWidget {
     return const EdgeInsets.fromLTRB(10, 7, 10, 5);
   }
 
-  Widget _buildContent(String type, AcChatTheme ct) {
+  Widget _buildContent(BuildContext context, String type, AcChatTheme ct) {
     Widget content;
     switch (type) {
       case 'image':
@@ -181,10 +185,15 @@ class MessageBubble extends StatelessWidget {
         content = ContactMessageBubble(message: message, ct: ct);
         break;
       default:
-        content = Text(
-          message.text,
-          style: TextStyle(color: ct.text, fontSize: 14.5),
-        );
+        // Try caller-provided custom builder first.
+        final custom = AcChatApiProvider.of(context)
+            .customMessageBuilder
+            ?.call(context, message);
+        content = custom ??
+            Text(
+              message.text,
+              style: TextStyle(color: ct.text, fontSize: 14.5),
+            );
         break;
     }
 

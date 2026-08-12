@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── ac_sync group document ─────────────────────────────────────────────
+    // The groupId acts as a shared namespace. Any client that knows the
+    // groupId can read and write within it. For production deployments,
+    // replace `if true` with Firebase Auth or Custom Claims rules.
+
+    // Device registration documents
+    match /ac_sync/{groupId}/devices/{deviceId} {
+      allow read, write: if true;
+    }
+
+    // Inbox documents — validate required fields on create
+    match /ac_sync/{groupId}/devices/{deviceId}/inbox/{msgId} {
+      allow create: if request.resource.data.keys().hasAll([
+                      'messageType',
+                      'senderDeviceId',
+                      'sessionIdentifier',
+                      'timestamp'
+                    ]);
+      allow read, delete: if true;
+    }
+  }
+}

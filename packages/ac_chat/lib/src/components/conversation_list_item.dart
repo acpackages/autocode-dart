@@ -10,6 +10,8 @@ class ConversationListItem extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final AcChatUser? otherUser;
+  final bool showOnlineStatus;
+  final bool pinningEnabled;
 
   const ConversationListItem(
       {required this.chat,
@@ -17,7 +19,9 @@ class ConversationListItem extends StatelessWidget {
         required this.isDark,
         required this.isSelected,
         required this.onTap,
-        this.otherUser});
+        this.otherUser,
+        this.showOnlineStatus = true,
+        this.pinningEnabled = true});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +46,7 @@ class ConversationListItem extends StatelessWidget {
     final color = avatarColor(userId);
     final lastTime = chat.lastTime;
     final unread = chat.unread;
-    final isPinned = chat.isPinned;
+    final isPinned = pinningEnabled && chat.isPinned;
     final isMuted = chat.isMuted;
     final lastMsg = chat.lastMessage;
     final isToday = _isToday(lastTime);
@@ -71,8 +75,8 @@ class ConversationListItem extends StatelessWidget {
                       fontSize: 17,
                       fontWeight: FontWeight.w600)),
             ),
-            // Online dot — only for DMs
-            if (!isGroup)
+            // Online dot — only for DMs when showOnlineStatus is enabled
+            if (!isGroup && showOnlineStatus)
               Positioned(
                 bottom: 0,
                 right: 0,
