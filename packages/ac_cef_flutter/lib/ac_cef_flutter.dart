@@ -78,6 +78,30 @@ class CefController {
   void openDevTools()  => _run(() => _native.openDevTools(_browserId));
   void closeDevTools() => _run(() => _native.closeDevTools(_browserId));
 
+  // Download control
+  /// Cancel an active download.
+  void cancelDownload(int downloadId) =>
+      _run(() => _native.cancelDownload(_browserId, downloadId));
+
+  /// Pause an active download.
+  void pauseDownload(int downloadId) =>
+      _run(() => _native.pauseDownload(_browserId, downloadId));
+
+  /// Resume a paused download.
+  void resumeDownload(int downloadId) =>
+      _run(() => _native.resumeDownload(_browserId, downloadId));
+
+  // IME composition
+  /// Set the IME composition string shown in the renderer.
+  /// [cursorPos] is the caret position within [text] (0-based);
+  /// pass -1 to place the caret at the end.
+  void setComposition(String text, {int cursorPos = -1}) =>
+      _run(() => _native.imeSetComposition(_browserId, text, cursorPos: cursorPos));
+
+  /// Cancel any active IME composition without committing it.
+  void cancelComposition() =>
+      _run(() => _native.imeCancelComposition(_browserId));
+
   // State queries (synchronous — returns immediately from native)
   bool get canGoBackNow    => _ready && _native.canGoBack(_browserId);
   bool get canGoForwardNow => _ready && _native.canGoForward(_browserId);
@@ -355,7 +379,11 @@ class _CefViewState extends State<CefView> {
         autofocus: true,
         onFocusChange: (hasFocus) {
           _hasFocus = hasFocus;
-          if (_controller.isReady) _controller.setFocus(hasFocus);
+          if (_controller.isReady) {
+            _controller.setFocus(hasFocus);
+            // Cancel any active IME composition when focus leaves the browser.
+            if (!hasFocus) _controller.cancelComposition();
+          }
         },
         child: MouseRegion(
           cursor: _currentCursor,
@@ -843,6 +871,8 @@ class _CefViewState extends State<CefView> {
     _popupFrame?.dispose();
     _focusNode.dispose();
     if (_controller.isReady) {
+      // Cancel any in-progress IME composition before closing.
+      widget.native.imeCancelComposition(_controller.browserId);
       widget.native.closeBrowser(_controller.browserId);
     }
     super.dispose();

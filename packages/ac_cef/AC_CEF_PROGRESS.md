@@ -26,7 +26,7 @@
 - [DONE] OnAddressChange (URL bar update)
 - [DONE] OnTitleChange
 - [PARTIAL] Popup / new window - OnBeforePopup fires but popup is always cancelled; no OSR popup rendering
-- [PARTIAL] Downloads - OnBeforeDownload and OnDownloadUpdated fire, callback response works; cancel now implemented
+- [DONE] Downloads - OnBeforeDownload and OnDownloadUpdated fire, callback response works; cancel/pause/resume implemented
 - [DONE] SSL/certificate error handling - OnCertificateError dispatched to Dart; respond via CefCallback
 - [PARTIAL] OnBeforeBrowse fires (logs, always returns false)
 - [PARTIAL] OnBeforeResourceLoad fires (always returns false)
@@ -39,6 +39,7 @@
 - [DONE] DPI (device pixel ratio applied)
 - [PARTIAL] Multiple browsers - each has own paint stream; should work
 - [DONE] Popup/overlay rendering - FIXED: OnPopupShow + OnPopupSize callbacks implemented; popup frames composited via Stack + Positioned overlay in CefView
+- [DONE] dirtyRects - CEF's dirty rect list is packed into a flat int array and delivered in every PaintFrame; available for future partial-repaint optimisation
 - [KNOWN BUG] Frame drop logic (_decoding flag) may cause missed frames
 
 ### Input - Keyboard
@@ -50,7 +51,7 @@
 - [DONE] F1-F12, navigation keys, symbols via scan code + VK lookup tables
 - [DONE] OnPreKeyEvent callback dispatched from C++ → Dart CefKeyboardHandler
 - [DONE] OnKeyEvent callback dispatched from C++ → Dart CefKeyboardHandler
-- [MISSING] IME/composition (ImeSetComposition not implemented)
+- [DONE] IME/composition - ImeSetComposition + ImeCancelComposition wired; CefController.setComposition() / cancelComposition() exposed; cancelComposition() called on focus-loss and widget dispose
 
 ### Input - Mouse
 - [DONE] Mouse move (hover + drag)
@@ -85,6 +86,7 @@
 - [DONE] Focus events
 - [DONE] Download events (before + updated with real progress)
 - [DONE] Download cancel - NEW: ac_cef_cancel_download calls CefDownloadItemCallback::Cancel()
+- [DONE] Download pause/resume - NEW: ac_cef_pause_download / ac_cef_resume_download wired; _NativeDlItemCb.pause() and .resume() now call through to C bridge
 - [DONE] JS dialog events
 - [DONE] Context menu (cleared by default)
 - [DONE] OnPreKeyEvent / OnKeyEvent - NEW: dispatched from C++ → Dart CefKeyboardHandler
@@ -117,6 +119,7 @@
 - [DONE] _popupFrame ui.Image disposed on hide and on widget dispose - FIXED
 - [DONE] Cert-error callbacks stored in _certCbs; released on response
 - [DONE] Download-item callbacks stored in _dlItemCbs; released on complete/cancel
+
 
 ## Known Bugs / Issues
 
@@ -152,6 +155,7 @@ Dart cannot determine whether the key combination is a browser shortcut.
 - Popup compositing: CefView uses Stack + Positioned overlay. Position comes from OnPopupSize (physical px), converted to logical px using _dpr.
 - OnPreKeyEvent / OnKeyEvent: registered with Pointer.fromFunction (not NativeCallable.listener) since they return int and are called sync on the Dart thread.
 - OnCertificateError: registered with Pointer.fromFunction; Dart must call CefCallback.onContinue(true) to allow or onContinue(false)/cancel() to block.
+- ImeSetComposition: called before ImeCommitText to show composition preview in renderer (CJK input); ImeCancelComposition called on focus-loss and widget dispose.
 
 ## Session History
 
@@ -202,14 +206,39 @@ Completed:
 
 - VERIFIED: dart analyze - 0 issues on both packages
 
+### Session 4 (2026-08-13) - Download Pause/Resume, dirtyRects, IME Composition
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp)
+- UPDATED: `OnPaintCallback` typedef — now includes `const int* dirty_rects, int dirty_count` parameters
+- UPDATED: `AcRenderHandler::OnPaint` — packs CEF's `RectList` into a flat `std::vector<int>` and passes pointer + count to Dart
+- ADDED: `ac_cef_pause_download(browser_id, download_id)` — looks up `g_dl_item_cbs` and calls `->Pause()`
+- ADDED: `ac_cef_resume_download(browser_id, download_id)` — looks up `g_dl_item_cbs` and calls `->Resume()`
+- ADDED: `ac_cef_ime_set_composition(id, text, cursor_pos, selection_start, selection_end)` — calls `ImeSetComposition` with empty underlines
+- ADDED: `ac_cef_ime_cancel_composition(id)` — calls `ImeCancelComposition`
+
+#### Dart ac_cef package
+- `paint_frame.dart`: Added `DirtyRect` record typedef; added `dirtyRects` field + `isFullFrame` getter to `PaintFrame`
+- `cef_bindings.dart`: Updated `OnPaintCallback` typedef (+2 params); added `_PauseDownload*`, `_ResumeDownload*`, `_ImeSetComposition*`, `_ImeCancelComposition*` typedef pairs + late fields wired in constructor
+- `cef_native_client.dart`:
+  - Updated `_onPaint` to parse dirty rects from `Pointer<Int32>` flat array into `List<DirtyRect>`
+  - Updated `_fwdPaint` to pass `dirtyRects` to `PaintFrame`
+  - Added `pauseDownload()`, `resumeDownload()` public methods
+  - Added `imeSetComposition()`, `imeCancelComposition()` public methods
+  - Wired `_NativeDlItemCb.pause()` and `.resume()` (were empty stubs; now call through to bridge)
+
+#### Dart ac_cef_flutter package
+- `ac_cef_flutter.dart` (`CefController`): Added `cancelDownload()`, `pauseDownload()`, `resumeDownload()`, `setComposition()`, `cancelComposition()`
+- `ac_cef_flutter.dart` (`CefView`): `onFocusChange` now calls `cancelComposition()` on focus loss; `dispose()` calls `imeCancelComposition` before closing browser
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
 ## Current Priority / Next Session
 
-1. Test multiple simultaneous CefView instances on same native client (should work; unverified)
-2. Consider addressing single active client limitation for true multi-window support
-3. Implement IME/composition support (ImeSetComposition)
-4. Partial updates using dirtyRects from OnPaint to reduce CPU load
+1. Partial repaint optimisation — `PaintFrame.dirtyRects` is now available; a future session can implement patch-blending in `CefView` once the `_decoding` frame-drop bug is addressed
+2. Fix `_decoding` frame-drop bug — add a frame queue so rapid CEF frames are not silently dropped
+3. Test multiple simultaneous CefView instances on same native client (should work; unverified)
+4. Consider addressing single active client limitation for true multi-window support
 5. Popup window support (OSR popup rendering, currently always cancelled)
-6. Download pause/resume via ac_cef_pause_download / ac_cef_resume_download exports
 
 ## Build Notes
 

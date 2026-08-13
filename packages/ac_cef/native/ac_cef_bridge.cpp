@@ -103,12 +103,23 @@ public:
             g_callbacks.on_popup_size(browser_id, rect.x, rect.y, rect.width, rect.height);
     }
     void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
-                 const RectList& /*dirty*/, const void* buffer,
+                 const RectList& dirty, const void* buffer,
                  int width, int height) override {
         if (g_callbacks.on_paint) {
+            // Pack dirty rects into a flat int array: x0,y0,w0,h0, x1,y1,...
+            std::vector<int> flat;
+            flat.reserve(dirty.size() * 4);
+            for (const auto& r : dirty) {
+                flat.push_back(r.x);
+                flat.push_back(r.y);
+                flat.push_back(r.width);
+                flat.push_back(r.height);
+            }
             g_callbacks.on_paint(browser_id,
                                  type == PET_POPUP ? 1 : 0,
-                                 buffer, width, height);
+                                 buffer, width, height,
+                                 flat.empty() ? nullptr : flat.data(),
+                                 (int)dirty.size());
         }
     }
 
@@ -595,6 +606,31 @@ AC_CEF_EXPORT void ac_cef_ime_commit_text(int64_t id, const char* text) {
         b->GetHost()->ImeCommitText(cef_text, range, 0);
     }
 }
+
+AC_CEF_EXPORT void ac_cef_ime_set_composition(
+    int64_t id, const char* text, int cursor_pos,
+    int selection_start, int selection_end) {
+    if (auto b = GetBrowser(id)) {
+        CefString cef_text(text ? text : "");
+        // No underline styling — pass empty vector.
+        std::vector<CefCompositionUnderline> underlines;
+        // cursor_pos: -1 means end of text
+        int len = (int)cef_text.size();
+        int cursor = (cursor_pos < 0) ? len : cursor_pos;
+        CefRange sel;
+        if (selection_start < 0 || selection_end < 0) {
+            sel = CefRange(cursor, cursor);
+        } else {
+            sel = CefRange(selection_start, selection_end);
+        }
+        b->GetHost()->ImeSetComposition(cef_text, underlines, CefRange(UINT32_MAX, UINT32_MAX), sel);
+    }
+}
+
+AC_CEF_EXPORT void ac_cef_ime_cancel_composition(int64_t id) {
+    if (auto b = GetBrowser(id))
+        b->GetHost()->ImeCancelComposition();
+}
 AC_CEF_EXPORT void ac_cef_js_dialog_response(int64_t cb_id, int ok, const char* input) {
     std::lock_guard<std::mutex> lk(g_cb_mutex);
     auto it = g_js_cbs.find(cb_id);
@@ -704,6 +740,20 @@ AC_CEF_EXPORT void ac_cef_cancel_download(int64_t /*browser_id*/, int64_t downlo
         it->second->Cancel();
         g_dl_item_cbs.erase(it);
     }
+}
+
+AC_CEF_EXPORT void ac_cef_pause_download(int64_t /*browser_id*/, int64_t download_id) {
+    std::lock_guard<std::mutex> lk(g_cb_mutex);
+    auto it = g_dl_item_cbs.find(download_id);
+    if (it != g_dl_item_cbs.end())
+        it->second->Pause();
+}
+
+AC_CEF_EXPORT void ac_cef_resume_download(int64_t /*browser_id*/, int64_t download_id) {
+    std::lock_guard<std::mutex> lk(g_cb_mutex);
+    auto it = g_dl_item_cbs.find(download_id);
+    if (it != g_dl_item_cbs.end())
+        it->second->Resume();
 }
 
 AC_CEF_EXPORT void ac_cef_certificate_error_response(int64_t callback_id, int allow) {

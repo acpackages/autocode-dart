@@ -102,13 +102,28 @@ void _onQueryCanceled(int id, int qId) =>
     _activeClient?._fwdQueryCanceled(id, qId);
 
 /// Called by C for every paint frame.  [buffer] is valid only during this call.
-void _onPaint(int id, int isPopup, Pointer<Void> buffer, int w, int h) {
+/// [dirty] is a flat pointer to dirty_count * 4 ints (x, y, w, h per rect).
+void _onPaint(int id, int isPopup, Pointer<Void> buffer, int w, int h,
+    Pointer<Int32> dirty, int dirtyCount) {
   final client = _activeClient;
   if (client == null) return;
   // Copy the pixel data immediately — buffer is CEF-owned and freed after return.
   final bytes = buffer.cast<Uint8>().asTypedList(w * h * 4);
   final copy  = Uint8List.fromList(bytes);
-  client._fwdPaint(id, isPopup != 0, copy, w, h);
+  // Parse dirty rects from the flat int array.
+  final rects = <DirtyRect>[];
+  if (dirty != nullptr && dirtyCount > 0) {
+    for (int i = 0; i < dirtyCount; i++) {
+      final base = i * 4;
+      rects.add((
+        x: dirty[base],
+        y: dirty[base + 1],
+        width:  dirty[base + 2],
+        height: dirty[base + 3],
+      ));
+    }
+  }
+  client._fwdPaint(id, isPopup != 0, copy, w, h, rects);
 }
 
 void _onPopupShow(int id, int show) =>
@@ -430,6 +445,19 @@ class CefNativeClient {
     calloc.free(s);
   }
 
+  /// Set the IME composition string shown in the renderer.
+  /// [cursorPos] is the caret position within [text] (0-based code-unit index).
+  /// Pass -1 to place the caret at the end.
+  void imeSetComposition(int id, String text, {int cursorPos = -1,
+      int selectionStart = -1, int selectionEnd = -1}) {
+    final s = text.toNativeUtf8();
+    bindings.imeSetComposition(id, s, cursorPos, selectionStart, selectionEnd);
+    calloc.free(s);
+  }
+
+  /// Cancel any active IME composition without committing.
+  void imeCancelComposition(int id) => bindings.imeCancelComposition(id);
+
   // ─── Callbacks / cookies ──────────────────────────────────────────────────
 
   void respondJSDialog(int cbId, bool success, String input) {
@@ -464,11 +492,19 @@ class CefNativeClient {
   void openDevTools(int id)  => bindings.openDevTools(id);
   void closeDevTools(int id) => bindings.closeDevTools(id);
 
-  // ─── Download cancel ──────────────────────────────────────────────────────
+  // ─── Download cancel / pause / resume ────────────────────────────────────
 
   /// Cancel an active download identified by [downloadId].
   void cancelDownload(int browserId, int downloadId) =>
       bindings.cancelDownload(browserId, downloadId);
+
+  /// Pause an active download identified by [downloadId].
+  void pauseDownload(int browserId, int downloadId) =>
+      bindings.pauseDownload(browserId, downloadId);
+
+  /// Resume a paused download identified by [downloadId].
+  void resumeDownload(int browserId, int downloadId) =>
+      bindings.resumeDownload(browserId, downloadId);
 
   // ─── Certificate error response ───────────────────────────────────────────
 
@@ -697,12 +733,14 @@ class CefNativeClient {
   }
 
   /// The hot path: copy BGRA buffer and push to the per-browser stream.
-  void _fwdPaint(int id, bool isPopup, Uint8List pixels, int w, int h) {
+  void _fwdPaint(int id, bool isPopup, Uint8List pixels, int w, int h,
+      List<DirtyRect> dirtyRects) {
     _paintStreams[id]?.add(PaintFrame(
       pixels: pixels,
       width:  w,
       height: h,
       isPopup: isPopup,
+      dirtyRects: dirtyRects,
     ));
   }
 
@@ -802,7 +840,8 @@ class _NativeCertCb implements CefCallback {
 
 // ─── Native download-item callback ───────────────────────────────────────────
 
-/// Bridges [CefDownloadItemCallback] to [CefNativeClient.cancelDownload].
+/// Bridges [CefDownloadItemCallback] to [CefNativeClient.cancelDownload] /
+/// [CefNativeClient.pauseDownload] / [CefNativeClient.resumeDownload].
 class _NativeDlItemCb implements CefDownloadItemCallback {
   final CefNativeClient _c;
   final int _browserId;
@@ -812,9 +851,9 @@ class _NativeDlItemCb implements CefDownloadItemCallback {
   @override
   void cancel()  => _c.cancelDownload(_browserId, _downloadId);
   @override
-  void pause()   {} // not exposed via C bridge
+  void pause()   => _c.pauseDownload(_browserId, _downloadId);
   @override
-  void resume()  {} // not exposed via C bridge
+  void resume()  => _c.resumeDownload(_browserId, _downloadId);
 }
 
 // ─── Download item with progress info ────────────────────────────────────────

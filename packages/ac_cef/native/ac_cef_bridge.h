@@ -99,12 +99,16 @@ typedef int  (*OnCertificateErrorCallback)(
 /// Called by CEF's CefRenderHandler::OnPaint for every frame.
 /// [buffer] points to CEF-owned BGRA pixel data of [width] x [height] pixels.
 /// Dart must copy the data within this callback — the pointer is invalid after return.
+/// [dirty_rects] is a flat array of (x, y, width, height) int quads, one per dirty region.
+/// [dirty_count] is the number of rects (i.e. dirty_rects has dirty_count * 4 elements).
 typedef void (*OnPaintCallback)(
     int64_t browser_id,
     int is_popup,
     const void* buffer,
     int width,
-    int height);
+    int height,
+    const int* dirty_rects,
+    int dirty_count);
 
 /// Called when CEF needs to know the view rect for the OSR browser.
 typedef void (*GetViewRectCallback)(
@@ -207,6 +211,22 @@ AC_CEF_EXPORT void ac_cef_send_key_event(
     int unmodified_character,
     int is_system_key);
 
+// ─── IME ─────────────────────────────────────────────────────────────────────
+
+/// Set the IME composition string shown in the renderer.
+/// [cursor_pos] is the caret position within [text] (0-based code-unit index).
+/// Pass cursor_pos = -1 to place the caret at the end of text.
+/// [selection_start] / [selection_end]: range to replace (-1 = current cursor).
+AC_CEF_EXPORT void ac_cef_ime_set_composition(
+    int64_t browser_id,
+    const char* text,
+    int cursor_pos,
+    int selection_start,
+    int selection_end);
+
+/// Cancel any active IME composition without committing.
+AC_CEF_EXPORT void ac_cef_ime_cancel_composition(int64_t browser_id);
+
 // ─── Focus ────────────────────────────────────────────────────────────────────
 
 AC_CEF_EXPORT void ac_cef_set_focus(int64_t browser_id, int focus);
@@ -236,6 +256,12 @@ AC_CEF_EXPORT void ac_cef_before_download_response(
 
 /// Cancel a download via its download_id.
 AC_CEF_EXPORT void ac_cef_cancel_download(int64_t browser_id, int64_t download_id);
+
+/// Pause an active download.
+AC_CEF_EXPORT void ac_cef_pause_download(int64_t browser_id, int64_t download_id);
+
+/// Resume a paused download.
+AC_CEF_EXPORT void ac_cef_resume_download(int64_t browser_id, int64_t download_id);
 
 /// Respond to an OnCertificateError callback.
 /// [allow] = 1 to proceed with the request despite the error, 0 to cancel.

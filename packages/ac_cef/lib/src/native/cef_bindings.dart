@@ -42,7 +42,8 @@ typedef OnKeyEventCallback             = Int32 Function(Int64, Int32, Int32, Int
 typedef OnCertificateErrorCallback     = Int32 Function(Int64, Int32, Pointer<Utf8>, Int64);
 
 /// Called from C for every CEF paint frame. [buffer] contains BGRA pixels.
-typedef OnPaintCallback    = Void Function(Int64, Int32, Pointer<Void>, Int32, Int32);
+/// [dirtyRects] is a flat Pointer<Int32> with dirty_count * 4 int values (x,y,w,h per rect).
+typedef OnPaintCallback    = Void Function(Int64, Int32, Pointer<Void>, Int32, Int32, Pointer<Int32>, Int32);
 typedef GetViewRectCallback = Void Function(Int64, Pointer<Int32>, Pointer<Int32>, Pointer<Int32>, Pointer<Int32>);
 
 // ─── AcCefCallbacks struct (matches C struct layout exactly) ─────────────────
@@ -181,9 +182,23 @@ typedef _PrintToPdfDart = void Function(int, Pointer<Utf8>, Pointer<NativeFuncti
 typedef _CancelDownloadC    = Void Function(Int64, Int64);
 typedef _CancelDownloadDart = void Function(int, int);
 
+// ac_cef_pause_download / ac_cef_resume_download (same signature)
+typedef _PauseDownloadC     = Void Function(Int64, Int64);
+typedef _PauseDownloadDart  = void Function(int, int);
+typedef _ResumeDownloadC    = Void Function(Int64, Int64);
+typedef _ResumeDownloadDart = void Function(int, int);
+
 // ac_cef_certificate_error_response
 typedef _CertErrorResponseC    = Void Function(Int64, Int32);
 typedef _CertErrorResponseDart = void Function(int, int);
+
+// ac_cef_ime_set_composition
+typedef _ImeSetCompositionC    = Void Function(Int64, Pointer<Utf8>, Int32, Int32, Int32);
+typedef _ImeSetCompositionDart = void Function(int, Pointer<Utf8>, int, int, int);
+
+// ac_cef_ime_cancel_composition
+typedef _ImeCancelCompositionC    = Void Function(Int64);
+typedef _ImeCancelCompositionDart = void Function(int);
 
 // ─── CefBindings ──────────────────────────────────────────────────────────────
 
@@ -231,7 +246,11 @@ class CefBindings {
   late final _QueryFailureDart         queryFailure;
   late final _PrintToPdfDart           printToPdf;
   late final _CancelDownloadDart       cancelDownload;
+  late final _PauseDownloadDart        pauseDownload;
+  late final _ResumeDownloadDart       resumeDownload;
   late final _CertErrorResponseDart    certificateErrorResponse;
+  late final _ImeSetCompositionDart    imeSetComposition;
+  late final _ImeCancelCompositionDart imeCancelComposition;
 
   CefBindings._(this._lib) {
     initialize          = _lib.lookupFunction<_InitializeC,         _InitializeDart>('ac_cef_initialize');
@@ -275,7 +294,11 @@ class CefBindings {
     queryFailure        = _lib.lookupFunction<_QueryFailureC,       _QueryFailureDart> ('ac_cef_query_failure');
     printToPdf          = _lib.lookupFunction<_PrintToPdfC,         _PrintToPdfDart>   ('ac_cef_print_to_pdf');
     cancelDownload      = _lib.lookupFunction<_CancelDownloadC,     _CancelDownloadDart>('ac_cef_cancel_download');
+    pauseDownload       = _lib.lookupFunction<_PauseDownloadC,      _PauseDownloadDart> ('ac_cef_pause_download');
+    resumeDownload      = _lib.lookupFunction<_ResumeDownloadC,     _ResumeDownloadDart>('ac_cef_resume_download');
     certificateErrorResponse = _lib.lookupFunction<_CertErrorResponseC, _CertErrorResponseDart>('ac_cef_certificate_error_response');
+    imeSetComposition   = _lib.lookupFunction<_ImeSetCompositionC,       _ImeSetCompositionDart>   ('ac_cef_ime_set_composition');
+    imeCancelComposition = _lib.lookupFunction<_ImeCancelCompositionC,   _ImeCancelCompositionDart>('ac_cef_ime_cancel_composition');
   }
 
   factory CefBindings.load(String libraryPath) =>
