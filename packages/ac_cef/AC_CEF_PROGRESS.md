@@ -25,7 +25,7 @@
 - [DONE] OnLoadingStateChange
 - [DONE] OnAddressChange (URL bar update)
 - [DONE] OnTitleChange
-- [PARTIAL] Popup / new window - OnBeforePopup fires but popup is always cancelled; no OSR popup rendering
+- [PARTIAL] Popup / new window - FIXED in Session 10: OnBeforePopup now sets OSR mode for allowed popups (windowInfo.SetAsWindowless(0) + new AcBrowserClient); popup fires on_after_created with new browser_id which Dart can wrap in a new CefView
 - [DONE] Downloads - OnBeforeDownload and OnDownloadUpdated fire, callback response works; cancel/pause/resume implemented
 - [DONE] SSL/certificate error handling - OnCertificateError dispatched to Dart; respond via CefCallback
 - [PARTIAL] OnBeforeBrowse fires (logs, always returns false)
@@ -102,9 +102,9 @@
 - [DONE] OnBeforeContextMenu CefContextMenuParams data - FIXED: C++ reads linkUrl, pageUrl, frameUrl, sourceUrl, selectionText, misspelledWord, mediaType, typeFlags, mediaStateFlags, editStateFlags, isEditable, hasImageContents from params and passes them; Dart builds _NativeContextMenuParams with real values
 
 ### Multiple Browsers
-- [PARTIAL] Global _activeClient pointer - only ONE CefNativeClient can be active at a time
-- [PARTIAL] Multiple CefView widgets on same native client - should work
-- [BROKEN] Two separate CefNativeClient instances would overwrite _activeClient
+- [FIXED] Global _activeClient pointer - FIXED in Session 10: initialize() now throws StateError if another CefNativeClient is already active; shutdown() clears _activeClient; CefNativeClient.hasActiveClient static getter added
+- [PARTIAL] Multiple CefView widgets on same native client - should work (all routed by browser_id)
+- [FIXED] Two separate CefNativeClient instances - FIXED: second call to initialize() with different client now throws StateError instead of silently overwriting
 
 ### DevTools
 - [DONE] Open/close DevTools in popup window
@@ -134,8 +134,7 @@
 ## Known Bugs / Issues
 
 ### MEDIUM - Single active client limitation
-_activeClient global only holds one CefNativeClient. Second client overwrites first.
-Only one CefNativeClient/CefApp per process is supported.
+- FIXED in Session 10: initialize() throws StateError if another CefNativeClient is already active. CefNativeClient.hasActiveClient static getter added.
 
 ### LOW - ac_cef_get_title returns empty string
 - FIXED in Session 7: title is now cached in BrowserInfo.title on every OnTitleChange; ac_cef_get_title returns the cache under g_browsers_mutex. CefController.currentTitle is the Dart accessor.
@@ -153,8 +152,7 @@ The C bridge passes url + is_redirect; userGesture is always false in the stub.
 A future session can extend the bridge to pass these.
 
 ### LOW - OnBeforeContextMenu model is always empty
-C++ calls model->Clear() before dispatching; Dart receives an unmodifiable stub.
-To support custom context menus, the C bridge would need to pass menu item data.
+- FIXED in Sessions 8 + 9: C++ now enumerates all default menu items and passes them as flat arrays; _NativeMenuModel holds real data; _NativeContextMenuParams holds all params fields. Dart handlers receive a fully-populated read-only model.
 
 ## Important Architecture Decisions
 
@@ -355,12 +353,30 @@ Completed:
 
 - VERIFIED: dart analyze — 0 issues on ac_cef (ac_cef_flutter unchanged this session)
 
+### Session 10 (2026-08-13) - OSR Popup Support + Singleton Enforcement
+
+#### C++ (ac_cef_bridge.cpp) — DLL REBUILD REQUIRED
+- `AcBrowserClient::OnBeforePopup`: replaced single `return callback != 0` with two-phase logic:
+  1. If Dart callback returns non-zero (cancel), returns true immediately
+  2. Otherwise: calls `windowInfo.SetAsWindowless(0)` to configure OSR mode, creates a new `AcBrowserClient()`, assigns it to `client`, returns false to allow popup
+  - Popup browser fires `OnAfterCreated` with its own `browser_id`; Dart receives `on_after_created` and can wrap it in a new `CefView`
+  - Popup paint frames arrive via the same `on_paint` callback routed by the popup's `browser_id`
+
+#### Dart ac_cef package
+- `cef_native_client.dart`:
+  - `initialize()`: added singleton guard — throws `StateError` with descriptive message if `_activeClient != null && _activeClient != this`; prevents silent overwrite of global callback table
+  - Added `static bool get hasActiveClient => _activeClient != null` for external checks
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL BUILD SUCCESS (2026-08-13 19:07) — `native\build_win\out\ac_cef_bridge.dll` (761 KB)
+  All Sessions 3, 4, 7, 8, 9, 10 C++ changes compiled and linked.
+
 ## Current Priority / Next Session
 
-1. **Rebuild DLL** — Sessions 7, 8, 9 all added C++ changes; rebuild required before testing
-2. **Multiple simultaneous CefView instances** — verify two CefViews on same native client work correctly; add example
-3. **Single active client limitation** — consider singleton enforcement + clear documentation
-4. **Popup window support** — OSR popup rendering; currently popup is always cancelled
+1. **Deploy DLL** — copy `native\build_win\out\ac_cef_bridge.dll` to Flutter app output directory
+2. **Test popup OSR** — verify popup browser fires `on_after_created` and delivers OSR paint frames
+3. **JS eval / return values** — ExecuteJavaScript has no return value; implement via cefQuery bridge
+4. **OnBeforeBrowse extended** — currently only URL + is_redirect passed; add userGesture
 
 ## Build Notes
 
@@ -380,7 +396,9 @@ Completed:
     AcCefCallbacks struct extended with 3 new fields
   - Session 9: OnBeforeContextMenuCallback extended with 12 CefContextMenuParams fields;
     AcBrowserClient::OnBeforeContextMenu reads all params fields into temporaries
+  - Session 10: OnBeforePopup now sets OSR mode for allowed popups + creates new AcBrowserClient
 - Sessions 5 & 6 changes are Dart-only — no DLL rebuild required
 - Session 7: C++ changes require DLL rebuild; Dart changes are additive (no breaking changes)
 - Session 8: C++ changes require DLL rebuild; OnBeforePopup and OnBeforeContextMenu callback signatures changed
 - Session 9: C++ changes require DLL rebuild; OnBeforeContextMenuCallback signature extended again (+12 params)
+- Session 10: C++ changes require DLL rebuild (OnBeforePopup body changed); Dart changes (singleton guard) do not require rebuild

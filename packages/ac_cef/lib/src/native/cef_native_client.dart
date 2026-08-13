@@ -276,6 +276,17 @@ class CefNativeClient {
 
   bool initialize([CefSettings? settings]) {
     if (_initialized) return true;
+    // ── Singleton guard ─────────────────────────────────────────────────────
+    // CEF only supports one CefApp per process. If another CefNativeClient is
+    // already active (i.e. initialize() was called and shutdown() not yet
+    // called) we refuse to proceed rather than silently overwriting the global
+    // callback pointer and corrupting the running instance.
+    if (_activeClient != null && _activeClient != this) {
+      throw StateError(
+        'A CefNativeClient is already active in this process. '
+        'Call shutdown() on the existing instance before creating a new one. '
+        'CEF only supports one CefApp per process.');
+    }
     _activeClient = this;
 
     final map  = (settings ?? CefSettings()).toMap();
@@ -657,6 +668,10 @@ class CefNativeClient {
   }
 
   bool get isInitialized => _initialized;
+
+  /// True if any [CefNativeClient] has called [initialize] and not yet [shutdown].
+  /// Useful to guard against accidental double-initialization.
+  static bool get hasActiveClient => _activeClient != null;
 
   // ─── Internal callback forwarders ─────────────────────────────────────────
 

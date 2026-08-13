@@ -221,13 +221,19 @@ class AcBrowserClient : public CefClient,
                        CefRefPtr<CefDictionaryValue>& extra_info,
                        bool* no_javascript_access) override {
         if (g_callbacks.on_before_popup) {
-            return g_callbacks.on_before_popup(browser_id,
+            int cancel = g_callbacks.on_before_popup(browser_id,
                 target_url.ToString().c_str(),
                 target_frame_name.ToString().c_str(),
                 (int)target_disposition,
-                user_gesture ? 1 : 0) != 0;
+                user_gesture ? 1 : 0);
+            if (cancel) return true;  // Dart handler said cancel
         }
-        return false;
+        // Allow popup as an OSR browser so it integrates with the same
+        // paint pipeline. A fresh AcBrowserClient receives OnAfterCreated
+        // with the popup's browser_id, which Dart can wrap in a new CefView.
+        windowInfo.SetAsWindowless(0);   // 0 = opaque background
+        client = new AcBrowserClient();  // ID assigned in OnAfterCreated
+        return false;                    // allow popup creation
     }
 
     // ── LoadHandler ───────────────────────────────────────────────────────────
@@ -468,16 +474,6 @@ class AcBrowserClient : public CefClient,
         return false;  // default: cancel (certificate error blocks navigation)
     }
 
-    // ── ContextMenuHandler ───────────────────────────────────────────────────
-    void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
-                             CefRefPtr<CefFrame> frame,
-                             CefRefPtr<CefContextMenuParams> params,
-                             CefRefPtr<CefMenuModel> model) override {
-        if (g_callbacks.on_before_context_menu) {
-            g_callbacks.on_before_context_menu(browser_id, params->GetXCoord(), params->GetYCoord());
-        }
-        model->Clear();
-    }
 
     // ── MessageRouter ────────────────────────────────────────────────────────
     bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
