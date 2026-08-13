@@ -10,7 +10,8 @@ export 'package:ac_cef/ac_cef.dart'
     show CefNativeClient, CefClient, CefSettings, CefBrowserSettings,
          CefMessageRouterHandler, CefQueryCallback, CefPopupEvent,
          CefPopupShowEvent, CefPopupSizeEvent,
-         CefJSDialogHandler, CefJSDialogCallback, CefJSDialogType;
+         CefJSDialogHandler, CefJSDialogCallback, CefJSDialogType,
+         CefFindHandler, CefFindResult, CefRect;
 
 // ─── CEF event flag constants (from cef_types.h) ─────────────────────────────
 
@@ -91,6 +92,14 @@ class CefController {
 
   /// Returns the plain-text content of the main frame.
   Future<String> getText() => _native.getText(_browserId);
+
+  // Find handler
+  /// Register a [CefFindHandler] to receive match updates from [find].
+  void setFindHandler(CefFindHandler handler) =>
+      _native.client.addFindHandler(handler);
+
+  /// Remove the currently registered find handler.
+  void removeFindHandler() => _native.client.removeFindHandler();
 
   // DevTools
   void openDevTools()  => _run(() => _native.openDevTools(_browserId));

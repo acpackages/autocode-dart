@@ -16,6 +16,7 @@ export 'src/handler/cef_js_dialog_handler.dart';
 export 'src/handler/cef_keyboard_handler.dart';
 export 'src/handler/cef_life_span_handler.dart';
 export 'src/handler/cef_focus_handler.dart';
+export 'src/handler/cef_find_handler.dart';
 export 'src/native/cef_bindings.dart';
 export 'src/native/cef_native_client.dart';
 export 'src/native/paint_frame.dart';

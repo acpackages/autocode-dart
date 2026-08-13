@@ -160,7 +160,8 @@ class AcBrowserClient : public CefClient,
                          public CefJSDialogHandler,
                          public CefDownloadHandler,
                          public CefRequestHandler,
-                         public CefContextMenuHandler {
+                         public CefContextMenuHandler,
+                         public CefFindHandler {
  public:
      int64_t browser_id = 0;
      CefRefPtr<AcRenderHandler> render_handler;
@@ -178,6 +179,22 @@ class AcBrowserClient : public CefClient,
      CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
      CefRefPtr<CefRequestHandler>  GetRequestHandler()  override { return this; }
      CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+     CefRefPtr<CefFindHandler>     GetFindHandler()     override { return this; }
+
+    // ── FindHandler ──────────────────────────────────────────────────────────
+    void OnFindResult(CefRefPtr<CefBrowser> browser,
+                      int identifier, int count,
+                      const CefRect& selection_rect,
+                      int active_match_ordinal,
+                      bool final_update) override {
+        if (g_callbacks.on_find_result)
+            g_callbacks.on_find_result(
+                browser_id, identifier, count,
+                active_match_ordinal,
+                selection_rect.x, selection_rect.y,
+                selection_rect.width, selection_rect.height,
+                final_update ? 1 : 0);
+    }
 
     // ── LifeSpan ──────────────────────────────────────────────────────────────
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {

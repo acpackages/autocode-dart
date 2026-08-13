@@ -8,6 +8,7 @@ import 'handler/cef_display_handler.dart';
 import 'handler/cef_download_handler.dart';
 import 'handler/cef_focus_handler.dart';
 import 'handler/cef_js_dialog_handler.dart';
+import 'handler/cef_find_handler.dart';
 import 'handler/cef_keyboard_handler.dart';
 import 'handler/cef_life_span_handler.dart';
 import 'handler/cef_load_handler.dart';
@@ -33,6 +34,7 @@ class CefClient {
   CefDisplayHandler? _displayHandler;
   CefDownloadHandler? _downloadHandler;
   CefFocusHandler? _focusHandler;
+  CefFindHandler?  _findHandler;
   CefJSDialogHandler? _jsDialogHandler;
   CefKeyboardHandler? _keyboardHandler;
   CefLoadHandler? _loadHandler;
@@ -84,6 +86,14 @@ class CefClient {
   }
 
   void removeJSDialogHandler() => _jsDialogHandler = null;
+
+  /// Register a handler for find-in-page results.
+  CefClient addFindHandler(CefFindHandler handler) {
+    _findHandler = handler;
+    return this;
+  }
+
+  void removeFindHandler() => _findHandler = null;
 
   /// Register a handler for keyboard events.
   CefClient addKeyboardHandler(CefKeyboardHandler handler) {
@@ -290,6 +300,11 @@ class CefClient {
 
   void dispatchOnDialogClosed(CefBrowser browser) =>
       _jsDialogHandler?.onDialogClosed(browser);
+
+  // ── FindHandler ───────────────────────────────────────────────────────────
+
+  void dispatchOnFindResult(CefBrowser browser, CefFindResult result) =>
+      _findHandler?.onFindResult(browser, result);
 
   // ── DownloadHandler ──────────────────────────────────────────────────────
 

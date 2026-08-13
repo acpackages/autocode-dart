@@ -18,6 +18,7 @@ import '../handler/cef_keyboard_handler.dart';
 import '../handler/cef_life_span_handler.dart';
 import '../handler/cef_load_handler.dart';
 import '../handler/cef_request_handler.dart';
+import '../handler/cef_find_handler.dart';
 import '../network/cef_request.dart';
 import 'cef_bindings.dart';
 import 'paint_frame.dart';
@@ -215,6 +216,15 @@ int _onBeforeUnloadDialog(int id, Pointer<Utf8> msg, int isReload, int cbId) =>
 int _onTooltip(int id, Pointer<Utf8> text) =>
     (_activeClient?._fwdTooltip(id, _safeString(text)) ?? false) ? 1 : 0;
 
+/// OnFindResult: delivers find-in-page match info to Dart.
+void _onFindResult(int id, int identifier, int count,
+    int activeMatchOrdinal,
+    int selX, int selY, int selW, int selH,
+    int finalUpdate) {
+  _activeClient?._fwdFindResult(id, identifier, count,
+      activeMatchOrdinal, selX, selY, selW, selH, finalUpdate != 0);
+}
+
 /// Called by C to query the view rect for this browser.
 void _getViewRect(int id, Pointer<Int32> x, Pointer<Int32> y,
     Pointer<Int32> w, Pointer<Int32> h) {
@@ -347,6 +357,9 @@ class CefNativeClient {
         Pointer.fromFunction<OnBeforeUnloadDialogCallback>(_onBeforeUnloadDialog, 0);
     cb.ref.on_tooltip =
         Pointer.fromFunction<OnTooltipCallback>(_onTooltip, 0);
+    // Session 15: find result
+    cb.ref.on_find_result =
+        Pointer.fromFunction<OnFindResultCallback>(_onFindResult);
 
     // Blocking / Non-void callbacks
     cb.ref.on_before_browse = Pointer.fromFunction<OnBeforeBrowseCallback>(_onBeforeBrowse, 0);
@@ -1028,6 +1041,23 @@ class CefNativeClient {
   /// Returns true to suppress the default platform tooltip.
   bool _fwdTooltip(int id, String text) =>
       client.dispatchOnTooltip(_browsers[id] ?? _stub, text);
+
+  /// Dispatch an OnFindResult event to the registered [CefFindHandler].
+  void _fwdFindResult(int id, int identifier, int count,
+      int activeMatchOrdinal,
+      int selX, int selY, int selW, int selH,
+      bool finalUpdate) {
+    final result = CefFindResult(
+      identifier:          identifier,
+      count:               count,
+      activeMatchOrdinal:  activeMatchOrdinal,
+      selectionRect:       CefRect(
+          selX.toDouble(), selY.toDouble(),
+          selW.toDouble(), selH.toDouble()),
+      finalUpdate:         finalUpdate,
+    );
+    client.dispatchOnFindResult(_browsers[id] ?? _stub, result);
+  }
 
   /// Build a [CefKeyEvent] from raw C values.
   static CefKeyEvent _buildKeyEvent(

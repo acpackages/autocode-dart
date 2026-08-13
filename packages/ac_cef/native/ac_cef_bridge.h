@@ -115,6 +115,23 @@ typedef void (*OnPopupSizeCallback)(int64_t browser_id, int x, int y, int width,
 /// Fired when the page enters or exits fullscreen mode.
 typedef void (*OnFullscreenModeChangeCallback)(int64_t browser_id, int fullscreen);
 
+/// Fired by CefFindHandler::OnFindResult each time the browser reports match status.
+/// [identifier]           matches the value from ac_cef_find.
+/// [count]                total number of matches found so far.
+/// [active_match_ordinal] 1-based index of the currently highlighted match (0 if none).
+/// [selection_rect_*]     bounding rect of the active match in physical pixels.
+/// [final_update]         1 when the search is complete.
+typedef void (*OnFindResultCallback)(
+    int64_t browser_id,
+    int     identifier,
+    int     count,
+    int     active_match_ordinal,
+    int     selection_rect_x,
+    int     selection_rect_y,
+    int     selection_rect_w,
+    int     selection_rect_h,
+    int     final_update);
+
 /// Called before a key event is sent to the renderer.
 /// [is_keyboard_shortcut_out] is written to 1 if the event is a keyboard shortcut.
 /// Returns 1 to cancel the event (prevent it reaching the renderer).
@@ -212,6 +229,8 @@ typedef struct AcCefCallbacks {
   OnRenderProcessTerminatedCallback on_render_process_terminated;
   OnBeforeUnloadDialogCallback      on_before_unload_dialog;
   OnTooltipCallback                 on_tooltip;
+  // ── Session 15 additions ─────────────────────────────────────────────────
+  OnFindResultCallback              on_find_result;
 } AcCefCallbacks;
 
 // ─── Init / shutdown ──────────────────────────────────────────────────────────

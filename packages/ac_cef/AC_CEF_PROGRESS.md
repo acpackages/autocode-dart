@@ -397,11 +397,39 @@ Completed:
 - VERIFIED: dart analyze — 0 issues on both packages
 - DLL REBUILT (783 KB) and DEPLOYED
 
+### Session 15 (2026-08-13) - OnFindResult Handler
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILT
+- `OnFindResultCallback` typedef added to header (browser_id, identifier, count, active_match_ordinal, rect x/y/w/h, final_update)
+- `on_find_result` field added to `AcCefCallbacks` struct (Session 15 section)
+- `AcBrowserClient` now also extends `CefFindHandler`
+- `GetFindHandler()` override added
+- `OnFindResult()` implementation fires `g_callbacks.on_find_result` with full match info
+
+#### Dart ac_cef package
+- `cef_find_handler.dart` (NEW):
+  - `CefRect` — plain data class (left, top, width, height) replaces `dart:ui Rect` for pure-Dart compatibility
+  - `CefFindResult` — data class (identifier, count, activeMatchOrdinal, selectionRect, finalUpdate)
+  - `CefFindHandler` — abstract interface with `onFindResult(browser, result)`
+- `cef_bindings.dart`: `OnFindResultCallback` typedef; `on_find_result` field in struct
+- `cef_native_client.dart`:
+  - `_onFindResult` top-level C callback
+  - `_fwdFindResult` instance method builds `CefFindResult` and calls `client.dispatchOnFindResult`
+  - `on_find_result` registered in callback struct init
+- `cef_client.dart`: `_findHandler` field, `addFindHandler()`, `removeFindHandler()`, `dispatchOnFindResult()`
+- `ac_cef.dart`: `cef_find_handler.dart` exported
+
+#### Dart ac_cef_flutter package
+- No changes required — `CefFindHandler` is registered directly on `CefClient` (native level)
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT (783 KB, 21:03) and DEPLOYED
+
 ## Current Priority / Next Session
 
-1. **Popup OSR integration test** — trigger `window.open()` and display popup in new `CefView`
-2. **FindHandler wiring** — add `OnFindResult` callback so Dart can track match count and current index
-3. **OnFindResult** — fire C++ `FindHandler::OnFindResult` → Dart `CefFindHandler.onFindResult`
+1. **Popup OSR integration test** — trigger `window.open()`, verify new browser_id fires `on_after_created`, display it in a second `CefView`
+2. **Expose `CefFindHandler` on `CefController`** — add `setFindHandler()` convenience on `CefController` in `ac_cef_flutter`
+3. **Recreate browser test** — close a `CefView` and open a new one on the same `CefNativeClient`
 
 ### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
 
