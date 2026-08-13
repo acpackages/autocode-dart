@@ -8,13 +8,16 @@ import '../cef_browser.dart';
 import '../cef_browser_settings.dart';
 import '../cef_client.dart';
 import '../cef_frame.dart';
+import '../cef_menu_model.dart';
 import '../cef_message_router.dart';
 import '../cef_settings.dart';
+import '../handler/cef_context_menu_handler.dart';
 import '../handler/cef_download_handler.dart';
 import '../handler/cef_js_dialog_handler.dart';
 import '../handler/cef_keyboard_handler.dart';
 import '../handler/cef_load_handler.dart';
 import '../handler/cef_request_handler.dart';
+import '../network/cef_request.dart';
 import 'cef_bindings.dart';
 import 'paint_frame.dart';
 
@@ -672,14 +675,31 @@ class CefNativeClient {
   }
 
   bool _fwdBeforeBrowse(int id, String url, bool isRedirect) {
-    return false;
+    final handler = _browsers.containsKey(id)
+        ? client.requestHandler
+        : null;
+    if (handler == null) return false;
+    return handler.onBeforeBrowse(
+      _browsers[id] ?? _stub,
+      _noFrame,
+      _StubRequest(url),
+      false, // userGesture — not provided by bridge currently
+      isRedirect,
+    );
   }
 
   bool _fwdBeforeResourceLoad(int id, String url, String method) {
     return false;
   }
 
-  void _fwdBeforeContextMenu(int id, int x, int y) {}
+  void _fwdBeforeContextMenu(int id, int x, int y) {
+    client.dispatchOnBeforeContextMenu(
+      _browsers[id] ?? _stub,
+      _noFrame,
+      _StubContextMenuParams(x, y),
+      _StubMenuModel(),
+    );
+  }
 
   // ─── Session 3 forwarders ────────────────────────────────────────────────
 
@@ -909,4 +929,110 @@ class _NativeQueryCb implements CefQueryCallback {
     _settled = true;
     _client.queryFailure(_browserId, _queryId, errorCode, errorMessage);
   }
+}
+
+// ─── Stub CefRequest (used in _fwdBeforeBrowse) ───────────────────────────────
+
+/// Minimal [CefRequest] carrying only the URL supplied by the C bridge.
+/// Navigation interception only needs [getURL]; all mutating methods are no-ops.
+class _StubRequest implements CefRequest {
+  final String _url;
+  _StubRequest(this._url);
+
+  @override void dispose() {}
+  @override int getIdentifier() => 0;
+  @override bool isReadOnly() => true;
+  @override String getURL() => _url;
+  @override void setURL(String url) {}
+  @override String getMethod() => 'GET';
+  @override void setMethod(String method) {}
+  @override void setReferrer(String url, CefReferrerPolicy policy) {}
+  @override String getReferrerURL() => '';
+  @override CefReferrerPolicy getReferrerPolicy() => CefReferrerPolicy.referrerPolicyDefault;
+  @override String? getHeaderByName(String name) => null;
+  @override void setHeaderByName(String name, String value, bool overwrite) {}
+  @override Map<String, String> getHeaderMap() => const {};
+  @override void setHeaderMap(Map<String, String> headerMap) {}
+  @override int getFlags() => 0;
+  @override void setFlags(int flags) {}
+  @override String getFirstPartyForCookies() => '';
+  @override void setFirstPartyForCookies(String url) {}
+  @override CefResourceType getResourceType() => CefResourceType.rtMainFrame;
+  @override CefTransitionType getTransitionType() => CefTransitionType.ttLink;
+}
+
+// ─── Stub CefContextMenuParams (used in _fwdBeforeContextMenu) ────────────────
+
+/// Minimal [CefContextMenuParams] carrying the (x, y) coordinates from C.
+class _StubContextMenuParams implements CefContextMenuParams {
+  final int _x;
+  final int _y;
+  _StubContextMenuParams(this._x, this._y);
+
+  @override int getXCoord() => _x;
+  @override int getYCoord() => _y;
+  @override int getTypeFlags() => 0;
+  @override String getLinkUrl() => '';
+  @override String getUnfilteredLinkUrl() => '';
+  @override String getSourceUrl() => '';
+  @override bool hasImageContents() => false;
+  @override String getPageUrl() => '';
+  @override String getFrameUrl() => '';
+  @override String getFrameCharset() => '';
+  @override CefMediaType getMediaType() => CefMediaType.none;
+  @override int getMediaStateFlags() => 0;
+  @override String getSelectionText() => '';
+  @override String getMisspelledWord() => '';
+  @override bool isEditable() => false;
+  @override bool isSpellCheckEnabled() => false;
+  @override int getEditStateFlags() => 0;
+}
+
+// ─── Stub CefMenuModel (used in _fwdBeforeContextMenu) ───────────────────────
+
+/// No-op [CefMenuModel] passed to [CefContextMenuHandler.onBeforeContextMenu].
+/// The C bridge already calls model->Clear() before dispatching to Dart,
+/// so the model is effectively empty when the handler receives it.
+class _StubMenuModel implements CefMenuModel {
+  @override bool clear() => true;
+  @override int getCount() => 0;
+  @override bool addSeparator() => false;
+  @override bool addItem(int commandId, String label) => false;
+  @override bool addCheckItem(int commandId, String label) => false;
+  @override bool addRadioItem(int commandId, String label, int groupId) => false;
+  @override CefMenuModel? addSubMenu(int commandId, String label) => null;
+  @override bool insertSeparatorAt(int index) => false;
+  @override bool insertItemAt(int index, int commandId, String label) => false;
+  @override bool insertCheckItemAt(int index, int commandId, String label) => false;
+  @override bool insertRadioItemAt(int index, int commandId, String label, int groupId) => false;
+  @override CefMenuModel? insertSubMenuAt(int index, int commandId, String label) => null;
+  @override bool remove(int commandId) => false;
+  @override bool removeAt(int index) => false;
+  @override int getIndexOf(int commandId) => -1;
+  @override int getCommandIdAt(int index) => -1;
+  @override bool setCommandIdAt(int index, int commandId) => false;
+  @override String getLabel(int commandId) => '';
+  @override String getLabelAt(int index) => '';
+  @override bool setLabel(int commandId, String label) => false;
+  @override bool setLabelAt(int index, String label) => false;
+  @override CefMenuItemType getType(int commandId) => CefMenuItemType.none;
+  @override CefMenuItemType getTypeAt(int index) => CefMenuItemType.none;
+  @override int getGroupId(int commandId) => 0;
+  @override int getGroupIdAt(int index) => 0;
+  @override bool setGroupId(int commandId, int groupId) => false;
+  @override bool setGroupIdAt(int index, int groupId) => false;
+  @override CefMenuModel? getSubMenu(int commandId) => null;
+  @override CefMenuModel? getSubMenuAt(int index) => null;
+  @override bool isVisible(int commandId) => false;
+  @override bool isVisibleAt(int index) => false;
+  @override bool setVisible(int commandId, bool visible) => false;
+  @override bool setVisibleAt(int index, bool visible) => false;
+  @override bool isEnabled(int commandId) => false;
+  @override bool isEnabledAt(int index) => false;
+  @override bool setEnabled(int commandId, bool enabled) => false;
+  @override bool setEnabledAt(int index, bool enabled) => false;
+  @override bool isChecked(int commandId) => false;
+  @override bool isCheckedAt(int index) => false;
+  @override bool setChecked(int commandId, bool checked) => false;
+  @override bool setCheckedAt(int index, bool checked) => false;
 }

@@ -108,6 +108,9 @@ class CefClient {
 
   void removeRequestHandler() => _requestHandler = null;
 
+  /// The currently registered [CefRequestHandler], or null if none is registered.
+  CefRequestHandler? get requestHandler => _requestHandler;
+
   /// Add a life-span handler (multiple handlers are supported).
   CefClient addLifeSpanHandler(CefLifeSpanHandler handler) {
     _lifeSpanHandlers.add(handler);

@@ -40,7 +40,7 @@
 - [PARTIAL] Multiple browsers - each has own paint stream; should work
 - [DONE] Popup/overlay rendering - FIXED: OnPopupShow + OnPopupSize callbacks implemented; popup frames composited via Stack + Positioned overlay in CefView
 - [DONE] dirtyRects - CEF's dirty rect list is packed into a flat int array and delivered in every PaintFrame; available for future partial-repaint optimisation
-- [KNOWN BUG] Frame drop logic (_decoding flag) may cause missed frames
+- [FIXED] Frame drop logic - FIXED: replaced _decoding boolean flag with 1-slot pending frame queue; latest frame is never lost; popup frames use independent _pendingPopupFrame slot
 
 ### Input - Keyboard
 - [DONE] Key down / Key up
@@ -89,8 +89,10 @@
 - [DONE] Download pause/resume - NEW: ac_cef_pause_download / ac_cef_resume_download wired; _NativeDlItemCb.pause() and .resume() now call through to C bridge
 - [DONE] JS dialog events
 - [DONE] Context menu (cleared by default)
+- [DONE] OnBeforeContextMenu dispatched to Dart CefContextMenuHandler - FIXED: _fwdBeforeContextMenu now calls dispatchOnBeforeContextMenu with _StubContextMenuParams + _StubMenuModel
 - [DONE] OnPreKeyEvent / OnKeyEvent - NEW: dispatched from C++ → Dart CefKeyboardHandler
 - [DONE] OnCertificateError - NEW: dispatched from C++ → Dart; CefCallback.onContinue(allow) responds
+- [DONE] OnBeforeBrowse dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeBrowse now dispatches to client.requestHandler with _StubRequest carrying the URL
 
 ### Multiple Browsers
 - [PARTIAL] Global _activeClient pointer - only ONE CefNativeClient can be active at a time
@@ -119,6 +121,7 @@
 - [DONE] _popupFrame ui.Image disposed on hide and on widget dispose - FIXED
 - [DONE] Cert-error callbacks stored in _certCbs; released on response
 - [DONE] Download-item callbacks stored in _dlItemCbs; released on complete/cancel
+- [DONE] _pendingFrame / _pendingPopupFrame cleared in dispose() - FIXED
 
 
 ## Known Bugs / Issues
@@ -130,10 +133,6 @@ Only one CefNativeClient/CefApp per process is supported.
 ### LOW - ac_cef_get_title returns empty string
 Always returns "" - title only available via OnTitleChange callback.
 
-### LOW - Frame decode throttling may skip popup updates
-_popupDecoding flag gates popup frames independently of main frame, but a busy
-main frame decode could still cause stutter if both streams fire rapidly.
-
 ### LOW - JS query handler is per-browser, not per-message-router-config
 registerQueryHandler() stores a single handler per browser ID. Multiple handlers
 or different router configs per browser are not supported yet.
@@ -141,6 +140,14 @@ or different router configs per browser are not supported yet.
 ### LOW - isKeyboardShortcut out-param always false
 OnPreKeyEvent's is_keyboard_shortcut out-parameter is always written as false;
 Dart cannot determine whether the key combination is a browser shortcut.
+
+### LOW - OnBeforeBrowse receives URL only (no method/headers/userGesture)
+The C bridge passes url + is_redirect; userGesture is always false in the stub.
+A future session can extend the bridge to pass these.
+
+### LOW - OnBeforeContextMenu model is always empty
+C++ calls model->Clear() before dispatching; Dart receives an unmodifiable stub.
+To support custom context menus, the C bridge would need to pass menu item data.
 
 ## Important Architecture Decisions
 
@@ -156,6 +163,7 @@ Dart cannot determine whether the key combination is a browser shortcut.
 - OnPreKeyEvent / OnKeyEvent: registered with Pointer.fromFunction (not NativeCallable.listener) since they return int and are called sync on the Dart thread.
 - OnCertificateError: registered with Pointer.fromFunction; Dart must call CefCallback.onContinue(true) to allow or onContinue(false)/cancel() to block.
 - ImeSetComposition: called before ImeCommitText to show composition preview in renderer (CJK input); ImeCancelComposition called on focus-loss and widget dispose.
+- Frame queue: _pendingFrame / _pendingPopupFrame are 1-slot queues; latest frame always displayed, no starvation, no unbounded backlog.
 
 ## Session History
 
@@ -232,13 +240,32 @@ Completed:
 
 - VERIFIED: dart analyze — 0 issues on both packages
 
+### Session 5 (2026-08-13) - Frame-Drop Fix, BeforeBrowse + ContextMenu Dispatch
+
+#### Dart ac_cef_flutter package
+- FIXED: `_decoding` frame-drop bug — replaced boolean flag with 1-slot pending-frame queue:
+  - `_pendingFrame` / `_pendingPopupFrame` fields added to `_CefViewState`
+  - New `_startMainDecode()` / `_startPopupDecode()` helpers that drain the slot after each decode
+  - `_onPaintFrame()` now parks the latest frame in the pending slot instead of silently dropping it
+  - Both pending slots cleared in `dispose()` to prevent dangling references
+
+#### Dart ac_cef package
+- `cef_client.dart`: Added `requestHandler` getter to expose the registered `CefRequestHandler`
+- `cef_native_client.dart`:
+  - Added imports: `cef_context_menu_handler.dart`, `cef_menu_model.dart`, `cef_request.dart`
+  - `_fwdBeforeBrowse`: now dispatches to `client.requestHandler.onBeforeBrowse()` with `_StubRequest` carrying the URL
+  - `_fwdBeforeContextMenu`: now calls `client.dispatchOnBeforeContextMenu()` with `_StubContextMenuParams` + `_StubMenuModel`
+  - Added stub classes: `_StubRequest`, `_StubContextMenuParams`, `_StubMenuModel`
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
 ## Current Priority / Next Session
 
-1. Partial repaint optimisation — `PaintFrame.dirtyRects` is now available; a future session can implement patch-blending in `CefView` once the `_decoding` frame-drop bug is addressed
-2. Fix `_decoding` frame-drop bug — add a frame queue so rapid CEF frames are not silently dropped
-3. Test multiple simultaneous CefView instances on same native client (should work; unverified)
-4. Consider addressing single active client limitation for true multi-window support
-5. Popup window support (OSR popup rendering, currently always cancelled)
+1. **Partial repaint optimisation** — `PaintFrame.dirtyRects` is now available; implement patch-blending in `CefView`: maintain a master `Uint8List` backing buffer and only BGRA→RGBA convert + blit the changed rects each frame instead of decoding the whole frame
+2. **OnBeforeResourceLoad dispatch** — wire `_fwdBeforeResourceLoad` to `CefRequestHandler.onBeforeResourceLoad` (needs method + url; currently stub always returns false)
+3. **Test multiple simultaneous CefView instances** on same native client (should work; unverified)
+4. **Consider addressing single active client limitation** for true multi-window support
+5. **Popup window support** (OSR popup rendering, currently always cancelled)
 
 ## Build Notes
 
@@ -247,6 +274,9 @@ Completed:
 - DLL must be adjacent to Flutter exe
 - CEF subprocess: jcef_helper.exe must be adjacent to Flutter exe
 - use-alloy-style=1 flag is set in AcCefApp::OnBeforeCommandLineProcessing
-- NOTE: DLL must be rebuilt after C++ changes in this session (OnFullscreenModeChange,
+- NOTE: DLL must be rebuilt after C++ changes in sessions 3 & 4 (OnFullscreenModeChange,
   OnPreKeyEvent, OnKeyEvent, OnCertificateError added; OnDownloadUpdated updated;
-  ac_cef_cancel_download implemented; ac_cef_certificate_error_response added)
+  ac_cef_cancel_download implemented; ac_cef_certificate_error_response added;
+  OnPaint extended with dirty_rects; ac_cef_pause_download / ac_cef_resume_download added;
+  ac_cef_ime_set_composition / ac_cef_ime_cancel_composition added)
+- Session 5 changes are Dart-only — no DLL rebuild required
