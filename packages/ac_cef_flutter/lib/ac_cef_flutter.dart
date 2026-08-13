@@ -9,7 +9,8 @@ import 'package:ac_cef/ac_cef.dart';
 export 'package:ac_cef/ac_cef.dart'
     show CefNativeClient, CefClient, CefSettings, CefBrowserSettings,
          CefMessageRouterHandler, CefQueryCallback, CefPopupEvent,
-         CefPopupShowEvent, CefPopupSizeEvent;
+         CefPopupShowEvent, CefPopupSizeEvent,
+         CefJSDialogHandler, CefJSDialogCallback, CefJSDialogType;
 
 // ─── CEF event flag constants (from cef_types.h) ─────────────────────────────
 
@@ -196,12 +197,32 @@ typedef CefViewCreatedCallback = void Function(CefController controller);
 ///   onCreated: (c) => controller = c,
 /// )
 /// ```
+/// Callback signature for JS dialogs shown from a [CefView].
+///
+/// [dialogType] is alert / confirm / prompt.
+/// [messageText] is the message shown by the page.
+/// [defaultPromptText] is the initial value for prompt dialogs (empty for alert/confirm).
+/// Call [callback.onContinue(success, input)] to dismiss the dialog:
+/// - alert:   `success=true, input=''`
+/// - confirm: `success=true/false, input=''`
+/// - prompt:  `success=true, input=<user-typed text>` (or `false` to cancel)
+typedef CefJSDialogCallback2 = void Function(
+  CefJSDialogType dialogType,
+  String messageText,
+  String defaultPromptText,
+  CefJSDialogCallback callback,
+);
+
 class CefView extends StatefulWidget {
   final CefNativeClient native;
   final String initialUrl;
   final CefViewCreatedCallback? onCreated;
   final Color backgroundColor;
   final int frameRate;
+  /// Optional JS dialog callback. When provided a [FlutterJSDialogHandler] is
+  /// registered that calls this function for alert/confirm/prompt dialogs.
+  /// If null, dialogs are auto-accepted (page is never frozen).
+  final CefJSDialogCallback2? onJSDialog;
 
   const CefView({
     super.key,
@@ -210,6 +231,7 @@ class CefView extends StatefulWidget {
     this.onCreated,
     this.backgroundColor = Colors.white,
     this.frameRate = 60,
+    this.onJSDialog,
   });
 
   @override
@@ -339,6 +361,13 @@ class _CefViewState extends State<CefView> {
           widget.native.setFocus(id, true);
 
           widget.onCreated?.call(_controller);
+
+          // Wire JS dialog handler if the CefView.onJSDialog prop was provided
+          if (widget.onJSDialog != null) {
+            widget.native.client.addJSDialogHandler(
+              _CallbackJSDialogHandler(widget.onJSDialog!),
+            );
+          }
         },
         onBeforeClose: (browser) {
           _paintSub?.cancel();
@@ -347,6 +376,10 @@ class _CefViewState extends State<CefView> {
           _cursorSub = null;
           _popupEventSub?.cancel();
           _popupEventSub = null;
+          // Remove dialog handler when browser closes
+          if (widget.onJSDialog != null) {
+            widget.native.client.removeJSDialogHandler();
+          }
         },
       ),
     );
@@ -1077,3 +1110,164 @@ class _BoundLifeSpanHandler extends CefLifeSpanHandler {
   void onBeforeClose(CefBrowser b) => _onClose(b);
 }
 
+// ─── FlutterJSDialogHandler ───────────────────────────────────────────────────
+
+/// A [CefJSDialogHandler] that presents native Flutter dialogs for
+/// `alert`, `confirm`, and `prompt` calls from JavaScript.
+///
+/// Usage — register once after [CefApp.start()]:
+/// ```dart
+/// widget.native.client.addJSDialogHandler(
+///   FlutterJSDialogHandler(contextGetter: () => context),
+/// );
+/// ```
+/// Or use [CefView.onJSDialog] which wires this automatically per-view.
+/// Private handler that bridges [CefView.onJSDialog] callback to [CefJSDialogHandler].
+class _CallbackJSDialogHandler implements CefJSDialogHandler {
+  final CefJSDialogCallback2 _cb;
+  _CallbackJSDialogHandler(this._cb);
+
+  @override
+  bool onJSDialog(
+    CefBrowser browser,
+    String originUrl,
+    CefJSDialogType dialogType,
+    String messageText,
+    String defaultPromptText,
+    CefJSDialogCallback callback,
+  ) {
+    _cb(dialogType, messageText, defaultPromptText, callback);
+    return true;
+  }
+
+  @override
+  bool onBeforeUnloadDialog(
+    CefBrowser browser,
+    String messageText,
+    bool isReload,
+    CefJSDialogCallback callback,
+  ) {
+    // Not exposed through CefJSDialogCallback2; auto-accept.
+    callback.onContinue(true, '');
+    return true;
+  }
+
+  @override
+  void onResetDialogState(CefBrowser browser) {}
+
+  @override
+  void onDialogClosed(CefBrowser browser) {}
+}
+
+class FlutterJSDialogHandler implements CefJSDialogHandler {
+  final BuildContext Function() _contextGetter;
+
+  FlutterJSDialogHandler({required BuildContext Function() contextGetter})
+      : _contextGetter = contextGetter;
+
+  @override
+  bool onJSDialog(
+    CefBrowser browser,
+    String originUrl,
+    CefJSDialogType dialogType,
+    String messageText,
+    String defaultPromptText,
+    CefJSDialogCallback callback,
+  ) {
+    _showDialog(dialogType, messageText, defaultPromptText, callback);
+    return true; // suppress CEF default; we call callback async
+  }
+
+  Future<void> _showDialog(
+    CefJSDialogType type,
+    String message,
+    String defaultPrompt,
+    CefJSDialogCallback callback,
+  ) async {
+    final ctx = _contextGetter();
+    final promptCtrl = TextEditingController(text: defaultPrompt);
+    final title = switch (type) {
+      CefJSDialogType.jsDialogTypeAlert   => 'Alert',
+      CefJSDialogType.jsDialogTypeConfirm => 'Confirm',
+      CefJSDialogType.jsDialogTypePrompt  => 'Input',
+    };
+
+    final result = await showDialog<(bool, String)>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dCtx) => AlertDialog(
+        title: Text(title),
+        content: type == CefJSDialogType.jsDialogTypePrompt
+            ? TextField(
+                controller: promptCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+              )
+            : Text(message),
+        actions: [
+          if (type != CefJSDialogType.jsDialogTypeAlert)
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop((false, '')),
+              child: const Text('Cancel'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(
+              (true, type == CefJSDialogType.jsDialogTypePrompt
+                  ? promptCtrl.text
+                  : '')),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    promptCtrl.dispose();
+    final (success, input) = result ?? (false, '');
+    callback.onContinue(success, input);
+  }
+
+  @override
+  bool onBeforeUnloadDialog(
+    CefBrowser browser,
+    String messageText,
+    bool isReload,
+    CefJSDialogCallback callback,
+  ) {
+    _showUnloadDialog(messageText, isReload, callback);
+    return true;
+  }
+
+  Future<void> _showUnloadDialog(
+    String message,
+    bool isReload,
+    CefJSDialogCallback callback,
+  ) async {
+    final ctx = _contextGetter();
+    final result = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dCtx) => AlertDialog(
+        title: Text(isReload ? 'Reload page?' : 'Leave page?'),
+        content: Text(message.isEmpty
+            ? 'Changes you made may not be saved.'
+            : message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(false),
+            child: const Text('Stay'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(true),
+            child: Text(isReload ? 'Reload' : 'Leave'),
+          ),
+        ],
+      ),
+    );
+    callback.onContinue(result ?? false, '');
+  }
+
+  @override
+  void onResetDialogState(CefBrowser browser) {}
+
+  @override
+  void onDialogClosed(CefBrowser browser) {}
+}

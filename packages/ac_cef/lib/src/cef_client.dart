@@ -267,10 +267,17 @@ class CefClient {
     String messageText,
     String defaultPromptText,
     CefJSDialogCallback callback,
-  ) =>
-      _jsDialogHandler?.onJSDialog(
-          browser, originUrl, dialogType, messageText, defaultPromptText, callback) ??
-      false;
+  ) {
+    final handler = _jsDialogHandler;
+    if (handler != null) {
+      return handler.onJSDialog(
+          browser, originUrl, dialogType, messageText, defaultPromptText, callback);
+    }
+    // No handler registered — auto-accept to prevent the page from freezing.
+    // (Returning false without calling callback leaves the renderer blocked.)
+    callback.onContinue(true, '');
+    return true; // suppress — we handled it
+  }
 
   bool dispatchOnBeforeUnloadDialog(CefBrowser browser, String messageText,
           bool isReload, CefJSDialogCallback callback) =>

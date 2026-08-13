@@ -75,7 +75,7 @@
 - [DONE] No-handler fallback: succeeds with empty response so JS promise doesn't hang
 - [DONE] Declined-handler fallback: auto-fails with -1/'Query not handled' error
 - [DONE] JS return values / eval results - FIXED in Session 11: CefController.evalJavaScript(expr) → Future<String>; implemented via cefQuery piggyback with __cef_eval__ prefix intercepted internally; JS errors propagated as Dart errors
-- [PARTIAL] JS dialog (alert/confirm/prompt) - auto-dismissed in example
+- [DONE] JS dialog (alert/confirm/prompt) - FIXED in Session 13: CefClient.dispatchOnJSDialog now auto-accepts when no handler (prevents page freeze); FlutterJSDialogHandler added to ac_cef_flutter (shows real Flutter showDialog); CefView.onJSDialog callback prop added; _CallbackJSDialogHandler wraps user callback
 
 ### Callbacks
 - [DONE] Load events (start/end/error/state)
@@ -411,12 +411,27 @@ Completed:
 
 - VERIFIED: dart analyze — 0 issues on both packages
 
+### Session 13 (2026-08-13) - JS Dialog Fix + FlutterJSDialogHandler
+
+#### Dart ac_cef package (no DLL rebuild required)
+- `cef_client.dart` — `dispatchOnJSDialog`: fixed callback leak; when no handler is registered, now calls `callback.onContinue(true, '')` and returns `true` instead of returning `false` (which left the renderer blocked indefinitely)
+
+#### Dart ac_cef_flutter package
+- `ac_cef_flutter.dart`:
+  - Export: added `CefJSDialogHandler`, `CefJSDialogCallback`, `CefJSDialogType` to re-exports
+  - `typedef CefJSDialogCallback2` — simplified callback signature for `CefView.onJSDialog`
+  - `CefView.onJSDialog` — new optional prop; when set, registers `_CallbackJSDialogHandler` after browser creation and removes it on browser close
+  - `_CallbackJSDialogHandler` — private `CefJSDialogHandler` that delegates to `CefJSDialogCallback2`
+  - `FlutterJSDialogHandler` — public `CefJSDialogHandler` using `showDialog` for alert/confirm/prompt and before-unload; takes `BuildContext Function()` getter
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
 ## Current Priority / Next Session
 
 1. **Test popup OSR** — trigger `window.open()` on a page; verify new `CefView(browserId: id)` displays the popup
 2. **Multiple CefView instances** — confirm two `CefView` widgets on same `CefNativeClient` work concurrently
-3. **JS dialog improvements** — currently auto-dismissed; wire to a proper Flutter dialog via `CefJSDialogHandler`
-4. **Horizontal scroll** — test that two-finger/shift-wheel events reach the browser correctly
+3. **Horizontal scroll** — test that two-finger/shift-wheel events reach the browser correctly
+4. **Mark [PARTIAL] items** — update OnBeforeBrowse + OnBeforeResourceLoad to DONE (they do dispatch correctly)
 
 ## Build Notes
 
