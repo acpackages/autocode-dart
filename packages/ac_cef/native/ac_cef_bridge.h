@@ -96,6 +96,27 @@ typedef int  (*OnCertificateErrorCallback)(
     int64_t browser_id, int cert_error,
     const char* request_url, int64_t callback_id);
 
+/// Called when the browser's render process terminates unexpectedly.
+/// [status] maps to cef_termination_status_t: 0=abnormal, 1=killed, 2=crashed,
+///          3=oom, 4=launch_failed, 5=integrity_failure.
+/// [error_code] and [error_string] provide additional detail where available.
+typedef void (*OnRenderProcessTerminatedCallback)(
+    int64_t browser_id, int status, int error_code, const char* error_string);
+
+/// Called when a page asks to leave (beforeunload event).
+/// Return 1 from Dart to handle the dialog (suppress the default close);
+/// call ac_cef_js_dialog_response(callback_id, 1, "") to confirm leaving or
+/// ac_cef_js_dialog_response(callback_id, 0, "") to stay.
+/// Return 0 to let CEF auto-accept the dialog.
+typedef int  (*OnBeforeUnloadDialogCallback)(
+    int64_t browser_id, const char* message_text,
+    int is_reload, int64_t callback_id);
+
+/// Called when the page wants to show a tooltip.
+/// Return 1 if Dart handled the tooltip (suppresses CEF default).
+typedef int  (*OnTooltipCallback)(
+    int64_t browser_id, const char* text);
+
 /// Called by CEF's CefRenderHandler::OnPaint for every frame.
 /// [buffer] points to CEF-owned BGRA pixel data of [width] x [height] pixels.
 /// Dart must copy the data within this callback — the pointer is invalid after return.
@@ -146,6 +167,10 @@ typedef struct AcCefCallbacks {
   OnPreKeyEventCallback          on_pre_key_event;
   OnKeyEventCallback             on_key_event;
   OnCertificateErrorCallback     on_certificate_error;
+  // ── Session 7 additions ──────────────────────────────────────────────────
+  OnRenderProcessTerminatedCallback on_render_process_terminated;
+  OnBeforeUnloadDialogCallback      on_before_unload_dialog;
+  OnTooltipCallback                 on_tooltip;
 } AcCefCallbacks;
 
 // ─── Init / shutdown ──────────────────────────────────────────────────────────

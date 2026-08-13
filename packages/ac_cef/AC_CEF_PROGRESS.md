@@ -94,6 +94,9 @@
 - [DONE] OnCertificateError - NEW: dispatched from C++ → Dart; CefCallback.onContinue(allow) responds
 - [DONE] OnBeforeBrowse dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeBrowse now dispatches to client.requestHandler with _StubRequest carrying the URL
 - [DONE] OnBeforeResourceLoad dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeResourceLoad now dispatches to client.requestHandler.onBeforeResourceLoad() with _StubRequest(url, method: method)
+- [DONE] OnRenderProcessTerminated dispatched to Dart CefRequestHandler - FIXED: C++ now fires g_callbacks.on_render_process_terminated; Dart _fwdRenderProcessTerminated maps status int to CefTerminationStatus
+- [DONE] OnBeforeUnloadDialog dispatched to Dart CefJSDialogHandler - FIXED: C++ dispatches to on_before_unload_dialog callback; reuses _NativeJSCb + g_js_cbs; ac_cef_js_dialog_response responds
+- [DONE] OnTooltip dispatched to Dart CefDisplayHandler - FIXED: C++ dispatches to on_tooltip callback; returns suppressed flag
 
 ### Multiple Browsers
 - [PARTIAL] Global _activeClient pointer - only ONE CefNativeClient can be active at a time
@@ -132,7 +135,7 @@ _activeClient global only holds one CefNativeClient. Second client overwrites fi
 Only one CefNativeClient/CefApp per process is supported.
 
 ### LOW - ac_cef_get_title returns empty string
-Always returns "" - title only available via OnTitleChange callback.
+- FIXED in Session 7: title is now cached in BrowserInfo.title on every OnTitleChange; ac_cef_get_title returns the cache under g_browsers_mutex. CefController.currentTitle is the Dart accessor.
 
 ### LOW - JS query handler is per-browser, not per-message-router-config
 registerQueryHandler() stores a single handler per browser ID. Multiple handlers
@@ -166,6 +169,9 @@ To support custom context menus, the C bridge would need to pass menu item data.
 - ImeSetComposition: called before ImeCommitText to show composition preview in renderer (CJK input); ImeCancelComposition called on focus-loss and widget dispose.
 - Frame queue: _pendingFrame / _pendingPopupFrame are 1-slot queues; latest frame always displayed, no starvation, no unbounded backlog.
 - Partial repaint: _backingRgba / _popupBackingRgba are persistent RGBA buffers; _bgraToRgba() blits only dirty rects each frame. _decoding=true prevents concurrent modification during GPU upload, making this race-free without copying.
+- printToPdf: NativeCallable<OnPrintToPdfCallback>.listener is created per-call and added to _callables to stay alive until shutdown(); bindings.printToPdf passes the nativeFunction pointer to C which calls back on completion.
+- OnBeforeUnloadDialog reuses the _NativeJSCb / _jsCbs infrastructure from OnJSDialog; the same ac_cef_js_dialog_response export responds to both.
+- Title cache: BrowserInfo::title is populated on every OnTitleChange under g_browsers_mutex; ac_cef_get_title reads it under the same lock.
 
 ## Session History
 
@@ -281,13 +287,36 @@ Completed:
 
 - VERIFIED: dart analyze — 0 issues on both packages
 
+### Session 7 (2026-08-13) - Title Cache, New Callbacks, printToPdf
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILD REQUIRED
+- FIXED: `ac_cef_get_title` — added `std::string title` field to `BrowserInfo`; `OnTitleChange` now caches the title under `g_browsers_mutex`; `ac_cef_get_title` reads the cache instead of returning ""
+- ADDED: `OnRenderProcessTerminatedCallback` typedef + struct field; `OnRenderProcessTerminated` override now fires `g_callbacks.on_render_process_terminated`
+- ADDED: `OnBeforeUnloadDialogCallback` typedef + struct field; `OnBeforeUnloadDialog` override now dispatches to Dart via `RegJS(cb)` when handler is set; falls back to auto-accept
+- ADDED: `OnTooltipCallback` typedef + struct field; `OnTooltip` override now fires `g_callbacks.on_tooltip`
+- All three new entries appended to `AcCefCallbacks` struct (Session 7 section)
+
+#### Dart ac_cef package
+- `cef_bindings.dart`: Added `OnRenderProcessTerminatedCallback`, `OnBeforeUnloadDialogCallback`, `OnTooltipCallback` Dart typedef pairs; added 3 new fields to `AcCefCallbacksStruct`
+- `cef_native_client.dart`:
+  - 3 new top-level C callbacks: `_onRenderProcessTerminated`, `_onBeforeUnloadDialog`, `_onTooltip`
+  - Registered in `initialize()`: terminated via `NativeCallable.listener`; dialog+tooltip via `Pointer.fromFunction`
+  - 3 new forwarders: `_fwdRenderProcessTerminated` (maps int→CefTerminationStatus), `_fwdBeforeUnloadDialog` (reuses _NativeJSCb), `_fwdTooltip`
+  - `printToPdf(browserId, path, onDone)` — creates a `NativeCallable<OnPrintToPdfCallback>.listener` per call, adds it to `_callables`, passes nativeFunction to C
+
+#### Dart ac_cef_flutter package
+- `CefController.currentTitle` — getter that calls `_native.getTitle(_browserId)` (now returns real title)
+- `CefController.printToPdf(path, onDone)` — delegates to `_native.printToPdf` via `_run()`
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
 ## Current Priority / Next Session
 
-1. **Test multiple simultaneous CefView instances** on same native client (should work; unverified)
+1. **Rebuild DLL** — Session 7 added C++ changes (title cache, 3 new callbacks); DLL must be rebuilt before testing
 2. **Custom context menu support** — extend C bridge to pass menu item data to Dart (currently model is always empty/cleared)
-3. **OnBeforePopup interception** — currently only URL + target frame name are passed; extend to pass disposition + features
-4. **Consider addressing single active client limitation** for true multi-window support
-5. **Popup window support** (OSR popup rendering, currently always cancelled)
+3. **OnBeforePopup enhancements** — pass disposition + userGesture from C++ to Dart
+4. **Multiple simultaneous CefView instances** — verify two CefViews on same native client work correctly
+5. **Single active client limitation** — consider multi-window support
 
 ## Build Notes
 
@@ -296,9 +325,14 @@ Completed:
 - DLL must be adjacent to Flutter exe
 - CEF subprocess: jcef_helper.exe must be adjacent to Flutter exe
 - use-alloy-style=1 flag is set in AcCefApp::OnBeforeCommandLineProcessing
-- NOTE: DLL must be rebuilt after C++ changes in sessions 3 & 4 (OnFullscreenModeChange,
-  OnPreKeyEvent, OnKeyEvent, OnCertificateError added; OnDownloadUpdated updated;
-  ac_cef_cancel_download implemented; ac_cef_certificate_error_response added;
-  OnPaint extended with dirty_rects; ac_cef_pause_download / ac_cef_resume_download added;
-  ac_cef_ime_set_composition / ac_cef_ime_cancel_composition added)
+- NOTE: DLL must be rebuilt after C++ changes in sessions 3, 4, and 7:
+  - Session 3: OnFullscreenModeChange, OnPreKeyEvent, OnKeyEvent, OnCertificateError added;
+    OnDownloadUpdated updated; ac_cef_cancel_download implemented;
+    ac_cef_certificate_error_response added
+  - Session 4: OnPaint extended with dirty_rects; ac_cef_pause_download / ac_cef_resume_download added;
+    ac_cef_ime_set_composition / ac_cef_ime_cancel_composition added
+  - Session 7: BrowserInfo::title cache + ac_cef_get_title fix;
+    OnRenderProcessTerminated / OnBeforeUnloadDialog / OnTooltip wired;
+    AcCefCallbacks struct extended with 3 new fields
 - Sessions 5 & 6 changes are Dart-only — no DLL rebuild required
+- Session 7: C++ changes require DLL rebuild; Dart changes are additive (no breaking changes)

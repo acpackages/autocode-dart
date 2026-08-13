@@ -34,6 +34,7 @@ struct BrowserInfo {
     int view_width  = 800;
     int view_height = 600;
     float dpr       = 1.0f;
+    std::string title; // cached via OnTitleChange
 };
 
 static std::map<int64_t, BrowserInfo> g_browsers;
@@ -201,6 +202,10 @@ class AcBrowserClient : public CefClient,
         if (messenger) {
             messenger->OnRenderProcessTerminated(browser);
         }
+        if (g_callbacks.on_render_process_terminated)
+            g_callbacks.on_render_process_terminated(
+                browser_id, (int)status, error_code,
+                error_string.ToString().c_str());
     }
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
                        CefRefPtr<CefFrame> frame,
@@ -254,6 +259,12 @@ class AcBrowserClient : public CefClient,
             g_callbacks.on_url_changed(browser_id, url.ToString().c_str());
     }
     void OnTitleChange(CefRefPtr<CefBrowser>, const CefString& t) override {
+        // Cache the title so ac_cef_get_title can return it synchronously.
+        {
+            std::lock_guard<std::mutex> lk(g_browsers_mutex);
+            if (auto* info = GetInfo(browser_id))
+                info->title = t.ToString();
+        }
         if (g_callbacks.on_title_changed)
             g_callbacks.on_title_changed(browser_id, t.ToString().c_str());
     }
@@ -268,6 +279,11 @@ class AcBrowserClient : public CefClient,
     void OnStatusMessage(CefRefPtr<CefBrowser>, const CefString& value) override {
         if (g_callbacks.on_status_message)
             g_callbacks.on_status_message(browser_id, value.ToString().c_str());
+    }
+    bool OnTooltip(CefRefPtr<CefBrowser>, CefString& text) override {
+        if (g_callbacks.on_tooltip)
+            return g_callbacks.on_tooltip(browser_id, text.ToString().c_str()) != 0;
+        return false;
     }
     bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t level,
                           const CefString& msg, const CefString& src, int line) override {
@@ -328,8 +344,14 @@ class AcBrowserClient : public CefClient,
         }
         return false;
     }
-    bool OnBeforeUnloadDialog(CefRefPtr<CefBrowser>, const CefString&,
-                              bool, CefRefPtr<CefJSDialogCallback> cb) override {
+    bool OnBeforeUnloadDialog(CefRefPtr<CefBrowser>, const CefString& msg,
+                              bool is_reload, CefRefPtr<CefJSDialogCallback> cb) override {
+        if (g_callbacks.on_before_unload_dialog) {
+            int64_t id = RegJS(cb);
+            return g_callbacks.on_before_unload_dialog(
+                browser_id, msg.ToString().c_str(), is_reload ? 1 : 0, id) != 0;
+        }
+        // Default: auto-accept (continue navigation)
         cb->Continue(true, CefString());
         return true;
     }
@@ -848,9 +870,9 @@ AC_CEF_EXPORT const char* ac_cef_get_url(int64_t id) {
 }
 
 AC_CEF_EXPORT const char* ac_cef_get_title(int64_t id) {
-    // CEF doesn't have a direct GetTitle on browser; title comes through
-    // OnTitleChange callback. Return empty for now.
-    (void)id;
+    std::lock_guard<std::mutex> lk(g_browsers_mutex);
+    if (auto* info = GetInfo(id))
+        return AllocStr(info->title);
     return AllocStr("");
 }
 

@@ -41,6 +41,13 @@ typedef OnPreKeyEventCallback          = Int32 Function(Int64, Int32, Int32, Int
 typedef OnKeyEventCallback             = Int32 Function(Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32);
 typedef OnCertificateErrorCallback     = Int32 Function(Int64, Int32, Pointer<Utf8>, Int64);
 
+// ── Session 7 callback typedefs ───────────────────────────────────────────────
+/// [status] is cef_termination_status_t (0=abnormal,1=killed,2=crashed,...)
+typedef OnRenderProcessTerminatedCallback = Void  Function(Int64, Int32, Int32, Pointer<Utf8>);
+/// BeforeUnload: same callback_id mechanism as JSDialog.
+typedef OnBeforeUnloadDialogCallback      = Int32 Function(Int64, Pointer<Utf8>, Int32, Int64);
+typedef OnTooltipCallback                 = Int32 Function(Int64, Pointer<Utf8>);
+
 /// Called from C for every CEF paint frame. [buffer] contains BGRA pixels.
 /// [dirtyRects] is a flat Pointer<Int32> with dirty_count * 4 int values (x,y,w,h per rect).
 typedef OnPaintCallback    = Void Function(Int64, Int32, Pointer<Void>, Int32, Int32, Pointer<Int32>, Int32);
@@ -77,6 +84,10 @@ final class AcCefCallbacksStruct extends Struct {
   external Pointer<NativeFunction<OnPreKeyEventCallback>>          on_pre_key_event;
   external Pointer<NativeFunction<OnKeyEventCallback>>             on_key_event;
   external Pointer<NativeFunction<OnCertificateErrorCallback>>     on_certificate_error;
+  // ── Session 7 additions ──────────────────────────────────────────────────
+  external Pointer<NativeFunction<OnRenderProcessTerminatedCallback>> on_render_process_terminated;
+  external Pointer<NativeFunction<OnBeforeUnloadDialogCallback>>      on_before_unload_dialog;
+  external Pointer<NativeFunction<OnTooltipCallback>>                 on_tooltip;
 }
 
 // ─── C function type pairs (C sig / Dart sig) ─────────────────────────────────

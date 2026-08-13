@@ -110,6 +110,18 @@ class CefController {
   /// Returns the current URL from the native browser.
   String get currentUrl => _ready ? _native.getUrl(_browserId) : '';
 
+  /// Returns the current page title from the native browser's title cache.
+  /// Returns an empty string if the browser is not yet ready or the title
+  /// has not yet been received from the renderer.
+  String get currentTitle => _ready ? _native.getTitle(_browserId) : '';
+
+  /// Print the current page to a PDF file at [path].
+  ///
+  /// [onDone] is called on the Dart thread when printing completes.
+  /// [ok] is true if the file was written successfully.
+  void printToPdf(String path, void Function(bool ok) onDone) =>
+      _run(() => _native.printToPdf(_browserId, path, onDone));
+
   // Message router (JS ↔ Dart)
   void querySuccess(int queryId, String response) =>
       _run(() => _native.querySuccess(_browserId, queryId, response));

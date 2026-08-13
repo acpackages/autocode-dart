@@ -158,6 +158,23 @@ int _onKeyEvent(int id, int type, int wk, int nk, int mods,
 int _onCertificateError(int id, int certError, Pointer<Utf8> url, int cbId) =>
     (_activeClient?._fwdCertificateError(id, certError, _safeString(url), cbId) ?? false) ? 1 : 0;
 
+// ─── Session 7 top-level callbacks ──────────────────────────────────────────────────
+
+/// OnRenderProcessTerminated: void — dispatched to CefRequestHandler.
+void _onRenderProcessTerminated(int id, int status, int errorCode, Pointer<Utf8> errorString) =>
+    _activeClient?._fwdRenderProcessTerminated(
+        id, status, errorCode, _safeString(errorString));
+
+/// OnBeforeUnloadDialog: returns 1 when Dart handles it.
+/// Dart must respond via ac_cef_js_dialog_response (shared with JSDialog).
+int _onBeforeUnloadDialog(int id, Pointer<Utf8> msg, int isReload, int cbId) =>
+    (_activeClient?._fwdBeforeUnloadDialog(
+        id, _safeString(msg), isReload != 0, cbId) ?? false) ? 1 : 0;
+
+/// OnTooltip: returns 1 if Dart suppresses the default tooltip.
+int _onTooltip(int id, Pointer<Utf8> text) =>
+    (_activeClient?._fwdTooltip(id, _safeString(text)) ?? false) ? 1 : 0;
+
 /// Called by C to query the view rect for this browser.
 void _getViewRect(int id, Pointer<Int32> x, Pointer<Int32> y,
     Pointer<Int32> w, Pointer<Int32> h) {
@@ -265,7 +282,17 @@ class CefNativeClient {
     cb.ref.on_pre_key_event     = Pointer.fromFunction<OnPreKeyEventCallback>(_onPreKeyEvent, 0);
     cb.ref.on_key_event         = Pointer.fromFunction<OnKeyEventCallback>(_onKeyEvent, 0);
     cb.ref.on_certificate_error = Pointer.fromFunction<OnCertificateErrorCallback>(_onCertificateError, 0);
-    
+
+    // Session 7: render-process-terminated (void → NativeCallable.listener)
+    _regVoid(
+        NativeCallable<OnRenderProcessTerminatedCallback>.listener(_onRenderProcessTerminated),
+        (p) => cb.ref.on_render_process_terminated = p);
+    // Session 7: before-unload-dialog and tooltip (return int → Pointer.fromFunction)
+    cb.ref.on_before_unload_dialog =
+        Pointer.fromFunction<OnBeforeUnloadDialogCallback>(_onBeforeUnloadDialog, 0);
+    cb.ref.on_tooltip =
+        Pointer.fromFunction<OnTooltipCallback>(_onTooltip, 0);
+
     // Blocking / Non-void callbacks
     cb.ref.on_before_browse = Pointer.fromFunction<OnBeforeBrowseCallback>(_onBeforeBrowse, 0);
     cb.ref.on_before_resource_load = Pointer.fromFunction<OnBeforeResourceLoadCallback>(_onBeforeResourceLoad, 0);
@@ -509,6 +536,22 @@ class CefNativeClient {
   void resumeDownload(int browserId, int downloadId) =>
       bindings.resumeDownload(browserId, downloadId);
 
+  // ─── Print to PDF ────────────────────────────────────────────────────────────
+
+  /// Print the page at [browserId] to a PDF at [path].
+  ///
+  /// [onDone] is called on the Dart thread when printing completes.
+  /// [ok] is true if the file was written successfully.
+  void printToPdf(
+      int browserId, String path, void Function(bool ok) onDone) {
+    final nc = NativeCallable<OnPrintToPdfCallback>.listener(
+        (int bid, Pointer<Utf8> pathPtr, int ok) => onDone(ok != 0));
+    _callables.add(nc); // kept alive until shutdown()
+    final s = path.toNativeUtf8();
+    bindings.printToPdf(browserId, s, nc.nativeFunction);
+    calloc.free(s);
+  }
+
   // ─── Certificate error response ───────────────────────────────────────────
 
   /// Respond to a certificate error.
@@ -732,6 +775,29 @@ class CefNativeClient {
     return client.dispatchOnCertificateError(
         _browsers[id] ?? _stub, CefErrorCode.findByCode(certError), url, cb);
   }
+
+  // ─── Session 7 forwarders ────────────────────────────────────────────────────
+
+  void _fwdRenderProcessTerminated(int id, int status, int errorCode, String errorString) {
+    final s = CefTerminationStatus.values[
+        status.clamp(0, CefTerminationStatus.values.length - 1)];
+    client.dispatchOnRenderProcessTerminated(
+        _browsers[id] ?? _stub, s, errorCode, errorString);
+  }
+
+  /// Dispatch before-unload dialog to [CefJSDialogHandler.onBeforeUnloadDialog].
+  /// Reuses [_NativeJSCb] and [_jsCbs] — the C side responds via ac_cef_js_dialog_response.
+  bool _fwdBeforeUnloadDialog(int id, String msg, bool isReload, int cbId) {
+    final cb = _NativeJSCb(this, cbId);
+    _jsCbs[cbId] = cb;
+    return client.dispatchOnBeforeUnloadDialog(
+        _browsers[id] ?? _stub, msg, isReload, cb);
+  }
+
+  /// Dispatch tooltip text to [CefDisplayHandler.onTooltip].
+  /// Returns true to suppress the default platform tooltip.
+  bool _fwdTooltip(int id, String text) =>
+      client.dispatchOnTooltip(_browsers[id] ?? _stub, text);
 
   /// Build a [CefKeyEvent] from raw C values.
   static CefKeyEvent _buildKeyEvent(
