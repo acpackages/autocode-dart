@@ -131,6 +131,30 @@ class CefController {
   Future<String> evalJavaScript(String expression) =>
       _native.evalJavaScript(_browserId, expression);
 
+  /// Evaluates [expression] and parses the result as an [int].
+  Future<int> evalJavaScriptInt(String expression) =>
+      _native.evalJavaScriptInt(_browserId, expression);
+
+  /// Evaluates [expression] and parses the result as a [double].
+  Future<double> evalJavaScriptDouble(String expression) =>
+      _native.evalJavaScriptDouble(_browserId, expression);
+
+  /// Evaluates [expression] as a truthy/falsy value and returns a [bool].
+  Future<bool> evalJavaScriptBool(String expression) =>
+      _native.evalJavaScriptBool(_browserId, expression);
+
+  /// Evaluates [expression] using `JSON.stringify` and returns the parsed
+  /// Dart object (Map, List, String, num, bool, or null).
+  Future<Object?> evalJavaScriptJson(String expression) =>
+      _native.evalJavaScriptJson(_browserId, expression);
+
+  // Message loop pump
+  /// Starts the built-in 1 ms CEF message-loop pump.
+  void startMessagePump() => _native.startMessagePump();
+
+  /// Stops the pump started by [startMessagePump].
+  void stopMessagePump()  => _native.stopMessagePump();
+
   // Message router (JS ↔ Dart)
   void querySuccess(int queryId, String response) =>
       _run(() => _native.querySuccess(_browserId, queryId, response));

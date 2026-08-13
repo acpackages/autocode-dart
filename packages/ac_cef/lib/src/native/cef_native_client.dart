@@ -431,6 +431,30 @@ class CefNativeClient {
     return completer.future;
   }
 
+  /// Evaluates [expression] and parses the result as an [int].
+  /// Throws if the JS expression throws or the result is not a valid integer.
+  Future<int> evalJavaScriptInt(int browserId, String expression) async {
+    final s = await evalJavaScript(browserId, 'Math.trunc($expression)');
+    return int.parse(s.contains('.') ? s.split('.').first : s);
+  }
+
+  /// Evaluates [expression] and parses the result as a [double].
+  Future<double> evalJavaScriptDouble(int browserId, String expression) async =>
+      double.parse(await evalJavaScript(browserId, 'Number($expression)'));
+
+  /// Evaluates [expression] and parses the result as a [bool].
+  /// The JS expression must produce a truthy/falsy value.
+  Future<bool> evalJavaScriptBool(int browserId, String expression) async =>
+      (await evalJavaScript(browserId, '!!($expression)')) == 'true';
+
+  /// Evaluates [expression], which must produce a JSON-serialisable value.
+  /// Returns the parsed Dart object (Map, List, String, num, bool, or null).
+  Future<Object?> evalJavaScriptJson(int browserId, String expression) async {
+    final s = await evalJavaScript(
+        browserId, 'JSON.stringify($expression)');
+    return jsonDecode(s);
+  }
+
   void _fwdQuery(int id, int qId, String req, bool persistent) {
     // ── Intercept internal JS-eval replies ─────────────────────────────────
     if (req.startsWith('__cef_eval__:')) {
@@ -702,14 +726,37 @@ class CefNativeClient {
 
   // ─── Message loop ─────────────────────────────────────────────────────────
 
+  /// Raw access — call once per frame inside your own timer or render loop.
   void doMessageLoopWork() => bindings.doMessageLoopWork();
   void runMessageLoop()     => bindings.runMessageLoop();
   void quitMessageLoop()    => bindings.quitMessageLoop();
+
+  Timer? _pumpTimer;
+
+  /// Starts a built-in 1 ms periodic timer that calls [doMessageLoopWork]
+  /// on every tick.  This is the simplest way to drive the CEF message loop
+  /// without managing your own timer.
+  ///
+  /// Calling this multiple times is safe — only one timer runs at a time.
+  /// The pump is automatically stopped by [shutdown].
+  void startMessagePump() {
+    _pumpTimer ??= Timer.periodic(
+      const Duration(milliseconds: 1),
+      (_) => doMessageLoopWork(),
+    );
+  }
+
+  /// Stops the timer started by [startMessagePump].
+  void stopMessagePump() {
+    _pumpTimer?.cancel();
+    _pumpTimer = null;
+  }
 
   // ─── Shutdown ─────────────────────────────────────────────────────────────
 
   void shutdown() {
     if (!_initialized) return;
+    stopMessagePump();
     for (final sc in _paintStreams.values)       sc.close();
     for (final sc in _cursorStreams.values)      sc.close();
     for (final sc in _popupEventStreams.values)  sc.close();

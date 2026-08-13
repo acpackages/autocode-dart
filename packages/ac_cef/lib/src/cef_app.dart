@@ -63,6 +63,13 @@ class CefApp {
     return _native;
   }
 
+  /// Starts the built-in 1ms CEF message-loop pump timer.
+  /// Shortcut for `native.startMessagePump()`.
+  void startMessagePump() => _native.startMessagePump();
+
+  /// Stops the pump started by [startMessagePump].
+  void stopMessagePump()  => _native.stopMessagePump();
+
   /// Whether CEF has been initialized.
   bool get isStarted => _started;
 

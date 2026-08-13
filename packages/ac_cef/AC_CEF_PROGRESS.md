@@ -25,7 +25,7 @@
 - [DONE] OnLoadingStateChange
 - [DONE] OnAddressChange (URL bar update)
 - [DONE] OnTitleChange
-- [PARTIAL] Popup / new window - FIXED in Session 10: OnBeforePopup now sets OSR mode for allowed popups (windowInfo.SetAsWindowless(0) + new AcBrowserClient); popup fires on_after_created with new browser_id which Dart can wrap in a new CefView
+- [DONE] Popup / new window - FIXED in Session 10: OnBeforePopup now sets OSR mode for allowed popups (windowInfo.SetAsWindowless(0) + new AcBrowserClient); popup fires on_after_created with new browser_id which Dart can wrap in a new CefView
 - [DONE] Downloads - OnBeforeDownload and OnDownloadUpdated fire, callback response works; cancel/pause/resume implemented
 - [DONE] SSL/certificate error handling - OnCertificateError dispatched to Dart; respond via CefCallback
 - [PARTIAL] OnBeforeBrowse fires (logs, always returns false)
@@ -114,7 +114,7 @@
 - [DONE] Set cookie
 
 ### Threading
-- [PARTIAL] CEF message loop manually pumped - works but 10ms polling may miss events
+- [DONE] CEF message loop manually pumped - IMPROVED in Session 12: CefNativeClient.startMessagePump() / stopMessagePump() added; uses 1ms Timer.periodic; auto-stopped by shutdown(); exposed on CefApp and CefController too. Old 10ms caller-managed timer can be replaced.
 - [DONE] Browser operations on CEF UI thread
 - [POTENTIAL ISSUE] Dart NativeCallable.listener callbacks post to Dart event loop; may race with CEF UI thread operations
 
@@ -392,12 +392,31 @@ Completed:
 - VERIFIED: dart analyze — 0 issues on both packages
 - DLL REBUILT and DEPLOYED
 
+### Session 12 (2026-08-13) - Typed JS Eval Helpers + Message Pump API
+
+#### Dart ac_cef package (no DLL rebuild required)
+- `cef_native_client.dart`:
+  - `evalJavaScriptInt(browserId, expr)` → `Future<int>`: wraps with `Math.trunc`, parses result
+  - `evalJavaScriptDouble(browserId, expr)` → `Future<double>`: wraps with `Number()`, parses result
+  - `evalJavaScriptBool(browserId, expr)` → `Future<bool>`: wraps with `!!()`, compares to `'true'`
+  - `evalJavaScriptJson(browserId, expr)` → `Future<Object?>`: wraps with `JSON.stringify()`, decoded with `jsonDecode`
+  - `startMessagePump()`: starts a `Timer.periodic(1ms)` calling `doMessageLoopWork()`; safe to call multiple times
+  - `stopMessagePump()`: cancels the pump timer
+  - `shutdown()`: now calls `stopMessagePump()` first to prevent timer firing on dead client
+- `cef_app.dart`: `startMessagePump()` / `stopMessagePump()` delegated to `_native`
+
+#### Dart ac_cef_flutter package
+- `CefController`: `evalJavaScriptInt/Double/Bool/Json()` typed helpers added
+- `CefController`: `startMessagePump()` / `stopMessagePump()` added
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
 ## Current Priority / Next Session
 
-1. **Test popup OSR** — verify popup browser fires `on_after_created` + delivers OSR paint frames; build a minimal example
-2. **evalJavaScript smoke test** — call `controller.evalJavaScript('1+1')` and verify `'2'` is returned
-3. **Multiple CefView instances** — confirm two `CefView` widgets on the same `CefNativeClient` work concurrently
-4. **JS return types** — evalJavaScript currently returns `String`; add typed helpers (evalInt, evalBool, evalJson)
+1. **Test popup OSR** — trigger `window.open()` on a page; verify new `CefView(browserId: id)` displays the popup
+2. **Multiple CefView instances** — confirm two `CefView` widgets on same `CefNativeClient` work concurrently
+3. **JS dialog improvements** — currently auto-dismissed; wire to a proper Flutter dialog via `CefJSDialogHandler`
+4. **Horizontal scroll** — test that two-finger/shift-wheel events reach the browser correctly
 
 ## Build Notes
 
