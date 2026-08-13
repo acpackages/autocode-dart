@@ -7,12 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:ac_cef/ac_cef.dart';
 
 export 'package:ac_cef/ac_cef.dart'
-    show CefNativeClient, CefClient, CefSettings, CefBrowserSettings;
+    show CefNativeClient, CefClient, CefSettings, CefBrowserSettings,
+         CefMessageRouterHandler, CefQueryCallback, CefPopupEvent,
+         CefPopupShowEvent, CefPopupSizeEvent;
 
 // ─── CEF event flag constants (from cef_types.h) ─────────────────────────────
 
 class _CefEventFlags {
-  static const int none              = 0;
   static const int capsLockOn        = 1 << 0;
   static const int shiftDown         = 1 << 1;
   static const int controlDown       = 1 << 2;
@@ -21,17 +22,13 @@ class _CefEventFlags {
   static const int middleMouseButton = 1 << 5;
   static const int rightMouseButton  = 1 << 6;
   static const int commandDown       = 1 << 7;
-  static const int numLockOn         = 1 << 8;
-  static const int isKeyPad          = 1 << 9;
-  static const int isLeft            = 1 << 10;
-  static const int isRight           = 1 << 11;
 }
 
 // ─── CEF key event types ─────────────────────────────────────────────────────
 
 class _CefKeyEventType {
   static const int rawKeyDown = 0;
-  static const int keyDown    = 1;
+  // keyDown = 1 is not sent separately — RAWKEYDOWN is sufficient for CEF.
   static const int keyUp      = 2;
   static const int char_      = 3;
 }
@@ -95,6 +92,19 @@ class CefController {
 
   void queryFailure(int queryId, int errorCode, String errorMsg) =>
       _run(() => _native.queryFailure(_browserId, queryId, errorCode, errorMsg));
+
+  /// Register a [CefMessageRouterHandler] to handle `window.cefQuery(...)` calls
+  /// from JavaScript in this browser.
+  ///
+  /// Only one handler per browser is supported. Call again to replace.
+  /// The handler's [CefQueryCallback.success] or [CefQueryCallback.failure]
+  /// must be called, or the JavaScript promise will never settle.
+  void registerQueryHandler(CefMessageRouterHandler handler) =>
+      _run(() => _native.registerQueryHandler(_browserId, handler));
+
+  /// Remove the registered query handler for this browser.
+  void removeQueryHandler() =>
+      _run(() => _native.removeQueryHandler(_browserId));
 
   bool get isReady => _ready;
   int  get browserId => _browserId;
@@ -161,6 +171,23 @@ class _CefViewState extends State<CefView> {
   bool _hasFocus = false;
   final FocusNode _focusNode = FocusNode(debugLabel: 'CefView');
 
+  // Double-click detection
+  int _lastClickButton = 0;
+  int _lastClickX = 0;
+  int _lastClickY = 0;
+  DateTime _lastClickTime = DateTime.fromMillisecondsSinceEpoch(0);
+  int _clickCount = 1;
+
+  // Track the last pressed button for pointer-up events
+  int _lastPressedButton = 0;
+
+  // Popup overlay compositing
+  ui.Image? _popupFrame;
+  bool _popupVisible  = false;
+  bool _popupDecoding = false;
+  Rect _popupRect     = Rect.zero; // in logical pixels
+  StreamSubscription<CefPopupEvent>? _popupEventSub;
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +215,29 @@ class _CefViewState extends State<CefView> {
             }
           });
 
+          // Subscribe to popup show/size events
+          _popupEventSub = widget.native.popupEvents(id).listen((event) {
+            if (!mounted) return;
+            switch (event) {
+              case CefPopupShowEvent(:final show):
+                setState(() {
+                  _popupVisible = show;
+                  if (!show) {
+                    _popupFrame?.dispose();
+                    _popupFrame = null;
+                  }
+                });
+              case CefPopupSizeEvent(:final x, :final y, :final width, :final height):
+                setState(() {
+                  // CEF gives us physical pixels; convert to logical for positioning
+                  _popupRect = Rect.fromLTWH(
+                    x / _dpr, y / _dpr,
+                    width / _dpr, height / _dpr,
+                  );
+                });
+            }
+          });
+
           // Push initial view size if we have it
           if (_physicalSize != Size.zero) {
             widget.native.setViewSize(id,
@@ -206,6 +256,8 @@ class _CefViewState extends State<CefView> {
           _paintSub = null;
           _cursorSub?.cancel();
           _cursorSub = null;
+          _popupEventSub?.cancel();
+          _popupEventSub = null;
         },
       ),
     );
@@ -231,20 +283,31 @@ class _CefViewState extends State<CefView> {
   // ─── Paint frame handler ───────────────────────────────────────────────────
 
   void _onPaintFrame(PaintFrame frame) {
-    // Skip if a decode is already in flight — drop the frame to avoid build-up
-    if (_decoding || !mounted) return;
-    _decoding = true;
+    if (!mounted) return;
 
-    _decodeBgra(frame).then((image) {
-      if (!mounted) {
-        image.dispose();
-        return;
-      }
-      setState(() {
-        _frame?.dispose();
-        _frame = image;
-      });
-    }).whenComplete(() => _decoding = false);
+    if (frame.isPopup) {
+      // Popup overlay: decode independently, don't gate on _decoding
+      if (_popupDecoding) return;
+      _popupDecoding = true;
+      _decodeBgra(frame).then((image) {
+        if (!mounted) { image.dispose(); return; }
+        setState(() {
+          _popupFrame?.dispose();
+          _popupFrame = image;
+        });
+      }).whenComplete(() => _popupDecoding = false);
+    } else {
+      // Main frame
+      if (_decoding) return;
+      _decoding = true;
+      _decodeBgra(frame).then((image) {
+        if (!mounted) { image.dispose(); return; }
+        setState(() {
+          _frame?.dispose();
+          _frame = image;
+        });
+      }).whenComplete(() => _decoding = false);
+    }
   }
 
   /// Decode a BGRA [PaintFrame] into a [ui.Image] by swapping B↔R channels.
@@ -292,7 +355,6 @@ class _CefViewState extends State<CefView> {
         autofocus: true,
         onFocusChange: (hasFocus) {
           _hasFocus = hasFocus;
-          print('[CefView] Focus changed: $_hasFocus');
           if (_controller.isReady) _controller.setFocus(hasFocus);
         },
         child: MouseRegion(
@@ -307,10 +369,29 @@ class _CefViewState extends State<CefView> {
             child: SizedBox.expand(
               child: _frame == null
                   ? ColoredBox(color: widget.backgroundColor)
-                  : RawImage(
-                      image: _frame,
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.low,
+                  : Stack(
+                      children: [
+                        Positioned.fill(
+                          child: RawImage(
+                            image: _frame,
+                            fit: BoxFit.fill,
+                            filterQuality: FilterQuality.low,
+                          ),
+                        ),
+                        // Popup overlay (context menus, dropdowns, etc.)
+                        if (_popupVisible && _popupFrame != null)
+                          Positioned(
+                            left:   _popupRect.left,
+                            top:    _popupRect.top,
+                            width:  _popupRect.width,
+                            height: _popupRect.height,
+                            child: RawImage(
+                              image: _popupFrame,
+                              fit: BoxFit.fill,
+                              filterQuality: FilterQuality.low,
+                            ),
+                          ),
+                      ],
                     ),
             ),
           ),
@@ -335,10 +416,28 @@ class _CefViewState extends State<CefView> {
     // Request Flutter focus on click
     _focusNode.requestFocus();
 
+    final btn = _button(e.buttons);
+    _lastPressedButton = btn;
+
+    // Double-click detection: same button, same position (within 4px), within 500ms
+    final now = DateTime.now();
+    final dx = (_px(e.localPosition.dx) - _lastClickX).abs();
+    final dy = (_px(e.localPosition.dy) - _lastClickY).abs();
+    final elapsed = now.difference(_lastClickTime).inMilliseconds;
+    if (btn == _lastClickButton && dx <= 4 && dy <= 4 && elapsed <= 500) {
+      _clickCount++;
+    } else {
+      _clickCount = 1;
+    }
+    _lastClickButton = btn;
+    _lastClickX = _px(e.localPosition.dx);
+    _lastClickY = _px(e.localPosition.dy);
+    _lastClickTime = now;
+
     widget.native.sendMouseClick(
       _controller.browserId,
       _px(e.localPosition.dx), _px(e.localPosition.dy),
-      _button(e.buttons), false, 1, _pointerMods(e),
+      btn, false, _clickCount, _pointerMods(e),
     );
   }
 
@@ -353,12 +452,11 @@ class _CefViewState extends State<CefView> {
 
   void _onPointerUp(PointerUpEvent e) {
     if (!_controller.isReady) return;
-    // For pointer up, buttons is already 0, so infer from the change
-    final btn = _button(e.pointer == 0 ? kPrimaryMouseButton : e.buttons);
+    // Use the button that was pressed — e.buttons is 0 on pointer-up.
     widget.native.sendMouseClick(
       _controller.browserId,
       _px(e.localPosition.dx), _px(e.localPosition.dy),
-      0, true, 1, _pointerMods(e),
+      _lastPressedButton, true, _clickCount, _pointerMods(e),
     );
   }
 
@@ -388,17 +486,13 @@ class _CefViewState extends State<CefView> {
     final int wk = _windowsKeyCode(e.logicalKey);
     int nk = _windowsScanCode(e.physicalKey);
 
-    // Debug logging
-    print('[CefView] KeyEvent: ${e.runtimeType} key=${e.logicalKey.keyLabel} '
-        'wk=0x${wk.toRadixString(16)} nk=0x${nk.toRadixString(16)} char=${e.character} mods=$mods');
-
     final bool isSys = (mods & _CefEventFlags.altDown) != 0;
 
     if (e is KeyDownEvent || e is KeyRepeatEvent) {
       // For repeat events, set bit 30 (previous key state = was pressed)
       if (e is KeyRepeatEvent) nk = nk | 0x40000000;
 
-      // Send RAWKEYDOWN
+      // Send RAWKEYDOWN — informs CEF of the physical key press.
       widget.native.sendKeyEvent(
         _controller.browserId,
         type: _CefKeyEventType.rawKeyDown,
@@ -410,7 +504,9 @@ class _CefViewState extends State<CefView> {
         isSystemKey: isSys,
       );
 
-      // For printable characters, also send a CHAR event + IME commit.
+      // For printable characters, send a CHAR event — this is what CEF/Chromium
+      // uses to insert the character into editable fields.
+      // Do NOT also call ImeCommitText here — that would insert the character twice.
       if (e.character != null && e.character!.isNotEmpty) {
         final charCode = e.character!.codeUnitAt(0);
         widget.native.sendKeyEvent(
@@ -424,8 +520,6 @@ class _CefViewState extends State<CefView> {
           isSystemKey: isSys,
           focusOnEditableField: true,
         );
-        // Use IME to directly commit text — required in CEF 146+ Chrome runtime
-        widget.native.imeCommitText(_controller.browserId, e.character!);
       }
     } else if (e is KeyUpEvent) {
       // For KEYUP, set bits 30 (previous key state) and 31 (transition state)
@@ -591,6 +685,7 @@ class _CefViewState extends State<CefView> {
 
     // Also include keyboard modifiers
     final hw = HardwareKeyboard.instance;
+    if (hw.lockModesEnabled.contains(KeyboardLockMode.capsLock)) m |= _CefEventFlags.capsLockOn;
     if (hw.isShiftPressed)   m |= _CefEventFlags.shiftDown;
     if (hw.isControlPressed) m |= _CefEventFlags.controlDown;
     if (hw.isAltPressed)     m |= _CefEventFlags.altDown;
@@ -602,6 +697,7 @@ class _CefViewState extends State<CefView> {
   int _keyMods() {
     int m = 0;
     final hw = HardwareKeyboard.instance;
+    if (hw.lockModesEnabled.contains(KeyboardLockMode.capsLock)) m |= _CefEventFlags.capsLockOn;
     if (hw.isShiftPressed)   m |= _CefEventFlags.shiftDown;
     if (hw.isControlPressed) m |= _CefEventFlags.controlDown;
     if (hw.isAltPressed)     m |= _CefEventFlags.altDown;
@@ -742,7 +838,9 @@ class _CefViewState extends State<CefView> {
     HardwareKeyboard.instance.removeHandler(_onHardwareKey);
     _paintSub?.cancel();
     _cursorSub?.cancel();
+    _popupEventSub?.cancel();
     _frame?.dispose();
+    _popupFrame?.dispose();
     _focusNode.dispose();
     if (_controller.isReady) {
       widget.native.closeBrowser(_controller.browserId);

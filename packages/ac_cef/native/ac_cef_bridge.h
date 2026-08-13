@@ -44,6 +44,7 @@ typedef int  (*OnBeforePopupCallback)(
     int64_t browser_id, const char* target_url, const char* target_frame_name);
 typedef void (*OnCursorChangedCallback)(int64_t browser_id, int cursor_type);
 typedef void (*OnGotFocusCallback)(int64_t browser_id);
+typedef void (*OnStatusMessageCallback)(int64_t browser_id, const char* value);
 typedef int  (*OnConsoleMessageCallback)(
     int64_t browser_id, int level,
     const char* message, const char* source, int line);
@@ -66,6 +67,34 @@ typedef int (*OnBeforeResourceLoadCallback)(
 
 typedef void (*OnBeforeContextMenuCallback)(
     int64_t browser_id, int x, int y);
+
+typedef void (*OnPopupShowCallback)(int64_t browser_id, int show);
+typedef void (*OnPopupSizeCallback)(int64_t browser_id, int x, int y, int width, int height);
+
+/// Fired when the page enters or exits fullscreen mode.
+typedef void (*OnFullscreenModeChangeCallback)(int64_t browser_id, int fullscreen);
+
+/// Called before a key event is sent to the renderer.
+/// [is_keyboard_shortcut_out] is written to 1 if the event is a keyboard shortcut.
+/// Returns 1 to cancel the event (prevent it reaching the renderer).
+typedef int  (*OnPreKeyEventCallback)(
+    int64_t browser_id, int type,
+    int windows_key_code, int native_key_code, int modifiers,
+    int character, int unmodified_character, int is_system_key,
+    int* is_keyboard_shortcut_out);
+
+/// Called after the renderer processes a key event.
+/// Returns 1 to indicate the event was handled.
+typedef int  (*OnKeyEventCallback)(
+    int64_t browser_id, int type,
+    int windows_key_code, int native_key_code, int modifiers,
+    int character, int unmodified_character, int is_system_key);
+
+/// Called when a certificate error occurs during a navigation.
+/// Dart must respond via ac_cef_certificate_error_response.
+typedef int  (*OnCertificateErrorCallback)(
+    int64_t browser_id, int cert_error,
+    const char* request_url, int64_t callback_id);
 
 /// Called by CEF's CefRenderHandler::OnPaint for every frame.
 /// [buffer] points to CEF-owned BGRA pixel data of [width] x [height] pixels.
@@ -96,6 +125,7 @@ typedef struct AcCefCallbacks {
   OnBeforePopupCallback          on_before_popup;
   OnCursorChangedCallback        on_cursor_changed;
   OnGotFocusCallback             on_got_focus;
+  OnStatusMessageCallback        on_status_message;
   OnConsoleMessageCallback       on_console_message;
   OnJSDialogCallback             on_js_dialog;
   OnBeforeDownloadCallback       on_before_download;
@@ -103,8 +133,15 @@ typedef struct AcCefCallbacks {
   OnBeforeBrowseCallback         on_before_browse;
   OnBeforeResourceLoadCallback   on_before_resource_load;
   OnBeforeContextMenuCallback    on_before_context_menu;
+  OnPopupShowCallback            on_popup_show;
+  OnPopupSizeCallback            on_popup_size;
   OnPaintCallback                on_paint;
   GetViewRectCallback            get_view_rect;
+  // ── Session 3 additions ──────────────────────────────────────────────────
+  OnFullscreenModeChangeCallback on_fullscreen_mode_change;
+  OnPreKeyEventCallback          on_pre_key_event;
+  OnKeyEventCallback             on_key_event;
+  OnCertificateErrorCallback     on_certificate_error;
 } AcCefCallbacks;
 
 // ─── Init / shutdown ──────────────────────────────────────────────────────────
@@ -197,8 +234,12 @@ AC_CEF_EXPORT void ac_cef_js_dialog_response(
 AC_CEF_EXPORT void ac_cef_before_download_response(
     int64_t callback_id, const char* download_path, int show_dialog);
 
-/// Cancel a download via OnDownloadUpdated callback handle.
+/// Cancel a download via its download_id.
 AC_CEF_EXPORT void ac_cef_cancel_download(int64_t browser_id, int64_t download_id);
+
+/// Respond to an OnCertificateError callback.
+/// [allow] = 1 to proceed with the request despite the error, 0 to cancel.
+AC_CEF_EXPORT void ac_cef_certificate_error_response(int64_t callback_id, int allow);
 
 // ─── Cookie management ────────────────────────────────────────────────────────
 

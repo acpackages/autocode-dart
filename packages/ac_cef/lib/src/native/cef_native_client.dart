@@ -8,10 +8,13 @@ import '../cef_browser.dart';
 import '../cef_browser_settings.dart';
 import '../cef_client.dart';
 import '../cef_frame.dart';
+import '../cef_message_router.dart';
 import '../cef_settings.dart';
 import '../handler/cef_download_handler.dart';
 import '../handler/cef_js_dialog_handler.dart';
+import '../handler/cef_keyboard_handler.dart';
 import '../handler/cef_load_handler.dart';
+import '../handler/cef_request_handler.dart';
 import 'cef_bindings.dart';
 import 'paint_frame.dart';
 
@@ -64,6 +67,8 @@ int  _onBeforePopup(int id, Pointer<Utf8> url, Pointer<Utf8> name) =>
 void _onCursorChanged(int id, int type) =>
     _activeClient?._fwdCursorChanged(id, type);
 void _onGotFocus(int id) => _activeClient?._fwdGotFocus(id);
+void _onStatusMessage(int id, Pointer<Utf8> value) =>
+    _activeClient?._fwdStatusMessage(id, _safeString(value));
 int  _onConsoleMessage(int id, int level,
     Pointer<Utf8> msg, Pointer<Utf8> src, int line) =>
     (_activeClient?._fwdConsoleMessage(id, level,
@@ -97,12 +102,7 @@ void _onQueryCanceled(int id, int qId) =>
     _activeClient?._fwdQueryCanceled(id, qId);
 
 /// Called by C for every paint frame.  [buffer] is valid only during this call.
-bool _firstPaint = true;
 void _onPaint(int id, int isPopup, Pointer<Void> buffer, int w, int h) {
-  if (_firstPaint) {
-    print('[CEF] Paint frames arriving! ${w}x${h}');
-    _firstPaint = false;
-  }
   final client = _activeClient;
   if (client == null) return;
   // Copy the pixel data immediately — buffer is CEF-owned and freed after return.
@@ -110,6 +110,35 @@ void _onPaint(int id, int isPopup, Pointer<Void> buffer, int w, int h) {
   final copy  = Uint8List.fromList(bytes);
   client._fwdPaint(id, isPopup != 0, copy, w, h);
 }
+
+void _onPopupShow(int id, int show) =>
+    _activeClient?._fwdPopupShow(id, show != 0);
+void _onPopupSize(int id, int x, int y, int w, int h) =>
+    _activeClient?._fwdPopupSize(id, x, y, w, h);
+
+// ─── Session 3 top-level callbacks ───────────────────────────────────────────
+
+void _onFullscreenModeChange(int id, int fullscreen) =>
+    _activeClient?._fwdFullscreenModeChange(id, fullscreen != 0);
+
+/// OnPreKeyEvent: returns 1 to consume the event. Writes isShortcut out-param.
+int _onPreKeyEvent(int id, int type, int wk, int nk, int mods,
+    int ch, int uch, int sys, Pointer<Int32> isShortcutOut) {
+  final client = _activeClient;
+  if (client == null) return 0;
+  final (handled, shortcut) = client._fwdPreKeyEvent(id, type, wk, nk, mods, ch, uch, sys != 0);
+  if (isShortcutOut != nullptr) isShortcutOut.value = shortcut ? 1 : 0;
+  return handled ? 1 : 0;
+}
+
+/// OnKeyEvent: returns 1 to indicate the event was handled.
+int _onKeyEvent(int id, int type, int wk, int nk, int mods,
+    int ch, int uch, int sys) =>
+    (_activeClient?._fwdKeyEvent(id, type, wk, nk, mods, ch, uch, sys != 0) ?? false) ? 1 : 0;
+
+/// OnCertificateError: returns 1 to indicate we will handle it asynchronously.
+int _onCertificateError(int id, int certError, Pointer<Utf8> url, int cbId) =>
+    (_activeClient?._fwdCertificateError(id, certError, _safeString(url), cbId) ?? false) ? 1 : 0;
 
 /// Called by C to query the view rect for this browser.
 void _getViewRect(int id, Pointer<Int32> x, Pointer<Int32> y,
@@ -148,12 +177,21 @@ class CefNativeClient {
   // browser-id → StreamController for cursor type changes
   final Map<int, StreamController<int>> _cursorStreams = {};
 
+  // browser-id → StreamController for popup show/size events
+  final Map<int, StreamController<CefPopupEvent>> _popupEventStreams = {};
+
   // pending JS / download callback IDs → Dart closures
   final Map<int, CefJSDialogCallback>       _jsCbs  = {};
   final Map<int, CefBeforeDownloadCallback> _dlCbs  = {};
-  
-  // pending queries
-  final Map<int, Completer<String>> _queries = {};
+
+  // pending certificate-error callback IDs
+  final Map<int, CefCallback> _certCbs = {};
+
+  // active download-item callbacks keyed by download_id
+  final Map<int, CefDownloadItemCallback> _dlItemCbs = {};
+
+  // browser-id → user-registered JS query handler
+  final Map<int, CefMessageRouterHandler> _queryHandlers = {};
 
   // Keep NativeCallables alive
   final List<NativeCallable> _callables = [];
@@ -193,10 +231,22 @@ class CefNativeClient {
     _regVoid(NativeCallable<OnBeforeCloseCallback>.listener(_onBeforeClose), (p) => cb.ref.on_before_close = p);
     _regVoid(NativeCallable<OnCursorChangedCallback>.listener(_onCursorChanged), (p) => cb.ref.on_cursor_changed = p);
     _regVoid(NativeCallable<OnGotFocusCallback>.listener(_onGotFocus), (p) => cb.ref.on_got_focus = p);
+    _regVoid(NativeCallable<OnStatusMessageCallback>.listener(_onStatusMessage), (p) => cb.ref.on_status_message = p);
     _regVoid(NativeCallable<OnDownloadUpdatedCallback>.listener(_onDownloadUpdated), (p) => cb.ref.on_download_updated = p);
     _regVoid(NativeCallable<OnBeforeContextMenuCallback>.listener(_onBeforeContextMenu), (p) => cb.ref.on_before_context_menu = p);
+    _regVoid(NativeCallable<OnPopupShowCallback>.listener(_onPopupShow), (p) => cb.ref.on_popup_show = p);
+    _regVoid(NativeCallable<OnPopupSizeCallback>.listener(_onPopupSize), (p) => cb.ref.on_popup_size = p);
     _regVoid(NativeCallable<OnPaintCallback>.listener(_onPaint), (p) => cb.ref.on_paint = p);
     _regVoid(NativeCallable<GetViewRectCallback>.listener(_getViewRect), (p) => cb.ref.get_view_rect = p);
+
+    // Session 3: fullscreen (void → NativeCallable.listener)
+    _regVoid(NativeCallable<OnFullscreenModeChangeCallback>.listener(_onFullscreenModeChange),
+             (p) => cb.ref.on_fullscreen_mode_change = p);
+
+    // Session 3: pre-key / key-event / cert-error (return int → Pointer.fromFunction)
+    cb.ref.on_pre_key_event     = Pointer.fromFunction<OnPreKeyEventCallback>(_onPreKeyEvent, 0);
+    cb.ref.on_key_event         = Pointer.fromFunction<OnKeyEventCallback>(_onKeyEvent, 0);
+    cb.ref.on_certificate_error = Pointer.fromFunction<OnCertificateErrorCallback>(_onCertificateError, 0);
     
     // Blocking / Non-void callbacks
     cb.ref.on_before_browse = Pointer.fromFunction<OnBeforeBrowseCallback>(_onBeforeBrowse, 0);
@@ -236,14 +286,37 @@ class CefNativeClient {
     });
   }
 
+  /// Register a [CefMessageRouterHandler] for [browserId].
+  ///
+  /// The handler receives every `window.cefQuery(...)` call from JavaScript
+  /// and must call [CefQueryCallback.success] or [CefQueryCallback.failure].
+  void registerQueryHandler(int browserId, CefMessageRouterHandler handler) {
+    _queryHandlers[browserId] = handler;
+  }
+
+  /// Remove a previously registered query handler.
+  void removeQueryHandler(int browserId) {
+    _queryHandlers.remove(browserId);
+  }
+
   void _fwdQuery(int id, int qId, String req, bool persistent) {
-    print('[CEF] JS Query: browser=$id id=$qId body=$req');
-    // For now just echo or succeed with a placeholder
-    querySuccess(id, qId, '{"status": "ok", "echo": "$req"}');
+    final handler = _queryHandlers[id];
+    final browser = _browsers[id] ?? _stub;
+    final cb = _NativeQueryCb(this, id, qId);
+    if (handler != null) {
+      final handled = handler.onQuery(browser, qId, req, persistent, cb);
+      if (!handled) {
+        // Handler declined — auto-fail so JS promise doesn't hang indefinitely
+        cb.failure(-1, 'Query not handled');
+      }
+    } else {
+      // No handler registered — succeed with empty response rather than hanging
+      cb.success('');
+    }
   }
 
   void _fwdQueryCanceled(int id, int qId) {
-    print('[CEF] JS Query Canceled: $qId');
+    _queryHandlers[id]?.onQueryCanceled(_browsers[id] ?? _stub, qId);
   }
 
   /// Returns a [Stream<PaintFrame>] for [browserId] that emits every OSR frame.
@@ -258,6 +331,13 @@ class CefNativeClient {
     _cursorStreams.putIfAbsent(
         browserId, () => StreamController<int>.broadcast());
     return _cursorStreams[browserId]!.stream;
+  }
+
+  /// Returns a [Stream<CefPopupEvent>] for [browserId] with popup show/size events.
+  Stream<CefPopupEvent> popupEvents(int browserId) {
+    _popupEventStreams.putIfAbsent(
+        browserId, () => StreamController<CefPopupEvent>.broadcast());
+    return _popupEventStreams[browserId]!.stream;
   }
 
   CefBrowser createBrowser(String url, {
@@ -384,6 +464,21 @@ class CefNativeClient {
   void openDevTools(int id)  => bindings.openDevTools(id);
   void closeDevTools(int id) => bindings.closeDevTools(id);
 
+  // ─── Download cancel ──────────────────────────────────────────────────────
+
+  /// Cancel an active download identified by [downloadId].
+  void cancelDownload(int browserId, int downloadId) =>
+      bindings.cancelDownload(browserId, downloadId);
+
+  // ─── Certificate error response ───────────────────────────────────────────
+
+  /// Respond to a certificate error.
+  /// Set [allow] to true to proceed despite the error; false to cancel.
+  void respondCertError(int callbackId, bool allow) {
+    bindings.certificateErrorResponse(callbackId, allow ? 1 : 0);
+    _certCbs.remove(callbackId);
+  }
+
   // ─── Browser state queries ────────────────────────────────────────────────
 
   bool canGoBack(int id)    => bindings.canGoBack(id) != 0;
@@ -428,8 +523,12 @@ class CefNativeClient {
 
   void shutdown() {
     if (!_initialized) return;
-    for (final sc in _paintStreams.values) sc.close();
+    for (final sc in _paintStreams.values)       sc.close();
+    for (final sc in _cursorStreams.values)      sc.close();
+    for (final sc in _popupEventStreams.values)  sc.close();
     _paintStreams.clear();
+    _cursorStreams.clear();
+    _popupEventStreams.clear();
     client.dispose();
     bindings.shutdown();
     _initialized = false;
@@ -491,8 +590,19 @@ class CefNativeClient {
   void _fwdGotFocus(int id) =>
       client.dispatchOnGotFocus(_browsers[id] ?? _stub);
 
-  bool _fwdConsoleMessage(int id, int level, String msg, String src, int line) =>
-      false; // TODO: map level to CefLogSeverity
+  void _fwdStatusMessage(int id, String value) =>
+      client.dispatchOnStatusMessage(_browsers[id] ?? _stub, value);
+
+  bool _fwdConsoleMessage(int id, int level, String msg, String src, int line) {
+    // Map C-side cef_log_severity_t integer to Dart enum.
+    // Values: 0=default, 1=verbose, 2=info, 3=warning, 4=error, 5=fatal, 99=disable
+    final severity = CefLogSeverity.values.firstWhere(
+      (s) => s.index == level,
+      orElse: () => CefLogSeverity.defaultSeverity,
+    );
+    return client.dispatchOnConsoleMessage(
+        _browsers[id] ?? _stub, severity, msg, src, line);
+  }
 
   bool _fwdJSDialog(int id, String origin, int type, String msg,
       String prompt, int cbId) {
@@ -517,11 +627,15 @@ class CefNativeClient {
   }
 
   void _fwdDownloadUpdated(int id, int dlId, int pct, bool done, bool canceled) {
-    // TODO: full download tracking
+    final item = _StubDownloadItemUpdated(dlId, pct, done, canceled);
+    // Reuse existing _NativeDlItemCb or create a new one
+    final cb = _dlItemCbs.putIfAbsent(dlId, () => _NativeDlItemCb(this, id, dlId));
+    client.dispatchOnDownloadUpdated(_browsers[id] ?? _stub, item, cb);
+    // Clean up once the download is finished
+    if (done || canceled) _dlItemCbs.remove(dlId);
   }
 
   bool _fwdBeforeBrowse(int id, String url, bool isRedirect) {
-    print('[CEF] OnBeforeBrowse (Dart): $url (Redirect: $isRedirect)');
     return false;
   }
 
@@ -529,8 +643,57 @@ class CefNativeClient {
     return false;
   }
 
-  void _fwdBeforeContextMenu(int id, int x, int y) {
-    print('[CEF] OnBeforeContextMenu (Dart) at $x,$y');
+  void _fwdBeforeContextMenu(int id, int x, int y) {}
+
+  // ─── Session 3 forwarders ────────────────────────────────────────────────
+
+  void _fwdFullscreenModeChange(int id, bool fullscreen) =>
+      client.dispatchOnFullscreenModeChange(_browsers[id] ?? _stub, fullscreen);
+
+  /// Returns (handled, isKeyboardShortcut).
+  (bool, bool) _fwdPreKeyEvent(int id, int type, int wk, int nk, int mods,
+      int ch, int uch, bool sys) {
+    final event = _buildKeyEvent(type, wk, nk, mods, ch, uch, sys);
+    final handled = client.dispatchOnPreKeyEvent(_browsers[id] ?? _stub, event);
+    return (handled, false); // isKeyboardShortcut always false (not tracked)
+  }
+
+  bool _fwdKeyEvent(int id, int type, int wk, int nk, int mods,
+      int ch, int uch, bool sys) {
+    final event = _buildKeyEvent(type, wk, nk, mods, ch, uch, sys);
+    return client.dispatchOnKeyEvent(_browsers[id] ?? _stub, event);
+  }
+
+  bool _fwdCertificateError(int id, int certError, String url, int cbId) {
+    final cb = _NativeCertCb(this, cbId);
+    _certCbs[cbId] = cb;
+    return client.dispatchOnCertificateError(
+        _browsers[id] ?? _stub, CefErrorCode.findByCode(certError), url, cb);
+  }
+
+  /// Build a [CefKeyEvent] from raw C values.
+  static CefKeyEvent _buildKeyEvent(
+      int type, int wk, int nk, int mods, int ch, int uch, bool sys) {
+    final t = CefKeyEventType.values[
+        type.clamp(0, CefKeyEventType.values.length - 1)];
+    return CefKeyEvent(
+      type: t,
+      modifiers: mods,
+      windowsKeyCode: wk,
+      nativeKeyCode: nk,
+      isSystemKey: sys,
+      character: ch,
+      unmodifiedCharacter: uch,
+      focusOnEditableField: false,
+    );
+  }
+
+  void _fwdPopupShow(int id, bool show) {
+    _popupEventStreams[id]?.add(CefPopupShowEvent(show));
+  }
+
+  void _fwdPopupSize(int id, int x, int y, int w, int h) {
+    _popupEventStreams[id]?.add(CefPopupSizeEvent(x, y, w, h));
   }
 
   /// The hot path: copy BGRA buffer and push to the per-browser stream.
@@ -611,4 +774,100 @@ class _StubDownloadItem implements CefDownloadItem {
   @override String getSuggestedFileName() => _name;
   @override String getContentDisposition()=> '';
   @override String getMimeType()    => '';
+}
+
+// ─── Native certificate-error callback ───────────────────────────────────────
+
+/// Bridges [CefCallback] (from OnCertificateError) to [CefNativeClient.respondCertError].
+class _NativeCertCb implements CefCallback {
+  final CefNativeClient _c;
+  final int _id;
+  bool _settled = false;
+  _NativeCertCb(this._c, this._id);
+
+  @override
+  void onContinue(bool allow) {
+    if (_settled) return;
+    _settled = true;
+    _c.respondCertError(_id, allow);
+  }
+
+  @override
+  void cancel() {
+    if (_settled) return;
+    _settled = true;
+    _c.respondCertError(_id, false);
+  }
+}
+
+// ─── Native download-item callback ───────────────────────────────────────────
+
+/// Bridges [CefDownloadItemCallback] to [CefNativeClient.cancelDownload].
+class _NativeDlItemCb implements CefDownloadItemCallback {
+  final CefNativeClient _c;
+  final int _browserId;
+  final int _downloadId;
+  _NativeDlItemCb(this._c, this._browserId, this._downloadId);
+
+  @override
+  void cancel()  => _c.cancelDownload(_browserId, _downloadId);
+  @override
+  void pause()   {} // not exposed via C bridge
+  @override
+  void resume()  {} // not exposed via C bridge
+}
+
+// ─── Download item with progress info ────────────────────────────────────────
+
+/// A [CefDownloadItem] that carries progress data from OnDownloadUpdated.
+class _StubDownloadItemUpdated implements CefDownloadItem {
+  final int _id;
+  final int _pct;
+  final bool _done;
+  final bool _canceled;
+  _StubDownloadItemUpdated(this._id, this._pct, this._done, this._canceled);
+
+  @override bool isValid()       => true;
+  @override bool isInProgress()  => !_done && !_canceled;
+  @override bool isComplete()    => _done;
+  @override bool isCanceled()    => _canceled;
+  @override int getCurrentSpeed()    => 0;
+  @override int getPercentComplete() => _pct;
+  @override int getTotalBytes()      => 0;
+  @override int getReceivedBytes()   => 0;
+  @override DateTime getStartTime()  => DateTime.fromMillisecondsSinceEpoch(0);
+  @override DateTime getEndTime()    => DateTime.fromMillisecondsSinceEpoch(0);
+  @override String getFullPath()     => '';
+  @override int getId()              => _id;
+  @override String getURL()          => '';
+  @override String getSuggestedFileName()    => '';
+  @override String getContentDisposition()   => '';
+  @override String getMimeType()     => '';
+}
+
+// ─── Native query callback ────────────────────────────────────────────────────
+
+/// Bridges [CefQueryCallback] to the native [CefNativeClient.querySuccess] /
+/// [CefNativeClient.queryFailure] FFI calls.
+class _NativeQueryCb implements CefQueryCallback {
+  final CefNativeClient _client;
+  final int _browserId;
+  final int _queryId;
+  bool _settled = false;
+
+  _NativeQueryCb(this._client, this._browserId, this._queryId);
+
+  @override
+  void success(String response) {
+    if (_settled) return;
+    _settled = true;
+    _client.querySuccess(_browserId, _queryId, response);
+  }
+
+  @override
+  void failure(int errorCode, String errorMessage) {
+    if (_settled) return;
+    _settled = true;
+    _client.queryFailure(_browserId, _queryId, errorCode, errorMessage);
+  }
 }

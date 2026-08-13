@@ -20,3 +20,26 @@ class PaintFrame {
 
   int get byteCount => width * height * 4;
 }
+
+// ─── Popup events ─────────────────────────────────────────────────────────────
+
+/// Base class for events delivered on [CefNativeClient.popupEvents].
+///
+/// Use pattern-matching on [CefPopupShowEvent] and [CefPopupSizeEvent].
+sealed class CefPopupEvent {}
+
+/// CEF is showing (show=true) or hiding (show=false) a popup/context-menu.
+final class CefPopupShowEvent extends CefPopupEvent {
+  final bool show;
+  CefPopupShowEvent(this.show);
+}
+
+/// CEF has set the popup rect in browser-local pixel coordinates.
+///
+/// [x],[y] are the top-left offset from the browser origin.
+/// [width],[height] are the popup dimensions.
+/// All values are in physical (scaled) pixels.
+final class CefPopupSizeEvent extends CefPopupEvent {
+  final int x, y, width, height;
+  CefPopupSizeEvent(this.x, this.y, this.width, this.height);
+}

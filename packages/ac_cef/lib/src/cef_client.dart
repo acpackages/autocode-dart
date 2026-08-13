@@ -216,6 +216,9 @@ class CefClient {
     _displayHandler?.onTitleChange(browser, title);
   }
 
+  void dispatchOnFullscreenModeChange(CefBrowser browser, bool fullscreen) =>
+      _displayHandler?.onFullscreenModeChange(browser, fullscreen);
+
   bool dispatchOnTooltip(CefBrowser browser, String text) =>
       _displayHandler?.onTooltip(browser, text) ?? false;
 

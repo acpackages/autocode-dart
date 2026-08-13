@@ -18,6 +18,7 @@ typedef OnBeforeCloseCallback          = Void Function(Int64);
 typedef OnBeforePopupCallback          = Int32 Function(Int64, Pointer<Utf8>, Pointer<Utf8>);
 typedef OnCursorChangedCallback        = Void Function(Int64, Int32);
 typedef OnGotFocusCallback             = Void Function(Int64);
+typedef OnStatusMessageCallback        = Void Function(Int64, Pointer<Utf8>);
 typedef OnConsoleMessageCallback       = Int32 Function(Int64, Int32, Pointer<Utf8>, Pointer<Utf8>, Int32);
 typedef OnJSDialogCallback             = Int32 Function(Int64, Pointer<Utf8>, Int32, Pointer<Utf8>, Pointer<Utf8>, Int64);
 typedef OnBeforeDownloadCallback       = Int32 Function(Int64, Int64, Pointer<Utf8>, Pointer<Utf8>, Int64);
@@ -29,6 +30,16 @@ typedef OnBeforeContextMenuCallback    = Void  Function(Int64, Int32, Int32);
 
 typedef OnQueryCallback                = Void Function(Int64, Int64, Pointer<Utf8>, Int32);
 typedef OnQueryCanceledCallback        = Void Function(Int64, Int64);
+
+typedef OnPopupShowCallback            = Void Function(Int64, Int32);
+typedef OnPopupSizeCallback            = Void Function(Int64, Int32, Int32, Int32, Int32);
+
+// ── Session 3 callback typedefs ───────────────────────────────────────────────
+typedef OnFullscreenModeChangeCallback = Void  Function(Int64, Int32);
+/// [is_keyboard_shortcut_out] is a Pointer<Int32> written by Dart to inform C.
+typedef OnPreKeyEventCallback          = Int32 Function(Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Pointer<Int32>);
+typedef OnKeyEventCallback             = Int32 Function(Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32);
+typedef OnCertificateErrorCallback     = Int32 Function(Int64, Int32, Pointer<Utf8>, Int64);
 
 /// Called from C for every CEF paint frame. [buffer] contains BGRA pixels.
 typedef OnPaintCallback    = Void Function(Int64, Int32, Pointer<Void>, Int32, Int32);
@@ -48,6 +59,7 @@ final class AcCefCallbacksStruct extends Struct {
   external Pointer<NativeFunction<OnBeforePopupCallback>>         on_before_popup;
   external Pointer<NativeFunction<OnCursorChangedCallback>>       on_cursor_changed;
   external Pointer<NativeFunction<OnGotFocusCallback>>            on_got_focus;
+  external Pointer<NativeFunction<OnStatusMessageCallback>>       on_status_message;
   external Pointer<NativeFunction<OnConsoleMessageCallback>>      on_console_message;
   external Pointer<NativeFunction<OnJSDialogCallback>>            on_js_dialog;
   external Pointer<NativeFunction<OnBeforeDownloadCallback>>      on_before_download;
@@ -55,8 +67,15 @@ final class AcCefCallbacksStruct extends Struct {
   external Pointer<NativeFunction<OnBeforeBrowseCallback>>        on_before_browse;
   external Pointer<NativeFunction<OnBeforeResourceLoadCallback>>  on_before_resource_load;
   external Pointer<NativeFunction<OnBeforeContextMenuCallback>>   on_before_context_menu;
+  external Pointer<NativeFunction<OnPopupShowCallback>>           on_popup_show;
+  external Pointer<NativeFunction<OnPopupSizeCallback>>           on_popup_size;
   external Pointer<NativeFunction<OnPaintCallback>>               on_paint;
   external Pointer<NativeFunction<GetViewRectCallback>>           get_view_rect;
+  // ── Session 3 additions ──────────────────────────────────────────────────
+  external Pointer<NativeFunction<OnFullscreenModeChangeCallback>> on_fullscreen_mode_change;
+  external Pointer<NativeFunction<OnPreKeyEventCallback>>          on_pre_key_event;
+  external Pointer<NativeFunction<OnKeyEventCallback>>             on_key_event;
+  external Pointer<NativeFunction<OnCertificateErrorCallback>>     on_certificate_error;
 }
 
 // ─── C function type pairs (C sig / Dart sig) ─────────────────────────────────
@@ -158,6 +177,14 @@ typedef OnPrintToPdfCallback = Void Function(Int64, Pointer<Utf8>, Int32);
 typedef _PrintToPdfC = Void Function(Int64, Pointer<Utf8>, Pointer<NativeFunction<OnPrintToPdfCallback>>);
 typedef _PrintToPdfDart = void Function(int, Pointer<Utf8>, Pointer<NativeFunction<OnPrintToPdfCallback>>);
 
+// ac_cef_cancel_download
+typedef _CancelDownloadC    = Void Function(Int64, Int64);
+typedef _CancelDownloadDart = void Function(int, int);
+
+// ac_cef_certificate_error_response
+typedef _CertErrorResponseC    = Void Function(Int64, Int32);
+typedef _CertErrorResponseDart = void Function(int, int);
+
 // ─── CefBindings ──────────────────────────────────────────────────────────────
 
 class CefBindings {
@@ -203,6 +230,8 @@ class CefBindings {
   late final _QueryResponseDart        queryResponse;
   late final _QueryFailureDart         queryFailure;
   late final _PrintToPdfDart           printToPdf;
+  late final _CancelDownloadDart       cancelDownload;
+  late final _CertErrorResponseDart    certificateErrorResponse;
 
   CefBindings._(this._lib) {
     initialize          = _lib.lookupFunction<_InitializeC,         _InitializeDart>('ac_cef_initialize');
@@ -245,6 +274,8 @@ class CefBindings {
     queryResponse       = _lib.lookupFunction<_QueryResponseC,      _QueryResponseDart>('ac_cef_query_response');
     queryFailure        = _lib.lookupFunction<_QueryFailureC,       _QueryFailureDart> ('ac_cef_query_failure');
     printToPdf          = _lib.lookupFunction<_PrintToPdfC,         _PrintToPdfDart>   ('ac_cef_print_to_pdf');
+    cancelDownload      = _lib.lookupFunction<_CancelDownloadC,     _CancelDownloadDart>('ac_cef_cancel_download');
+    certificateErrorResponse = _lib.lookupFunction<_CertErrorResponseC, _CertErrorResponseDart>('ac_cef_certificate_error_response');
   }
 
   factory CefBindings.load(String libraryPath) =>

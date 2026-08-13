@@ -51,8 +51,10 @@ static CefRefPtr<CefBrowser> GetBrowser(int64_t id) {
 
 // ─── Pending callbacks ────────────────────────────────────────────────────────
 
-static std::map<int64_t, CefRefPtr<CefJSDialogCallback>>       g_js_cbs;
-static std::map<int64_t, CefRefPtr<CefBeforeDownloadCallback>> g_dl_cbs;
+static std::map<int64_t, CefRefPtr<CefJSDialogCallback>>          g_js_cbs;
+static std::map<int64_t, CefRefPtr<CefBeforeDownloadCallback>>    g_dl_cbs;
+static std::map<int64_t, CefRefPtr<CefDownloadItemCallback>>      g_dl_item_cbs; // keyed by download_id
+static std::map<int64_t, CefRefPtr<CefCallback>>                  g_cert_cbs;    // keyed by callback_id
 static std::mutex g_cb_mutex;
 static int64_t g_next_cb_id = 1;
 
@@ -66,6 +68,12 @@ static int64_t RegDL(CefRefPtr<CefBeforeDownloadCallback> cb) {
     std::lock_guard<std::mutex> lk(g_cb_mutex);
     int64_t id = g_next_cb_id++;
     g_dl_cbs[id] = cb;
+    return id;
+}
+static int64_t RegCert(CefRefPtr<CefCallback> cb) {
+    std::lock_guard<std::mutex> lk(g_cb_mutex);
+    int64_t id = g_next_cb_id++;
+    g_cert_cbs[id] = cb;
     return id;
 }
 
@@ -86,6 +94,14 @@ public:
         }
     }
 
+    void OnPopupShow(CefRefPtr<CefBrowser>, bool show) override {
+        if (g_callbacks.on_popup_show)
+            g_callbacks.on_popup_show(browser_id, show ? 1 : 0);
+    }
+    void OnPopupSize(CefRefPtr<CefBrowser>, const CefRect& rect) override {
+        if (g_callbacks.on_popup_size)
+            g_callbacks.on_popup_size(browser_id, rect.x, rect.y, rect.width, rect.height);
+    }
     void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
                  const RectList& /*dirty*/, const void* buffer,
                  int width, int height) override {
@@ -238,6 +254,10 @@ class AcBrowserClient : public CefClient,
             g_callbacks.on_cursor_changed(browser_id, (int)type);
         return false;
     }
+    void OnStatusMessage(CefRefPtr<CefBrowser>, const CefString& value) override {
+        if (g_callbacks.on_status_message)
+            g_callbacks.on_status_message(browser_id, value.ToString().c_str());
+    }
     bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t level,
                           const CefString& msg, const CefString& src, int line) override {
         if (g_callbacks.on_console_message)
@@ -250,6 +270,39 @@ class AcBrowserClient : public CefClient,
     void OnGotFocus(CefRefPtr<CefBrowser>) override {
         if (g_callbacks.on_got_focus)
             g_callbacks.on_got_focus(browser_id);
+    }
+
+    // ── DisplayHandler (additional) ───────────────────────────────────────────
+    void OnFullscreenModeChange(CefRefPtr<CefBrowser>, bool fullscreen) override {
+        if (g_callbacks.on_fullscreen_mode_change)
+            g_callbacks.on_fullscreen_mode_change(browser_id, fullscreen ? 1 : 0);
+    }
+
+    // ── KeyboardHandler ───────────────────────────────────────────────────────
+    bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent& event,
+                       CefEventHandle /*os_event*/, bool* is_keyboard_shortcut) override {
+        if (g_callbacks.on_pre_key_event) {
+            int shortcut_out = 0;
+            int r = g_callbacks.on_pre_key_event(
+                browser_id, (int)event.type,
+                event.windows_key_code, event.native_key_code, event.modifiers,
+                (int)event.character, (int)event.unmodified_character,
+                event.is_system_key ? 1 : 0, &shortcut_out);
+            if (is_keyboard_shortcut) *is_keyboard_shortcut = (shortcut_out != 0);
+            return r != 0;
+        }
+        return false;
+    }
+    bool OnKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent& event,
+                    CefEventHandle /*os_event*/) override {
+        if (g_callbacks.on_key_event) {
+            return g_callbacks.on_key_event(
+                browser_id, (int)event.type,
+                event.windows_key_code, event.native_key_code, event.modifiers,
+                (int)event.character, (int)event.unmodified_character,
+                event.is_system_key ? 1 : 0) != 0;
+        }
+        return false;
     }
 
     // ── JSDialogHandler ───────────────────────────────────────────────────────
@@ -283,10 +336,20 @@ class AcBrowserClient : public CefClient,
         return false;
     }
     void OnDownloadUpdated(CefRefPtr<CefBrowser>, CefRefPtr<CefDownloadItem> item,
-                           CefRefPtr<CefDownloadItemCallback>) override {
+                           CefRefPtr<CefDownloadItemCallback> cb) override {
+        // Store the callback so Dart can call Cancel() later via ac_cef_cancel_download
+        {
+            std::lock_guard<std::mutex> lk(g_cb_mutex);
+            g_dl_item_cbs[item->GetId()] = cb;
+        }
         if (g_callbacks.on_download_updated)
             g_callbacks.on_download_updated(browser_id, item->GetId(),
                 item->GetPercentComplete(), item->IsComplete(), item->IsCanceled());
+        // Clean up when download is finished
+        if (item->IsComplete() || item->IsCanceled()) {
+            std::lock_guard<std::mutex> lk(g_cb_mutex);
+            g_dl_item_cbs.erase(item->GetId());
+        }
     }
 
     // ── RequestHandler ────────────────────────────────────────────────────────
@@ -301,6 +364,18 @@ class AcBrowserClient : public CefClient,
                 request->GetURL().ToString().c_str(), is_redirect != 0) != 0;
         }
         return false;
+    }
+    bool OnCertificateError(CefRefPtr<CefBrowser>, cef_errorcode_t cert_error,
+                            const CefString& request_url,
+                            CefRefPtr<CefSSLInfo> /*ssl_info*/,
+                            CefRefPtr<CefCallback> cb) override {
+        if (g_callbacks.on_certificate_error) {
+            int64_t id = RegCert(cb);
+            return g_callbacks.on_certificate_error(
+                browser_id, (int)cert_error,
+                request_url.ToString().c_str(), id) != 0;
+        }
+        return false;  // default: cancel (certificate error blocks navigation)
     }
 
     // ── ContextMenuHandler ───────────────────────────────────────────────────
@@ -499,9 +574,6 @@ AC_CEF_EXPORT void ac_cef_send_mouse_wheel(int64_t id, int x, int y, int dx, int
 }
 AC_CEF_EXPORT void ac_cef_send_key_event(int64_t id, int type, int wk, int nk,
     int mods, int ch, int uch, int sys) {
-    printf("[ac_cef_bridge] KeyEvent: id=%lld type=%d wk=0x%X nk=0x%X mods=0x%X ch=%d uch=%d sys=%d\n",
-           (long long)id, type, wk, nk, mods, ch, uch, sys);
-    fflush(stdout);
     if (auto b = GetBrowser(id)) {
         CefKeyEvent ev;
         ev.type = (cef_key_event_type_t)type;
@@ -513,9 +585,6 @@ AC_CEF_EXPORT void ac_cef_send_key_event(int64_t id, int type, int wk, int nk,
         ev.is_system_key = sys != 0;
         ev.focus_on_editable_field = 1;
         b->GetHost()->SendKeyEvent(ev);
-    } else {
-        printf("[ac_cef_bridge] KeyEvent: browser %lld NOT FOUND\n", (long long)id);
-        fflush(stdout);
     }
 }
 
@@ -524,8 +593,6 @@ AC_CEF_EXPORT void ac_cef_ime_commit_text(int64_t id, const char* text) {
         CefString cef_text(text);
         CefRange range(UINT32_MAX, UINT32_MAX); // Replace selection or insert at cursor
         b->GetHost()->ImeCommitText(cef_text, range, 0);
-        printf("[ac_cef_bridge] ImeCommitText: id=%lld text='%s'\n", (long long)id, text);
-        fflush(stdout);
     }
 }
 AC_CEF_EXPORT void ac_cef_js_dialog_response(int64_t cb_id, int ok, const char* input) {
@@ -630,7 +697,24 @@ AC_CEF_EXPORT void ac_cef_before_download_response(int64_t cb_id, const char* pa
         g_dl_cbs.erase(it);
     }
 }
-AC_CEF_EXPORT void ac_cef_cancel_download(int64_t, int64_t) { /* TODO */ }
+AC_CEF_EXPORT void ac_cef_cancel_download(int64_t /*browser_id*/, int64_t download_id) {
+    std::lock_guard<std::mutex> lk(g_cb_mutex);
+    auto it = g_dl_item_cbs.find(download_id);
+    if (it != g_dl_item_cbs.end()) {
+        it->second->Cancel();
+        g_dl_item_cbs.erase(it);
+    }
+}
+
+AC_CEF_EXPORT void ac_cef_certificate_error_response(int64_t callback_id, int allow) {
+    std::lock_guard<std::mutex> lk(g_cb_mutex);
+    auto it = g_cert_cbs.find(callback_id);
+    if (it != g_cert_cbs.end()) {
+        if (allow) it->second->Continue();
+        else       it->second->Cancel();
+        g_cert_cbs.erase(it);
+    }
+}
 
 AC_CEF_EXPORT void ac_cef_clear_all_cookies() {
     CefCookieManager::GetGlobalManager(nullptr)->DeleteCookies("", "", nullptr);
