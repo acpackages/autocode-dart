@@ -152,10 +152,12 @@ class CefClient {
   // ── LifeSpanHandler ──────────────────────────────────────────────────────
 
   bool dispatchOnBeforePopup(
-      CefBrowser browser, CefFrame frame, String url, String frameName) {
+      CefBrowser browser, CefFrame frame, String url, String frameName,
+      CefWindowOpenDisposition disposition, bool userGesture) {
     bool result = false;
     for (final h in _lifeSpanHandlers) {
-      result |= h.onBeforePopup(browser, frame, url, frameName);
+      result |= h.onBeforePopup(
+          browser, frame, url, frameName, disposition, userGesture);
     }
     return result;
   }

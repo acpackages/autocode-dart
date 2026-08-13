@@ -1027,7 +1027,9 @@ class _BoundLifeSpanHandler extends CefLifeSpanHandler {
   }) : _onCreated = onAfterCreated, _onClose = onBeforeClose;
 
   @override
-  bool onBeforePopup(CefBrowser b, CefFrame f, String u, String n) => false;
+  @override
+  bool onBeforePopup(CefBrowser b, CefFrame f, String u, String n,
+      CefWindowOpenDisposition disposition, bool userGesture) => false;
 
   @override
   void onAfterCreated(CefBrowser b) => _onCreated(b);

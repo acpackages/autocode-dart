@@ -223,7 +223,9 @@ class AcBrowserClient : public CefClient,
         if (g_callbacks.on_before_popup) {
             return g_callbacks.on_before_popup(browser_id,
                 target_url.ToString().c_str(),
-                target_frame_name.ToString().c_str()) != 0;
+                target_frame_name.ToString().c_str(),
+                (int)target_disposition,
+                user_gesture ? 1 : 0) != 0;
         }
         return false;
     }
@@ -383,6 +385,61 @@ class AcBrowserClient : public CefClient,
             std::lock_guard<std::mutex> lk(g_cb_mutex);
             g_dl_item_cbs.erase(item->GetId());
         }
+    }
+
+    // ── ContextMenuHandler ──────────────────────────────────────────────────
+    void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
+                             CefRefPtr<CefFrame> frame,
+                             CefRefPtr<CefContextMenuParams> params,
+                             CefRefPtr<CefMenuModel> model) override {
+        if (g_callbacks.on_before_context_menu) {
+            // ── Menu items ────────────────────────────────────────────────
+            int count = model->GetCount();
+            std::vector<int>         cmd_ids(count);
+            std::vector<int>         types(count);
+            std::vector<int>         enabled(count);
+            std::vector<int>         checked(count);
+            std::vector<std::string> label_strs(count);
+            std::vector<const char*> labels(count);
+            for (int i = 0; i < count; ++i) {
+                cmd_ids[i]    = model->GetCommandIdAt(i);
+                types[i]      = (int)model->GetTypeAt(i);
+                enabled[i]    = model->IsEnabledAt(i) ? 1 : 0;
+                checked[i]    = model->IsCheckedAt(i) ? 1 : 0;
+                label_strs[i] = model->GetLabelAt(i).ToString();
+                labels[i]     = label_strs[i].c_str();
+            }
+            // ── CefContextMenuParams ──────────────────────────────────────
+            std::string link_url      = params->GetLinkUrl().ToString();
+            std::string page_url      = params->GetPageUrl().ToString();
+            std::string frame_url     = params->GetFrameUrl().ToString();
+            std::string source_url    = params->GetSourceUrl().ToString();
+            std::string sel_text      = params->GetSelectionText().ToString();
+            std::string misspelled    = params->GetMisspelledWord().ToString();
+            g_callbacks.on_before_context_menu(
+                browser_id,
+                params->GetXCoord(), params->GetYCoord(),
+                count,
+                count > 0 ? cmd_ids.data()  : nullptr,
+                count > 0 ? labels.data()   : nullptr,
+                count > 0 ? types.data()    : nullptr,
+                count > 0 ? enabled.data()  : nullptr,
+                count > 0 ? checked.data()  : nullptr,
+                link_url.c_str(),
+                page_url.c_str(),
+                frame_url.c_str(),
+                source_url.c_str(),
+                sel_text.c_str(),
+                misspelled.c_str(),
+                (int)params->GetMediaType(),
+                params->GetTypeFlags(),
+                params->GetMediaStateFlags(),
+                params->GetEditStateFlags(),
+                params->IsEditable() ? 1 : 0,
+                params->HasImageContents() ? 1 : 0);
+        }
+        // Always clear — Dart shows a custom Flutter overlay instead.
+        model->Clear();
     }
 
     // ── RequestHandler ────────────────────────────────────────────────────────

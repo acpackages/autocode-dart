@@ -15,7 +15,7 @@ typedef OnLoadEndCallback              = Void Function(Int64, Pointer<Utf8>, Int
 typedef OnLoadErrorCallback            = Void Function(Int64, Pointer<Utf8>, Int32, Pointer<Utf8>, Pointer<Utf8>);
 typedef OnAfterCreatedCallback         = Void Function(Int64);
 typedef OnBeforeCloseCallback          = Void Function(Int64);
-typedef OnBeforePopupCallback          = Int32 Function(Int64, Pointer<Utf8>, Pointer<Utf8>);
+typedef OnBeforePopupCallback          = Int32 Function(Int64, Pointer<Utf8>, Pointer<Utf8>, Int32, Int32);
 typedef OnCursorChangedCallback        = Void Function(Int64, Int32);
 typedef OnGotFocusCallback             = Void Function(Int64);
 typedef OnStatusMessageCallback        = Void Function(Int64, Pointer<Utf8>);
@@ -26,7 +26,27 @@ typedef OnDownloadUpdatedCallback      = Void Function(Int64, Int64, Int32, Int3
 
 typedef OnBeforeBrowseCallback         = Int32 Function(Int64, Pointer<Utf8>, Int32);
 typedef OnBeforeResourceLoadCallback   = Int32 Function(Int64, Pointer<Utf8>, Pointer<Utf8>);
-typedef OnBeforeContextMenuCallback    = Void  Function(Int64, Int32, Int32);
+typedef OnBeforeContextMenuCallback    = Void Function(
+    Int64, Int32, Int32,                    // browser_id, x, y
+    Int32,                                  // count
+    Pointer<Int32>,                         // command_ids[count]
+    Pointer<Pointer<Utf8>>,                 // labels[count]
+    Pointer<Int32>,                         // item_types[count]
+    Pointer<Int32>,                         // enabled_flags[count]
+    Pointer<Int32>,                         // checked_flags[count]
+    // CefContextMenuParams fields
+    Pointer<Utf8>,                          // link_url
+    Pointer<Utf8>,                          // page_url
+    Pointer<Utf8>,                          // frame_url
+    Pointer<Utf8>,                          // source_url
+    Pointer<Utf8>,                          // selection_text
+    Pointer<Utf8>,                          // misspelled_word
+    Int32,                                  // media_type
+    Int32,                                  // type_flags
+    Int32,                                  // media_state_flags
+    Int32,                                  // edit_state_flags
+    Int32,                                  // is_editable
+    Int32);                                 // has_image_contents
 
 typedef OnQueryCallback                = Void Function(Int64, Int64, Pointer<Utf8>, Int32);
 typedef OnQueryCanceledCallback        = Void Function(Int64, Int64);

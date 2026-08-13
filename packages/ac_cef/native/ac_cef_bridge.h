@@ -41,7 +41,8 @@ typedef void (*OnLoadErrorCallback)(
 typedef void (*OnAfterCreatedCallback)(int64_t browser_id);
 typedef void (*OnBeforeCloseCallback)(int64_t browser_id);
 typedef int  (*OnBeforePopupCallback)(
-    int64_t browser_id, const char* target_url, const char* target_frame_name);
+    int64_t browser_id, const char* target_url, const char* target_frame_name,
+    int disposition, int user_gesture);
 typedef void (*OnCursorChangedCallback)(int64_t browser_id, int cursor_type);
 typedef void (*OnGotFocusCallback)(int64_t browser_id);
 typedef void (*OnStatusMessageCallback)(int64_t browser_id, const char* value);
@@ -65,8 +66,48 @@ typedef int (*OnBeforeBrowseCallback)(
 typedef int (*OnBeforeResourceLoadCallback)(
     int64_t browser_id, const char* url, const char* method);
 
+/// Called just before a context menu is displayed.
+/// [count] is the number of items in the default menu.
+/// [command_ids] / [labels] / [item_types] / [enabled_flags] / [checked_flags]
+/// are parallel arrays of length [count] describing each default item.
+/// The following fields come from CefContextMenuParams:
+///   [link_url]         — URL of the hovered link (empty if none)
+///   [page_url]         — URL of the top-level page
+///   [frame_url]        — URL of the focused frame
+///   [source_url]       — URL of the image/media element (empty if none)
+///   [selection_text]   — currently selected text (empty if none)
+///   [misspelled_word]  — misspelled word under cursor (empty if none)
+///   [media_type]       — cef_media_type_t int (0=none,1=image,2=video,3=audio,4=file,5=plugin)
+///   [type_flags]       — bitmask of CefContextMenuTypeFlags
+///   [media_state_flags]— bitmask of CefContextMenuMediaStateFlags
+///   [edit_state_flags] — bitmask of CefContextMenuEditStateFlags
+///   [is_editable]      — 1 if the context node is editable
+///   [has_image_contents]— 1 if there is an image loaded in the node
+/// Dart must copy any data it needs — all pointers are invalid after return.
+/// After this callback returns, C++ clears the native menu so no OS menu appears;
+/// Dart should show a custom Flutter overlay instead.
 typedef void (*OnBeforeContextMenuCallback)(
-    int64_t browser_id, int x, int y);
+    int64_t browser_id, int x, int y,
+    // Menu items (parallel arrays of length count)
+    int count,
+    const int*    command_ids,
+    const char**  labels,
+    const int*    item_types,
+    const int*    enabled_flags,
+    const int*    checked_flags,
+    // CefContextMenuParams fields
+    const char*   link_url,
+    const char*   page_url,
+    const char*   frame_url,
+    const char*   source_url,
+    const char*   selection_text,
+    const char*   misspelled_word,
+    int           media_type,
+    int           type_flags,
+    int           media_state_flags,
+    int           edit_state_flags,
+    int           is_editable,
+    int           has_image_contents);
 
 typedef void (*OnPopupShowCallback)(int64_t browser_id, int show);
 typedef void (*OnPopupSizeCallback)(int64_t browser_id, int x, int y, int width, int height);

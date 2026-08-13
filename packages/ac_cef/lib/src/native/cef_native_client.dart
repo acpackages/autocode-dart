@@ -15,6 +15,7 @@ import '../handler/cef_context_menu_handler.dart';
 import '../handler/cef_download_handler.dart';
 import '../handler/cef_js_dialog_handler.dart';
 import '../handler/cef_keyboard_handler.dart';
+import '../handler/cef_life_span_handler.dart';
 import '../handler/cef_load_handler.dart';
 import '../handler/cef_request_handler.dart';
 import '../network/cef_request.dart';
@@ -64,8 +65,11 @@ void _onLoadError(int id, Pointer<Utf8> frameUrl, int code,
         _safeString(text), _safeString(url));
 void _onAfterCreated(int id) => _activeClient?._fwdAfterCreated(id);
 void _onBeforeClose(int id)  => _activeClient?._fwdBeforeClose(id);
-int  _onBeforePopup(int id, Pointer<Utf8> url, Pointer<Utf8> name) =>
-    (_activeClient?._fwdBeforePopup(id, _safeString(url), _safeString(name)) ?? false)
+int  _onBeforePopup(int id, Pointer<Utf8> url, Pointer<Utf8> name,
+    int disposition, int userGesture) =>
+    (_activeClient?._fwdBeforePopup(
+            id, _safeString(url), _safeString(name),
+            disposition, userGesture != 0) ?? false)
         ? 1 : 0;
 void _onCursorChanged(int id, int type) =>
     _activeClient?._fwdCursorChanged(id, type);
@@ -96,8 +100,43 @@ int _onBeforeBrowse(int id, Pointer<Utf8> url, int isRedirect) =>
 int _onBeforeResourceLoad(int id, Pointer<Utf8> url, Pointer<Utf8> method) =>
     (_activeClient?._fwdBeforeResourceLoad(id, _safeString(url), _safeString(method)) ?? false)
         ? 1 : 0;
-void _onBeforeContextMenu(int id, int x, int y) =>
-    _activeClient?._fwdBeforeContextMenu(id, x, y);
+void _onBeforeContextMenu(
+    int id, int x, int y,
+    int count,
+    Pointer<Int32> commandIds,
+    Pointer<Pointer<Utf8>> labels,
+    Pointer<Int32> itemTypes,
+    Pointer<Int32> enabledFlags,
+    Pointer<Int32> checkedFlags,
+    // CefContextMenuParams fields
+    Pointer<Utf8> linkUrl,
+    Pointer<Utf8> pageUrl,
+    Pointer<Utf8> frameUrl,
+    Pointer<Utf8> sourceUrl,
+    Pointer<Utf8> selectionText,
+    Pointer<Utf8> misspelledWord,
+    int mediaType,
+    int typeFlags,
+    int mediaStateFlags,
+    int editStateFlags,
+    int isEditable,
+    int hasImageContents) {
+  // Copy all data out of C-owned memory before the callback returns.
+  final ids      = List<int>.generate(count, (i) => commandIds[i]);
+  final lbls     = List<String>.generate(
+      count, (i) => labels[i] == nullptr ? '' : labels[i].toDartString());
+  final types    = List<int>.generate(count, (i) => itemTypes[i]);
+  final enabled  = List<bool>.generate(count, (i) => enabledFlags[i] != 0);
+  final checked  = List<bool>.generate(count, (i) => checkedFlags[i] != 0);
+  _activeClient?._fwdBeforeContextMenu(
+    id, x, y, ids, lbls, types, enabled, checked,
+    _safeString(linkUrl), _safeString(pageUrl),
+    _safeString(frameUrl), _safeString(sourceUrl),
+    _safeString(selectionText), _safeString(misspelledWord),
+    mediaType, typeFlags, mediaStateFlags, editStateFlags,
+    isEditable != 0, hasImageContents != 0,
+  );
+}
 
 void _onQuery(int id, int qId, Pointer<Utf8> req, int persistent) =>
     _activeClient?._fwdQuery(id, qId, _safeString(req), persistent != 0);
@@ -660,8 +699,13 @@ class CefNativeClient {
     _cursorStreams.remove(id);
   }
 
-  bool _fwdBeforePopup(int id, String url, String name) =>
-      client.dispatchOnBeforePopup(_browsers[id] ?? _stub, _noFrame, url, name);
+  bool _fwdBeforePopup(int id, String url, String name,
+      int disposition, bool userGesture) {
+    final disp = CefWindowOpenDisposition.values[
+        disposition.clamp(0, CefWindowOpenDisposition.values.length - 1)];
+    return client.dispatchOnBeforePopup(
+        _browsers[id] ?? _stub, _noFrame, url, name, disp, userGesture);
+  }
 
   void _fwdCursorChanged(int id, int type) {
     // Emit to the cursor stream so widgets can track cursor changes
@@ -741,12 +785,26 @@ class CefNativeClient {
     );
   }
 
-  void _fwdBeforeContextMenu(int id, int x, int y) {
+  void _fwdBeforeContextMenu(int id, int x, int y,
+      List<int> commandIds, List<String> labels,
+      List<int> types, List<bool> enabled, List<bool> checked,
+      String linkUrl, String pageUrl, String frameUrl, String sourceUrl,
+      String selectionText, String misspelledWord,
+      int mediaType, int typeFlags, int mediaStateFlags, int editStateFlags,
+      bool isEditable, bool hasImageContents) {
     client.dispatchOnBeforeContextMenu(
       _browsers[id] ?? _stub,
       _noFrame,
-      _StubContextMenuParams(x, y),
-      _StubMenuModel(),
+      _NativeContextMenuParams(
+        x: x, y: y,
+        linkUrl: linkUrl, pageUrl: pageUrl,
+        frameUrl: frameUrl, sourceUrl: sourceUrl,
+        selectionText: selectionText, misspelledWord: misspelledWord,
+        mediaType: mediaType, typeFlags: typeFlags,
+        mediaStateFlags: mediaStateFlags, editStateFlags: editStateFlags,
+        isEditable: isEditable, hasImageContents: hasImageContents,
+      ),
+      _NativeMenuModel(commandIds, labels, types, enabled, checked),
     );
   }
 
@@ -1038,35 +1096,73 @@ class _StubRequest implements CefRequest {
 // ─── Stub CefContextMenuParams (used in _fwdBeforeContextMenu) ────────────────
 
 /// Minimal [CefContextMenuParams] carrying the (x, y) coordinates from C.
-class _StubContextMenuParams implements CefContextMenuParams {
-  final int _x;
-  final int _y;
-  _StubContextMenuParams(this._x, this._y);
+/// Read-populated [CefContextMenuParams] backed by data passed from C++.
+class _NativeContextMenuParams implements CefContextMenuParams {
+  final int    _x;
+  final int    _y;
+  final String _linkUrl;
+  final String _pageUrl;
+  final String _frameUrl;
+  final String _sourceUrl;
+  final String _selectionText;
+  final String _misspelledWord;
+  final int    _mediaType;
+  final int    _typeFlags;
+  final int    _mediaStateFlags;
+  final int    _editStateFlags;
+  final bool   _isEditable;
+  final bool   _hasImageContents;
 
-  @override int getXCoord() => _x;
-  @override int getYCoord() => _y;
-  @override int getTypeFlags() => 0;
-  @override String getLinkUrl() => '';
-  @override String getUnfilteredLinkUrl() => '';
-  @override String getSourceUrl() => '';
-  @override bool hasImageContents() => false;
-  @override String getPageUrl() => '';
-  @override String getFrameUrl() => '';
-  @override String getFrameCharset() => '';
-  @override CefMediaType getMediaType() => CefMediaType.none;
-  @override int getMediaStateFlags() => 0;
-  @override String getSelectionText() => '';
-  @override String getMisspelledWord() => '';
-  @override bool isEditable() => false;
-  @override bool isSpellCheckEnabled() => false;
-  @override int getEditStateFlags() => 0;
+  _NativeContextMenuParams({
+    required int x, required int y,
+    required String linkUrl, required String pageUrl,
+    required String frameUrl, required String sourceUrl,
+    required String selectionText, required String misspelledWord,
+    required int mediaType, required int typeFlags,
+    required int mediaStateFlags, required int editStateFlags,
+    required bool isEditable, required bool hasImageContents,
+  })  : _x = x, _y = y,
+        _linkUrl = linkUrl, _pageUrl = pageUrl,
+        _frameUrl = frameUrl, _sourceUrl = sourceUrl,
+        _selectionText = selectionText, _misspelledWord = misspelledWord,
+        _mediaType = mediaType, _typeFlags = typeFlags,
+        _mediaStateFlags = mediaStateFlags, _editStateFlags = editStateFlags,
+        _isEditable = isEditable, _hasImageContents = hasImageContents;
+
+  @override int          getXCoord()            => _x;
+  @override int          getYCoord()            => _y;
+  @override String       getLinkUrl()           => _linkUrl;
+  @override String       getUnfilteredLinkUrl() => _linkUrl; // same — C bridge doesn't separate
+  @override String       getPageUrl()           => _pageUrl;
+  @override String       getFrameUrl()          => _frameUrl;
+  @override String       getSourceUrl()         => _sourceUrl;
+  @override String       getSelectionText()     => _selectionText;
+  @override String       getMisspelledWord()    => _misspelledWord;
+  @override CefMediaType getMediaType() {
+    const map = [
+      CefMediaType.none, CefMediaType.image, CefMediaType.video,
+      CefMediaType.audio, CefMediaType.file, CefMediaType.plugin,
+    ];
+    return (_mediaType >= 0 && _mediaType < map.length)
+        ? map[_mediaType] : CefMediaType.none;
+  }
+  @override int  getTypeFlags()       => _typeFlags;
+  @override int  getMediaStateFlags() => _mediaStateFlags;
+  @override int  getEditStateFlags()  => _editStateFlags;
+  @override bool isEditable()         => _isEditable;
+  @override bool hasImageContents()   => _hasImageContents;
+  @override bool isSpellCheckEnabled()=> false; // not passed from C
+  @override String getFrameCharset()  => '';     // not passed from C
 }
+
+// ignore: unused_element  — kept as a zero-data fallback
 
 // ─── Stub CefMenuModel (used in _fwdBeforeContextMenu) ───────────────────────
 
 /// No-op [CefMenuModel] passed to [CefContextMenuHandler.onBeforeContextMenu].
 /// The C bridge already calls model->Clear() before dispatching to Dart,
 /// so the model is effectively empty when the handler receives it.
+// ignore: unused_element  — kept as a zero-item fallback, replaced by _NativeMenuModel at runtime
 class _StubMenuModel implements CefMenuModel {
   @override bool clear() => true;
   @override int getCount() => 0;
@@ -1109,4 +1205,84 @@ class _StubMenuModel implements CefMenuModel {
   @override bool isCheckedAt(int index) => false;
   @override bool setChecked(int commandId, bool checked) => false;
   @override bool setCheckedAt(int index, bool checked) => false;
+}
+
+/// Read-only [CefMenuModel] backed by item arrays copied from C++.
+///
+/// Populated with the default browser context-menu items before the
+/// native model is cleared. Mutation methods are no-ops — Dart should
+/// use the data to build a custom Flutter overlay instead.
+class _NativeMenuModel implements CefMenuModel {
+  final List<int>    _ids;
+  final List<String> _labels;
+  final List<int>    _types;   // raw int, maps to CefMenuItemType
+  final List<bool>   _enabled;
+  final List<bool>   _checked;
+
+  _NativeMenuModel(
+      this._ids, this._labels, this._types, this._enabled, this._checked);
+
+  bool _inRange(int i) => i >= 0 && i < _ids.length;
+
+  static CefMenuItemType _toType(int t) {
+    // CEF cef_menu_item_type_t: 0=none,1=command,2=check,3=radio,4=separator,5=submenu
+    const map = [
+      CefMenuItemType.none,
+      CefMenuItemType.command,
+      CefMenuItemType.check,
+      CefMenuItemType.radio,
+      CefMenuItemType.separator,
+      CefMenuItemType.submenu,
+    ];
+    return (t >= 0 && t < map.length) ? map[t] : CefMenuItemType.none;
+  }
+
+  // ── Read accessors ──────────────────────────────────────────────────────────
+  @override int    getCount()                => _ids.length;
+  @override int    getCommandIdAt(int i)     => _inRange(i) ? _ids[i]    : -1;
+  @override String getLabelAt(int i)         => _inRange(i) ? _labels[i] : '';
+  @override CefMenuItemType getTypeAt(int i) => _inRange(i) ? _toType(_types[i]) : CefMenuItemType.none;
+  @override bool   isEnabledAt(int i)        => _inRange(i) && _enabled[i];
+  @override bool   isCheckedAt(int i)        => _inRange(i) && _checked[i];
+  @override bool   isVisibleAt(int i)        => _inRange(i); // assume visible if present
+
+  @override int getIndexOf(int commandId) => _ids.indexOf(commandId);
+
+  @override String         getLabel(int id)  { final i = getIndexOf(id); return i < 0 ? '' : _labels[i]; }
+  @override CefMenuItemType getType(int id)  { final i = getIndexOf(id); return i < 0 ? CefMenuItemType.none : _toType(_types[i]); }
+  @override bool           isEnabled(int id) { final i = getIndexOf(id); return i >= 0 && _enabled[i]; }
+  @override bool           isChecked(int id) { final i = getIndexOf(id); return i >= 0 && _checked[i]; }
+  @override bool           isVisible(int id) => getIndexOf(id) >= 0;
+
+  // ── Unused group/submenu accessors ─────────────────────────────────────────
+  @override int           getGroupId(int id)     => 0;
+  @override int           getGroupIdAt(int i)    => 0;
+  @override CefMenuModel? getSubMenu(int id)      => null;
+  @override CefMenuModel? getSubMenuAt(int i)     => null;
+
+  // ── No-op mutation methods (native model is already cleared on C side) ─────
+  @override bool  clear()                                               => false;
+  @override bool  addSeparator()                                        => false;
+  @override bool  addItem(int id, String l)                             => false;
+  @override bool  addCheckItem(int id, String l)                        => false;
+  @override bool  addRadioItem(int id, String l, int g)                 => false;
+  @override CefMenuModel? addSubMenu(int id, String l)                  => null;
+  @override bool  insertSeparatorAt(int i)                              => false;
+  @override bool  insertItemAt(int i, int id, String l)                 => false;
+  @override bool  insertCheckItemAt(int i, int id, String l)            => false;
+  @override bool  insertRadioItemAt(int i, int id, String l, int g)     => false;
+  @override CefMenuModel? insertSubMenuAt(int i, int id, String l)      => null;
+  @override bool  remove(int id)                                        => false;
+  @override bool  removeAt(int i)                                       => false;
+  @override bool  setCommandIdAt(int i, int id)                         => false;
+  @override bool  setLabel(int id, String l)                            => false;
+  @override bool  setLabelAt(int i, String l)                           => false;
+  @override bool  setGroupId(int id, int g)                             => false;
+  @override bool  setGroupIdAt(int i, int g)                            => false;
+  @override bool  setVisible(int id, bool v)                            => false;
+  @override bool  setVisibleAt(int i, bool v)                           => false;
+  @override bool  setEnabled(int id, bool e)                            => false;
+  @override bool  setEnabledAt(int i, bool e)                           => false;
+  @override bool  setChecked(int id, bool c)                            => false;
+  @override bool  setCheckedAt(int i, bool c)                           => false;
 }

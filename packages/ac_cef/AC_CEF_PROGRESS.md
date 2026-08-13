@@ -97,6 +97,9 @@
 - [DONE] OnRenderProcessTerminated dispatched to Dart CefRequestHandler - FIXED: C++ now fires g_callbacks.on_render_process_terminated; Dart _fwdRenderProcessTerminated maps status int to CefTerminationStatus
 - [DONE] OnBeforeUnloadDialog dispatched to Dart CefJSDialogHandler - FIXED: C++ dispatches to on_before_unload_dialog callback; reuses _NativeJSCb + g_js_cbs; ac_cef_js_dialog_response responds
 - [DONE] OnTooltip dispatched to Dart CefDisplayHandler - FIXED: C++ dispatches to on_tooltip callback; returns suppressed flag
+- [DONE] OnBeforePopup disposition + userGesture - FIXED: C++ now passes target_disposition (cef_window_open_disposition_t cast to int) and user_gesture; CefWindowOpenDisposition enum added to Dart
+- [DONE] OnBeforeContextMenu item data - FIXED: C++ enumerates model items into parallel vectors before clearing; Dart receives count + 5 flat arrays and builds _NativeMenuModel
+- [DONE] OnBeforeContextMenu CefContextMenuParams data - FIXED: C++ reads linkUrl, pageUrl, frameUrl, sourceUrl, selectionText, misspelledWord, mediaType, typeFlags, mediaStateFlags, editStateFlags, isEditable, hasImageContents from params and passes them; Dart builds _NativeContextMenuParams with real values
 
 ### Multiple Browsers
 - [PARTIAL] Global _activeClient pointer - only ONE CefNativeClient can be active at a time
@@ -310,13 +313,54 @@ Completed:
 
 - VERIFIED: dart analyze — 0 issues on both packages
 
+### Session 8 (2026-08-13) - Context Menu Items + Popup Disposition
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILD REQUIRED
+- `OnBeforePopupCallback`: added `disposition` (int) + `user_gesture` (int) params
+- `AcBrowserClient::OnBeforePopup`: now passes `(int)target_disposition` and `user_gesture ? 1 : 0` to callback
+- `OnBeforeContextMenuCallback`: expanded from 3 params (browser_id, x, y) to 9 params, adding `count`, `command_ids[]`, `labels[]`, `item_types[]`, `enabled_flags[]`, `checked_flags[]`
+- `AcBrowserClient::OnBeforeContextMenu`: iterates `model->GetCount()` items into `std::vector`s before calling callback; still calls `model->Clear()` after
+
+#### Dart ac_cef package
+- `cef_life_span_handler.dart`: Added `CefWindowOpenDisposition` enum (12 values matching `cef_window_open_disposition_t`); added `disposition` + `userGesture` params to `CefLifeSpanHandler.onBeforePopup`
+- `cef_bindings.dart`: Updated `OnBeforePopupCallback` typedef (+2 Int32 params); updated `OnBeforeContextMenuCallback` typedef (+6 params including `Pointer<Int32>` arrays and `Pointer<Pointer<Utf8>>`)
+- `cef_client.dart`: Updated `dispatchOnBeforePopup` signature; imported `cef_life_span_handler.dart` for `CefWindowOpenDisposition`
+- `cef_native_client.dart`:
+  - `_onBeforePopup` top-level: receives disposition + userGesture
+  - `_onBeforeContextMenu` top-level: receives 6 extra params; copies data from C arrays into Dart Lists before return
+  - `_fwdBeforePopup`: maps raw int to `CefWindowOpenDisposition` enum, passes to dispatch
+  - `_fwdBeforeContextMenu`: builds `_NativeMenuModel` from lists
+  - Added `_NativeMenuModel` class: read-only `CefMenuModel` backed by item arrays; all mutation methods are no-ops; implements `getCount`, `getCommandIdAt`, `getLabelAt`, `getTypeAt`, `isEnabledAt`, `isCheckedAt`, `isVisibleAt`, `getIndexOf`, and by-commandId variants
+  - Import: added `cef_life_span_handler.dart` for `CefWindowOpenDisposition`
+
+#### Dart ac_cef_flutter package
+- `_BoundLifeSpanHandler.onBeforePopup`: updated override to match new 6-param signature
+
+- VERIFIED: dart analyze — 0 issues on both packages
+
+### Session 9 (2026-08-13) - Rich CefContextMenuParams Passthrough
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILD REQUIRED
+- `OnBeforeContextMenuCallback`: extended with 12 additional params after the item arrays:
+  `link_url`, `page_url`, `frame_url`, `source_url`, `selection_text`, `misspelled_word` (6 `const char*`)
+  `media_type`, `type_flags`, `media_state_flags`, `edit_state_flags`, `is_editable`, `has_image_contents` (6 `int`)
+- `AcBrowserClient::OnBeforeContextMenu`: reads all `CefContextMenuParams` fields into `std::string` temporaries before calling callback; all string pointers are valid during the callback
+
+#### Dart ac_cef package
+- `cef_bindings.dart`: Updated `OnBeforeContextMenuCallback` typedef with 12 extra params (6 `Pointer<Utf8>` + 6 `Int32`)
+- `cef_native_client.dart`:
+  - `_onBeforeContextMenu` top-level: now receives 12 extra params; copies all string pointers to Dart strings before return
+  - `_fwdBeforeContextMenu`: builds `_NativeContextMenuParams` with all real values
+  - Replaced `_StubContextMenuParams` with `_NativeContextMenuParams`: fully-populated read-only impl of `CefContextMenuParams`; maps `_mediaType` int → `CefMediaType` enum; `getUnfilteredLinkUrl` == `getLinkUrl` (C bridge doesn't separate); `isSpellCheckEnabled` and `getFrameCharset` always return false/''
+
+- VERIFIED: dart analyze — 0 issues on ac_cef (ac_cef_flutter unchanged this session)
+
 ## Current Priority / Next Session
 
-1. **Rebuild DLL** — Session 7 added C++ changes (title cache, 3 new callbacks); DLL must be rebuilt before testing
-2. **Custom context menu support** — extend C bridge to pass menu item data to Dart (currently model is always empty/cleared)
-3. **OnBeforePopup enhancements** — pass disposition + userGesture from C++ to Dart
-4. **Multiple simultaneous CefView instances** — verify two CefViews on same native client work correctly
-5. **Single active client limitation** — consider multi-window support
+1. **Rebuild DLL** — Sessions 7, 8, 9 all added C++ changes; rebuild required before testing
+2. **Multiple simultaneous CefView instances** — verify two CefViews on same native client work correctly; add example
+3. **Single active client limitation** — consider singleton enforcement + clear documentation
+4. **Popup window support** — OSR popup rendering; currently popup is always cancelled
 
 ## Build Notes
 
@@ -334,5 +378,9 @@ Completed:
   - Session 7: BrowserInfo::title cache + ac_cef_get_title fix;
     OnRenderProcessTerminated / OnBeforeUnloadDialog / OnTooltip wired;
     AcCefCallbacks struct extended with 3 new fields
+  - Session 9: OnBeforeContextMenuCallback extended with 12 CefContextMenuParams fields;
+    AcBrowserClient::OnBeforeContextMenu reads all params fields into temporaries
 - Sessions 5 & 6 changes are Dart-only — no DLL rebuild required
 - Session 7: C++ changes require DLL rebuild; Dart changes are additive (no breaking changes)
+- Session 8: C++ changes require DLL rebuild; OnBeforePopup and OnBeforeContextMenu callback signatures changed
+- Session 9: C++ changes require DLL rebuild; OnBeforeContextMenuCallback signature extended again (+12 params)
