@@ -610,6 +610,29 @@ class CefNativeClient {
   /// Returns `true` if the browser's audio is currently muted.
   bool isAudioMuted(int id) => bindings.isAudioMuted(id) != 0;
 
+  // ─── LoadRequest ──────────────────────────────────────────────────────────
+
+  /// Load [url] using [method] (e.g. `'POST'`) with an optional [body].
+  ///
+  /// [body] is encoded as UTF-8 bytes before being sent.  Pass `null` or an
+  /// empty string for requests that have no body (e.g. GET).
+  void loadRequest(int id, String url,
+      {String method = 'GET', String? body}) {
+    using((arena) {
+      final urlPtr  = url.toNativeUtf8(allocator: arena);
+      final mthPtr  = method.toNativeUtf8(allocator: arena);
+      if (body == null || body.isEmpty) {
+        bindings.loadRequest(id, urlPtr, mthPtr, nullptr, 0);
+      } else {
+        final bytes  = utf8.encode(body);
+        final bufPtr = arena<Uint8>(bytes.length);
+        for (int i = 0; i < bytes.length; i++) bufPtr[i] = bytes[i];
+        bindings.loadRequest(
+            id, urlPtr, mthPtr, bufPtr.cast<Utf8>(), bytes.length);
+      }
+    });
+  }
+
   // ─── Async source / text ──────────────────────────────────────────────────
 
   /// Returns the HTML source of the main frame.

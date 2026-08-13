@@ -15,7 +15,7 @@
 - [DONE] Create browser (async, ID assigned in OnAfterCreated)
 - [DONE] Destroy/close browser
 - [DONE] OnAfterCreated / OnBeforeClose callbacks
-- [PARTIAL] Recreate (close + re-create works in principle, not tested)
+- [DONE] Recreate (CefView dispose closes browser; new CefView on same CefNativeClient creates fresh browser via OnAfterCreated)
 - [DONE] Shutdown (CefShutdown called)
 
 ### Navigation
@@ -108,6 +108,14 @@
 
 ### DevTools
 - [DONE] Open/close DevTools in popup window
+
+### Ergonomics / Flutter Widgets
+- [DONE] CefBrowserState ChangeNotifier — tracks url/title/isLoading/canGoBack/canGoForward; CefController.state getter auto-attaches
+- [DONE] CefBrowserStateBuilder — ListenableBuilder wrapper for reactive UI
+- [DONE] CefNavBar — ready-to-use back/forward/reload/stop/URL-bar widget
+
+### Audio
+- [DONE] SetAudioMuted / IsAudioMuted — CefController.setAudioMuted(bool) / isAudioMuted()
 
 ### Cookies
 - [DONE] Clear all cookies
@@ -446,11 +454,51 @@ Completed:
 - VERIFIED: dart analyze — 0 issues on both packages
 - DLL REBUILT (783 KB, 21:26) and DEPLOYED
 
+### Session 17 (2026-08-13) — CefBrowserStateBuilder + CefNavBar + Checklist cleanup
+
+#### Dart ac_cef_flutter package (no DLL change)
+- `CefBrowserStateBuilder` (new `StatelessWidget`):
+  - Wraps `ListenableBuilder` on `CefController.state`
+  - Builder receives `(BuildContext, CefBrowserState, Widget?)` — mirrors `ListenableBuilder` API
+- `CefNavBar` (new `StatefulWidget`):
+  - Shows: Back · Forward · Reload/Stop buttons + URL text field
+  - URL field stays in sync with browser; user can type and press Enter to navigate
+  - `http(s)://` prefix added automatically if omitted
+  - Loading indicator (spinner) in URL field suffix when page is loading
+  - Accepts `height` and `backgroundColor` params
+
+#### Checklist
+- Marked `[PARTIAL] Recreate` → `[DONE]`
+- Added Ergonomics/Flutter Widgets section
+- Added Audio section
+
+- VERIFIED: dart analyze — 0 issues
+
+### Session 18 (2026-08-13) — loadRequest (POST) + Checklist
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILT
+- `ac_cef_load_request(id, url, method, body, body_size)`:
+  - Creates `CefRequest` with `CefPostData` + `CefPostDataElement` if body provided
+  - Calls `browser->GetMainFrame()->LoadRequest(req)`
+  - Null/empty body → GET-style request (no post data)
+
+#### Dart ac_cef package
+- `cef_bindings.dart`: `_LoadRequestC` / `_LoadRequestDart` typedefs; `loadRequest` field + lookup
+- `CefNativeClient.loadRequest(id, url, {method, body})`:
+  - Encodes body as UTF-8 bytes via `utf8.encode()`
+  - Passes raw byte pointer using arena allocator
+
+#### Dart ac_cef_flutter package
+- `CefController.loadRequest(url, {method, body})` — queued until browser ready
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT (784 KB, 21:51) and DEPLOYED
+
 ## Current Priority / Next Session
 
 1. **Popup OSR integration test** — trigger `window.open()`, verify new browser_id fires `on_after_created`, display it in a second `CefView`
-2. **Recreate browser test** — close a `CefView` and open a new one on the same `CefNativeClient`
-3. **`CefBrowserState` in `CefView.builder`** — convenience constructor that exposes a reactive `CefBrowserState` directly via builder callback
+2. **Favicon URL** — add `on_favicon_url_change` callback to C++ bridge + `CefDisplayHandler.onFaviconUrlChange` in Dart + `CefBrowserState.faviconUrls`
+3. **`loadRequest` with headers** — extend `ac_cef_load_request` to accept a flat `key\0value\0...` header array
 
 ### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
 

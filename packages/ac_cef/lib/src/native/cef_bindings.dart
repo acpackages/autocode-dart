@@ -237,6 +237,10 @@ typedef _ImeSetCompositionDart = void Function(int, Pointer<Utf8>, int, int, int
 typedef _ImeCancelCompositionC    = Void Function(Int64);
 typedef _ImeCancelCompositionDart = void Function(int);
 
+// ac_cef_load_request
+typedef _LoadRequestC    = Void Function(Int64, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef _LoadRequestDart = void Function(int,   Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
+
 // ac_cef_set_audio_muted / ac_cef_is_audio_muted
 typedef _SetAudioMutedC    = Void Function(Int64, Int32);
 typedef _SetAudioMutedDart = void Function(int,   int);
@@ -306,6 +310,8 @@ class CefBindings {
   late final _CertErrorResponseDart    certificateErrorResponse;
   late final _ImeSetCompositionDart    imeSetComposition;
   late final _ImeCancelCompositionDart imeCancelComposition;
+  // LoadRequest
+  late final _LoadRequestDart loadRequest;
   // Audio
   late final _SetAudioMutedDart setAudioMuted;
   late final _IsAudioMutedDart  isAudioMuted;
@@ -363,6 +369,7 @@ class CefBindings {
     certificateErrorResponse = _lib.lookupFunction<_CertErrorResponseC, _CertErrorResponseDart>('ac_cef_certificate_error_response');
     imeSetComposition   = _lib.lookupFunction<_ImeSetCompositionC,       _ImeSetCompositionDart>   ('ac_cef_ime_set_composition');
     imeCancelComposition = _lib.lookupFunction<_ImeCancelCompositionC,   _ImeCancelCompositionDart>('ac_cef_ime_cancel_composition');
+    loadRequest   = _lib.lookupFunction<_LoadRequestC, _LoadRequestDart>('ac_cef_load_request');
     setAudioMuted = _lib.lookupFunction<_SetAudioMutedC, _SetAudioMutedDart>('ac_cef_set_audio_muted');
     isAudioMuted  = _lib.lookupFunction<_IsAudioMutedC,  _IsAudioMutedDart> ('ac_cef_is_audio_muted');
     find      = _lib.lookupFunction<_FindC,      _FindDart>     ('ac_cef_find');

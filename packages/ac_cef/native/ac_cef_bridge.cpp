@@ -963,6 +963,26 @@ AC_CEF_EXPORT int ac_cef_is_loading(int64_t id) {
     return 0;
 }
 
+// ─── LoadRequest (POST) ──────────────────────────────────────────────────────
+
+AC_CEF_EXPORT void ac_cef_load_request(
+    int64_t id, const char* url, const char* method,
+    const char* body, int body_size) {
+    auto b = GetBrowser(id);
+    if (!b) return;
+    auto req = CefRequest::Create();
+    req->SetURL(url ? url : "");
+    req->SetMethod(method && method[0] ? method : "GET");
+    if (body && body_size > 0) {
+        auto pe = CefPostData::Create();
+        auto el = CefPostDataElement::Create();
+        el->SetToBytes(static_cast<size_t>(body_size), body);
+        pe->AddElement(el);
+        req->SetPostData(pe);
+    }
+    b->GetMainFrame()->LoadRequest(req);
+}
+
 // ─── Audio ─────────────────────────────────────────────────────────────────────
 
 AC_CEF_EXPORT void ac_cef_set_audio_muted(int64_t id, int muted) {

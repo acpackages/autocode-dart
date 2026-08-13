@@ -470,6 +470,20 @@ AC_CEF_EXPORT void ac_cef_get_source(
     OnStringVisitCallback callback);
 
 /// Retrieve the plain-text content of the main frame asynchronously.
+// ─── LoadRequest (POST) ──────────────────────────────────────────────────────
+
+/// Load a URL with custom method and optional body.
+/// method: e.g. "POST", "PUT" — if NULL defaults to "GET".
+/// body: request body bytes — NULL or empty for no body.
+/// body_size: byte count of body.
+AC_CEF_EXPORT void ac_cef_load_request(
+    int64_t browser_id,
+    const char* url,
+    const char* method,
+    const char* body,
+    int         body_size
+);
+
 // ─── Audio ─────────────────────────────────────────────────────────────────────
 
 /// Mute or unmute the browser's audio output.

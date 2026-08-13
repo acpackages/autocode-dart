@@ -156,6 +156,22 @@ class CefController {
   void _run(void Function() fn) => _ready ? fn() : _queue.add(fn);
 
   void loadUrl(String url)          => _run(() => _native.loadUrl(_browserId, url));
+
+  /// Load [url] with a custom HTTP [method] and optional [body].
+  ///
+  /// For simple GET navigations prefer [loadUrl].  Use this method when you
+  /// need to submit a form via POST or send a request with a custom body.
+  ///
+  /// ```dart
+  /// controller.loadRequest(
+  ///   'https://example.com/api',
+  ///   method: 'POST',
+  ///   body: '{"key":"value"}',
+  /// );
+  /// ```
+  void loadRequest(String url, {String method = 'GET', String? body}) =>
+      _run(() => _native.loadRequest(_browserId, url, method: method, body: body));
+
   void goBack()                      => _run(() => _native.goBack(_browserId));
   void goForward()                   => _run(() => _native.goForward(_browserId));
   void reload()                      => _run(() => _native.reload(_browserId));
@@ -303,6 +319,189 @@ class CefController {
 
   bool get isReady => _ready;
   int  get browserId => _browserId;
+}
+
+// ─── CefBrowserStateBuilder ───────────────────────────────────────────────────
+
+/// Rebuilds [builder] whenever the browser's navigation state changes.
+///
+/// A thin wrapper around [ListenableBuilder] that uses [CefController.state].
+///
+/// Example:
+/// ```dart
+/// CefBrowserStateBuilder(
+///   controller: _controller,
+///   builder: (context, state, _) => Text(state.url),
+/// )
+/// ```
+class CefBrowserStateBuilder extends StatelessWidget {
+  final CefController controller;
+  final Widget Function(BuildContext, CefBrowserState, Widget?) builder;
+  final Widget? child;
+
+  const CefBrowserStateBuilder({
+    super.key,
+    required this.controller,
+    required this.builder,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller.state,
+      child: child,
+      builder: (ctx, child) => builder(ctx, controller.state, child),
+    );
+  }
+}
+
+// ─── CefNavBar ────────────────────────────────────────────────────────────────
+
+/// A ready-to-use navigation bar for [CefView].
+///
+/// Shows back / forward / reload-or-stop buttons and a URL text field.
+/// Reacts to browser state changes automatically via [CefBrowserState].
+///
+/// Example:
+/// ```dart
+/// Column(children: [
+///   CefNavBar(controller: _controller),
+///   Expanded(child: CefView(native: _native, onCreated: (c) => _controller = c)),
+/// ])
+/// ```
+class CefNavBar extends StatefulWidget {
+  final CefController controller;
+
+  /// Height of the bar. Defaults to 48.
+  final double height;
+
+  /// Background color. Defaults to the theme's surface color.
+  final Color? backgroundColor;
+
+  const CefNavBar({
+    super.key,
+    required this.controller,
+    this.height = 48,
+    this.backgroundColor,
+  });
+
+  @override
+  State<CefNavBar> createState() => _CefNavBarState();
+}
+
+class _CefNavBarState extends State<CefNavBar> {
+  late final TextEditingController _urlCtrl;
+  bool _editing = false;
+
+  CefBrowserState get _state => widget.controller.state;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlCtrl = TextEditingController(text: _state.url);
+    _state.addListener(_onStateChanged);
+  }
+
+  void _onStateChanged() {
+    if (!_editing) _urlCtrl.text = _state.url;
+  }
+
+  @override
+  void dispose() {
+    _state.removeListener(_onStateChanged);
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  void _navigate() {
+    final raw = _urlCtrl.text.trim();
+    if (raw.isEmpty) return;
+    final url = raw.startsWith('http://') || raw.startsWith('https://')
+        ? raw
+        : 'https://$raw';
+    widget.controller.loadUrl(url);
+    FocusScope.of(context).unfocus();
+    setState(() => _editing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = widget.backgroundColor ?? theme.colorScheme.surface;
+
+    return ListenableBuilder(
+      listenable: _state,
+      builder: (ctx, _) {
+        final loading  = _state.isLoading;
+        final canBack  = _state.canGoBack;
+        final canFwd   = _state.canGoForward;
+
+        return Container(
+          height: widget.height,
+          color: bg,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: canBack ? widget.controller.goBack : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward),
+                tooltip: 'Forward',
+                onPressed: canFwd ? widget.controller.goForward : null,
+                iconSize: 20,
+              ),
+              IconButton(
+                icon: Icon(loading ? Icons.close : Icons.refresh),
+                tooltip: loading ? 'Stop' : 'Reload',
+                onPressed: loading
+                    ? widget.controller.stopLoad
+                    : widget.controller.reload,
+                iconSize: 20,
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _urlCtrl,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest
+                        .withAlpha(180),
+                    suffixIcon: loading
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                  textInputAction: TextInputAction.go,
+                  onTap: () => setState(() => _editing = true),
+                  onSubmitted: (_) => _navigate(),
+                  onEditingComplete: _navigate,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 // ─── CefView ─────────────────────────────────────────────────────────────────
