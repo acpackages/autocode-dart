@@ -31,6 +31,12 @@ abstract class CefRequestHandler {
     bool isRedirect,
   );
 
+  bool onBeforeResourceLoad(
+    CefBrowser browser,
+    CefFrame frame,
+    CefRequest request,
+  );
+
   bool onOpenURLFromTab(
     CefBrowser browser,
     CefFrame frame,

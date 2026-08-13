@@ -689,7 +689,13 @@ class CefNativeClient {
   }
 
   bool _fwdBeforeResourceLoad(int id, String url, String method) {
-    return false;
+    final handler = client.requestHandler;
+    if (handler == null) return false;
+    return handler.onBeforeResourceLoad(
+      _browsers[id] ?? _stub,
+      _noFrame,
+      _StubRequest(url, method: method),
+    );
   }
 
   void _fwdBeforeContextMenu(int id, int x, int y) {
@@ -931,20 +937,22 @@ class _NativeQueryCb implements CefQueryCallback {
   }
 }
 
-// ─── Stub CefRequest (used in _fwdBeforeBrowse) ───────────────────────────────
+// ─── Stub CefRequest (used in _fwdBeforeBrowse + _fwdBeforeResourceLoad) ─────
 
-/// Minimal [CefRequest] carrying only the URL supplied by the C bridge.
-/// Navigation interception only needs [getURL]; all mutating methods are no-ops.
+/// Minimal [CefRequest] carrying the URL and (optionally) HTTP method from the C bridge.
+/// Navigation interception needs [getURL]; resource-load interception also needs [getMethod].
+/// All mutating methods are no-ops.
 class _StubRequest implements CefRequest {
   final String _url;
-  _StubRequest(this._url);
+  final String _method;
+  _StubRequest(this._url, {String method = 'GET'}) : _method = method;
 
   @override void dispose() {}
   @override int getIdentifier() => 0;
   @override bool isReadOnly() => true;
   @override String getURL() => _url;
   @override void setURL(String url) {}
-  @override String getMethod() => 'GET';
+  @override String getMethod() => _method;
   @override void setMethod(String method) {}
   @override void setReferrer(String url, CefReferrerPolicy policy) {}
   @override String getReferrerURL() => '';

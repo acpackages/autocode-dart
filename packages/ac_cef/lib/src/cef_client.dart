@@ -12,6 +12,7 @@ import 'handler/cef_keyboard_handler.dart';
 import 'handler/cef_life_span_handler.dart';
 import 'handler/cef_load_handler.dart';
 import 'handler/cef_request_handler.dart';
+import 'network/cef_request.dart';
 
 /// The central client that owns browsers and routes all handler callbacks.
 ///
@@ -330,6 +331,10 @@ class CefClient {
       _requestHandler?.onCertificateError(
           browser, certError, requestUrl, callback) ??
       false;
+
+  bool dispatchOnBeforeResourceLoad(
+          CefBrowser browser, CefFrame frame, CefRequest request) =>
+      _requestHandler?.onBeforeResourceLoad(browser, frame, request) ?? false;
 
   void dispatchOnRenderProcessTerminated(CefBrowser browser,
           CefTerminationStatus status, int errorCode, String errorString) =>
