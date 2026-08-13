@@ -470,6 +470,14 @@ AC_CEF_EXPORT void ac_cef_get_source(
     OnStringVisitCallback callback);
 
 /// Retrieve the plain-text content of the main frame asynchronously.
+// ─── Audio ─────────────────────────────────────────────────────────────────────
+
+/// Mute or unmute the browser's audio output.
+AC_CEF_EXPORT void ac_cef_set_audio_muted(int64_t browser_id, int muted);
+
+/// Returns 1 if the browser's audio is currently muted, 0 otherwise.
+AC_CEF_EXPORT int  ac_cef_is_audio_muted(int64_t browser_id);
+
 AC_CEF_EXPORT void ac_cef_get_text(
     int64_t browser_id,
     int64_t callback_id,

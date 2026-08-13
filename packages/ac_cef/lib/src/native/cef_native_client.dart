@@ -601,6 +601,15 @@ class CefNativeClient {
   void stopFind(int id, {bool clearSelection = true}) =>
       bindings.stopFind(id, clearSelection ? 1 : 0);
 
+  // ─── Audio ────────────────────────────────────────────────────────────────
+
+  /// Mute or unmute the browser's audio output.
+  void setAudioMuted(int id, bool muted) =>
+      bindings.setAudioMuted(id, muted ? 1 : 0);
+
+  /// Returns `true` if the browser's audio is currently muted.
+  bool isAudioMuted(int id) => bindings.isAudioMuted(id) != 0;
+
   // ─── Async source / text ──────────────────────────────────────────────────
 
   /// Returns the HTML source of the main frame.

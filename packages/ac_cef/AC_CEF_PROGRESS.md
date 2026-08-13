@@ -425,11 +425,32 @@ Completed:
 - VERIFIED: dart analyze — 0 issues on both packages
 - DLL REBUILT (783 KB, 21:03) and DEPLOYED
 
+### Session 16 (2026-08-13) — CefBrowserState + Audio Mute + URL/Title wiring
+
+#### No DLL change (Dart-only): CefBrowserState
+- `CefBrowserState` (new `ChangeNotifier` in `ac_cef_flutter.dart`):
+  - Tracks: `url`, `title`, `isLoading`, `canGoBack`, `canGoForward`
+  - `attachTo(controller)` wires `onUrlChanged` / `onTitleChanged` / `onLoadingStateChanged` slots
+  - `CefController.state` lazy getter: auto-creates + attaches `CefBrowserState` on first access
+- `_BoundDisplayHandler` (new internal class): scoped `CefDisplayHandler` that forwards `onAddressChange` and `onTitleChange` per browser_id
+- `_BoundLoadHandler` (new internal class): scoped `CefLoadHandler` that forwards `onLoadingStateChange` per browser_id
+- `_CefViewState.initState` now registers both handlers on `onAfterCreated` → closes the gap where `onUrlChanged` / `onTitleChanged` / `onLoadingStateChanged` were declared but never called
+
+#### DLL rebuilt: Audio Mute
+- C++: `ac_cef_set_audio_muted(id, muted)` → `CefBrowserHost::SetAudioMuted`
+- C++: `ac_cef_is_audio_muted(id)` → `CefBrowserHost::IsAudioMuted`
+- `cef_bindings.dart`: typedefs + fields + lookups for both
+- `CefNativeClient`: `setAudioMuted(id, muted)`, `isAudioMuted(id) → bool`
+- `CefController` (flutter): `setAudioMuted(bool)`, `isAudioMuted() → bool`
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT (783 KB, 21:26) and DEPLOYED
+
 ## Current Priority / Next Session
 
 1. **Popup OSR integration test** — trigger `window.open()`, verify new browser_id fires `on_after_created`, display it in a second `CefView`
-2. **Expose `CefFindHandler` on `CefController`** — add `setFindHandler()` convenience on `CefController` in `ac_cef_flutter`
-3. **Recreate browser test** — close a `CefView` and open a new one on the same `CefNativeClient`
+2. **Recreate browser test** — close a `CefView` and open a new one on the same `CefNativeClient`
+3. **`CefBrowserState` in `CefView.builder`** — convenience constructor that exposes a reactive `CefBrowserState` directly via builder callback
 
 ### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
 

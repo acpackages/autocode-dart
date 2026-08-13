@@ -963,6 +963,17 @@ AC_CEF_EXPORT int ac_cef_is_loading(int64_t id) {
     return 0;
 }
 
+// ─── Audio ─────────────────────────────────────────────────────────────────────
+
+AC_CEF_EXPORT void ac_cef_set_audio_muted(int64_t id, int muted) {
+    if (auto b = GetBrowser(id)) b->GetHost()->SetAudioMuted(muted != 0);
+}
+
+AC_CEF_EXPORT int ac_cef_is_audio_muted(int64_t id) {
+    if (auto b = GetBrowser(id)) return b->GetHost()->IsAudioMuted() ? 1 : 0;
+    return 0;
+}
+
 // ─── Find in page ─────────────────────────────────────────────────────────────
 
 AC_CEF_EXPORT void ac_cef_find(int64_t id, const char* search_text,

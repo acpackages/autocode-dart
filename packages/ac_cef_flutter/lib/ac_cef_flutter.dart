@@ -40,6 +40,80 @@ class _CefKeyEventType {
 /// Public API for controlling the browser embedded in a [CefView].
 ///
 /// Obtained from [CefView.onCreated].
+// ─── CefBrowserState ─────────────────────────────────────────────────────────
+
+/// A [ChangeNotifier] that tracks the live browser navigation state.
+///
+/// Attach it to a [CefController] via [CefController.state] or manually via
+/// [attachTo]. It hooks into the controller's callback slots and notifies
+/// listeners whenever URL, title, loading-state, back, or forward availability
+/// changes.
+///
+/// Example:
+/// ```dart
+/// CefView(
+///   native: _native,
+///   onCreated: (controller) {
+///     controller.state.addListener(() {
+///       final s = controller.state;
+///       print('${s.url}  isLoading=${s.isLoading}');
+///     });
+///   },
+/// )
+/// ```
+class CefBrowserState extends ChangeNotifier {
+  String _url = '';
+  String _title = '';
+  bool _isLoading = false;
+  bool _canGoBack = false;
+  bool _canGoForward = false;
+
+  /// Current URL of the main frame.
+  String get url => _url;
+
+  /// Current page title.
+  String get title => _title;
+
+  /// Whether the browser is currently loading a page.
+  bool get isLoading => _isLoading;
+
+  /// Whether the browser can navigate backward.
+  bool get canGoBack => _canGoBack;
+
+  /// Whether the browser can navigate forward.
+  bool get canGoForward => _canGoForward;
+
+  /// Attach this state object to a [CefController].
+  ///
+  /// Called automatically by [CefController.state].
+  void attachTo(CefController controller) {
+    controller.onUrlChanged = (url) {
+      if (_url == url) return;
+      _url = url;
+      notifyListeners();
+    };
+    controller.onTitleChanged = (title) {
+      if (_title == title) return;
+      _title = title;
+      notifyListeners();
+    };
+    controller.onLoadingStateChanged = (loading, canBack, canFwd) {
+      if (_isLoading == loading &&
+          _canGoBack == canBack &&
+          _canGoForward == canFwd) return;
+      _isLoading = loading;
+      _canGoBack = canBack;
+      _canGoForward = canFwd;
+      notifyListeners();
+    };
+  }
+}
+
+// ─── CefController ───────────────────────────────────────────────────────────
+
+/// Public API for controlling the browser embedded in a [CefView].
+///
+/// Obtained from [CefView.onCreated].
 class CefController {
   final CefNativeClient _native;
   int _browserId = 0;
@@ -54,6 +128,23 @@ class CefController {
   void Function(bool, bool, bool)? onLoadingStateChanged;
 
   CefController._(this._native);
+
+  // ─── CefBrowserState ─────────────────────────────────────────────────────
+
+  CefBrowserState? _state;
+
+  /// Reactive navigation state (URL, title, loading, canGoBack, canGoForward).
+  ///
+  /// On first access a [CefBrowserState] is created and attached so it starts
+  /// receiving updates immediately.  You can add listeners or use it with
+  /// [ListenableBuilder] / [AnimatedBuilder].
+  CefBrowserState get state {
+    if (_state == null) {
+      _state = CefBrowserState();
+      _state!.attachTo(this);
+    }
+    return _state!;
+  }
 
   void _bind(int browserId) {
     _browserId = browserId;
@@ -92,6 +183,14 @@ class CefController {
 
   /// Returns the plain-text content of the main frame.
   Future<String> getText() => _native.getText(_browserId);
+
+  // Audio
+  /// Mute or unmute the browser audio output.
+  void setAudioMuted(bool muted) =>
+      _run(() => _native.setAudioMuted(_browserId, muted));
+
+  /// Returns `true` if the browser audio is currently muted.
+  bool isAudioMuted() => _ready ? _native.isAudioMuted(_browserId) : false;
 
   // Find handler
   /// Register a [CefFindHandler] to receive match updates from [find].
@@ -340,7 +439,19 @@ class _CefViewState extends State<CefView> {
           final id = browser.nativeBrowserId;
           _controller._bind(id);
 
-          // Subscribe to the paint stream for this browser
+          // Wire display / load callbacks → CefController callback slots so
+          // CefBrowserState (and any user code) receives URL/title/loading events.
+          widget.native.client.addDisplayHandler(_BoundDisplayHandler(
+            browserId: id,
+            onAddressChange: (url) => _controller.onUrlChanged?.call(url),
+            onTitleChange: (title) => _controller.onTitleChanged?.call(title),
+          ));
+          widget.native.client.addLoadHandler(_BoundLoadHandler(
+            browserId: id,
+            onLoadingStateChange: (loading, canBack, canFwd) =>
+                _controller.onLoadingStateChanged?.call(loading, canBack, canFwd),
+          ));
+
           _paintSub = widget.native.paintFrames(id).listen(_onPaintFrame);
 
           // Subscribe to cursor changes for this browser
@@ -1183,6 +1294,66 @@ class _CallbackJSDialogHandler implements CefJSDialogHandler {
 
   @override
   void onDialogClosed(CefBrowser browser) {}
+}
+
+// ─── Internal display handler ─────────────────────────────────────────────────
+
+class _BoundDisplayHandler extends CefDisplayHandler {
+  final int _browserId;
+  final void Function(String) _onAddressChange;
+  final void Function(String) _onTitleChange;
+
+  _BoundDisplayHandler({
+    required int browserId,
+    required void Function(String) onAddressChange,
+    required void Function(String) onTitleChange,
+  })  : _browserId = browserId,
+        _onAddressChange = onAddressChange,
+        _onTitleChange = onTitleChange;
+
+  @override
+  void onAddressChange(CefBrowser b, CefFrame f, String url) {
+    if (b.nativeBrowserId == _browserId) _onAddressChange(url);
+  }
+
+  @override
+  void onTitleChange(CefBrowser b, String title) {
+    if (b.nativeBrowserId == _browserId) _onTitleChange(title);
+  }
+
+  @override
+  bool onConsoleMessage(CefBrowser b, CefLogSeverity level, String msg,
+      String src, int line) => false;
+  @override bool onTooltip(CefBrowser b, String text) => false;
+  @override void onStatusMessage(CefBrowser b, String value) {}
+  @override bool onCursorChange(CefBrowser b, int type) => false;
+  @override void onFullscreenModeChange(CefBrowser b, bool fullscreen) {}
+}
+
+// ─── Internal load handler ────────────────────────────────────────────────────
+
+class _BoundLoadHandler extends CefLoadHandler {
+  final int _browserId;
+  final void Function(bool, bool, bool) _onLoadingStateChange;
+
+  _BoundLoadHandler({
+    required int browserId,
+    required void Function(bool, bool, bool) onLoadingStateChange,
+  })  : _browserId = browserId,
+        _onLoadingStateChange = onLoadingStateChange;
+
+  @override
+  void onLoadingStateChange(CefBrowser b, bool isLoading,
+      bool canGoBack, bool canGoForward) {
+    if (b.nativeBrowserId == _browserId) {
+      _onLoadingStateChange(isLoading, canGoBack, canGoForward);
+    }
+  }
+
+  @override void onLoadStart(CefBrowser b, CefFrame f, int transitionType) {}
+  @override void onLoadEnd(CefBrowser b, CefFrame f, int httpStatusCode) {}
+  @override void onLoadError(CefBrowser b, CefFrame f, CefErrorCode errorCode,
+      String errorText, String failedUrl) {}
 }
 
 class FlutterJSDialogHandler implements CefJSDialogHandler {
