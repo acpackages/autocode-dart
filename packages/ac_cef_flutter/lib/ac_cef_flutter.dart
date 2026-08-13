@@ -75,6 +75,23 @@ class CefController {
   void close()                       => _run(() => _native.closeBrowser(_browserId));
   void invalidate()                  => _run(() => _native.invalidate(_browserId));
 
+  // Find in page
+  /// Start or continue a find-in-page search.
+  void find(String searchText, {bool forward = true, bool matchCase = false, bool findNext = false}) =>
+      _run(() => _native.find(_browserId, searchText,
+          forward: forward, matchCase: matchCase, findNext: findNext));
+
+  /// Stop the current find-in-page search.
+  void stopFind({bool clearSelection = true}) =>
+      _run(() => _native.stopFind(_browserId, clearSelection: clearSelection));
+
+  // Async source / text
+  /// Returns the HTML source of the main frame.
+  Future<String> getSource() => _native.getSource(_browserId);
+
+  /// Returns the plain-text content of the main frame.
+  Future<String> getText() => _native.getText(_browserId);
+
   // DevTools
   void openDevTools()  => _run(() => _native.openDevTools(_browserId));
   void closeDevTools() => _run(() => _native.closeDevTools(_browserId));

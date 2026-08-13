@@ -946,4 +946,52 @@ AC_CEF_EXPORT int ac_cef_is_loading(int64_t id) {
     return 0;
 }
 
+// ─── Find in page ─────────────────────────────────────────────────────────────
+
+AC_CEF_EXPORT void ac_cef_find(int64_t id, const char* search_text,
+    int forward, int match_case, int find_next)
+{
+    if (auto b = GetBrowser(id))
+        b->GetHost()->Find(search_text, forward != 0, match_case != 0, find_next != 0);
+}
+
+AC_CEF_EXPORT void ac_cef_stop_find(int64_t id, int clear_selection) {
+    if (auto b = GetBrowser(id))
+        b->GetHost()->StopFinding(clear_selection != 0);
+}
+
+// ─── Async source / text retrieval ────────────────────────────────────────────
+
+// CefStringVisitor implementation that fires a C callback and self-destructs.
+class StringVisitorCallback : public CefStringVisitor {
+public:
+    StringVisitorCallback(int64_t cb_id, OnStringVisitCallback cb)
+        : cb_id_(cb_id), cb_(cb) {}
+
+    void Visit(const CefString& str) override {
+        const std::string s = str.ToString();
+        cb_(cb_id_, s.c_str());
+    }
+private:
+    int64_t cb_id_;
+    OnStringVisitCallback cb_;
+    IMPLEMENT_REFCOUNTING(StringVisitorCallback);
+};
+
+AC_CEF_EXPORT void ac_cef_get_source(int64_t id, int64_t cb_id,
+    OnStringVisitCallback cb)
+{
+    if (auto b = GetBrowser(id))
+        b->GetMainFrame()->GetSource(
+            new StringVisitorCallback(cb_id, cb));
+}
+
+AC_CEF_EXPORT void ac_cef_get_text(int64_t id, int64_t cb_id,
+    OnStringVisitCallback cb)
+{
+    if (auto b = GetBrowser(id))
+        b->GetMainFrame()->GetText(
+            new StringVisitorCallback(cb_id, cb));
+}
+
 } // extern "C"

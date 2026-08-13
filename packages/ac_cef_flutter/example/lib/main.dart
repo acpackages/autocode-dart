@@ -432,11 +432,13 @@ class _AppDisplayHandler extends CefDisplayHandler {
 }
 
 class _AppLifeSpanHandler extends CefLifeSpanHandler {
-  @override bool onBeforePopup(CefBrowser b, CefFrame f, String u, String n) => false;
   @override void onAfterCreated(CefBrowser b)     => debugPrint('[CEF] created ${b.nativeBrowserId}');
   @override void onAfterParentChanged(CefBrowser b) {}
   @override bool doClose(CefBrowser b)             => false;
   @override void onBeforeClose(CefBrowser b)       => debugPrint('[CEF] closed ${b.nativeBrowserId}');
+
+  @override
+  bool onBeforePopup(CefBrowser browser, CefFrame frame, String targetUrl, String targetFrameName, CefWindowOpenDisposition disposition, bool userGesture) => false;
 }
 
 class _AppJSDialogHandler extends CefJSDialogHandler {

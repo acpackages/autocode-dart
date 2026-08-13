@@ -565,6 +565,61 @@ class CefNativeClient {
   void setZoomLevel(int id, double level) => bindings.setZoomLevel(id, level);
   double getZoomLevel(int id) => bindings.getZoomLevel(id);
 
+  // ─── Find in page ─────────────────────────────────────────────────────────
+
+  /// Start or continue a find-in-page search.
+  ///
+  /// Set [findNext] to `false` for a new search and `true` to move to the
+  /// next/previous match.
+  void find(int id, String searchText, {
+    bool forward   = true,
+    bool matchCase = false,
+    bool findNext  = false,
+  }) {
+    final s = searchText.toNativeUtf8();
+    bindings.find(id, s,
+        forward    ? 1 : 0,
+        matchCase  ? 1 : 0,
+        findNext   ? 1 : 0);
+    calloc.free(s);
+  }
+
+  /// Stop the current find-in-page search.
+  void stopFind(int id, {bool clearSelection = true}) =>
+      bindings.stopFind(id, clearSelection ? 1 : 0);
+
+  // ─── Async source / text ──────────────────────────────────────────────────
+
+  /// Returns the HTML source of the main frame.
+  Future<String> getSource(int id) {
+    final completer = Completer<String>();
+    late NativeCallable<OnStringVisitCallbackNative> nc;
+    nc = NativeCallable<OnStringVisitCallbackNative>.isolateLocal(
+      (int cbId, Pointer<Utf8> text) {
+        completer.complete(_safeString(text));
+        nc.close();
+      },
+    );
+    _callables.add(nc); // prevent GC until close() is called
+    bindings.getSource(id, 0, nc.nativeFunction);
+    return completer.future;
+  }
+
+  /// Returns the plain-text content of the main frame.
+  Future<String> getText(int id) {
+    final completer = Completer<String>();
+    late NativeCallable<OnStringVisitCallbackNative> nc;
+    nc = NativeCallable<OnStringVisitCallbackNative>.isolateLocal(
+      (int cbId, Pointer<Utf8> text) {
+        completer.complete(_safeString(text));
+        nc.close();
+      },
+    );
+    _callables.add(nc);
+    bindings.getText(id, 0, nc.nativeFunction);
+    return completer.future;
+  }
+
   // ─── Focus / visibility ───────────────────────────────────────────────────
 
   void setFocus(int id, bool focus)         => bindings.setFocus(id, focus ? 1 : 0);

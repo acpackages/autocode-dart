@@ -419,6 +419,43 @@ AC_CEF_EXPORT int ac_cef_can_go_forward(int64_t browser_id);
 /// Check if the browser is currently loading.
 AC_CEF_EXPORT int ac_cef_is_loading(int64_t browser_id);
 
+// ─── Find in page ─────────────────────────────────────────────────────────────
+
+/// Start or continue a find-in-page search.
+/// [search_text]  – text to find.
+/// [forward]      – 1 = forward, 0 = backward.
+/// [match_case]   – 1 = case-sensitive.
+/// [find_next]    – 1 = continue previous search, 0 = new search.
+AC_CEF_EXPORT void ac_cef_find(
+    int64_t browser_id,
+    const char* search_text,
+    int forward,
+    int match_case,
+    int find_next);
+
+/// Stop an active find-in-page search.
+/// [clear_selection] – 1 = deselect the current match.
+AC_CEF_EXPORT void ac_cef_stop_find(int64_t browser_id, int clear_selection);
+
+// ─── Async source / text retrieval ────────────────────────────────────────────
+
+/// Callback invoked when GetSource / GetText completes.
+/// [callback_id] matches the value passed to ac_cef_get_source / ac_cef_get_text.
+/// [text] is null-terminated and owned by the bridge until the callback returns.
+typedef void (*OnStringVisitCallback)(int64_t callback_id, const char* text);
+
+/// Retrieve the HTML source of the main frame asynchronously.
+AC_CEF_EXPORT void ac_cef_get_source(
+    int64_t browser_id,
+    int64_t callback_id,
+    OnStringVisitCallback callback);
+
+/// Retrieve the plain-text content of the main frame asynchronously.
+AC_CEF_EXPORT void ac_cef_get_text(
+    int64_t browser_id,
+    int64_t callback_id,
+    OnStringVisitCallback callback);
+
 #ifdef __cplusplus
 }
 #endif

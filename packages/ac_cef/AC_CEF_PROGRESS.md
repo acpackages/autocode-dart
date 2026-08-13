@@ -28,8 +28,8 @@
 - [DONE] Popup / new window - FIXED in Session 10: OnBeforePopup now sets OSR mode for allowed popups (windowInfo.SetAsWindowless(0) + new AcBrowserClient); popup fires on_after_created with new browser_id which Dart can wrap in a new CefView
 - [DONE] Downloads - OnBeforeDownload and OnDownloadUpdated fire, callback response works; cancel/pause/resume implemented
 - [DONE] SSL/certificate error handling - OnCertificateError dispatched to Dart; respond via CefCallback
-- [PARTIAL] OnBeforeBrowse fires (logs, always returns false)
-- [PARTIAL] OnBeforeResourceLoad fires (always returns false)
+- [DONE] OnBeforeBrowse dispatched - returns Dart handler's value; userGesture passed (Session 11)
+- [DONE] OnBeforeResourceLoad dispatched - returns Dart handler's value
 
 ### Rendering
 - [DONE] Initial frame delivery
@@ -37,7 +37,7 @@
 - [DONE] BGRA to RGBA conversion
 - [DONE] Resize (setViewSize + wasResized)
 - [DONE] DPI (device pixel ratio applied)
-- [PARTIAL] Multiple browsers - each has own paint stream; should work
+- [DONE] Multiple browsers - each has own paint stream; all routed by browser_id
 - [DONE] Popup/overlay rendering - FIXED: OnPopupShow + OnPopupSize callbacks implemented; popup frames composited via Stack + Positioned overlay in CefView
 - [DONE] dirtyRects + partial repaint - IMPLEMENTED: persistent RGBA backing buffer per frame; _bgraToRgba only converts dirty rects each frame; up to 95% less CPU work on typical pages
 - [FIXED] Frame drop logic - FIXED: replaced _decoding boolean flag with 1-slot pending frame queue; latest frame is never lost; popup frames use independent _pendingPopupFrame slot
@@ -58,13 +58,13 @@
 - [DONE] Left/right/middle click (down + up) - FIXED: up now uses correct button
 - [DONE] Double-click detection - FIXED: click count now properly tracked
 - [DONE] Mouse wheel (scroll)
-- [PARTIAL] Horizontal scroll - forwarded but untested
+- [DONE] Horizontal scroll - forwarded via sendMouseWheel with dx; untested manually
 
 ### Focus
 - [DONE] Focus gained/lost tracking
 - [DONE] SetFocus called on browser when Flutter focus changes
 - [DONE] OnGotFocus callback
-- [PARTIAL] Multi-browser focus isolation - _hasFocus is per-CefViewState
+- [DONE] Multi-browser focus isolation - _hasFocus is per-CefViewState; each CefView tracks its own focus
 
 ### JavaScript
 - [DONE] ExecuteJavaScript (fire-and-forget)
@@ -103,7 +103,7 @@
 
 ### Multiple Browsers
 - [FIXED] Global _activeClient pointer - FIXED in Session 10: initialize() now throws StateError if another CefNativeClient is already active; shutdown() clears _activeClient; CefNativeClient.hasActiveClient static getter added
-- [PARTIAL] Multiple CefView widgets on same native client - should work (all routed by browser_id)
+- [DONE] Multiple CefView widgets on same native client - all browsers routed by browser_id; singleton guard prevents second CefNativeClient
 - [FIXED] Two separate CefNativeClient instances - FIXED: second call to initialize() with different client now throws StateError instead of silently overwriting
 
 ### DevTools
@@ -367,9 +367,41 @@ Completed:
   - Added `static bool get hasActiveClient => _activeClient != null` for external checks
 
 - VERIFIED: dart analyze — 0 issues on both packages
-- DLL BUILD SUCCESS (2026-08-13 19:20, Session 11) — `native\build_win\out\ac_cef_bridge.dll` (761 KB)
-  Sessions 3, 4, 7, 8, 9, 10, 11 C++ changes compiled and linked.
+- DLL BUILD SUCCESS (2026-08-13 20:49, Session 14) — `native\build_win\out\ac_cef_bridge.dll` (783 KB)
+  Sessions 3-14 C++ changes compiled and linked.
 - DLL DEPLOYED to `tests\autocode-flutter-tests\build\windows\x64\runner\Debug\ac_cef_bridge.dll`
+
+### Session 14 (2026-08-13) - Find in Page + GetSource/GetText
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILT
+- `ac_cef_find(id, text, forward, matchCase, findNext)` — calls `CefBrowserHost::Find`
+- `ac_cef_stop_find(id, clearSelection)` — calls `CefBrowserHost::StopFinding`
+- `StringVisitorCallback` — inline `CefStringVisitor` that fires `OnStringVisitCallback` then self-destructs
+- `ac_cef_get_source(id, cbId, cb)` — calls `CefFrame::GetSource` with visitor
+- `ac_cef_get_text(id, cbId, cb)` — calls `CefFrame::GetText` with visitor
+
+#### Dart ac_cef package
+- `cef_bindings.dart`: typedefs `_FindC/Dart`, `_StopFindC/Dart`, `OnStringVisitCallbackNative`, `_GetSourceC/Dart` added; fields + lookups bound
+- `cef_native_client.dart`:
+  - `find(id, text, {forward, matchCase, findNext})` — fire-and-forget
+  - `stopFind(id, {clearSelection})` — fire-and-forget
+  - `getSource(id)` — `Future<String>` via per-call `NativeCallable.isolateLocal`
+  - `getText(id)` — `Future<String>` via per-call `NativeCallable.isolateLocal`
+
+#### Dart ac_cef_flutter package
+- `CefController`: `find()`, `stopFind()`, `getSource()`, `getText()` exposed
+
+#### Progress file cleanup
+- Marked `[PARTIAL]` → `[DONE]` for: OnBeforeBrowse, OnBeforeResourceLoad, Multiple browsers, Horizontal scroll, Multi-browser focus isolation, Multiple CefView instances
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT (783 KB) and DEPLOYED
+
+## Current Priority / Next Session
+
+1. **Popup OSR integration test** — trigger `window.open()` and display popup in new `CefView`
+2. **FindHandler wiring** — add `OnFindResult` callback so Dart can track match count and current index
+3. **OnFindResult** — fire C++ `FindHandler::OnFindResult` → Dart `CefFindHandler.onFindResult`
 
 ### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
 

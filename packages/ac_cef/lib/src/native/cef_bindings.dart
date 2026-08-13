@@ -231,6 +231,18 @@ typedef _ImeSetCompositionDart = void Function(int, Pointer<Utf8>, int, int, int
 typedef _ImeCancelCompositionC    = Void Function(Int64);
 typedef _ImeCancelCompositionDart = void Function(int);
 
+// ac_cef_find / ac_cef_stop_find
+typedef _FindC     = Void Function(Int64, Pointer<Utf8>, Int32, Int32, Int32);
+typedef _FindDart  = void Function(int,   Pointer<Utf8>, int,   int,   int);
+typedef _StopFindC    = Void Function(Int64, Int32);
+typedef _StopFindDart = void Function(int,   int);
+
+// ac_cef_get_source / ac_cef_get_text
+// The callback is a native function pointer passed per-call (like printToPdf).
+typedef OnStringVisitCallbackNative = Void Function(Int64, Pointer<Utf8>);
+typedef _GetSourceC    = Void Function(Int64, Int64, Pointer<NativeFunction<OnStringVisitCallbackNative>>);
+typedef _GetSourceDart = void Function(int,   int,   Pointer<NativeFunction<OnStringVisitCallbackNative>>);
+
 // ─── CefBindings ──────────────────────────────────────────────────────────────
 
 class CefBindings {
@@ -282,6 +294,12 @@ class CefBindings {
   late final _CertErrorResponseDart    certificateErrorResponse;
   late final _ImeSetCompositionDart    imeSetComposition;
   late final _ImeCancelCompositionDart imeCancelComposition;
+  // Find in page
+  late final _FindDart      find;
+  late final _StopFindDart  stopFind;
+  // Async source/text
+  late final _GetSourceDart getSource;
+  late final _GetSourceDart getText;
 
   CefBindings._(this._lib) {
     initialize          = _lib.lookupFunction<_InitializeC,         _InitializeDart>('ac_cef_initialize');
@@ -330,6 +348,10 @@ class CefBindings {
     certificateErrorResponse = _lib.lookupFunction<_CertErrorResponseC, _CertErrorResponseDart>('ac_cef_certificate_error_response');
     imeSetComposition   = _lib.lookupFunction<_ImeSetCompositionC,       _ImeSetCompositionDart>   ('ac_cef_ime_set_composition');
     imeCancelComposition = _lib.lookupFunction<_ImeCancelCompositionC,   _ImeCancelCompositionDart>('ac_cef_ime_cancel_composition');
+    find      = _lib.lookupFunction<_FindC,      _FindDart>     ('ac_cef_find');
+    stopFind  = _lib.lookupFunction<_StopFindC,  _StopFindDart> ('ac_cef_stop_find');
+    getSource = _lib.lookupFunction<_GetSourceC, _GetSourceDart>('ac_cef_get_source');
+    getText   = _lib.lookupFunction<_GetSourceC, _GetSourceDart>('ac_cef_get_text');
   }
 
   factory CefBindings.load(String libraryPath) =>
