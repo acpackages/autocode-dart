@@ -74,7 +74,7 @@
 - [DONE] removeQueryHandler() on CefController
 - [DONE] No-handler fallback: succeeds with empty response so JS promise doesn't hang
 - [DONE] Declined-handler fallback: auto-fails with -1/'Query not handled' error
-- [MISSING] JS return values / eval results
+- [DONE] JS return values / eval results - FIXED in Session 11: CefController.evalJavaScript(expr) → Future<String>; implemented via cefQuery piggyback with __cef_eval__ prefix intercepted internally; JS errors propagated as Dart errors
 - [PARTIAL] JS dialog (alert/confirm/prompt) - auto-dismissed in example
 
 ### Callbacks
@@ -92,7 +92,7 @@
 - [DONE] OnBeforeContextMenu dispatched to Dart CefContextMenuHandler - FIXED: _fwdBeforeContextMenu now calls dispatchOnBeforeContextMenu with _StubContextMenuParams + _StubMenuModel
 - [DONE] OnPreKeyEvent / OnKeyEvent - NEW: dispatched from C++ → Dart CefKeyboardHandler
 - [DONE] OnCertificateError - NEW: dispatched from C++ → Dart; CefCallback.onContinue(allow) responds
-- [DONE] OnBeforeBrowse dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeBrowse now dispatches to client.requestHandler with _StubRequest carrying the URL
+- [DONE] OnBeforeBrowse dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeBrowse now dispatches to client.requestHandler with _StubRequest carrying the URL; userGesture now correctly passed (Session 11)
 - [DONE] OnBeforeResourceLoad dispatched to Dart CefRequestHandler - FIXED: _fwdBeforeResourceLoad now dispatches to client.requestHandler.onBeforeResourceLoad() with _StubRequest(url, method: method)
 - [DONE] OnRenderProcessTerminated dispatched to Dart CefRequestHandler - FIXED: C++ now fires g_callbacks.on_render_process_terminated; Dart _fwdRenderProcessTerminated maps status int to CefTerminationStatus
 - [DONE] OnBeforeUnloadDialog dispatched to Dart CefJSDialogHandler - FIXED: C++ dispatches to on_before_unload_dialog callback; reuses _NativeJSCb + g_js_cbs; ac_cef_js_dialog_response responds
@@ -148,8 +148,7 @@ OnPreKeyEvent's is_keyboard_shortcut out-parameter is always written as false;
 Dart cannot determine whether the key combination is a browser shortcut.
 
 ### LOW - OnBeforeBrowse receives URL only (no method/headers/userGesture)
-The C bridge passes url + is_redirect; userGesture is always false in the stub.
-A future session can extend the bridge to pass these.
+- FIXED in Session 11: userGesture is now passed from C++ OnBeforeBrowse through the bridge and dispatched to Dart. URL and is_redirect were already passed.
 
 ### LOW - OnBeforeContextMenu model is always empty
 - FIXED in Sessions 8 + 9: C++ now enumerates all default menu items and passes them as flat arrays; _NativeMenuModel holds real data; _NativeContextMenuParams holds all params fields. Dart handlers receive a fully-populated read-only model.
@@ -368,15 +367,37 @@ Completed:
   - Added `static bool get hasActiveClient => _activeClient != null` for external checks
 
 - VERIFIED: dart analyze — 0 issues on both packages
-- DLL BUILD SUCCESS (2026-08-13 19:07) — `native\build_win\out\ac_cef_bridge.dll` (761 KB)
-  All Sessions 3, 4, 7, 8, 9, 10 C++ changes compiled and linked.
+- DLL BUILD SUCCESS (2026-08-13 19:20, Session 11) — `native\build_win\out\ac_cef_bridge.dll` (761 KB)
+  Sessions 3, 4, 7, 8, 9, 10, 11 C++ changes compiled and linked.
+- DLL DEPLOYED to `tests\autocode-flutter-tests\build\windows\x64\runner\Debug\ac_cef_bridge.dll`
+
+### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILT
+- `OnBeforeBrowseCallback`: extended from 3 to 4 params; added `int user_gesture`
+- `AcBrowserClient::OnBeforeBrowse`: passes `user_gesture ? 1 : 0` to callback
+
+#### Dart ac_cef package
+- `cef_bindings.dart`: Updated `OnBeforeBrowseCallback` typedef (+1 `Int32` for userGesture)
+- `cef_native_client.dart`:
+  - `_onBeforeBrowse` top-level: receives 4 params; passes `userGesture != 0`
+  - `_fwdBeforeBrowse`: passes real `userGesture` bool instead of hardcoded `false`
+  - Added `_evalCompleters: Map<String, Completer<String>>` + `_evalCounter: int` fields
+  - Added `evalJavaScript(browserId, expr)`: generates `__cef_eval__:<id>` tag, injects JS wrapper via `executeJavaScript`, returns `Future<String>`
+  - `_fwdQuery`: intercepts `__cef_eval__:` prefixed requests before user handlers; resolves/rejects the matching completer; user code never sees these queries
+
+#### Dart ac_cef_flutter package
+- `CefController.evalJavaScript(expr)`: delegates to `_native.evalJavaScript(_browserId, expr)`
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT and DEPLOYED
 
 ## Current Priority / Next Session
 
-1. **Deploy DLL** — copy `native\build_win\out\ac_cef_bridge.dll` to Flutter app output directory
-2. **Test popup OSR** — verify popup browser fires `on_after_created` and delivers OSR paint frames
-3. **JS eval / return values** — ExecuteJavaScript has no return value; implement via cefQuery bridge
-4. **OnBeforeBrowse extended** — currently only URL + is_redirect passed; add userGesture
+1. **Test popup OSR** — verify popup browser fires `on_after_created` + delivers OSR paint frames; build a minimal example
+2. **evalJavaScript smoke test** — call `controller.evalJavaScript('1+1')` and verify `'2'` is returned
+3. **Multiple CefView instances** — confirm two `CefView` widgets on the same `CefNativeClient` work concurrently
+4. **JS return types** — evalJavaScript currently returns `String`; add typed helpers (evalInt, evalBool, evalJson)
 
 ## Build Notes
 
@@ -397,8 +418,10 @@ Completed:
   - Session 9: OnBeforeContextMenuCallback extended with 12 CefContextMenuParams fields;
     AcBrowserClient::OnBeforeContextMenu reads all params fields into temporaries
   - Session 10: OnBeforePopup now sets OSR mode for allowed popups + creates new AcBrowserClient
+  - Session 11: OnBeforeBrowseCallback extended with user_gesture (+1 int param)
 - Sessions 5 & 6 changes are Dart-only — no DLL rebuild required
 - Session 7: C++ changes require DLL rebuild; Dart changes are additive (no breaking changes)
 - Session 8: C++ changes require DLL rebuild; OnBeforePopup and OnBeforeContextMenu callback signatures changed
 - Session 9: C++ changes require DLL rebuild; OnBeforeContextMenuCallback signature extended again (+12 params)
 - Session 10: C++ changes require DLL rebuild (OnBeforePopup body changed); Dart changes (singleton guard) do not require rebuild
+- Session 11: C++ changes require DLL rebuild (OnBeforeBrowseCallback +1 param); Dart changes (evalJavaScript) do not require rebuild

@@ -24,7 +24,7 @@ typedef OnJSDialogCallback             = Int32 Function(Int64, Pointer<Utf8>, In
 typedef OnBeforeDownloadCallback       = Int32 Function(Int64, Int64, Pointer<Utf8>, Pointer<Utf8>, Int64);
 typedef OnDownloadUpdatedCallback      = Void Function(Int64, Int64, Int32, Int32, Int32);
 
-typedef OnBeforeBrowseCallback         = Int32 Function(Int64, Pointer<Utf8>, Int32);
+typedef OnBeforeBrowseCallback         = Int32 Function(Int64, Pointer<Utf8>, Int32, Int32);
 typedef OnBeforeResourceLoadCallback   = Int32 Function(Int64, Pointer<Utf8>, Pointer<Utf8>);
 typedef OnBeforeContextMenuCallback    = Void Function(
     Int64, Int32, Int32,                    // browser_id, x, y

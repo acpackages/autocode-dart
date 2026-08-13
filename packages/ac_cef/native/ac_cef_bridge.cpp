@@ -457,7 +457,9 @@ class AcBrowserClient : public CefClient,
         }
         if (g_callbacks.on_before_browse) {
             return g_callbacks.on_before_browse(browser_id,
-                request->GetURL().ToString().c_str(), is_redirect != 0) != 0;
+                request->GetURL().ToString().c_str(),
+                is_redirect ? 1 : 0,
+                user_gesture ? 1 : 0) != 0;
         }
         return false;
     }

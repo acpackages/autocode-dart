@@ -61,7 +61,7 @@ typedef void (*OnDownloadUpdatedCallback)(
     int percent_complete, int is_complete, int is_canceled);
 
 typedef int (*OnBeforeBrowseCallback)(
-    int64_t browser_id, const char* url, int is_redirect);
+    int64_t browser_id, const char* url, int is_redirect, int user_gesture);
 
 typedef int (*OnBeforeResourceLoadCallback)(
     int64_t browser_id, const char* url, const char* method);

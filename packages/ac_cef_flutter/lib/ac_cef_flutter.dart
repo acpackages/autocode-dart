@@ -122,6 +122,15 @@ class CefController {
   void printToPdf(String path, void Function(bool ok) onDone) =>
       _run(() => _native.printToPdf(_browserId, path, onDone));
 
+  /// Evaluates [expression] in the browser and returns the result as a
+  /// [String].  Uses the cefQuery message-router as a return channel, so
+  /// `cefQuery` must be available on the page (it is injected automatically
+  /// by the CefMessageRouter that ac_cef registers).
+  ///
+  /// Throws a [String] error message if the expression throws in JS.
+  Future<String> evalJavaScript(String expression) =>
+      _native.evalJavaScript(_browserId, expression);
+
   // Message router (JS ↔ Dart)
   void querySuccess(int queryId, String response) =>
       _run(() => _native.querySuccess(_browserId, queryId, response));

@@ -94,8 +94,9 @@ int _onBeforeDownload(int id, int dlId, Pointer<Utf8> url,
 void _onDownloadUpdated(int id, int dlId, int pct, int done, int canceled) =>
     _activeClient?._fwdDownloadUpdated(id, dlId, pct, done != 0, canceled != 0);
 
-int _onBeforeBrowse(int id, Pointer<Utf8> url, int isRedirect) =>
-    (_activeClient?._fwdBeforeBrowse(id, _safeString(url), isRedirect != 0) ?? false)
+int _onBeforeBrowse(int id, Pointer<Utf8> url, int isRedirect, int userGesture) =>
+    (_activeClient?._fwdBeforeBrowse(
+            id, _safeString(url), isRedirect != 0, userGesture != 0) ?? false)
         ? 1 : 0;
 int _onBeforeResourceLoad(int id, Pointer<Utf8> url, Pointer<Utf8> method) =>
     (_activeClient?._fwdBeforeResourceLoad(id, _safeString(url), _safeString(method)) ?? false)
@@ -267,6 +268,10 @@ class CefNativeClient {
   // browser-id → user-registered JS query handler
   final Map<int, CefMessageRouterHandler> _queryHandlers = {};
 
+  // JS eval completers keyed by eval-id string (e.g. '__cef_eval__:3')
+  final Map<String, Completer<String>> _evalCompleters = {};
+  int _evalCounter = 0;
+
   // Keep NativeCallables alive
   final List<NativeCallable> _callables = [];
 
@@ -394,18 +399,68 @@ class CefNativeClient {
     _queryHandlers.remove(browserId);
   }
 
+  // ── JS eval via cefQuery piggyback ─────────────────────────────────────────
+
+  /// Evaluates [expression] in the context of [browserId] and returns the
+  /// string representation of the result.
+  ///
+  /// Works by injecting a small JS wrapper that calls `window.cefQuery` with
+  /// a special `__cef_eval__:<id>` prefix.  The internal handler intercepts
+  /// these queries before user-registered handlers see them, so user code is
+  /// not affected.
+  ///
+  /// Throws if [browserId] is not known or CEF is not initialised.
+  Future<String> evalJavaScript(int browserId, String expression) {
+    final evalId = '__cef_eval__:${_evalCounter++}';
+    final completer = Completer<String>();
+    _evalCompleters[evalId] = completer;
+    // Wrap expression so errors are also reported back via cefQuery.
+    final safe = expression.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    executeJavaScript(browserId, '''
+(function(){
+  try {
+    var __r = (function(){ return ($safe); })();
+    window.cefQuery({request:'$evalId:'+String(__r),
+      onSuccess:function(){},onFailure:function(){}});
+  } catch(e) {
+    window.cefQuery({request:'$evalId:ERROR:'+e.message,
+      onSuccess:function(){},onFailure:function(){}});
+  }
+})();
+''');
+    return completer.future;
+  }
+
   void _fwdQuery(int id, int qId, String req, bool persistent) {
+    // ── Intercept internal JS-eval replies ─────────────────────────────────
+    if (req.startsWith('__cef_eval__:')) {
+      final colon2 = req.indexOf(':', '__cef_eval__:'.length);
+      if (colon2 >= 0) {
+        final evalId = req.substring(0, colon2);
+        final value  = req.substring(colon2 + 1);
+        final c = _evalCompleters.remove(evalId);
+        if (c != null) {
+          if (value.startsWith('ERROR:')) {
+            c.completeError(value.substring(6));
+          } else {
+            c.complete(value);
+          }
+        }
+      }
+      // Respond with empty success so the cefQuery JS promise resolves.
+      _NativeQueryCb(this, id, qId).success('');
+      return;
+    }
+    // ── Normal user-registered handler path ────────────────────────────────
     final handler = _queryHandlers[id];
     final browser = _browsers[id] ?? _stub;
     final cb = _NativeQueryCb(this, id, qId);
     if (handler != null) {
       final handled = handler.onQuery(browser, qId, req, persistent, cb);
       if (!handled) {
-        // Handler declined — auto-fail so JS promise doesn't hang indefinitely
         cb.failure(-1, 'Query not handled');
       }
     } else {
-      // No handler registered — succeed with empty response rather than hanging
       cb.success('');
     }
   }
@@ -776,7 +831,7 @@ class CefNativeClient {
     if (done || canceled) _dlItemCbs.remove(dlId);
   }
 
-  bool _fwdBeforeBrowse(int id, String url, bool isRedirect) {
+  bool _fwdBeforeBrowse(int id, String url, bool isRedirect, bool userGesture) {
     final handler = _browsers.containsKey(id)
         ? client.requestHandler
         : null;
@@ -785,7 +840,7 @@ class CefNativeClient {
       _browsers[id] ?? _stub,
       _noFrame,
       _StubRequest(url),
-      false, // userGesture — not provided by bridge currently
+      userGesture,
       isRedirect,
     );
   }
