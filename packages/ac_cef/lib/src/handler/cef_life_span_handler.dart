@@ -17,6 +17,9 @@ enum CefWindowOpenDisposition {
   newPictureInPicture,
 }
 
+/// Implement this interface to handle events related to browser life span.
+///
+/// Mirrors JCEF's `org.cef.handler.CefLifeSpanHandler` and `CefLifeSpanHandlerAdapter`.
 abstract class CefLifeSpanHandler {
   /// Called on the IO thread before a new popup window is created.
   ///
@@ -30,18 +33,21 @@ abstract class CefLifeSpanHandler {
     String targetFrameName,
     CefWindowOpenDisposition disposition,
     bool userGesture,
-  );
+  ) => false;
 
   /// Called when a new browser window is created.
-  void onAfterCreated(CefBrowser browser);
+  void onAfterCreated(CefBrowser browser) {}
 
   /// Called after a browser's native parent window has changed.
-  void onAfterParentChanged(CefBrowser browser);
+  void onAfterParentChanged(CefBrowser browser) {}
 
   /// Called when a browser has received a request to close.
   /// Return false to proceed with default close handling.
-  bool doClose(CefBrowser browser);
+  bool doClose(CefBrowser browser) => false;
 
   /// Called just before a browser is destroyed. Release all references.
-  void onBeforeClose(CefBrowser browser);
+  void onBeforeClose(CefBrowser browser) {}
 }
+
+/// Convenience alias matching JCEF's adapter class name.
+typedef CefLifeSpanHandlerAdapter = CefLifeSpanHandler;

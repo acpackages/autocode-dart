@@ -1,3 +1,5 @@
+import 'dart:io';
+
 enum CefLogSeverity {
   defaultSeverity,
   verbose,
@@ -17,6 +19,7 @@ class CefSettings {
   bool windowlessRenderingEnabled;
   bool commandLineArgsDisabled;
   String? cachePath;
+  String? rootCachePath;
   bool persistSessionCookies;
   String? userAgent;
   String? userAgentProduct;
@@ -40,8 +43,9 @@ class CefSettings {
   CefSettings({
     this.browserSubprocessPath,
     this.windowlessRenderingEnabled = true,
-    this.commandLineArgsDisabled = false,
+    this.commandLineArgsDisabled = true,
     this.cachePath,
+    this.rootCachePath,
     this.persistSessionCookies = false,
     this.userAgent,
     this.userAgentProduct,
@@ -60,17 +64,40 @@ class CefSettings {
     this.noSandbox = false,
   });
 
+  /// Resolves the default path to `ac_cef_helper.exe` (or `ac_cef_helper` on non-Windows)
+  /// located in the same directory as the running executable.
+  ///
+  /// Returns `null` if the helper executable does not exist or resolution fails.
+  static String? resolveDefaultSubprocessPath([String? executablePath]) {
+    try {
+      final exe = executablePath ?? Platform.resolvedExecutable;
+      final exeDir = File(exe).parent.path;
+      final helperName =
+          Platform.isWindows ? 'ac_cef_helper.exe' : 'ac_cef_helper';
+      final separator = Platform.pathSeparator;
+      final candidate = '$exeDir$separator$helperName';
+      if (File(candidate).existsSync()) {
+        return candidate;
+      }
+    } catch (_) {
+      // Ignore resolution failures in non-standard / test environments
+    }
+    return null;
+  }
+
   /// Serialize all settings into a `Map<String, String>` for the native bridge.
   Map<String, String> toMap() {
     final result = <String, String>{};
-    if (browserSubprocessPath != null) {
-      result['browser_subprocess_path'] = browserSubprocessPath!;
+    final subPath = browserSubprocessPath ?? resolveDefaultSubprocessPath();
+    if (subPath != null) {
+      result['browser_subprocess_path'] = subPath;
     }
     result['windowless_rendering_enabled'] =
         windowlessRenderingEnabled.toString();
     result['command_line_args_disabled'] =
         commandLineArgsDisabled.toString();
     if (cachePath != null) result['cache_path'] = cachePath!;
+    if (rootCachePath != null) result['root_cache_path'] = rootCachePath!;
     result['persist_session_cookies'] = persistSessionCookies.toString();
     if (userAgent != null) result['user_agent'] = userAgent!;
     if (userAgentProduct != null) result['user_agent_product'] = userAgentProduct!;

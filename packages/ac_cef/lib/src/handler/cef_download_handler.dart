@@ -29,17 +29,25 @@ abstract class CefDownloadItemCallback {
   void resume();
 }
 
+/// Implement this interface to handle file downloads.
+///
+/// Mirrors JCEF's `org.cef.handler.CefDownloadHandler` and `CefDownloadHandlerAdapter`.
 abstract class CefDownloadHandler {
+  /// Called before a download begins. Return true to handle download.
   bool onBeforeDownload(
     CefBrowser browser,
     CefDownloadItem downloadItem,
     String suggestedName,
     CefBeforeDownloadCallback callback,
-  );
+  ) => false;
 
+  /// Called when a download's status or progress information has been updated.
   void onDownloadUpdated(
     CefBrowser browser,
     CefDownloadItem downloadItem,
     CefDownloadItemCallback callback,
-  );
+  ) {}
 }
+
+/// Convenience alias matching JCEF's adapter class name.
+typedef CefDownloadHandlerAdapter = CefDownloadHandler;

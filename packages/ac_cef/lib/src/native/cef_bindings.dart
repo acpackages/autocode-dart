@@ -1,4 +1,4 @@
-﻿// Dart FFI bindings for ac_cef_bridge.dll / libac_cef_bridge.so
+// Dart FFI bindings for ac_cef_bridge.dll / libac_cef_bridge.so
 // Every C export in ac_cef_bridge.h is represented here as a Dart callable.
 
 import 'dart:ffi';
@@ -73,6 +73,10 @@ typedef OnTooltipCallback                 = Int32 Function(Int64, Pointer<Utf8>)
 typedef OnFindResultCallback = Void Function(
     Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32);
 
+// ── JCEF Parity callback typedefs ────────────────────────────────────────────
+typedef OnDoCloseCallback = Int32 Function(Int64);
+typedef OnLoadingProgressChangeCallback = Void Function(Int64, Double);
+
 /// Called from C for every CEF paint frame. [buffer] contains BGRA pixels.
 /// [dirtyRects] is a flat Pointer<Int32> with dirty_count * 4 int values (x,y,w,h per rect).
 typedef OnPaintCallback    = Void Function(Int64, Int32, Pointer<Void>, Int32, Int32, Pointer<Int32>, Int32);
@@ -116,9 +120,16 @@ final class AcCefCallbacksStruct extends Struct {
   external Pointer<NativeFunction<OnTooltipCallback>>                 on_tooltip;
   // -- Session 15 additions
   external Pointer<NativeFunction<OnFindResultCallback>>              on_find_result;
+  // ── JCEF Parity additions ─────────────────────────────────────────────────
+  external Pointer<NativeFunction<OnDoCloseCallback>>                 on_do_close;
+  external Pointer<NativeFunction<OnLoadingProgressChangeCallback>>   on_loading_progress_change;
 }
 
 // ─── C function type pairs (C sig / Dart sig) ─────────────────────────────────
+
+// ac_cef_execute_subprocess
+typedef _ExecuteSubprocessC    = Int32 Function();
+typedef _ExecuteSubprocessDart = int   Function();
 
 // ac_cef_initialize
 typedef _InitializeC    = Int32 Function(Pointer<Pointer<Utf8>>, Pointer<Pointer<Utf8>>, Int32, Pointer<AcCefCallbacksStruct>);
@@ -240,8 +251,8 @@ typedef _ImeCancelCompositionC    = Void Function(Int64);
 typedef _ImeCancelCompositionDart = void Function(int);
 
 // ac_cef_load_request
-typedef _LoadRequestC    = Void Function(Int64, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32);
-typedef _LoadRequestDart = void Function(int,   Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
+typedef _LoadRequestC    = Void Function(Int64, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32, Pointer<Utf8>);
+typedef _LoadRequestDart = void Function(int,   Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int,   Pointer<Utf8>);
 
 // ac_cef_set_audio_muted / ac_cef_is_audio_muted
 typedef _SetAudioMutedC    = Void Function(Int64, Int32);
@@ -266,6 +277,7 @@ typedef _GetSourceDart = void Function(int,   int,   Pointer<NativeFunction<OnSt
 class CefBindings {
   final DynamicLibrary _lib;
 
+  late final _ExecuteSubprocessDart    executeSubprocess;
   late final _InitializeDart           initialize;
   late final _VoidDart                 shutdown;
   late final _VoidDart                 doMessageLoopWork;
@@ -276,6 +288,7 @@ class CefBindings {
   late final _Int64Dart                goBack;
   late final _Int64Dart                goForward;
   late final _Int64Dart                reload;
+  late final _Int64Dart                reloadIgnoreCache;
   late final _Int64Dart                stopLoad;
   late final _Int64Int32Dart           closeBrowser;
   late final _Int64StrDart             executeJavaScript;
@@ -325,6 +338,7 @@ class CefBindings {
   late final _GetSourceDart getText;
 
   CefBindings._(this._lib) {
+    executeSubprocess   = _lib.lookupFunction<_ExecuteSubprocessC,  _ExecuteSubprocessDart>('ac_cef_execute_subprocess');
     initialize          = _lib.lookupFunction<_InitializeC,         _InitializeDart>('ac_cef_initialize');
     shutdown            = _lib.lookupFunction<_VoidC,               _VoidDart>      ('ac_cef_shutdown');
     doMessageLoopWork   = _lib.lookupFunction<_VoidC,               _VoidDart>      ('ac_cef_do_message_loop_work');
@@ -335,6 +349,7 @@ class CefBindings {
     goBack              = _lib.lookupFunction<_Int64C,              _Int64Dart>     ('ac_cef_go_back');
     goForward           = _lib.lookupFunction<_Int64C,              _Int64Dart>     ('ac_cef_go_forward');
     reload              = _lib.lookupFunction<_Int64C,              _Int64Dart>     ('ac_cef_reload');
+    reloadIgnoreCache   = _lib.lookupFunction<_Int64C,              _Int64Dart>     ('ac_cef_reload_ignore_cache');
     stopLoad            = _lib.lookupFunction<_Int64C,              _Int64Dart>     ('ac_cef_stop_load');
     closeBrowser        = _lib.lookupFunction<_Int64Int32C,         _Int64Int32Dart>('ac_cef_close_browser');
     executeJavaScript   = _lib.lookupFunction<_Int64StrC,           _Int64StrDart>  ('ac_cef_execute_javascript');
@@ -380,8 +395,23 @@ class CefBindings {
     getText   = _lib.lookupFunction<_GetSourceC, _GetSourceDart>('ac_cef_get_text');
   }
 
-  factory CefBindings.load(String libraryPath) =>
-      CefBindings._(DynamicLibrary.open(libraryPath));
+  factory CefBindings.load(String libraryPath) {
+    if (Platform.isWindows) {
+      try {
+        final kernel32 = DynamicLibrary.open('kernel32.dll');
+        final setDllDirectory = kernel32.lookupFunction<
+            Int32 Function(Pointer<Utf8>),
+            int Function(Pointer<Utf8>)>('SetDllDirectoryA');
+        final parentDir = File(libraryPath).parent.path;
+        if (Directory(parentDir).existsSync()) {
+          final p = parentDir.toNativeUtf8();
+          setDllDirectory(p);
+          calloc.free(p);
+        }
+      } catch (_) {}
+    }
+    return CefBindings._(DynamicLibrary.open(libraryPath));
+  }
 
   static String defaultLibraryPath() {
     if (Platform.isWindows) return 'ac_cef_bridge.dll';

@@ -1,27 +1,44 @@
-﻿import '../cef_browser.dart';
+import '../cef_browser.dart';
 import '../cef_frame.dart';
 import '../cef_settings.dart';
 
+/// Implement this interface to handle events related to browser display state.
+///
+/// Mirrors JCEF's `org.cef.handler.CefDisplayHandler` and `CefDisplayHandlerAdapter`.
 abstract class CefDisplayHandler {
-  void onAddressChange(CefBrowser browser, CefFrame frame, String url);
+  /// Browser address changed.
+  void onAddressChange(CefBrowser browser, CefFrame frame, String url) {}
 
-  void onTitleChange(CefBrowser browser, String title);
+  /// Browser title changed.
+  void onTitleChange(CefBrowser browser, String title) {}
 
-  void onFullscreenModeChange(CefBrowser browser, bool fullscreen);
+  /// Browser loading progress changed (value between 0.0 and 1.0).
+  void onLoadingProgressChange(CefBrowser browser, double progress) {}
 
-  bool onTooltip(CefBrowser browser, String text);
+  /// Browser fullscreen mode changed.
+  void onFullscreenModeChange(CefBrowser browser, bool fullscreen) {}
 
-  void onStatusMessage(CefBrowser browser, String value);
+  /// About to display a tooltip. Return true to handle display yourself.
+  bool onTooltip(CefBrowser browser, String text) => false;
 
+  /// Received a status message.
+  void onStatusMessage(CefBrowser browser, String value) {}
+
+  /// Display a console message. Return true to stop the message from being output.
   bool onConsoleMessage(
     CefBrowser browser,
     CefLogSeverity level,
     String message,
     String source,
     int line,
-  );
+  ) => false;
 
-  bool onCursorChange(CefBrowser browser, int cursorType);
+  /// Handle cursor changes. Return true if handled.
+  bool onCursorChange(CefBrowser browser, int cursorType) => false;
 
-  void onFaviconUrlChange(CefBrowser browser, List<String> iconUrls);
+  /// Favicon URL list changed.
+  void onFaviconUrlChange(CefBrowser browser, List<String> iconUrls) {}
 }
+
+/// Convenience alias matching JCEF's adapter class name.
+typedef CefDisplayHandlerAdapter = CefDisplayHandler;

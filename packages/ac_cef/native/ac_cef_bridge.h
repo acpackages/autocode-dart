@@ -198,6 +198,9 @@ typedef void (*GetViewRectCallback)(
     int64_t browser_id,
     int* x, int* y, int* width, int* height);
 
+typedef int  (*OnDoCloseCallback)(int64_t browser_id);
+typedef void (*OnLoadingProgressChangeCallback)(int64_t browser_id, double progress);
+
 // ─── Struct: callback table ───────────────────────────────────────────────────
 
 typedef struct AcCefCallbacks {
@@ -236,9 +239,16 @@ typedef struct AcCefCallbacks {
   OnTooltipCallback                 on_tooltip;
   // ── Session 15 additions ─────────────────────────────────────────────────
   OnFindResultCallback              on_find_result;
+  // ── JCEF Parity additions ─────────────────────────────────────────────────
+  OnDoCloseCallback                 on_do_close;
+  OnLoadingProgressChangeCallback   on_loading_progress_change;
 } AcCefCallbacks;
 
-// ─── Init / shutdown ──────────────────────────────────────────────────────────
+// ─── Subprocess / Init / shutdown ─────────────────────────────────────────────
+
+/// Execute CEF subprocess logic if the process was launched as a CEF worker subprocess (e.g. --type=...).
+/// Returns the subprocess exit code (>= 0), or -1 if this is the main browser process.
+AC_CEF_EXPORT int ac_cef_execute_subprocess(void);
 
 /// Initialize CEF with the given settings map (key=value pairs, null-terminated).
 /// Returns 1 on success, 0 on failure.
@@ -271,6 +281,7 @@ AC_CEF_EXPORT void ac_cef_load_url(int64_t browser_id, const char* url);
 AC_CEF_EXPORT void ac_cef_go_back(int64_t browser_id);
 AC_CEF_EXPORT void ac_cef_go_forward(int64_t browser_id);
 AC_CEF_EXPORT void ac_cef_reload(int64_t browser_id);
+AC_CEF_EXPORT void ac_cef_reload_ignore_cache(int64_t browser_id);
 AC_CEF_EXPORT void ac_cef_stop_load(int64_t browser_id);
 AC_CEF_EXPORT void ac_cef_close_browser(int64_t browser_id, int force_close);
 
@@ -477,16 +488,18 @@ AC_CEF_EXPORT void ac_cef_get_source(
 /// Retrieve the plain-text content of the main frame asynchronously.
 // ─── LoadRequest (POST) ──────────────────────────────────────────────────────
 
-/// Load a URL with custom method and optional body.
+/// Load a URL with custom method, optional body, and optional newline-delimited headers.
 /// method: e.g. "POST", "PUT" — if NULL defaults to "GET".
 /// body: request body bytes — NULL or empty for no body.
 /// body_size: byte count of body.
+/// headers_flat: key\nvalue\n pairs terminated by double newline, or NULL.
 AC_CEF_EXPORT void ac_cef_load_request(
     int64_t browser_id,
     const char* url,
     const char* method,
     const char* body,
-    int         body_size
+    int         body_size,
+    const char* headers_flat
 );
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────

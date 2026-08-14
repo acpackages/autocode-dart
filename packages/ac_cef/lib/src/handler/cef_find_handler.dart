@@ -13,7 +13,6 @@ class CefRect {
   String toString() => 'CefRect($left, $top, $width x $height)';
 }
 
-
 /// Result of a find-in-page search tick delivered by [CefFindHandler.onFindResult].
 class CefFindResult {
   /// Identifier matching the one passed to [CefNativeClient.find].
@@ -48,8 +47,11 @@ class CefFindResult {
 
 /// Interface for receiving find-in-page results from the browser.
 ///
-/// Register via [CefClient.addFindHandler] / [CefNativeClient.setFindHandler].
+/// Mirrors JCEF's `org.cef.handler.CefFindHandler` and `CefFindHandlerAdapter`.
 abstract class CefFindHandler {
   /// Called each time CEF reports a match update.
-  void onFindResult(CefBrowser browser, CefFindResult result);
+  void onFindResult(CefBrowser browser, CefFindResult result) {}
 }
+
+/// Convenience alias matching JCEF's adapter class name.
+typedef CefFindHandlerAdapter = CefFindHandler;

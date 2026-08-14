@@ -59,6 +59,19 @@ if(WIN32)
   set_property(TARGET ac_cef_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# ─── test_cef_init (standalone test executable) ──────────────────────────────
+add_executable(test_cef_init test_cef_init.cpp)
+target_include_directories(test_cef_init PRIVATE "${CEF_ROOT}" "${CEF_ROOT}/include")
+target_link_libraries(test_cef_init PRIVATE libcef_dll_wrapper "${CEF_ROOT}/Release/libcef.lib")
+if(WIN32)
+  target_compile_definitions(test_cef_init PRIVATE WIN32 _WINDOWS UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+  set_property(TARGET test_cef_init PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+set_target_properties(test_cef_init PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/out"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/out"
+)
+
 # ─── Output directories ───────────────────────────────────────────────────────
 set(OUT_DIR "${CMAKE_BINARY_DIR}/out")
 

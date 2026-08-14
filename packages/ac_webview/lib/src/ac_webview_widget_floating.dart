@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -11,7 +10,7 @@ import 'package:webview_win_floating/webview_win_floating.dart';
 
 import '../ac_webview.dart';
 
-class AcWebviewWinFloating   extends StatefulWidget {
+class AcWebviewWinFloating  extends StatefulWidget {
   final String url;
   final Color? backgroundColor;
   final bool? allowDebugging;
@@ -87,8 +86,7 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
     } else {
       _controller = WebViewController();
     }
-    _controller
-      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+    _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
 
     if (!Platform.isMacOS) {
       _controller.setBackgroundColor(widget.backgroundColor ?? Colors.white);
@@ -180,7 +178,6 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
   }
 
   Future<void> _sendToWebView(Map<String, dynamic> data) async {
-    final jsonPayload = jsonEncode(data);
     try {
       await _controller.runJavaScript( "acWebviewChannel.receive({data:${jsonEncode(data)}});");
     } catch (e) {

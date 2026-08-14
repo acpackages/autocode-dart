@@ -38,3 +38,41 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# Post-build step to copy CEF runtime binaries, bridge, helper, and resources
+set(AC_CEF_OUT_DIR "F:/Packages/AutoCode/Github/autocode-dart/packages/ac_cef/native/build_win/out")
+if(EXISTS "${AC_CEF_OUT_DIR}")
+  set(CEF_FILES_TO_COPY
+    "ac_cef_bridge.dll"
+    "ac_cef_helper.exe"
+    "libcef.dll"
+    "chrome_elf.dll"
+    "d3dcompiler_47.dll"
+    "libEGL.dll"
+    "libGLESv2.dll"
+    "vk_swiftshader.dll"
+    "vk_swiftshader_icd.json"
+    "vulkan-1.dll"
+    "icudtl.dat"
+    "v8_context_snapshot.bin"
+    "resources.pak"
+    "chrome_100_percent.pak"
+    "chrome_200_percent.pak"
+  )
+  foreach(CEF_FILE ${CEF_FILES_TO_COPY})
+    if(EXISTS "${AC_CEF_OUT_DIR}/${CEF_FILE}")
+      add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${AC_CEF_OUT_DIR}/${CEF_FILE}"
+        "$<TARGET_FILE_DIR:${BINARY_NAME}>/${CEF_FILE}"
+      )
+    endif()
+  endforeach()
+  if(EXISTS "${AC_CEF_OUT_DIR}/locales")
+    add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+      "${AC_CEF_OUT_DIR}/locales"
+      "$<TARGET_FILE_DIR:${BINARY_NAME}>/locales"
+    )
+  endif()
+endif()

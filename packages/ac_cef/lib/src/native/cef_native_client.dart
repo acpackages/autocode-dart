@@ -196,6 +196,11 @@ void _onPopupSize(int id, int x, int y, int w, int h) =>
 void _onFullscreenModeChange(int id, int fullscreen) =>
     _activeClient?._fwdFullscreenModeChange(id, fullscreen != 0);
 
+int _onDoClose(int id) => (_activeClient?._fwdDoClose(id) ?? false) ? 1 : 0;
+
+void _onLoadingProgressChange(int id, double progress) =>
+    _activeClient?._fwdLoadingProgressChange(id, progress);
+
 void _onFaviconUrlChange(int id, Pointer<Utf8> urlsFlat) {
   if (urlsFlat == nullptr) {
     _activeClient?._fwdFaviconUrlChange(id, const []);
@@ -203,7 +208,7 @@ void _onFaviconUrlChange(int id, Pointer<Utf8> urlsFlat) {
   }
   try {
     final raw  = urlsFlat.toDartString();
-    final urls = raw.split('\x00').where((s) => s.isNotEmpty).toList();
+    final urls = raw.split('\n').where((s) => s.isNotEmpty).toList();
     _activeClient?._fwdFaviconUrlChange(id, urls);
   } on FormatException {
     // CEF can occasionally emit non-UTF-8 bytes for the favicon URL
@@ -391,6 +396,8 @@ class CefNativeClient {
     _regVoid(NativeCallable<OnPaintCallback>.isolateLocal(_onPaint), (p) => cb.ref.on_paint = p);
     _regVoid(NativeCallable<OnFullscreenModeChangeCallback>.listener(_onFullscreenModeChange),
              (p) => cb.ref.on_fullscreen_mode_change = p);
+    _regVoid(NativeCallable<OnLoadingProgressChangeCallback>.listener(_onLoadingProgressChange),
+             (p) => cb.ref.on_loading_progress_change = p);
 
     // Session 3: pre-key / key-event / cert-error (return int → Pointer.fromFunction)
     cb.ref.on_pre_key_event     = Pointer.fromFunction<OnPreKeyEventCallback>(_onPreKeyEvent, 0);
@@ -412,6 +419,7 @@ class CefNativeClient {
     cb.ref.on_console_message = Pointer.fromFunction<OnConsoleMessageCallback>(_onConsoleMessage, 0);
     cb.ref.on_js_dialog = Pointer.fromFunction<OnJSDialogCallback>(_onJSDialog, 0);
     cb.ref.on_before_download = Pointer.fromFunction<OnBeforeDownloadCallback>(_onBeforeDownload, 0);
+    cb.ref.on_do_close = Pointer.fromFunction<OnDoCloseCallback>(_onDoClose, 0);
 
     final result = bindings.initialize(keys, vals, map.length, cb);
 
@@ -584,7 +592,7 @@ class CefNativeClient {
     bindings.createBrowser(nUrl, fps, isTransparent ? 1 : 0);
     calloc.free(nUrl);
 
-    final browser = CefBrowser(url, windowless: windowless, settings: settings);
+    final browser = CefBrowser(url, windowless: windowless, settings: settings, nativeClient: this);
     return browser;
   }
 
@@ -612,6 +620,7 @@ class CefNativeClient {
   void goBack(int id)    => bindings.goBack(id);
   void goForward(int id) => bindings.goForward(id);
   void reload(int id)    => bindings.reload(id);
+  void reloadIgnoreCache(int id) => bindings.reloadIgnoreCache(id);
   void stopLoad(int id)  => bindings.stopLoad(id);
 
   void closeBrowser(int id, {bool force = false}) =>
@@ -660,23 +669,31 @@ class CefNativeClient {
 
   // ─── LoadRequest ──────────────────────────────────────────────────────────
 
-  /// Load [url] using [method] (e.g. `'POST'`) with an optional [body].
+  /// Load [url] using [method] (e.g. `'POST'`) with optional [body] and [headers].
   ///
   /// [body] is encoded as UTF-8 bytes before being sent.  Pass `null` or an
   /// empty string for requests that have no body (e.g. GET).
   void loadRequest(int id, String url,
-      {String method = 'GET', String? body}) {
+      {String method = 'GET', String? body, Map<String, String>? headers}) {
     using((arena) {
       final urlPtr  = url.toNativeUtf8(allocator: arena);
       final mthPtr  = method.toNativeUtf8(allocator: arena);
+      Pointer<Utf8> hdrPtr = nullptr;
+      if (headers != null && headers.isNotEmpty) {
+        final sb = StringBuffer();
+        for (final entry in headers.entries) {
+          sb.write('${entry.key}\n${entry.value}\n');
+        }
+        hdrPtr = sb.toString().toNativeUtf8(allocator: arena);
+      }
       if (body == null || body.isEmpty) {
-        bindings.loadRequest(id, urlPtr, mthPtr, nullptr, 0);
+        bindings.loadRequest(id, urlPtr, mthPtr, nullptr, 0, hdrPtr);
       } else {
         final bytes  = utf8.encode(body);
         final bufPtr = arena<Uint8>(bytes.length);
         for (int i = 0; i < bytes.length; i++) bufPtr[i] = bytes[i];
         bindings.loadRequest(
-            id, urlPtr, mthPtr, bufPtr.cast<Utf8>(), bytes.length);
+            id, urlPtr, mthPtr, bufPtr.cast<Utf8>(), bytes.length, hdrPtr);
       }
     });
   }
@@ -930,6 +947,9 @@ class CefNativeClient {
   /// Useful to guard against accidental double-initialization.
   static bool get hasActiveClient => _activeClient != null;
 
+  /// Returns the currently active [CefNativeClient] instance, or null.
+  static CefNativeClient? get activeClient => _activeClient;
+
   // ─── Internal callback forwarders ─────────────────────────────────────────
 
   void _fwdUrlChanged(int id, String url) =>
@@ -937,6 +957,9 @@ class CefNativeClient {
 
   void _fwdTitleChanged(int id, String title) =>
       client.dispatchOnTitleChange(_browsers[id] ?? _stub, title);
+
+  void _fwdLoadingProgressChange(int id, double progress) =>
+      client.dispatchOnLoadingProgressChange(_browsers[id] ?? _stub, progress);
 
   void _fwdLoadingStateChanged(int id, bool l, bool back, bool fwd) =>
       client.dispatchOnLoadingStateChange(
@@ -953,12 +976,15 @@ class CefNativeClient {
           CefErrorCode.findByCode(code), text, url);
 
   void _fwdAfterCreated(int id) {
-    final browser = CefBrowser('', windowless: true)..nativeBrowserId = id;
+    final browser = CefBrowser('', windowless: true, nativeClient: this)..nativeBrowserId = id;
     _browsers[id] = browser;
     _paintStreams.putIfAbsent(
         id, () => StreamController<PaintFrame>.broadcast());
     client.dispatchOnAfterCreated(browser);
   }
+
+  bool _fwdDoClose(int id) =>
+      client.dispatchDoClose(_browsers[id] ?? _stub);
 
   void _fwdBeforeClose(int id) {
     final b = _browsers[id] ?? _stub;

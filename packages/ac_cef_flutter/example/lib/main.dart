@@ -1,37 +1,8 @@
-import 'dart:io';
-import 'package:ac_cef/ac_cef.dart';
 import 'package:ac_cef_flutter/ac_cef_flutter.dart';
 import 'package:flutter/material.dart';
 
-void main(List<String> args) {
-  // ── CEF subprocess guard ─────────────────────────────────────────────────
-  // When ac_cef_helper.exe is missing or not found, CEF falls back to using
-  // the Flutter exe itself as the renderer/GPU/utility subprocess. Those
-  // processes are launched with a --type=<kind> flag. We detect that and exit
-  // immediately so no Flutter window is opened for the subprocess.
-  if (args.any((a) => a.startsWith('--type='))) {
-    try {
-      final bp = _resolveBridgePath();
-      CefBindings.load(bp); // loads libcef.dll; CefExecuteProcess runs in initialize()
-    } catch (_) {}
-    exit(0);
-  }
-
-  // On Windows, ac_cef_bridge.dll must be in the same directory as the .exe.
-  // The build_windows.ps1 script copies it there automatically.
-  final bridgePath = _resolveBridgePath();
-
-  late final CefBindings bindings;
-  try {
-    print('[App] Loading bridge from: $bridgePath');
-    bindings = CefBindings.load(bridgePath);
-    print('[App] Bridge loaded successfully.');
-  } catch (e) {
-    print('[App] FAILED to load bridge: $e');
-    // Show a helpful error if the DLL is missing.
-    runApp(_MissingDllApp(dll: bridgePath, error: e.toString()));
-    return;
-  }
+void main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
 
   // Build a client with all useful handlers attached.
   final client = CefClient()
@@ -40,49 +11,19 @@ void main(List<String> args) {
     ..addLifeSpanHandler(_AppLifeSpanHandler())
     ..addJSDialogHandler(_AppJSDialogHandler());
 
-  final native = CefNativeClient(bindings: bindings, client: client);
-
-  print('[App] Initializing CEF...');
-  final ok = native.initialize(CefSettings(
-    browserSubprocessPath: _siblingPath('ac_cef_helper.exe'),
-    // Cache goes next to the exe so it persists across runs.
-    cachePath: _siblingPath('cef_cache'),
-    logFile: _siblingPath('cef_debug.log'),
-    logSeverity: CefLogSeverity.verbose,
-    resourcesDirPath: _exeDir(),
-    localesDirPath: _exeDir() + '\\locales',
-    noSandbox: true,
-  ));
-
-  if (!ok) {
-    print('[App] CEF initialization FAILED.');
-    runApp(const _InitFailedApp());
-    return;
+  try {
+    debugPrint('[App] Initializing CEF via initCef...');
+    final native = await initCef(
+      args: args,
+      client: client,
+      logSeverity: CefLogSeverity.verbose,
+    );
+    debugPrint('[App] CEF initialized successfully.');
+    runApp(AcCefDemoApp(native: native));
+  } catch (e) {
+    debugPrint('[App] FAILED to initialize CEF: $e');
+    runApp(_MissingDllApp(dll: 'ac_cef_bridge.dll', error: e.toString()));
   }
-  print('[App] CEF initialized successfully.');
-
-  // Start the built-in 1 ms CEF message-loop pump (replaces the old 10 ms
-  // Timer.periodic approach — startMessagePump() is auto-stopped on shutdown).
-  native.startMessagePump();
-
-  runApp(AcCefDemoApp(native: native));
-}
-
-/// Resolve the DLL path relative to the executable on Windows,
-/// or fall back to the default for other platforms.
-String _resolveBridgePath() {
-  if (Platform.isWindows) {
-    return '${_exeDir()}\\ac_cef_bridge.dll';
-  }
-  return CefBindings.defaultLibraryPath();
-}
-
-/// Returns the directory containing the running executable.
-String _exeDir() => File(Platform.resolvedExecutable).parent.path;
-
-/// Returns a path next to the running executable.
-String _siblingPath(String name) {
-  return '${_exeDir()}\\$name';
 }
 
 // ─── App shell ────────────────────────────────────────────────────────────────
@@ -120,7 +61,7 @@ class _BrowserPageState extends State<BrowserPage> {
   final _focusNode = FocusNode();
 
   CefController? _controller;
-  String _status   = '';
+  final String _status   = '';
 
   // Use CefBrowserState as the reactive source of truth for URL / title /
   // loading / nav-state. It is wired automatically when CefController.state is
@@ -417,21 +358,7 @@ class _MissingDllApp extends StatelessWidget {
   }
 }
 
-class _InitFailedApp extends StatelessWidget {
-  const _InitFailedApp();
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text('CEF initialization failed.\n'
-              'Check that all CEF DLLs are next to the .exe.',
-              textAlign: TextAlign.center),
-        ),
-      ),
-    );
-  }
-}
+
 
 // ─── Handler implementations ──────────────────────────────────────────────────
 

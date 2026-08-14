@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -7,11 +8,221 @@ import 'package:flutter/services.dart';
 import 'package:ac_cef/ac_cef.dart';
 
 export 'package:ac_cef/ac_cef.dart'
-    show CefNativeClient, CefClient, CefSettings, CefBrowserSettings,
+    show CefNativeClient, CefClient, CefApp, CefAppState, CefSettings, CefBrowserSettings,
+         CefLogSeverity, CefBrowser, CefFrame, CefCallback, CefBindings, PaintFrame,
          CefMessageRouterHandler, CefQueryCallback, CefPopupEvent,
          CefPopupShowEvent, CefPopupSizeEvent,
-         CefJSDialogHandler, CefJSDialogCallback, CefJSDialogType,
-         CefFindHandler, CefFindResult, CefRect;
+         CefDisplayHandler, CefDisplayHandlerAdapter,
+         CefLoadHandler, CefLoadHandlerAdapter, CefErrorCode,
+         CefLifeSpanHandler, CefLifeSpanHandlerAdapter, CefWindowOpenDisposition,
+         CefRequestHandler, CefRequestHandlerAdapter, CefTerminationStatus,
+         CefContextMenuHandler, CefContextMenuHandlerAdapter,
+         CefDownloadHandler, CefDownloadHandlerAdapter,
+         CefFocusHandler, CefFocusHandlerAdapter,
+         CefKeyboardHandler, CefKeyboardHandlerAdapter, CefKeyEvent, CefKeyEventType,
+         CefJSDialogHandler, CefJSDialogHandlerAdapter, CefJSDialogCallback, CefJSDialogType,
+         CefFindHandler, CefFindHandlerAdapter, CefFindResult, CefRect;
+
+// ─── CEF Initialization & Global Client Management ───────────────────────────
+
+CefNativeClient? _globalCefNativeClient;
+Completer<CefNativeClient>? _initCefCompleter;
+
+/// Returns the globally initialized [CefNativeClient], or `null` if [initCef] has not been called.
+CefNativeClient? get defaultCefNativeClient => _globalCefNativeClient;
+
+/// Returns the globally initialized [CefClient], or `null` if [initCef] has not been called.
+CefClient? get defaultCefClient => _globalCefNativeClient?.client;
+
+/// Whether CEF has been initialized via [initCef].
+bool get isCefInitialized =>
+    _globalCefNativeClient != null && _globalCefNativeClient!.isInitialized;
+
+/// Resolves the path to the native bridge dynamic library (`ac_cef_bridge.dll` / `libac_cef_bridge.so`).
+String _resolveBridgePath([String? customPath]) {
+  if (customPath != null && customPath.isNotEmpty) return customPath;
+
+  if (Platform.isWindows) {
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final dllPath = '$exeDir\\ac_cef_bridge.dll';
+    if (File(dllPath).existsSync()) {
+      return dllPath;
+    }
+    const devDllPath =
+        r'F:\Packages\AutoCode\Github\autocode-dart\packages\ac_cef\native\build_win\out\ac_cef_bridge.dll';
+    if (File(devDllPath).existsSync()) {
+      return devDllPath;
+    }
+  }
+  return CefBindings.defaultLibraryPath();
+}
+
+/// Resolves the directory containing the running executable.
+String _exeDir() => File(Platform.resolvedExecutable).parent.path;
+
+/// Resolves the path to `ac_cef_helper.exe` if present.
+String? _resolveHelperPath(String exeDir, [String? customHelperPath]) {
+  if (customHelperPath != null && customHelperPath.isNotEmpty) {
+    return customHelperPath;
+  }
+  final defaultResolved = CefSettings.resolveDefaultSubprocessPath();
+  if (defaultResolved != null) {
+    return defaultResolved;
+  }
+  final defaultPath = '$exeDir${Platform.pathSeparator}ac_cef_helper.exe';
+  if (File(defaultPath).existsSync()) {
+    return defaultPath;
+  }
+  const devOut =
+      r'F:\Packages\AutoCode\Github\autocode-dart\packages\ac_cef\native\build_win\out\ac_cef_helper.exe';
+  if (File(devOut).existsSync()) {
+    return devOut;
+  }
+  return null;
+}
+
+/// Initializes the Chromium Embedded Framework (CEF) environment and client.
+///
+/// This convenience method loads the native bridge, creates a [CefClient]
+/// and [CefNativeClient], configures default settings (paths, cache, logs),
+/// starts the CEF message loop pump, and registers the client globally for
+/// widgets like [CefView] to use by default.
+///
+/// If CEF has already been initialized, the existing [CefNativeClient] is returned.
+///
+/// Parameters:
+/// - [args]: Command-line arguments from `main(List<String> args)`. If a CEF subprocess
+///   flag (`--type=...`) is detected and [handleSubprocess] is `true`, it is handled
+///   and exits the process immediately.
+/// - [client]: Optional [CefClient] with pre-registered handlers. If `null`, a new
+///   [CefClient] is instantiated.
+/// - [settings]: Optional [CefSettings]. When provided, unset paths automatically fall back
+///   to sensible application directory defaults.
+/// - [bridgePath]: Optional path to `ac_cef_bridge.dll` / `libac_cef_bridge.so`.
+/// - [bindings]: Optional pre-loaded [CefBindings].
+/// - [startMessagePump]: Whether to start the 1 ms CEF message-loop pump (default `true`).
+/// - [handleSubprocess]: Whether to handle subprocess execution when `--type=` is present (default `true`).
+/// - [cachePath]: Optional cache directory (defaults to `<exeDir>/cef_cache`).
+/// - [logFile]: Optional log file path (defaults to `<exeDir>/cef_debug.log`).
+/// - [logSeverity]: Log severity level (defaults to [CefLogSeverity.defaultSeverity]).
+/// - [noSandbox]: Whether to run without the Chromium sandbox (default `true`).
+///
+/// Returns a [Future] completing with the initialized [CefNativeClient].
+Future<CefNativeClient> initCef({
+  List<String>? args,
+  CefClient? client,
+  CefSettings? settings,
+  String? bridgePath,
+  CefBindings? bindings,
+  bool startMessagePump = true,
+  bool handleSubprocess = true,
+  String? cachePath,
+  String? logFile,
+  CefLogSeverity logSeverity = CefLogSeverity.defaultSeverity,
+  bool noSandbox = true,
+}) async {
+  final currentPid = pid;
+  if (_globalCefNativeClient != null && _globalCefNativeClient!.isInitialized) {
+    debugPrint('[ac_cef_flutter][PID: $currentPid] initCef: CEF is already initialized. Returning existing client.');
+    return _globalCefNativeClient!;
+  }
+  if (CefNativeClient.hasActiveClient && CefNativeClient.activeClient!.isInitialized) {
+    debugPrint('[ac_cef_flutter][PID: $currentPid] initCef: Re-attaching to existing active client.');
+    _globalCefNativeClient = CefNativeClient.activeClient;
+    return _globalCefNativeClient!;
+  }
+  if (_initCefCompleter != null) {
+    debugPrint('[ac_cef_flutter][PID: $currentPid] initCef: CEF initialization is already in progress. Awaiting existing completer.');
+    return _initCefCompleter!.future;
+  }
+
+  _initCefCompleter = Completer<CefNativeClient>();
+
+  try {
+    final resolvedBridgePath = _resolveBridgePath(bridgePath);
+
+    // Subprocess guard: When ac_cef_helper.exe is missing or fallback is used,
+    // CEF launches the main binary with a --type= flag for worker subprocesses.
+    final effectiveArgs = args ?? Platform.executableArguments;
+    if (handleSubprocess && effectiveArgs.any((a) => a.startsWith('--type='))) {
+      debugPrint('[ac_cef_flutter][PID: $currentPid] Subprocess flag detected in args ($effectiveArgs). Running executeSubprocess and exiting.');
+      try {
+        final b = bindings ?? CefBindings.load(resolvedBridgePath);
+        b.executeSubprocess();
+      } catch (e) {
+        debugPrint('[ac_cef_flutter][PID: $currentPid] Error running executeSubprocess: $e');
+      }
+      exit(0);
+    }
+
+    final effectiveBindings = bindings ?? CefBindings.load(resolvedBridgePath);
+    final effectiveClient = client ?? CefClient();
+    final native = CefNativeClient(bindings: effectiveBindings, client: effectiveClient);
+
+    final exeDir = _exeDir();
+    final helperPath = _resolveHelperPath(exeDir, settings?.browserSubprocessPath);
+
+    final effectiveCachePath = cachePath ?? '$exeDir\\cef_cache';
+    final effectiveSettings = settings ??
+        CefSettings(
+          browserSubprocessPath: helperPath,
+          cachePath: effectiveCachePath,
+          rootCachePath: effectiveCachePath,
+          logFile: logFile ?? '$exeDir\\cef_debug.log',
+          logSeverity: logSeverity,
+          resourcesDirPath: exeDir,
+          localesDirPath: '$exeDir\\locales',
+          noSandbox: noSandbox,
+        );
+
+    // If caller provided custom settings but didn't set some paths, apply smart defaults:
+    if (settings != null) {
+      if (effectiveSettings.browserSubprocessPath == null && helperPath != null) {
+        effectiveSettings.browserSubprocessPath = helperPath;
+      }
+      if (effectiveSettings.resourcesDirPath == null) {
+        effectiveSettings.resourcesDirPath = exeDir;
+      }
+      if (effectiveSettings.localesDirPath == null) {
+        effectiveSettings.localesDirPath = '$exeDir\\locales';
+      }
+      if (effectiveSettings.rootCachePath == null && effectiveSettings.cachePath != null) {
+        effectiveSettings.rootCachePath = effectiveSettings.cachePath;
+      }
+    }
+
+    debugPrint('[ac_cef_flutter][PID: $currentPid] Initializing CEF runtime (helper: ${effectiveSettings.browserSubprocessPath})...');
+    final ok = native.initialize(effectiveSettings);
+    if (!ok) {
+      throw StateError('CEF initialization failed. Check native library dependencies and logs.');
+    }
+
+    if (startMessagePump) {
+      native.startMessagePump();
+    }
+
+    _globalCefNativeClient = native;
+    debugPrint('[ac_cef_flutter][PID: $currentPid] CEF runtime initialized successfully.');
+    _initCefCompleter!.complete(native);
+    return native;
+  } catch (e, st) {
+    debugPrint('[ac_cef_flutter][PID: $currentPid] Error initializing CEF: $e\n$st');
+    _initCefCompleter!.completeError(e, st);
+    _initCefCompleter = null;
+    rethrow;
+  }
+}
+
+/// Shuts down the CEF runtime if initialized and cleans up the global client.
+void shutdownCef() {
+  final currentPid = pid;
+  if (_globalCefNativeClient != null) {
+    debugPrint('[ac_cef_flutter][PID: $currentPid] shutdownCef: Shutting down global CEF native client...');
+    _globalCefNativeClient!.shutdown();
+    _globalCefNativeClient = null;
+  }
+  _initCefCompleter = null;
+}
 
 // ─── CEF event flag constants (from cef_types.h) ─────────────────────────────
 
@@ -65,6 +276,7 @@ class CefBrowserState extends ChangeNotifier {
   String _url = '';
   String _title = '';
   bool _isLoading = false;
+  double _loadingProgress = 0.0;
   bool _canGoBack = false;
   bool _canGoForward = false;
   List<String> _faviconUrls = const [];
@@ -77,6 +289,9 @@ class CefBrowserState extends ChangeNotifier {
 
   /// Whether the browser is currently loading a page.
   bool get isLoading => _isLoading;
+
+  /// Loading progress of the current page (value between 0.0 and 1.0).
+  double get loadingProgress => _loadingProgress;
 
   /// Whether the browser can navigate backward.
   bool get canGoBack => _canGoBack;
@@ -102,11 +317,17 @@ class CefBrowserState extends ChangeNotifier {
       _title = title;
       notifyListeners();
     };
+    controller.onLoadingProgressChanged = (progress) {
+      if (_loadingProgress == progress) return;
+      _loadingProgress = progress;
+      notifyListeners();
+    };
     controller.onLoadingStateChanged = (loading, canBack, canFwd) {
       if (_isLoading == loading &&
           _canGoBack == canBack &&
           _canGoForward == canFwd) return;
       _isLoading = loading;
+      if (!loading) _loadingProgress = 0.0;
       _canGoBack = canBack;
       _canGoForward = canFwd;
       notifyListeners();
@@ -134,6 +355,7 @@ class CefController {
   // Wired by CefView
   void Function(String)? onUrlChanged;
   void Function(String)? onTitleChanged;
+  void Function(double)? onLoadingProgressChanged;
   void Function(bool, bool, bool)? onLoadingStateChanged;
   void Function(List<String>)? onFaviconUrlsChanged;
 
@@ -167,24 +389,31 @@ class CefController {
 
   void loadUrl(String url)          => _run(() => _native.loadUrl(_browserId, url));
 
-  /// Load [url] with a custom HTTP [method] and optional [body].
+  /// Load [url] with a custom HTTP [method], optional [body], and optional [headers].
   ///
   /// For simple GET navigations prefer [loadUrl].  Use this method when you
-  /// need to submit a form via POST or send a request with a custom body.
+  /// need to submit a form via POST or send a request with custom headers/body.
   ///
   /// ```dart
   /// controller.loadRequest(
   ///   'https://example.com/api',
   ///   method: 'POST',
   ///   body: '{"key":"value"}',
+  ///   headers: {'Content-Type': 'application/json'},
   /// );
   /// ```
-  void loadRequest(String url, {String method = 'GET', String? body}) =>
-      _run(() => _native.loadRequest(_browserId, url, method: method, body: body));
+  void loadRequest(String url, {
+    String method = 'GET',
+    String? body,
+    Map<String, String>? headers,
+  }) =>
+      _run(() => _native.loadRequest(_browserId, url,
+          method: method, body: body, headers: headers));
 
   void goBack()                      => _run(() => _native.goBack(_browserId));
   void goForward()                   => _run(() => _native.goForward(_browserId));
   void reload()                      => _run(() => _native.reload(_browserId));
+  void reloadIgnoreCache()           => _run(() => _native.reloadIgnoreCache(_browserId));
   void stopLoad()                    => _run(() => _native.stopLoad(_browserId));
   void executeJavaScript(String js)  => _run(() => _native.executeJavaScript(_browserId, js));
   void setZoomLevel(double z)        => _run(() => _native.setZoomLevel(_browserId, z));
@@ -447,65 +676,73 @@ class _CefNavBarState extends State<CefNavBar> {
         final canBack  = _state.canGoBack;
         final canFwd   = _state.canGoForward;
 
+        final progress = _state.loadingProgress;
+
         return Container(
           height: widget.height,
           color: bg,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
+          child: Column(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back',
-                onPressed: canBack ? widget.controller.goBack : null,
-                iconSize: 20,
-              ),
-              IconButton(
-                icon: const Icon(Icons.arrow_forward),
-                tooltip: 'Forward',
-                onPressed: canFwd ? widget.controller.goForward : null,
-                iconSize: 20,
-              ),
-              IconButton(
-                icon: Icon(loading ? Icons.close : Icons.refresh),
-                tooltip: loading ? 'Stop' : 'Reload',
-                onPressed: loading
-                    ? widget.controller.stopLoad
-                    : widget.controller.reload,
-                iconSize: 20,
-              ),
               Expanded(
-                child: TextField(
-                  controller: _urlCtrl,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: theme.colorScheme.surfaceContainerHighest
-                        .withAlpha(180),
-                    suffixIcon: loading
-                        ? const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Back',
+                        onPressed: canBack ? widget.controller.goBack : null,
+                        iconSize: 20,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward),
+                        tooltip: 'Forward',
+                        onPressed: canFwd ? widget.controller.goForward : null,
+                        iconSize: 20,
+                      ),
+                      IconButton(
+                        icon: Icon(loading ? Icons.close : Icons.refresh),
+                        tooltip: loading ? 'Stop' : 'Reload',
+                        onPressed: loading
+                            ? widget.controller.stopLoad
+                            : widget.controller.reload,
+                        iconSize: 20,
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _urlCtrl,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
                             ),
-                          )
-                        : null,
+                            filled: true,
+                            fillColor: theme.colorScheme.surfaceContainerHighest
+                                .withAlpha(180),
+                          ),
+                          style: theme.textTheme.bodyMedium,
+                          textInputAction: TextInputAction.go,
+                          onTap: () => setState(() => _editing = true),
+                          onSubmitted: (_) => _navigate(),
+                          onEditingComplete: _navigate,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                   ),
-                  style: theme.textTheme.bodyMedium,
-                  textInputAction: TextInputAction.go,
-                  onTap: () => setState(() => _editing = true),
-                  onSubmitted: (_) => _navigate(),
-                  onEditingComplete: _navigate,
                 ),
               ),
-              const SizedBox(width: 4),
+              if (loading)
+                SizedBox(
+                  height: 2,
+                  child: LinearProgressIndicator(
+                    value: (progress > 0.0 && progress < 1.0) ? progress : null,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
             ],
           ),
         );
@@ -548,7 +785,7 @@ typedef CefJSDialogCallback2 = void Function(
 );
 
 class CefView extends StatefulWidget {
-  final CefNativeClient native;
+  final CefNativeClient? native;
   final String initialUrl;
   final CefViewCreatedCallback? onCreated;
   final Color backgroundColor;
@@ -569,7 +806,7 @@ class CefView extends StatefulWidget {
 
   const CefView({
     super.key,
-    required this.native,
+    this.native,
     this.initialUrl = 'about:blank',
     this.onCreated,
     this.backgroundColor = Colors.white,
@@ -583,6 +820,17 @@ class CefView extends StatefulWidget {
 }
 
 class _CefViewState extends State<CefView> {
+  CefNativeClient get _native {
+    final n = widget.native ?? _globalCefNativeClient;
+    if (n == null) {
+      throw StateError(
+        'CefView requires a CefNativeClient. '
+        'Provide one via `CefView(native: ...)` or initialize CEF using `await initCef()`.',
+      );
+    }
+    return n;
+  }
+
   late final CefController _controller;
 
   // Decoded frame image — rebuilt every OnPaint
@@ -651,7 +899,7 @@ class _CefViewState extends State<CefView> {
   @override
   void initState() {
     super.initState();
-    _controller = CefController._(widget.native);
+    _controller = CefController._(_native);
 
     // Use global keyboard handler — Focus.onKeyEvent can miss events
     HardwareKeyboard.instance.addHandler(_onHardwareKey);
@@ -659,6 +907,7 @@ class _CefViewState extends State<CefView> {
     // Register a life-span handler to capture the browser ID.
     _lifeSpanHandler = _BoundLifeSpanHandler(
       onAfterCreated: (browser) {
+        if (_controller.isReady) return;
         final id = browser.nativeBrowserId;
         _controller._bind(id);
 
@@ -667,21 +916,23 @@ class _CefViewState extends State<CefView> {
           browserId: id,
           onAddressChange: (url) => _controller.onUrlChanged?.call(url),
           onTitleChange: (title) => _controller.onTitleChanged?.call(title),
+          onLoadingProgressChange: (progress) =>
+              _controller.onLoadingProgressChanged?.call(progress),
           onFaviconUrls: (urls) => _controller.onFaviconUrlsChanged?.call(urls),
         );
-        widget.native.client.addDisplayHandler(_boundDisplayHandler!);
+        _native.client.addDisplayHandler(_boundDisplayHandler!);
 
         _boundLoadHandler = _BoundLoadHandler(
           browserId: id,
           onLoadingStateChange: (loading, canBack, canFwd) =>
               _controller.onLoadingStateChanged?.call(loading, canBack, canFwd),
         );
-        widget.native.client.addLoadHandler(_boundLoadHandler!);
+        _native.client.addLoadHandler(_boundLoadHandler!);
 
-        _paintSub = widget.native.paintFrames(id).listen(_onPaintFrame);
+        _paintSub = _native.paintFrames(id).listen(_onPaintFrame);
 
         // Subscribe to cursor changes for this browser
-        _cursorSub = widget.native.cursorChanges(id).listen((cursorType) {
+        _cursorSub = _native.cursorChanges(id).listen((cursorType) {
           if (mounted) {
             setState(() {
               _currentCursor = _mapCefCursor(cursorType);
@@ -690,7 +941,7 @@ class _CefViewState extends State<CefView> {
         });
 
         // Subscribe to popup show/size events
-        _popupEventSub = widget.native.popupEvents(id).listen((event) {
+        _popupEventSub = _native.popupEvents(id).listen((event) {
           if (!mounted) return;
           switch (event) {
             case CefPopupShowEvent(:final show):
@@ -714,24 +965,25 @@ class _CefViewState extends State<CefView> {
 
         // Push initial view size if we have it
         if (_physicalSize != Size.zero) {
-          widget.native.setViewSize(id,
+          _native.setViewSize(id,
               _physicalSize.width / _dpr,
               _physicalSize.height / _dpr,
               _dpr);
         }
 
         // Give focus to the browser immediately
-        widget.native.setFocus(id, true);
+        _native.setFocus(id, true);
 
         widget.onCreated?.call(_controller);
 
         // Wire JS dialog handler if the CefView.onJSDialog prop was provided
         if (widget.onJSDialog != null) {
           _dialogHandler = _CallbackJSDialogHandler(widget.onJSDialog!);
-          widget.native.client.addJSDialogHandler(_dialogHandler!);
+          _native.client.addJSDialogHandler(_dialogHandler!);
         }
       },
       onBeforeClose: (browser) {
+        if (!_controller.isReady || _controller.browserId != browser.nativeBrowserId) return;
         _paintSub?.cancel();
         _paintSub = null;
         _cursorSub?.cancel();
@@ -739,26 +991,26 @@ class _CefViewState extends State<CefView> {
         _popupEventSub?.cancel();
         _popupEventSub = null;
         if (_boundDisplayHandler != null) {
-          widget.native.client.removeDisplayHandler(_boundDisplayHandler!);
+          _native.client.removeDisplayHandler(_boundDisplayHandler!);
           _boundDisplayHandler = null;
         }
         if (_boundLoadHandler != null) {
-          widget.native.client.removeLoadHandler(_boundLoadHandler!);
+          _native.client.removeLoadHandler(_boundLoadHandler!);
           _boundLoadHandler = null;
         }
         if (_dialogHandler != null) {
-          widget.native.client.removeJSDialogHandler(_dialogHandler!);
+          _native.client.removeJSDialogHandler(_dialogHandler!);
           _dialogHandler = null;
         }
       },
     );
-    widget.native.client.addLifeSpanHandler(_lifeSpanHandler!);
+    _native.client.addLifeSpanHandler(_lifeSpanHandler!);
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _createBrowser());
   }
 
   void _createBrowser() {
-    widget.native.createBrowser(
+    _native.createBrowser(
       widget.initialUrl,
       windowless: true,
       isTransparent: widget.backgroundColor == Colors.transparent,
@@ -949,7 +1201,7 @@ class _CefViewState extends State<CefView> {
     _physicalSize = physical;
 
     if (_controller.isReady) {
-      widget.native.setViewSize(
+      _native.setViewSize(
           _controller.browserId, logicalSize.width, logicalSize.height, _dpr);
     }
   }
@@ -1019,7 +1271,7 @@ class _CefViewState extends State<CefView> {
 
   void _onPointerHover(PointerHoverEvent e) {
     if (!_controller.isReady) return;
-    widget.native.sendMouseMove(
+    _native.sendMouseMove(
       _controller.browserId,
       _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _pointerMods(e),
@@ -1052,7 +1304,7 @@ class _CefViewState extends State<CefView> {
     _lastClickY = py;
     _lastClickTime = now;
 
-    widget.native.sendMouseClick(
+    _native.sendMouseClick(
       _controller.browserId,
       px, py,
       btn, false, _clickCount, _pointerMods(e),
@@ -1061,7 +1313,7 @@ class _CefViewState extends State<CefView> {
 
   void _onPointerMove(PointerMoveEvent e) {
     if (!_controller.isReady) return;
-    widget.native.sendMouseMove(
+    _native.sendMouseMove(
       _controller.browserId,
       _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _pointerMods(e),
@@ -1071,7 +1323,7 @@ class _CefViewState extends State<CefView> {
   void _onPointerUp(PointerUpEvent e) {
     if (!_controller.isReady) return;
     // Use the button that was pressed — e.buttons is 0 on pointer-up.
-    widget.native.sendMouseClick(
+    _native.sendMouseClick(
       _controller.browserId,
       _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _lastPressedButton, true, _clickCount, _pointerMods(e),
@@ -1086,7 +1338,7 @@ class _CefViewState extends State<CefView> {
       //
       // Flutter's scrollDelta and mouse location are in LOGICAL pixels.
       // CEF's SendMouseWheelEvent expects view coordinates matching GetViewRect (logical DIPs).
-      widget.native.sendMouseWheel(
+      _native.sendMouseWheel(
         _controller.browserId,
         _pt(e.localPosition.dx), _pt(e.localPosition.dy),
         (-e.scrollDelta.dx * widget.scrollMultiplier).round(),
@@ -1113,7 +1365,7 @@ class _CefViewState extends State<CefView> {
       if (e is KeyRepeatEvent) nk = nk | 0x40000000;
 
       // Send RAWKEYDOWN — informs CEF of the physical key press.
-      widget.native.sendKeyEvent(
+      _native.sendKeyEvent(
         _controller.browserId,
         type: _CefKeyEventType.rawKeyDown,
         windowsKeyCode: wk,
@@ -1129,7 +1381,7 @@ class _CefViewState extends State<CefView> {
       // Do NOT also call ImeCommitText here — that would insert the character twice.
       if (e.character != null && e.character!.isNotEmpty) {
         final charCode = e.character!.codeUnitAt(0);
-        widget.native.sendKeyEvent(
+        _native.sendKeyEvent(
           _controller.browserId,
           type: _CefKeyEventType.char_,
           windowsKeyCode: charCode,
@@ -1144,7 +1396,7 @@ class _CefViewState extends State<CefView> {
     } else if (e is KeyUpEvent) {
       // For KEYUP, set bits 30 (previous key state) and 31 (transition state)
       nk = nk | 0xC0000000;
-      widget.native.sendKeyEvent(
+      _native.sendKeyEvent(
         _controller.browserId,
         type: _CefKeyEventType.keyUp,
         windowsKeyCode: wk,
@@ -1472,25 +1724,25 @@ class _CefViewState extends State<CefView> {
     // This prevents accumulation when the widget is rebuilt while sharing
     // a CefNativeClient across multiple CefView instances.
     if (_lifeSpanHandler != null) {
-      widget.native.client.removeLifeSpanHandler(_lifeSpanHandler!);
+      _native.client.removeLifeSpanHandler(_lifeSpanHandler!);
       _lifeSpanHandler = null;
     }
     if (_boundDisplayHandler != null) {
-      widget.native.client.removeDisplayHandler(_boundDisplayHandler!);
+      _native.client.removeDisplayHandler(_boundDisplayHandler!);
       _boundDisplayHandler = null;
     }
     if (_boundLoadHandler != null) {
-      widget.native.client.removeLoadHandler(_boundLoadHandler!);
+      _native.client.removeLoadHandler(_boundLoadHandler!);
       _boundLoadHandler = null;
     }
     if (_dialogHandler != null) {
-      widget.native.client.removeJSDialogHandler(_dialogHandler!);
+      _native.client.removeJSDialogHandler(_dialogHandler!);
       _dialogHandler = null;
     }
     if (_controller.isReady) {
       // Cancel any in-progress IME composition before closing.
-      widget.native.imeCancelComposition(_controller.browserId);
-      widget.native.closeBrowser(_controller.browserId);
+      _native.imeCancelComposition(_controller.browserId);
+      _native.closeBrowser(_controller.browserId);
     }
     super.dispose();
   }
@@ -1529,9 +1781,9 @@ class _BoundLifeSpanHandler extends CefLifeSpanHandler {
 /// A [CefJSDialogHandler] that presents native Flutter dialogs for
 /// `alert`, `confirm`, and `prompt` calls from JavaScript.
 ///
-/// Usage — register once after [CefApp.start()]:
+/// Usage — register once after [CefApp.start()] or [initCef()]:
 /// ```dart
-/// widget.native.client.addJSDialogHandler(
+/// native.client.addJSDialogHandler(
 ///   FlutterJSDialogHandler(contextGetter: () => context),
 /// );
 /// ```
@@ -1579,16 +1831,19 @@ class _BoundDisplayHandler extends CefDisplayHandler {
   final int _browserId;
   final void Function(String) _onAddressChange;
   final void Function(String) _onTitleChange;
+  final void Function(double)? _onLoadingProgressChange;
   final void Function(List<String>)? _onFaviconUrls;
 
   _BoundDisplayHandler({
     required int browserId,
     required void Function(String) onAddressChange,
     required void Function(String) onTitleChange,
+    void Function(double)? onLoadingProgressChange,
     void Function(List<String>)? onFaviconUrls,
   })  : _browserId = browserId,
         _onAddressChange = onAddressChange,
         _onTitleChange = onTitleChange,
+        _onLoadingProgressChange = onLoadingProgressChange,
         _onFaviconUrls = onFaviconUrls;
 
   @override
@@ -1602,17 +1857,14 @@ class _BoundDisplayHandler extends CefDisplayHandler {
   }
 
   @override
-  void onFaviconUrlChange(CefBrowser b, List<String> iconUrls) {
-    if (b.nativeBrowserId == _browserId) _onFaviconUrls?.call(iconUrls);
+  void onLoadingProgressChange(CefBrowser b, double progress) {
+    if (b.nativeBrowserId == _browserId) _onLoadingProgressChange?.call(progress);
   }
 
   @override
-  bool onConsoleMessage(CefBrowser b, CefLogSeverity level, String msg,
-      String src, int line) => false;
-  @override bool onTooltip(CefBrowser b, String text) => false;
-  @override void onStatusMessage(CefBrowser b, String value) {}
-  @override bool onCursorChange(CefBrowser b, int type) => false;
-  @override void onFullscreenModeChange(CefBrowser b, bool fullscreen) {}
+  void onFaviconUrlChange(CefBrowser b, List<String> iconUrls) {
+    if (b.nativeBrowserId == _browserId) _onFaviconUrls?.call(iconUrls);
+  }
 }
 
 // ─── Internal load handler ────────────────────────────────────────────────────
@@ -1634,11 +1886,6 @@ class _BoundLoadHandler extends CefLoadHandler {
       _onLoadingStateChange(isLoading, canGoBack, canGoForward);
     }
   }
-
-  @override void onLoadStart(CefBrowser b, CefFrame f, int transitionType) {}
-  @override void onLoadEnd(CefBrowser b, CefFrame f, int httpStatusCode) {}
-  @override void onLoadError(CefBrowser b, CefFrame f, CefErrorCode errorCode,
-      String errorText, String failedUrl) {}
 }
 
 class FlutterJSDialogHandler implements CefJSDialogHandler {

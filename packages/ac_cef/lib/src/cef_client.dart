@@ -298,6 +298,12 @@ class CefClient {
     }
   }
 
+  void dispatchOnLoadingProgressChange(CefBrowser browser, double progress) {
+    for (final h in List.of(_displayHandlers)) {
+      h.onLoadingProgressChange(browser, progress);
+    }
+  }
+
   void dispatchOnFullscreenModeChange(CefBrowser browser, bool fullscreen) {
     for (final h in List.of(_displayHandlers)) {
       h.onFullscreenModeChange(browser, fullscreen);

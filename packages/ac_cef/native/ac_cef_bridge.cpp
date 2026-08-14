@@ -161,11 +161,15 @@ public:
     IMPLEMENT_REFCOUNTING(AcRenderHandler);
 };
 
-// â”€â”€â”€ CefApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CefApp ──────────────────────────────────────────────────────────────────
 
-class AcCefApp : public CefApp, public CefBrowserProcessHandler {
+class AcCefApp : public CefApp,
+                 public CefBrowserProcessHandler,
+                 public CefRenderProcessHandler {
 public:
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
+    CefRefPtr<CefRenderProcessHandler>  GetRenderProcessHandler()  override { return this; }
+
     void OnBeforeCommandLineProcessing(const CefString&,
                                        CefRefPtr<CefCommandLine> cmd) override {
         cmd->AppendSwitch("no-sandbox");
@@ -173,21 +177,46 @@ public:
         cmd->AppendSwitch("disable-gpu-compositing");
         cmd->AppendSwitch("disable-gpu-sandbox");
         cmd->AppendSwitch("disable-network-sandbox");
-        // NOTE: "disable-software-rasterizer" is intentionally NOT set.
-        // OSR relies on the Skia software rasterizer; disabling it prevents
-        // CSS, SVG, and canvas from rendering in windowless mode.
-        //
-        // NOTE: "enable-begin-frame-scheduling" is intentionally NOT set.
-        // That switch puts the renderer into external-begin-frame mode where
-        // OnPaint fires ONLY when SendExternalBeginFrame() is called explicitly.
-        // Without that call, hover effects, scroll, JS animations, and DOM
-        // updates never trigger a repaint -- only WasResized() still works.
-        // Removing this switch lets CEF paint automatically at the configured
-        // windowless_frame_rate (FPS) without any extra signalling.
-        // Force Alloy style for the entire process â€” prevents Chrome runtime
-        // from opening a full browser window and triggering de-elevation.
-        cmd->AppendSwitchWithValue("use-alloy-style", "1");
+        cmd->AppendSwitch("disable-site-isolation-trials");
     }
+
+    // ── RenderProcessHandler (for JS cefQuery message router support in subprocess)
+    CefRefPtr<CefMessageRouterRendererSide> message_router_renderer_;
+
+    void OnWebKitInitialized() override {
+        CefMessageRouterConfig config;
+        config.js_query_function = "cefQuery";
+        config.js_cancel_function = "cefQueryCancel";
+        message_router_renderer_ = CefMessageRouterRendererSide::Create(config);
+    }
+
+    void OnContextCreated(CefRefPtr<CefBrowser> browser,
+                          CefRefPtr<CefFrame> frame,
+                          CefRefPtr<CefV8Context> context) override {
+        if (message_router_renderer_) {
+            message_router_renderer_->OnContextCreated(browser, frame, context);
+        }
+    }
+
+    void OnContextReleased(CefRefPtr<CefBrowser> browser,
+                           CefRefPtr<CefFrame> frame,
+                           CefRefPtr<CefV8Context> context) override {
+        if (message_router_renderer_) {
+            message_router_renderer_->OnContextReleased(browser, frame, context);
+        }
+    }
+
+    bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                  CefRefPtr<CefFrame> frame,
+                                  CefProcessId source_process,
+                                  CefRefPtr<CefProcessMessage> message) override {
+        if (message_router_renderer_ &&
+            message_router_renderer_->OnProcessMessageReceived(browser, frame, source_process, message)) {
+            return true;
+        }
+        return false;
+    }
+
     IMPLEMENT_REFCOUNTING(AcCefApp);
 };
 
@@ -223,7 +252,7 @@ class AcBrowserClient : public CefClient,
      CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
      CefRefPtr<CefFindHandler>     GetFindHandler()     override { return this; }
 
-    // â”€â”€ FindHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── FindHandler ──────────────────────────────────────────────────────────
     void OnFindResult(CefRefPtr<CefBrowser> browser,
                       int identifier, int count,
                       const CefRect& selection_rect,
@@ -238,17 +267,31 @@ class AcBrowserClient : public CefClient,
                 final_update ? 1 : 0);
     }
 
-    // â”€â”€ LifeSpan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── LifeSpan ─────────────────────────────────────────────────────────────
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         std::lock_guard<std::mutex> lk(g_browsers_mutex);
         browser_id = g_next_browser_id++;
         render_handler->browser_id = browser_id;
         g_browsers[browser_id].browser = browser;
+#ifdef _WIN32
+        printf("[ac_cef_bridge][PID: %lu] Browser OnAfterCreated (assigned browser_id: %lld)\n",
+               GetCurrentProcessId(), (long long)browser_id);
+        fflush(stdout);
+#endif
         if (g_callbacks.on_after_created)
             g_callbacks.on_after_created(browser_id);
     }
-    bool DoClose(CefRefPtr<CefBrowser> browser) override { return false; }
+    bool DoClose(CefRefPtr<CefBrowser> browser) override {
+        if (g_callbacks.on_do_close)
+            return g_callbacks.on_do_close(browser_id) != 0;
+        return false;
+    }
     void OnBeforeClose(CefRefPtr<CefBrowser> browser) override {
+#ifdef _WIN32
+        printf("[ac_cef_bridge][PID: %lu] Browser OnBeforeClose (browser_id: %lld)\n",
+               GetCurrentProcessId(), (long long)browser_id);
+        fflush(stdout);
+#endif
         if (messenger) {
             messenger->OnBeforeClose(browser);
         }
@@ -322,7 +365,7 @@ class AcBrowserClient : public CefClient,
                                       cefu8(text).c_str(), cefu8(url).c_str());
     }
 
-    // â”€â”€ DisplayHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── DisplayHandler ──────────────────────────────────────────────────────
     void OnAddressChange(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
                          const CefString& url) override {
         if (g_callbacks.on_url_changed)
@@ -337,6 +380,10 @@ class AcBrowserClient : public CefClient,
         }
         if (g_callbacks.on_title_changed)
             g_callbacks.on_title_changed(browser_id, cefu8(t).c_str());
+    }
+    void OnLoadingProgressChange(CefRefPtr<CefBrowser>, double progress) override {
+        if (g_callbacks.on_loading_progress_change)
+            g_callbacks.on_loading_progress_change(browser_id, progress);
     }
     bool OnCursorChange(CefRefPtr<CefBrowser> browser,
                         CefCursorHandle cursor,
@@ -486,7 +533,7 @@ class AcBrowserClient : public CefClient,
                 label_strs[i] = cefu8(model->GetLabelAt(i));
                 labels[i]     = label_strs[i].c_str();
             }
-            // â”€â”€ CefContextMenuParams â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── CefContextMenuParams ────────────────────────────────────────
             std::string link_url = cefu8(params->GetLinkUrl());
             std::string page_url = cefu8(params->GetPageUrl());
             std::string frame_url = cefu8(params->GetFrameUrl());
@@ -515,11 +562,11 @@ class AcBrowserClient : public CefClient,
                 params->IsEditable() ? 1 : 0,
                 params->HasImageContents() ? 1 : 0);
         }
-        // Always clear â€” Dart shows a custom Flutter overlay instead.
+        // Always clear — Dart shows a custom Flutter overlay instead.
         model->Clear();
     }
 
-    // â”€â”€ RequestHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── RequestHandler ──────────────────────────────────────────────────────
     bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                         CefRefPtr<CefRequest> request, bool user_gesture,
                         bool is_redirect) override {
@@ -548,7 +595,7 @@ class AcBrowserClient : public CefClient,
     }
 
 
-    // â”€â”€ MessageRouter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── MessageRouter ───────────────────────────────────────────────────────
     bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
                                   CefRefPtr<CefFrame> frame,
                                   CefProcessId source_process,
@@ -562,15 +609,35 @@ class AcBrowserClient : public CefClient,
     IMPLEMENT_REFCOUNTING(AcBrowserClient);
 };
 
-// â”€â”€â”€ C exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── C exports ─────────────────────────────────────────────────────────────
 
 extern "C" {
+
+AC_CEF_EXPORT int ac_cef_execute_subprocess(void) {
+#ifdef _WIN32
+    DWORD pid = GetCurrentProcessId();
+    LPWSTR cmd = GetCommandLineW();
+    printf("[ac_cef_bridge][PID: %lu] ac_cef_execute_subprocess invoked with cmd: %ls\n", pid, cmd ? cmd : L"");
+    fflush(stdout);
+    CefMainArgs args(GetModuleHandleW(nullptr));
+#else
+    CefMainArgs args;
+#endif
+    CefRefPtr<AcCefApp> app = new AcCefApp();
+    int ep = CefExecuteProcess(args, app.get(), nullptr);
+#ifdef _WIN32
+    printf("[ac_cef_bridge][PID: %lu] CefExecuteProcess finished with exit code: %d\n", pid, ep);
+    fflush(stdout);
+#endif
+    return ep;
+}
 
 AC_CEF_EXPORT int ac_cef_initialize(
     const char** keys, const char** values, int count,
     const AcCefCallbacks* cbs)
 {
-    printf("[ac_cef_bridge] ac_cef_initialize called. PID=%lu\n", GetCurrentProcessId());
+    DWORD pid = GetCurrentProcessId();
+    printf("[ac_cef_bridge][PID: %lu] ac_cef_initialize called (callbacks=%p)\n", pid, (const void*)cbs);
     fflush(stdout);
 
     // Check if we are elevated
@@ -584,7 +651,7 @@ AC_CEF_EXPORT int ac_cef_initialize(
         }
         CloseHandle(hToken);
     }
-    printf("[ac_cef_bridge] Process elevated: %s\n", isElevated ? "YES" : "NO");
+    printf("[ac_cef_bridge][PID: %lu] Process elevated: %s\n", pid, isElevated ? "YES" : "NO");
     fflush(stdout);
 
     if (cbs) g_callbacks = *cbs;
@@ -601,21 +668,39 @@ AC_CEF_EXPORT int ac_cef_initialize(
     settings.no_sandbox = true;
     settings.multi_threaded_message_loop = false;
     settings.external_message_pump = false;
+    settings.command_line_args_disabled = true;
 
     // Apply Dart-supplied key/value settings
     for (int i = 0; i < count; ++i) {
         std::string k(keys[i]), v(values[i]);
-        printf("[ac_cef_bridge] Setting: %s = %s\n", k.c_str(), v.c_str());
+        printf("[ac_cef_bridge][PID: %lu] Setting: %s = %s\n", pid, k.c_str(), v.c_str());
         if      (k == "cache_path")            CefString(&settings.cache_path) = v;
+        else if (k == "root_cache_path")       CefString(&settings.root_cache_path) = v;
         else if (k == "user_agent")            CefString(&settings.user_agent) = v;
+        else if (k == "user_agent_product")    CefString(&settings.user_agent_product) = v;
         else if (k == "locale")                CefString(&settings.locale) = v;
         else if (k == "log_file")              CefString(&settings.log_file) = v;
         else if (k == "resources_dir_path")    CefString(&settings.resources_dir_path) = v;
         else if (k == "locales_dir_path")      CefString(&settings.locales_dir_path) = v;
         else if (k == "browser_subprocess_path")
             CefString(&settings.browser_subprocess_path) = v;
+        else if (k == "javascript_flags")      CefString(&settings.javascript_flags) = v;
+        else if (k == "chrome_policy_id")      CefString(&settings.chrome_policy_id) = v;
+        else if (k == "cookieable_schemes_list")
+            CefString(&settings.cookieable_schemes_list) = v;
+        else if (k == "cookieable_schemes_exclude_defaults")
+            settings.cookieable_schemes_exclude_defaults = (v == "true");
+        else if (k == "command_line_args_disabled")
+            settings.command_line_args_disabled = (v == "true");
+        else if (k == "persist_session_cookies")
+            settings.persist_session_cookies = (v == "true");
         else if (k == "remote_debugging_port")
             settings.remote_debugging_port = std::stoi(v);
+        else if (k == "uncaught_exception_stack_size")
+            settings.uncaught_exception_stack_size = std::stoi(v);
+        else if (k == "background_color") {
+            try { settings.background_color = (cef_color_t)std::stoul(v); } catch (...) {}
+        }
         else if (k == "no_sandbox")
             settings.no_sandbox = (v == "true");
         else if (k == "log_severity") {
@@ -626,6 +711,10 @@ AC_CEF_EXPORT int ac_cef_initialize(
             else if (v == "fatal")   settings.log_severity = LOGSEVERITY_FATAL;
             else if (v == "disable") settings.log_severity = LOGSEVERITY_DISABLE;
         }
+    }
+    // Ensure root_cache_path is set if cache_path is provided
+    if (settings.root_cache_path.length == 0 && settings.cache_path.length > 0) {
+        CefString(&settings.root_cache_path) = CefString(&settings.cache_path);
     }
     fflush(stdout);
 
@@ -644,15 +733,21 @@ AC_CEF_EXPORT int ac_cef_initialize(
         // This process was launched as a CEF subprocess (renderer, GPU, utility).
         // CefExecuteProcess has already handled the subprocess duties.
         // Return 0 so Dart sees initialize() = false and can exit cleanly.
-        // (Previously returned -(ep+1) which Dart's `result != 0` treated as
-        //  success, causing a full Flutter UI to launch in the subprocess.)
         return 0;
     }
 
     printf("[ac_cef_bridge] Calling CefInitialize...\n");
     fflush(stdout);
     bool success = CefInitialize(args, settings, app.get(), nullptr);
-    printf("[ac_cef_bridge] CefInitialize returned %s\n", success ? "TRUE" : "FALSE");
+    int exit_code = CefGetExitCode();
+    const char* reason = "Unknown";
+    if (success) reason = "Success";
+    else if (exit_code == 38 || exit_code == 24 || exit_code == 21)
+        reason = "Process singleton active (another instance of the application is already running or holding the cache lock)";
+    else if (exit_code == 1)
+        reason = "Generic failure / missing resources";
+    printf("[ac_cef_bridge] CefInitialize returned %s (exit_code: %d - %s)\n",
+           success ? "TRUE" : "FALSE", exit_code, reason);
     fflush(stdout);
 
 #ifdef _WIN32
@@ -664,15 +759,28 @@ AC_CEF_EXPORT int ac_cef_initialize(
 
 AC_CEF_EXPORT void ac_cef_shutdown() {
 #ifdef _WIN32
+    DWORD pid = GetCurrentProcessId();
+    printf("[ac_cef_bridge][PID: %lu] ac_cef_shutdown called\n", pid);
+    fflush(stdout);
     timeEndPeriod(1);
 #endif
     CefShutdown();
+#ifdef _WIN32
+    printf("[ac_cef_bridge][PID: %lu] CefShutdown complete\n", pid);
+    fflush(stdout);
+#endif
 }
 AC_CEF_EXPORT void ac_cef_do_message_loop_work() { CefDoMessageLoopWork(); }
 AC_CEF_EXPORT void ac_cef_run_message_loop()  { CefRunMessageLoop(); }
 AC_CEF_EXPORT void ac_cef_quit_message_loop() { CefQuitMessageLoop(); }
 
 AC_CEF_EXPORT int64_t ac_cef_create_browser(const char* url, int fps, int transp) {
+#ifdef _WIN32
+    DWORD pid = GetCurrentProcessId();
+    printf("[ac_cef_bridge][PID: %lu] ac_cef_create_browser called (url: %s, fps: %d, transparent: %d)\n",
+           pid, url ? url : "(null)", fps, transp);
+    fflush(stdout);
+#endif
     CefRefPtr<AcBrowserClient> client = new AcBrowserClient();
     CefWindowInfo wi;
     wi.SetAsWindowless(0);
@@ -681,6 +789,9 @@ AC_CEF_EXPORT int64_t ac_cef_create_browser(const char* url, int fps, int transp
     wi.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
     CefBrowserSettings bs;
     bs.windowless_frame_rate = fps > 0 ? fps : 60;
+    bs.background_color = (transp != 0)
+        ? CefColorSetARGB(0, 0, 0, 0)
+        : CefColorSetARGB(255, 255, 255, 255);
     CefBrowserHost::CreateBrowser(wi, client, url, bs, nullptr, nullptr);
     // browser_id assigned asynchronously in OnAfterCreated
     return 0;
@@ -706,10 +817,18 @@ AC_CEF_EXPORT void ac_cef_go_forward(int64_t id)
     { if (auto b = GetBrowser(id)) b->GoForward(); }
 AC_CEF_EXPORT void ac_cef_reload(int64_t id)
     { if (auto b = GetBrowser(id)) b->Reload(); }
+AC_CEF_EXPORT void ac_cef_reload_ignore_cache(int64_t id)
+    { if (auto b = GetBrowser(id)) b->ReloadIgnoreCache(); }
 AC_CEF_EXPORT void ac_cef_stop_load(int64_t id)
     { if (auto b = GetBrowser(id)) b->StopLoad(); }
-AC_CEF_EXPORT void ac_cef_close_browser(int64_t id, int force)
-    { if (auto b = GetBrowser(id)) b->GetHost()->CloseBrowser(force != 0); }
+AC_CEF_EXPORT void ac_cef_close_browser(int64_t id, int force) {
+#ifdef _WIN32
+    printf("[ac_cef_bridge][PID: %lu] ac_cef_close_browser called (browser_id: %lld, force: %d)\n",
+           GetCurrentProcessId(), (long long)id, force);
+    fflush(stdout);
+#endif
+    if (auto b = GetBrowser(id)) b->GetHost()->CloseBrowser(force != 0);
+}
 AC_CEF_EXPORT void ac_cef_execute_javascript(int64_t id, const char* code)
     { if (auto b = GetBrowser(id)) b->GetMainFrame()->ExecuteJavaScript(code, "", 0); }
 AC_CEF_EXPORT void ac_cef_set_zoom_level(int64_t id, double lvl)
@@ -1042,7 +1161,7 @@ AC_CEF_EXPORT int ac_cef_is_loading(int64_t id) {
 
 AC_CEF_EXPORT void ac_cef_load_request(
     int64_t id, const char* url, const char* method,
-    const char* body, int body_size) {
+    const char* body, int body_size, const char* headers_flat) {
     auto b = GetBrowser(id);
     if (!b) return;
     auto req = CefRequest::Create();
@@ -1054,6 +1173,28 @@ AC_CEF_EXPORT void ac_cef_load_request(
         el->SetToBytes(static_cast<size_t>(body_size), body);
         pe->AddElement(el);
         req->SetPostData(pe);
+    }
+    if (headers_flat && headers_flat[0]) {
+        CefRequest::HeaderMap header_map;
+        std::string raw(headers_flat);
+        size_t pos = 0;
+        while (pos < raw.size()) {
+            size_t k_end = raw.find('\n', pos);
+            if (k_end == std::string::npos) break;
+            std::string key = raw.substr(pos, k_end - pos);
+            pos = k_end + 1;
+            if (pos >= raw.size()) break;
+            size_t v_end = raw.find('\n', pos);
+            if (v_end == std::string::npos) break;
+            std::string val = raw.substr(pos, v_end - pos);
+            pos = v_end + 1;
+            if (!key.empty()) {
+                header_map.insert(std::make_pair(key, val));
+            }
+        }
+        if (!header_map.empty()) {
+            req->SetHeaderMap(header_map);
+        }
     }
     b->GetMainFrame()->LoadRequest(req);
 }
