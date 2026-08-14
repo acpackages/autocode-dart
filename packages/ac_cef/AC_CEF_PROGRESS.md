@@ -481,8 +481,6 @@ Completed:
   - Creates `CefRequest` with `CefPostData` + `CefPostDataElement` if body provided
   - Calls `browser->GetMainFrame()->LoadRequest(req)`
   - Null/empty body → GET-style request (no post data)
-
-#### Dart ac_cef package
 - `cef_bindings.dart`: `_LoadRequestC` / `_LoadRequestDart` typedefs; `loadRequest` field + lookup
 - `CefNativeClient.loadRequest(id, url, {method, body})`:
   - Encodes body as UTF-8 bytes via `utf8.encode()`
@@ -494,11 +492,46 @@ Completed:
 - VERIFIED: dart analyze — 0 issues on both packages
 - DLL REBUILT (784 KB, 21:51) and DEPLOYED
 
+### Session 19 (2026-08-14) — Favicon URL (full stack)
+
+#### C++ (ac_cef_bridge.h / ac_cef_bridge.cpp) — DLL REBUILT (784 KB, 09:39)
+- `OnFaviconUrlChangeCallback` typedef added to header
+- `on_favicon_url_change` field added to `AcCefCallbacks` struct (after `on_fullscreen_mode_change`)
+- `AcBrowserClient::OnFaviconURLChange` override: builds `'\0'`-separated flat string, fires `g_callbacks.on_favicon_url_change`
+
+#### Dart ac_cef package
+- `CefDisplayHandler.onFaviconUrlChange(CefBrowser, List<String>)` abstract method added
+- `cef_bindings.dart`: `OnFaviconUrlChangeCallback` typedef + `on_favicon_url_change` struct field
+- `cef_native_client.dart`: `_onFaviconUrlChange` top-level callback (parses `'\0'`-separated flat string into `List<String>`)
+- `cef_native_client.dart`: `NativeCallable<OnFaviconUrlChangeCallback>` registered alongside fullscreen
+- `cef_native_client.dart`: `_fwdFaviconUrlChange` dispatch method
+- `CefClient.dispatchOnFaviconUrlChange` added
+
+#### Dart ac_cef_flutter package
+- `_BoundDisplayHandler.onFaviconUrlChange` override → calls `_onFaviconUrls` callback
+- `CefController.onFaviconUrlsChanged` callback slot added
+- `_CefViewState` wires `onFaviconUrls` in `_BoundDisplayHandler` constructor
+- `CefBrowserState._faviconUrls` + `faviconUrls` getter
+- `CefBrowserState.attachTo` wires `onFaviconUrlsChanged` → `_faviconUrls` + `notifyListeners`
+
+Usage:
+```dart
+// React to favicon changes via CefBrowserState
+controller.state.addListener(() {
+  final icons = controller.state.faviconUrls; // List<String>
+});
+// Or directly via slot
+controller.onFaviconUrlsChanged = (urls) => print(urls);
+```
+
+- VERIFIED: dart analyze — 0 issues on both packages
+- DLL REBUILT (784 KB, 09:39) and DEPLOYED
+
 ## Current Priority / Next Session
 
 1. **Popup OSR integration test** — trigger `window.open()`, verify new browser_id fires `on_after_created`, display it in a second `CefView`
-2. **Favicon URL** — add `on_favicon_url_change` callback to C++ bridge + `CefDisplayHandler.onFaviconUrlChange` in Dart + `CefBrowserState.faviconUrls`
-3. **`loadRequest` with headers** — extend `ac_cef_load_request` to accept a flat `key\0value\0...` header array
+2. **`loadRequest` with headers** — extend `ac_cef_load_request` to accept a flat `key\0value\0...` header array
+3. **`CefDisplayHandler` stub base class** — add default no-op implementations so user subclasses only override what they need
 
 ### Session 11 (2026-08-13) - OnBeforeBrowse userGesture + JS Eval + DLL Deploy
 

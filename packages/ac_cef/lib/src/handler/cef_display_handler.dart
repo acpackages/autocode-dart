@@ -1,4 +1,4 @@
-import '../cef_browser.dart';
+﻿import '../cef_browser.dart';
 import '../cef_frame.dart';
 import '../cef_settings.dart';
 
@@ -22,4 +22,6 @@ abstract class CefDisplayHandler {
   );
 
   bool onCursorChange(CefBrowser browser, int cursorType);
+
+  void onFaviconUrlChange(CefBrowser browser, List<String> iconUrls);
 }

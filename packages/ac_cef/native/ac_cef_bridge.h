@@ -115,6 +115,10 @@ typedef void (*OnPopupSizeCallback)(int64_t browser_id, int x, int y, int width,
 /// Fired when the page enters or exits fullscreen mode.
 typedef void (*OnFullscreenModeChangeCallback)(int64_t browser_id, int fullscreen);
 
+/// Fired when the page reports new favicon URLs.
+/// [urls_flat] is a '\0'-separated list terminated by '\0\0'. May be NULL.
+typedef void (*OnFaviconUrlChangeCallback)(int64_t browser_id, const char* urls_flat);
+
 /// Fired by CefFindHandler::OnFindResult each time the browser reports match status.
 /// [identifier]           matches the value from ac_cef_find.
 /// [count]                total number of matches found so far.
@@ -222,6 +226,7 @@ typedef struct AcCefCallbacks {
   GetViewRectCallback            get_view_rect;
   // ── Session 3 additions ──────────────────────────────────────────────────
   OnFullscreenModeChangeCallback on_fullscreen_mode_change;
+  OnFaviconUrlChangeCallback     on_favicon_url_change;
   OnPreKeyEventCallback          on_pre_key_event;
   OnKeyEventCallback             on_key_event;
   OnCertificateErrorCallback     on_certificate_error;

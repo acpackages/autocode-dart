@@ -330,6 +330,15 @@ class AcBrowserClient : public CefClient,
             g_callbacks.on_fullscreen_mode_change(browser_id, fullscreen ? 1 : 0);
     }
 
+    void OnFaviconURLChange(CefRefPtr<CefBrowser>,
+                            const std::vector<CefString>& icon_urls) override {
+        if (!g_callbacks.on_favicon_url_change) return;
+        std::string flat;
+        for (const auto& u : icon_urls) { flat += u.ToString(); flat += '\0'; }
+        flat += '\0';
+        g_callbacks.on_favicon_url_change(browser_id, flat.c_str());
+    }
+
     // ── KeyboardHandler ───────────────────────────────────────────────────────
     bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent& event,
                        CefEventHandle /*os_event*/, bool* is_keyboard_shortcut) override {

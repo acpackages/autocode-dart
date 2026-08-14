@@ -56,6 +56,7 @@ typedef OnPopupSizeCallback            = Void Function(Int64, Int32, Int32, Int3
 
 // ── Session 3 callback typedefs ───────────────────────────────────────────────
 typedef OnFullscreenModeChangeCallback = Void  Function(Int64, Int32);
+typedef OnFaviconUrlChangeCallback     = Void  Function(Int64, Pointer<Utf8>); // Session 19
 /// [is_keyboard_shortcut_out] is a Pointer<Int32> written by Dart to inform C.
 typedef OnPreKeyEventCallback          = Int32 Function(Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Pointer<Int32>);
 typedef OnKeyEventCallback             = Int32 Function(Int64, Int32, Int32, Int32, Int32, Int32, Int32, Int32);
@@ -105,6 +106,7 @@ final class AcCefCallbacksStruct extends Struct {
   external Pointer<NativeFunction<GetViewRectCallback>>           get_view_rect;
   // ── Session 3 additions ──────────────────────────────────────────────────
   external Pointer<NativeFunction<OnFullscreenModeChangeCallback>> on_fullscreen_mode_change;
+  external Pointer<NativeFunction<OnFaviconUrlChangeCallback>>     on_favicon_url_change; // Session 19
   external Pointer<NativeFunction<OnPreKeyEventCallback>>          on_pre_key_event;
   external Pointer<NativeFunction<OnKeyEventCallback>>             on_key_event;
   external Pointer<NativeFunction<OnCertificateErrorCallback>>     on_certificate_error;

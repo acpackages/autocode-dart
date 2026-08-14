@@ -180,6 +180,16 @@ void _onPopupSize(int id, int x, int y, int w, int h) =>
 void _onFullscreenModeChange(int id, int fullscreen) =>
     _activeClient?._fwdFullscreenModeChange(id, fullscreen != 0);
 
+void _onFaviconUrlChange(int id, Pointer<Utf8> urlsFlat) {
+  if (urlsFlat == nullptr) {
+    _activeClient?._fwdFaviconUrlChange(id, const []);
+    return;
+  }
+  final raw  = urlsFlat.toDartString();
+  final urls = raw.split('\x00').where((s) => s.isNotEmpty).toList();
+  _activeClient?._fwdFaviconUrlChange(id, urls);
+}
+
 /// OnPreKeyEvent: returns 1 to consume the event. Writes isShortcut out-param.
 int _onPreKeyEvent(int id, int type, int wk, int nk, int mods,
     int ch, int uch, int sys, Pointer<Int32> isShortcutOut) {
@@ -342,6 +352,10 @@ class CefNativeClient {
     // Session 3: fullscreen (void → NativeCallable.listener)
     _regVoid(NativeCallable<OnFullscreenModeChangeCallback>.listener(_onFullscreenModeChange),
              (p) => cb.ref.on_fullscreen_mode_change = p);
+
+    // Session 19: favicon URL change
+    _regVoid(NativeCallable<OnFaviconUrlChangeCallback>.listener(_onFaviconUrlChange),
+             (p) => cb.ref.on_favicon_url_change = p);
 
     // Session 3: pre-key / key-event / cert-error (return int → Pointer.fromFunction)
     cb.ref.on_pre_key_event     = Pointer.fromFunction<OnPreKeyEventCallback>(_onPreKeyEvent, 0);
@@ -1029,6 +1043,9 @@ class CefNativeClient {
 
   void _fwdFullscreenModeChange(int id, bool fullscreen) =>
       client.dispatchOnFullscreenModeChange(_browsers[id] ?? _stub, fullscreen);
+
+  void _fwdFaviconUrlChange(int id, List<String> urls) =>
+      client.dispatchOnFaviconUrlChange(_browsers[id] ?? _stub, urls);
 
   /// Returns (handled, isKeyboardShortcut).
   (bool, bool) _fwdPreKeyEvent(int id, int type, int wk, int nk, int mods,

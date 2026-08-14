@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -67,6 +67,7 @@ class CefBrowserState extends ChangeNotifier {
   bool _isLoading = false;
   bool _canGoBack = false;
   bool _canGoForward = false;
+  List<String> _faviconUrls = const [];
 
   /// Current URL of the main frame.
   String get url => _url;
@@ -82,6 +83,10 @@ class CefBrowserState extends ChangeNotifier {
 
   /// Whether the browser can navigate forward.
   bool get canGoForward => _canGoForward;
+
+  /// Favicon URLs reported by the most recent onFaviconUrlChange event.
+  /// Empty until the page fires a favicon update.
+  List<String> get faviconUrls => _faviconUrls;
 
   /// Attach this state object to a [CefController].
   ///
@@ -106,6 +111,10 @@ class CefBrowserState extends ChangeNotifier {
       _canGoForward = canFwd;
       notifyListeners();
     };
+    controller.onFaviconUrlsChanged = (urls) {
+      _faviconUrls = List.unmodifiable(urls);
+      notifyListeners();
+    };
   }
 }
 
@@ -126,6 +135,7 @@ class CefController {
   void Function(String)? onUrlChanged;
   void Function(String)? onTitleChanged;
   void Function(bool, bool, bool)? onLoadingStateChanged;
+  void Function(List<String>)? onFaviconUrlsChanged;
 
   CefController._(this._native);
 
@@ -644,6 +654,7 @@ class _CefViewState extends State<CefView> {
             browserId: id,
             onAddressChange: (url) => _controller.onUrlChanged?.call(url),
             onTitleChange: (title) => _controller.onTitleChanged?.call(title),
+            onFaviconUrls: (urls) => _controller.onFaviconUrlsChanged?.call(urls),
           ));
           widget.native.client.addLoadHandler(_BoundLoadHandler(
             browserId: id,
@@ -1501,14 +1512,17 @@ class _BoundDisplayHandler extends CefDisplayHandler {
   final int _browserId;
   final void Function(String) _onAddressChange;
   final void Function(String) _onTitleChange;
+  final void Function(List<String>)? _onFaviconUrls;
 
   _BoundDisplayHandler({
     required int browserId,
     required void Function(String) onAddressChange,
     required void Function(String) onTitleChange,
+    void Function(List<String>)? onFaviconUrls,
   })  : _browserId = browserId,
         _onAddressChange = onAddressChange,
-        _onTitleChange = onTitleChange;
+        _onTitleChange = onTitleChange,
+        _onFaviconUrls = onFaviconUrls;
 
   @override
   void onAddressChange(CefBrowser b, CefFrame f, String url) {
@@ -1518,6 +1532,11 @@ class _BoundDisplayHandler extends CefDisplayHandler {
   @override
   void onTitleChange(CefBrowser b, String title) {
     if (b.nativeBrowserId == _browserId) _onTitleChange(title);
+  }
+
+  @override
+  void onFaviconUrlChange(CefBrowser b, List<String> iconUrls) {
+    if (b.nativeBrowserId == _browserId) _onFaviconUrls?.call(iconUrls);
   }
 
   @override
