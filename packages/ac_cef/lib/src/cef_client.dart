@@ -20,6 +20,9 @@ import 'network/cef_request.dart';
 /// Mirrors JCEF's [org.cef.CefClient]. Register handlers using the
 /// [addXxxHandler] methods, then call [createBrowser] to instantiate a browser.
 ///
+/// Supports multiple handlers per category (mirroring JCEF's multi-handler
+/// and multi-browser support).
+///
 /// Example:
 /// ```dart
 /// final client = CefClient();
@@ -30,18 +33,16 @@ import 'network/cef_request.dart';
 class CefClient {
   // ─── Handler registrations ───────────────────────────────────────────────
 
-  CefContextMenuHandler? _contextMenuHandler;
-  CefDisplayHandler? _displayHandler;
-  CefDownloadHandler? _downloadHandler;
-  CefFocusHandler? _focusHandler;
-  CefFindHandler?  _findHandler;
-  CefJSDialogHandler? _jsDialogHandler;
-  CefKeyboardHandler? _keyboardHandler;
-  CefLoadHandler? _loadHandler;
-  CefRequestHandler? _requestHandler;
-
-  /// LifeSpan supports multiple handlers (mirrors JCEF list behaviour).
-  final List<CefLifeSpanHandler> _lifeSpanHandlers = [];
+  final List<CefContextMenuHandler> _contextMenuHandlers = [];
+  final List<CefDisplayHandler>     _displayHandlers     = [];
+  final List<CefDownloadHandler>    _downloadHandlers    = [];
+  final List<CefFocusHandler>       _focusHandlers       = [];
+  final List<CefFindHandler>        _findHandlers        = [];
+  final List<CefJSDialogHandler>    _jsDialogHandlers    = [];
+  final List<CefKeyboardHandler>    _keyboardHandlers    = [];
+  final List<CefLoadHandler>        _loadHandlers        = [];
+  final List<CefRequestHandler>     _requestHandlers     = [];
+  final List<CefLifeSpanHandler>    _lifeSpanHandlers    = [];
 
   bool _isDisposed = false;
 
@@ -49,78 +50,133 @@ class CefClient {
 
   /// Register a handler for context menu events.
   CefClient addContextMenuHandler(CefContextMenuHandler handler) {
-    _contextMenuHandler = handler;
+    _contextMenuHandlers.add(handler);
     return this;
   }
 
-  void removeContextMenuHandler() => _contextMenuHandler = null;
+  void removeContextMenuHandler([CefContextMenuHandler? handler]) {
+    if (handler != null) {
+      _contextMenuHandlers.remove(handler);
+    } else {
+      _contextMenuHandlers.clear();
+    }
+  }
 
   /// Register a handler for display/UI events (title, address, cursor…).
   CefClient addDisplayHandler(CefDisplayHandler handler) {
-    _displayHandler = handler;
+    _displayHandlers.add(handler);
     return this;
   }
 
-  void removeDisplayHandler() => _displayHandler = null;
+  void removeDisplayHandler([CefDisplayHandler? handler]) {
+    if (handler != null) {
+      _displayHandlers.remove(handler);
+    } else {
+      _displayHandlers.clear();
+    }
+  }
 
   /// Register a handler for file download events.
   CefClient addDownloadHandler(CefDownloadHandler handler) {
-    _downloadHandler = handler;
+    _downloadHandlers.add(handler);
     return this;
   }
 
-  void removeDownloadHandler() => _downloadHandler = null;
+  void removeDownloadHandler([CefDownloadHandler? handler]) {
+    if (handler != null) {
+      _downloadHandlers.remove(handler);
+    } else {
+      _downloadHandlers.clear();
+    }
+  }
 
   /// Register a handler for focus events.
   CefClient addFocusHandler(CefFocusHandler handler) {
-    _focusHandler = handler;
+    _focusHandlers.add(handler);
     return this;
   }
 
-  void removeFocusHandler() => _focusHandler = null;
+  void removeFocusHandler([CefFocusHandler? handler]) {
+    if (handler != null) {
+      _focusHandlers.remove(handler);
+    } else {
+      _focusHandlers.clear();
+    }
+  }
 
   /// Register a handler for JavaScript alert/confirm/prompt dialogs.
   CefClient addJSDialogHandler(CefJSDialogHandler handler) {
-    _jsDialogHandler = handler;
+    _jsDialogHandlers.add(handler);
     return this;
   }
 
-  void removeJSDialogHandler() => _jsDialogHandler = null;
+  void removeJSDialogHandler([CefJSDialogHandler? handler]) {
+    if (handler != null) {
+      _jsDialogHandlers.remove(handler);
+    } else {
+      _jsDialogHandlers.clear();
+    }
+  }
 
   /// Register a handler for find-in-page results.
   CefClient addFindHandler(CefFindHandler handler) {
-    _findHandler = handler;
+    _findHandlers.add(handler);
     return this;
   }
 
-  void removeFindHandler() => _findHandler = null;
+  void removeFindHandler([CefFindHandler? handler]) {
+    if (handler != null) {
+      _findHandlers.remove(handler);
+    } else {
+      _findHandlers.clear();
+    }
+  }
 
   /// Register a handler for keyboard events.
   CefClient addKeyboardHandler(CefKeyboardHandler handler) {
-    _keyboardHandler = handler;
+    _keyboardHandlers.add(handler);
     return this;
   }
 
-  void removeKeyboardHandler() => _keyboardHandler = null;
+  void removeKeyboardHandler([CefKeyboardHandler? handler]) {
+    if (handler != null) {
+      _keyboardHandlers.remove(handler);
+    } else {
+      _keyboardHandlers.clear();
+    }
+  }
 
   /// Register a handler for load state events.
   CefClient addLoadHandler(CefLoadHandler handler) {
-    _loadHandler = handler;
+    _loadHandlers.add(handler);
     return this;
   }
 
-  void removeLoadHandler() => _loadHandler = null;
+  void removeLoadHandler([CefLoadHandler? handler]) {
+    if (handler != null) {
+      _loadHandlers.remove(handler);
+    } else {
+      _loadHandlers.clear();
+    }
+  }
 
   /// Register a handler for navigation/request events.
   CefClient addRequestHandler(CefRequestHandler handler) {
-    _requestHandler = handler;
+    _requestHandlers.add(handler);
     return this;
   }
 
-  void removeRequestHandler() => _requestHandler = null;
+  void removeRequestHandler([CefRequestHandler? handler]) {
+    if (handler != null) {
+      _requestHandlers.remove(handler);
+    } else {
+      _requestHandlers.clear();
+    }
+  }
 
-  /// The currently registered [CefRequestHandler], or null if none is registered.
-  CefRequestHandler? get requestHandler => _requestHandler;
+  /// The first registered [CefRequestHandler], or null if none is registered.
+  CefRequestHandler? get requestHandler =>
+      _requestHandlers.isNotEmpty ? _requestHandlers.first : null;
 
   /// Add a life-span handler (multiple handlers are supported).
   CefClient addLifeSpanHandler(CefLifeSpanHandler handler) {
@@ -153,7 +209,6 @@ class CefClient {
       windowless: windowless,
       settings: settings,
     );
-    // TODO: Invoke native CefBrowserHost::CreateBrowser via FFI here.
     return browser;
   }
 
@@ -165,7 +220,7 @@ class CefClient {
       CefBrowser browser, CefFrame frame, String url, String frameName,
       CefWindowOpenDisposition disposition, bool userGesture) {
     bool result = false;
-    for (final h in _lifeSpanHandlers) {
+    for (final h in List.of(_lifeSpanHandlers)) {
       result |= h.onBeforePopup(
           browser, frame, url, frameName, disposition, userGesture);
     }
@@ -173,27 +228,27 @@ class CefClient {
   }
 
   void dispatchOnAfterCreated(CefBrowser browser) {
-    for (final h in _lifeSpanHandlers) {
+    for (final h in List.of(_lifeSpanHandlers)) {
       h.onAfterCreated(browser);
     }
   }
 
   void dispatchOnAfterParentChanged(CefBrowser browser) {
-    for (final h in _lifeSpanHandlers) {
+    for (final h in List.of(_lifeSpanHandlers)) {
       h.onAfterParentChanged(browser);
     }
   }
 
   bool dispatchDoClose(CefBrowser browser) {
     bool result = false;
-    for (final h in _lifeSpanHandlers) {
+    for (final h in List.of(_lifeSpanHandlers)) {
       result |= h.doClose(browser);
     }
     return result;
   }
 
   void dispatchOnBeforeClose(CefBrowser browser) {
-    for (final h in _lifeSpanHandlers) {
+    for (final h in List.of(_lifeSpanHandlers)) {
       h.onBeforeClose(browser);
     }
   }
@@ -202,74 +257,129 @@ class CefClient {
 
   void dispatchOnLoadingStateChange(
       CefBrowser browser, bool isLoading, bool canGoBack, bool canGoForward) {
-    _loadHandler?.onLoadingStateChange(
-        browser, isLoading, canGoBack, canGoForward);
+    for (final h in List.of(_loadHandlers)) {
+      h.onLoadingStateChange(browser, isLoading, canGoBack, canGoForward);
+    }
   }
 
   void dispatchOnLoadStart(
       CefBrowser browser, CefFrame frame, int transitionType) {
-    _loadHandler?.onLoadStart(browser, frame, transitionType);
+    for (final h in List.of(_loadHandlers)) {
+      h.onLoadStart(browser, frame, transitionType);
+    }
   }
 
   void dispatchOnLoadEnd(
       CefBrowser browser, CefFrame frame, int httpStatusCode) {
-    _loadHandler?.onLoadEnd(browser, frame, httpStatusCode);
+    for (final h in List.of(_loadHandlers)) {
+      h.onLoadEnd(browser, frame, httpStatusCode);
+    }
   }
 
   void dispatchOnLoadError(CefBrowser browser, CefFrame frame,
       CefErrorCode errorCode, String errorText, String failedUrl) {
-    _loadHandler?.onLoadError(browser, frame, errorCode, errorText, failedUrl);
+    for (final h in List.of(_loadHandlers)) {
+      h.onLoadError(browser, frame, errorCode, errorText, failedUrl);
+    }
   }
 
   // ── DisplayHandler ───────────────────────────────────────────────────────
 
   void dispatchOnAddressChange(
       CefBrowser browser, CefFrame frame, String url) {
-    _displayHandler?.onAddressChange(browser, frame, url);
+    for (final h in List.of(_displayHandlers)) {
+      h.onAddressChange(browser, frame, url);
+    }
   }
 
   void dispatchOnTitleChange(CefBrowser browser, String title) {
-    _displayHandler?.onTitleChange(browser, title);
+    for (final h in List.of(_displayHandlers)) {
+      h.onTitleChange(browser, title);
+    }
   }
 
-  void dispatchOnFullscreenModeChange(CefBrowser browser, bool fullscreen) =>
-      _displayHandler?.onFullscreenModeChange(browser, fullscreen);
+  void dispatchOnFullscreenModeChange(CefBrowser browser, bool fullscreen) {
+    for (final h in List.of(_displayHandlers)) {
+      h.onFullscreenModeChange(browser, fullscreen);
+    }
+  }
 
-  void dispatchOnFaviconUrlChange(CefBrowser browser, List<String> urls) =>
-      _displayHandler?.onFaviconUrlChange(browser, urls);
+  void dispatchOnFaviconUrlChange(CefBrowser browser, List<String> urls) {
+    for (final h in List.of(_displayHandlers)) {
+      h.onFaviconUrlChange(browser, urls);
+    }
+  }
 
-  bool dispatchOnTooltip(CefBrowser browser, String text) =>
-      _displayHandler?.onTooltip(browser, text) ?? false;
+  bool dispatchOnTooltip(CefBrowser browser, String text) {
+    bool handled = false;
+    for (final h in List.of(_displayHandlers)) {
+      handled |= h.onTooltip(browser, text);
+    }
+    return handled;
+  }
 
-  void dispatchOnStatusMessage(CefBrowser browser, String value) =>
-      _displayHandler?.onStatusMessage(browser, value);
+  void dispatchOnStatusMessage(CefBrowser browser, String value) {
+    for (final h in List.of(_displayHandlers)) {
+      h.onStatusMessage(browser, value);
+    }
+  }
 
   bool dispatchOnConsoleMessage(CefBrowser browser, CefLogSeverity level,
-          String message, String source, int line) =>
-      _displayHandler?.onConsoleMessage(browser, level, message, source, line) ??
-      false;
+          String message, String source, int line) {
+    bool handled = false;
+    for (final h in List.of(_displayHandlers)) {
+      handled |= h.onConsoleMessage(browser, level, message, source, line);
+    }
+    return handled;
+  }
 
-  bool dispatchOnCursorChange(CefBrowser browser, int cursorType) =>
-      _displayHandler?.onCursorChange(browser, cursorType) ?? false;
+  bool dispatchOnCursorChange(CefBrowser browser, int cursorType) {
+    bool handled = false;
+    for (final h in List.of(_displayHandlers)) {
+      handled |= h.onCursorChange(browser, cursorType);
+    }
+    return handled;
+  }
 
   // ── FocusHandler ─────────────────────────────────────────────────────────
 
-  void dispatchOnTakeFocus(CefBrowser browser, bool next) =>
-      _focusHandler?.onTakeFocus(browser, next);
+  void dispatchOnTakeFocus(CefBrowser browser, bool next) {
+    for (final h in List.of(_focusHandlers)) {
+      h.onTakeFocus(browser, next);
+    }
+  }
 
-  bool dispatchOnSetFocus(CefBrowser browser, CefFocusSource source) =>
-      _focusHandler?.onSetFocus(browser, source) ?? false;
+  bool dispatchOnSetFocus(CefBrowser browser, CefFocusSource source) {
+    bool handled = false;
+    for (final h in List.of(_focusHandlers)) {
+      handled |= h.onSetFocus(browser, source);
+    }
+    return handled;
+  }
 
-  void dispatchOnGotFocus(CefBrowser browser) =>
-      _focusHandler?.onGotFocus(browser);
+  void dispatchOnGotFocus(CefBrowser browser) {
+    for (final h in List.of(_focusHandlers)) {
+      h.onGotFocus(browser);
+    }
+  }
 
   // ── KeyboardHandler ──────────────────────────────────────────────────────
 
-  bool dispatchOnPreKeyEvent(CefBrowser browser, CefKeyEvent event) =>
-      _keyboardHandler?.onPreKeyEvent(browser, event) ?? false;
+  bool dispatchOnPreKeyEvent(CefBrowser browser, CefKeyEvent event) {
+    bool handled = false;
+    for (final h in List.of(_keyboardHandlers)) {
+      handled |= h.onPreKeyEvent(browser, event);
+    }
+    return handled;
+  }
 
-  bool dispatchOnKeyEvent(CefBrowser browser, CefKeyEvent event) =>
-      _keyboardHandler?.onKeyEvent(browser, event) ?? false;
+  bool dispatchOnKeyEvent(CefBrowser browser, CefKeyEvent event) {
+    bool handled = false;
+    for (final h in List.of(_keyboardHandlers)) {
+      handled |= h.onKeyEvent(browser, event);
+    }
+    return handled;
+  }
 
   // ── JSDialogHandler ──────────────────────────────────────────────────────
 
@@ -281,33 +391,53 @@ class CefClient {
     String defaultPromptText,
     CefJSDialogCallback callback,
   ) {
-    final handler = _jsDialogHandler;
-    if (handler != null) {
-      return handler.onJSDialog(
-          browser, originUrl, dialogType, messageText, defaultPromptText, callback);
+    final handlers = List.of(_jsDialogHandlers);
+    if (handlers.isNotEmpty) {
+      bool handled = false;
+      for (final h in handlers) {
+        handled |= h.onJSDialog(browser, originUrl, dialogType, messageText,
+            defaultPromptText, callback);
+      }
+      return handled;
     }
     // No handler registered — auto-accept to prevent the page from freezing.
-    // (Returning false without calling callback leaves the renderer blocked.)
     callback.onContinue(true, '');
-    return true; // suppress — we handled it
+    return true;
   }
 
   bool dispatchOnBeforeUnloadDialog(CefBrowser browser, String messageText,
-          bool isReload, CefJSDialogCallback callback) =>
-      _jsDialogHandler?.onBeforeUnloadDialog(
-          browser, messageText, isReload, callback) ??
-      false;
+      bool isReload, CefJSDialogCallback callback) {
+    final handlers = List.of(_jsDialogHandlers);
+    if (handlers.isNotEmpty) {
+      bool handled = false;
+      for (final h in handlers) {
+        handled |= h.onBeforeUnloadDialog(
+            browser, messageText, isReload, callback);
+      }
+      return handled;
+    }
+    return false;
+  }
 
-  void dispatchOnResetDialogState(CefBrowser browser) =>
-      _jsDialogHandler?.onResetDialogState(browser);
+  void dispatchOnResetDialogState(CefBrowser browser) {
+    for (final h in List.of(_jsDialogHandlers)) {
+      h.onResetDialogState(browser);
+    }
+  }
 
-  void dispatchOnDialogClosed(CefBrowser browser) =>
-      _jsDialogHandler?.onDialogClosed(browser);
+  void dispatchOnDialogClosed(CefBrowser browser) {
+    for (final h in List.of(_jsDialogHandlers)) {
+      h.onDialogClosed(browser);
+    }
+  }
 
   // ── FindHandler ───────────────────────────────────────────────────────────
 
-  void dispatchOnFindResult(CefBrowser browser, CefFindResult result) =>
-      _findHandler?.onFindResult(browser, result);
+  void dispatchOnFindResult(CefBrowser browser, CefFindResult result) {
+    for (final h in List.of(_findHandlers)) {
+      h.onFindResult(browser, result);
+    }
+  }
 
   // ── DownloadHandler ──────────────────────────────────────────────────────
 
@@ -316,20 +446,29 @@ class CefClient {
     CefDownloadItem item,
     String suggestedName,
     CefBeforeDownloadCallback callback,
-  ) =>
-      _downloadHandler?.onBeforeDownload(
-          browser, item, suggestedName, callback) ??
-      false;
+  ) {
+    bool handled = false;
+    for (final h in List.of(_downloadHandlers)) {
+      handled |= h.onBeforeDownload(browser, item, suggestedName, callback);
+    }
+    return handled;
+  }
 
   void dispatchOnDownloadUpdated(CefBrowser browser, CefDownloadItem item,
-          CefDownloadItemCallback callback) =>
-      _downloadHandler?.onDownloadUpdated(browser, item, callback);
+      CefDownloadItemCallback callback) {
+    for (final h in List.of(_downloadHandlers)) {
+      h.onDownloadUpdated(browser, item, callback);
+    }
+  }
 
   // ── ContextMenuHandler ───────────────────────────────────────────────────
 
   void dispatchOnBeforeContextMenu(CefBrowser browser, CefFrame frame,
-          CefContextMenuParams params, CefMenuModel model) =>
-      _contextMenuHandler?.onBeforeContextMenu(browser, frame, params, model);
+      CefContextMenuParams params, CefMenuModel model) {
+    for (final h in List.of(_contextMenuHandlers)) {
+      h.onBeforeContextMenu(browser, frame, params, model);
+    }
+  }
 
   bool dispatchRunContextMenu(
     CefBrowser browser,
@@ -337,43 +476,72 @@ class CefClient {
     CefContextMenuParams params,
     CefMenuModel model,
     CefRunContextMenuCallback callback,
-  ) =>
-      _contextMenuHandler?.runContextMenu(
-          browser, frame, params, model, callback) ??
-      false;
+  ) {
+    bool handled = false;
+    for (final h in List.of(_contextMenuHandlers)) {
+      handled |= h.runContextMenu(browser, frame, params, model, callback);
+    }
+    return handled;
+  }
 
   bool dispatchOnContextMenuCommand(CefBrowser browser, CefFrame frame,
-          CefContextMenuParams params, int commandId, int eventFlags) =>
-      _contextMenuHandler?.onContextMenuCommand(
-          browser, frame, params, commandId, eventFlags) ??
-      false;
+      CefContextMenuParams params, int commandId, int eventFlags) {
+    bool handled = false;
+    for (final h in List.of(_contextMenuHandlers)) {
+      handled |= h.onContextMenuCommand(
+          browser, frame, params, commandId, eventFlags);
+    }
+    return handled;
+  }
 
-  void dispatchOnContextMenuDismissed(CefBrowser browser, CefFrame frame) =>
-      _contextMenuHandler?.onContextMenuDismissed(browser, frame);
+  void dispatchOnContextMenuDismissed(CefBrowser browser, CefFrame frame) {
+    for (final h in List.of(_contextMenuHandlers)) {
+      h.onContextMenuDismissed(browser, frame);
+    }
+  }
 
   // ── RequestHandler ───────────────────────────────────────────────────────
 
   bool dispatchOnCertificateError(CefBrowser browser, CefErrorCode certError,
-          String requestUrl, CefCallback callback) =>
-      _requestHandler?.onCertificateError(
-          browser, certError, requestUrl, callback) ??
-      false;
+      String requestUrl, CefCallback callback) {
+    bool handled = false;
+    for (final h in List.of(_requestHandlers)) {
+      handled |=
+          h.onCertificateError(browser, certError, requestUrl, callback);
+    }
+    return handled;
+  }
 
   bool dispatchOnBeforeResourceLoad(
-          CefBrowser browser, CefFrame frame, CefRequest request) =>
-      _requestHandler?.onBeforeResourceLoad(browser, frame, request) ?? false;
+      CefBrowser browser, CefFrame frame, CefRequest request) {
+    bool handled = false;
+    for (final h in List.of(_requestHandlers)) {
+      handled |= h.onBeforeResourceLoad(browser, frame, request);
+    }
+    return handled;
+  }
 
   void dispatchOnRenderProcessTerminated(CefBrowser browser,
-          CefTerminationStatus status, int errorCode, String errorString) =>
-      _requestHandler?.onRenderProcessTerminated(
-          browser, status, errorCode, errorString);
+      CefTerminationStatus status, int errorCode, String errorString) {
+    for (final h in List.of(_requestHandlers)) {
+      h.onRenderProcessTerminated(browser, status, errorCode, errorString);
+    }
+  }
 
   // ─── Disposal ─────────────────────────────────────────────────────────────
 
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
-    // TODO: Notify native layer to destroy all owned browsers via FFI.
+    _contextMenuHandlers.clear();
+    _displayHandlers.clear();
+    _downloadHandlers.clear();
+    _focusHandlers.clear();
+    _findHandlers.clear();
+    _jsDialogHandlers.clear();
+    _keyboardHandlers.clear();
+    _loadHandlers.clear();
+    _requestHandlers.clear();
     _lifeSpanHandlers.clear();
   }
 

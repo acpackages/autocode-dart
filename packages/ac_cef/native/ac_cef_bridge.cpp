@@ -1,4 +1,4 @@
-// ac_cef_bridge.cpp — complete implementation including OSR render handler
+// ac_cef_bridge.cpp â€” complete implementation including OSR render handler
 // See ac_cef_bridge.h for the public API.
 
 #include "ac_cef_bridge.h"
@@ -16,16 +16,39 @@
 
 #ifdef _WIN32
 #  include <windows.h>
+#  include <timeapi.h>
 #  include <shellscalingapi.h>
 #  include <cstdio>
 #  pragma comment(lib, "Shcore.lib")
+#  pragma comment(lib, "Winmm.lib")
 #endif
 
+#include <cmath>
 #include <map>
 #include <mutex>
 #include <string>
 
-// ─── Global state ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ UTF-8 helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CefString::ToString() on Windows uses the system code page (usually CP1252),
+// which corrupts any non-ASCII characters (e.g. "â€“" in flutter.dev title).
+// cefu8() converts via the wide-character representation â†’ proper UTF-8.
+static std::string cefu8(const CefString& s) {
+#ifdef _WIN32
+    const std::wstring& w = s.ToWString();
+    if (w.empty()) return {};
+    int sz = WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(),
+                                 nullptr, 0, nullptr, nullptr);
+    if (sz <= 0) return {};
+    std::string out(sz, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(),
+                        &out[0], sz, nullptr, nullptr);
+    return out;
+#else
+    return s.ToString(); // CEF on non-Windows already gives UTF-8
+#endif
+}
+
+// â”€â”€â”€ Global state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static AcCefCallbacks g_callbacks = {};
 
@@ -50,7 +73,7 @@ static CefRefPtr<CefBrowser> GetBrowser(int64_t id) {
     return info ? info->browser : nullptr;
 }
 
-// ─── Pending callbacks ────────────────────────────────────────────────────────
+// â”€â”€â”€ Pending callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static std::map<int64_t, CefRefPtr<CefJSDialogCallback>>          g_js_cbs;
 static std::map<int64_t, CefRefPtr<CefBeforeDownloadCallback>>    g_dl_cbs;
@@ -78,7 +101,7 @@ static int64_t RegCert(CefRefPtr<CefCallback> cb) {
     return id;
 }
 
-// ─── RenderHandler (OSR paint) ────────────────────────────────────────────────
+// â”€â”€â”€ RenderHandler (OSR paint) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AcRenderHandler : public CefRenderHandler {
 public:
@@ -93,6 +116,16 @@ public:
         } else {
             rect.width = 800; rect.height = 600;
         }
+    }
+
+    bool GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& screen_info) override {
+        std::lock_guard<std::mutex> lk(g_browsers_mutex);
+        if (auto* info = GetInfo(browser_id)) {
+            screen_info.device_scale_factor = info->dpr;
+        } else {
+            screen_info.device_scale_factor = 1.0f;
+        }
+        return true;
     }
 
     void OnPopupShow(CefRefPtr<CefBrowser>, bool show) override {
@@ -128,7 +161,7 @@ public:
     IMPLEMENT_REFCOUNTING(AcRenderHandler);
 };
 
-// ─── CefApp ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ CefApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AcCefApp : public CefApp, public CefBrowserProcessHandler {
 public:
@@ -140,16 +173,25 @@ public:
         cmd->AppendSwitch("disable-gpu-compositing");
         cmd->AppendSwitch("disable-gpu-sandbox");
         cmd->AppendSwitch("disable-network-sandbox");
-        cmd->AppendSwitch("disable-software-rasterizer");
-        cmd->AppendSwitch("enable-begin-frame-scheduling");
-        // Force Alloy style for the entire process — prevents Chrome runtime
+        // NOTE: "disable-software-rasterizer" is intentionally NOT set.
+        // OSR relies on the Skia software rasterizer; disabling it prevents
+        // CSS, SVG, and canvas from rendering in windowless mode.
+        //
+        // NOTE: "enable-begin-frame-scheduling" is intentionally NOT set.
+        // That switch puts the renderer into external-begin-frame mode where
+        // OnPaint fires ONLY when SendExternalBeginFrame() is called explicitly.
+        // Without that call, hover effects, scroll, JS animations, and DOM
+        // updates never trigger a repaint -- only WasResized() still works.
+        // Removing this switch lets CEF paint automatically at the configured
+        // windowless_frame_rate (FPS) without any extra signalling.
+        // Force Alloy style for the entire process â€” prevents Chrome runtime
         // from opening a full browser window and triggering de-elevation.
         cmd->AppendSwitchWithValue("use-alloy-style", "1");
     }
     IMPLEMENT_REFCOUNTING(AcCefApp);
 };
 
-// ─── BrowserClient ────────────────────────────────────────────────────────────
+// â”€â”€â”€ BrowserClient â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AcBrowserClient : public CefClient,
                          public CefLifeSpanHandler,
@@ -181,7 +223,7 @@ class AcBrowserClient : public CefClient,
      CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
      CefRefPtr<CefFindHandler>     GetFindHandler()     override { return this; }
 
-    // ── FindHandler ──────────────────────────────────────────────────────────
+    // â”€â”€ FindHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnFindResult(CefRefPtr<CefBrowser> browser,
                       int identifier, int count,
                       const CefRect& selection_rect,
@@ -196,7 +238,7 @@ class AcBrowserClient : public CefClient,
                 final_update ? 1 : 0);
     }
 
-    // ── LifeSpan ──────────────────────────────────────────────────────────────
+    // â”€â”€ LifeSpan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         std::lock_guard<std::mutex> lk(g_browsers_mutex);
         browser_id = g_next_browser_id++;
@@ -222,7 +264,7 @@ class AcBrowserClient : public CefClient,
         if (g_callbacks.on_render_process_terminated)
             g_callbacks.on_render_process_terminated(
                 browser_id, (int)status, error_code,
-                error_string.ToString().c_str());
+                cefu8(error_string).c_str());
     }
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
                        CefRefPtr<CefFrame> frame,
@@ -239,8 +281,8 @@ class AcBrowserClient : public CefClient,
                        bool* no_javascript_access) override {
         if (g_callbacks.on_before_popup) {
             int cancel = g_callbacks.on_before_popup(browser_id,
-                target_url.ToString().c_str(),
-                target_frame_name.ToString().c_str(),
+                cefu8(target_url).c_str(),
+                cefu8(target_frame_name).c_str(),
                 (int)target_disposition,
                 user_gesture ? 1 : 0);
             if (cancel) return true;  // Dart handler said cancel
@@ -248,12 +290,15 @@ class AcBrowserClient : public CefClient,
         // Allow popup as an OSR browser so it integrates with the same
         // paint pipeline. A fresh AcBrowserClient receives OnAfterCreated
         // with the popup's browser_id, which Dart can wrap in a new CefView.
-        windowInfo.SetAsWindowless(0);   // 0 = opaque background
+        windowInfo.SetAsWindowless(0);                      // 0 = opaque background
+        windowInfo.runtime_style = CEF_RUNTIME_STYLE_ALLOY; // Must match main browser;
+                                                             // without this, Chrome runtime
+                                                             // opens a native windowed browser.
         client = new AcBrowserClient();  // ID assigned in OnAfterCreated
         return false;                    // allow popup creation
     }
 
-    // ── LoadHandler ───────────────────────────────────────────────────────────
+    // ── LoadHandler ──────────────────────────────────────────────────────────
     void OnLoadingStateChange(CefRefPtr<CefBrowser> browser,
                               bool isLoading, bool canGoBack, bool canGoForward) override {
         if (g_callbacks.on_loading_state_changed)
@@ -262,36 +307,36 @@ class AcBrowserClient : public CefClient,
     void OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f,
                      TransitionType t) override {
         if (g_callbacks.on_load_start)
-            g_callbacks.on_load_start(browser_id, f->GetURL().ToString().c_str(), (int)t);
+            g_callbacks.on_load_start(browser_id, cefu8(f->GetURL()).c_str(), (int)t);
     }
     void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f,
                    int http_status_code) override {
         if (g_callbacks.on_load_end)
-            g_callbacks.on_load_end(browser_id, f->GetURL().ToString().c_str(), http_status_code);
+            g_callbacks.on_load_end(browser_id, cefu8(f->GetURL()).c_str(), http_status_code);
     }
     void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f,
                      ErrorCode code, const CefString& text,
                      const CefString& url) override {
         if (g_callbacks.on_load_error)
-            g_callbacks.on_load_error(browser_id, f->GetURL().ToString().c_str(), (int)code,
-                                      text.ToString().c_str(), url.ToString().c_str());
+            g_callbacks.on_load_error(browser_id, cefu8(f->GetURL()).c_str(), (int)code,
+                                      cefu8(text).c_str(), cefu8(url).c_str());
     }
 
-    // ── DisplayHandler ────────────────────────────────────────────────────────
+    // â”€â”€ DisplayHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnAddressChange(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
                          const CefString& url) override {
         if (g_callbacks.on_url_changed)
-            g_callbacks.on_url_changed(browser_id, url.ToString().c_str());
+            g_callbacks.on_url_changed(browser_id, cefu8(url).c_str());
     }
     void OnTitleChange(CefRefPtr<CefBrowser>, const CefString& t) override {
         // Cache the title so ac_cef_get_title can return it synchronously.
         {
             std::lock_guard<std::mutex> lk(g_browsers_mutex);
             if (auto* info = GetInfo(browser_id))
-                info->title = t.ToString();
+                info->title = cefu8(t);
         }
         if (g_callbacks.on_title_changed)
-            g_callbacks.on_title_changed(browser_id, t.ToString().c_str());
+            g_callbacks.on_title_changed(browser_id, cefu8(t).c_str());
     }
     bool OnCursorChange(CefRefPtr<CefBrowser> browser,
                         CefCursorHandle cursor,
@@ -303,28 +348,28 @@ class AcBrowserClient : public CefClient,
     }
     void OnStatusMessage(CefRefPtr<CefBrowser>, const CefString& value) override {
         if (g_callbacks.on_status_message)
-            g_callbacks.on_status_message(browser_id, value.ToString().c_str());
+            g_callbacks.on_status_message(browser_id, cefu8(value).c_str());
     }
     bool OnTooltip(CefRefPtr<CefBrowser>, CefString& text) override {
         if (g_callbacks.on_tooltip)
-            return g_callbacks.on_tooltip(browser_id, text.ToString().c_str()) != 0;
+            return g_callbacks.on_tooltip(browser_id, cefu8(text).c_str()) != 0;
         return false;
     }
     bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t level,
                           const CefString& msg, const CefString& src, int line) override {
         if (g_callbacks.on_console_message)
             return g_callbacks.on_console_message(browser_id, (int)level,
-                msg.ToString().c_str(), src.ToString().c_str(), line) != 0;
+                cefu8(msg).c_str(), cefu8(src).c_str(), line) != 0;
         return false;
     }
 
-    // ── FocusHandler ──────────────────────────────────────────────────────────
+    // â”€â”€ FocusHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnGotFocus(CefRefPtr<CefBrowser>) override {
         if (g_callbacks.on_got_focus)
             g_callbacks.on_got_focus(browser_id);
     }
 
-    // ── DisplayHandler (additional) ───────────────────────────────────────────
+    // â”€â”€ DisplayHandler (additional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnFullscreenModeChange(CefRefPtr<CefBrowser>, bool fullscreen) override {
         if (g_callbacks.on_fullscreen_mode_change)
             g_callbacks.on_fullscreen_mode_change(browser_id, fullscreen ? 1 : 0);
@@ -334,12 +379,12 @@ class AcBrowserClient : public CefClient,
                             const std::vector<CefString>& icon_urls) override {
         if (!g_callbacks.on_favicon_url_change) return;
         std::string flat;
-        for (const auto& u : icon_urls) { flat += u.ToString(); flat += '\0'; }
+        for (const auto& u : icon_urls) { flat += cefu8(u); flat += '\0'; }
         flat += '\0';
         g_callbacks.on_favicon_url_change(browser_id, flat.c_str());
     }
 
-    // ── KeyboardHandler ───────────────────────────────────────────────────────
+    // â”€â”€ KeyboardHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent& event,
                        CefEventHandle /*os_event*/, bool* is_keyboard_shortcut) override {
         if (g_callbacks.on_pre_key_event) {
@@ -366,15 +411,15 @@ class AcBrowserClient : public CefClient,
         return false;
     }
 
-    // ── JSDialogHandler ───────────────────────────────────────────────────────
+    // â”€â”€ JSDialogHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool OnJSDialog(CefRefPtr<CefBrowser>, const CefString& origin,
                     JSDialogType type, const CefString& msg,
                     const CefString& prompt,
                     CefRefPtr<CefJSDialogCallback> cb, bool& suppress) override {
         if (g_callbacks.on_js_dialog) {
             int64_t id = RegJS(cb);
-            return g_callbacks.on_js_dialog(browser_id, origin.ToString().c_str(),
-                (int)type, msg.ToString().c_str(), prompt.ToString().c_str(), id) != 0;
+            return g_callbacks.on_js_dialog(browser_id, cefu8(origin).c_str(),
+                (int)type, cefu8(msg).c_str(), cefu8(prompt).c_str(), id) != 0;
         }
         return false;
     }
@@ -383,22 +428,22 @@ class AcBrowserClient : public CefClient,
         if (g_callbacks.on_before_unload_dialog) {
             int64_t id = RegJS(cb);
             return g_callbacks.on_before_unload_dialog(
-                browser_id, msg.ToString().c_str(), is_reload ? 1 : 0, id) != 0;
+                browser_id, cefu8(msg).c_str(), is_reload ? 1 : 0, id) != 0;
         }
         // Default: auto-accept (continue navigation)
         cb->Continue(true, CefString());
         return true;
     }
 
-    // ── DownloadHandler ───────────────────────────────────────────────────────
+    // â”€â”€ DownloadHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool OnBeforeDownload(CefRefPtr<CefBrowser>, CefRefPtr<CefDownloadItem> item,
                           const CefString& suggested,
                           CefRefPtr<CefBeforeDownloadCallback> cb) override {
         if (g_callbacks.on_before_download) {
             int64_t id = RegDL(cb);
             return g_callbacks.on_before_download(browser_id, item->GetId(),
-                item->GetURL().ToString().c_str(),
-                suggested.ToString().c_str(), id) != 0;
+                cefu8(item->GetURL()).c_str(),
+                cefu8(suggested).c_str(), id) != 0;
         }
         return false;
     }
@@ -419,13 +464,13 @@ class AcBrowserClient : public CefClient,
         }
     }
 
-    // ── ContextMenuHandler ──────────────────────────────────────────────────
+    // â”€â”€ ContextMenuHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
                              CefRefPtr<CefFrame> frame,
                              CefRefPtr<CefContextMenuParams> params,
                              CefRefPtr<CefMenuModel> model) override {
         if (g_callbacks.on_before_context_menu) {
-            // ── Menu items ────────────────────────────────────────────────
+            // â”€â”€ Menu items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             int count = model->GetCount();
             std::vector<int>         cmd_ids(count);
             std::vector<int>         types(count);
@@ -438,16 +483,16 @@ class AcBrowserClient : public CefClient,
                 types[i]      = (int)model->GetTypeAt(i);
                 enabled[i]    = model->IsEnabledAt(i) ? 1 : 0;
                 checked[i]    = model->IsCheckedAt(i) ? 1 : 0;
-                label_strs[i] = model->GetLabelAt(i).ToString();
+                label_strs[i] = cefu8(model->GetLabelAt(i));
                 labels[i]     = label_strs[i].c_str();
             }
-            // ── CefContextMenuParams ──────────────────────────────────────
-            std::string link_url      = params->GetLinkUrl().ToString();
-            std::string page_url      = params->GetPageUrl().ToString();
-            std::string frame_url     = params->GetFrameUrl().ToString();
-            std::string source_url    = params->GetSourceUrl().ToString();
-            std::string sel_text      = params->GetSelectionText().ToString();
-            std::string misspelled    = params->GetMisspelledWord().ToString();
+            // â”€â”€ CefContextMenuParams â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            std::string link_url = cefu8(params->GetLinkUrl());
+            std::string page_url = cefu8(params->GetPageUrl());
+            std::string frame_url = cefu8(params->GetFrameUrl());
+            std::string source_url = cefu8(params->GetSourceUrl());
+            std::string sel_text = cefu8(params->GetSelectionText());
+            std::string misspelled = cefu8(params->GetMisspelledWord());
             g_callbacks.on_before_context_menu(
                 browser_id,
                 params->GetXCoord(), params->GetYCoord(),
@@ -470,11 +515,11 @@ class AcBrowserClient : public CefClient,
                 params->IsEditable() ? 1 : 0,
                 params->HasImageContents() ? 1 : 0);
         }
-        // Always clear — Dart shows a custom Flutter overlay instead.
+        // Always clear â€” Dart shows a custom Flutter overlay instead.
         model->Clear();
     }
 
-    // ── RequestHandler ────────────────────────────────────────────────────────
+    // â”€â”€ RequestHandler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                         CefRefPtr<CefRequest> request, bool user_gesture,
                         bool is_redirect) override {
@@ -483,7 +528,7 @@ class AcBrowserClient : public CefClient,
         }
         if (g_callbacks.on_before_browse) {
             return g_callbacks.on_before_browse(browser_id,
-                request->GetURL().ToString().c_str(),
+                cefu8(request->GetURL()).c_str(),
                 is_redirect ? 1 : 0,
                 user_gesture ? 1 : 0) != 0;
         }
@@ -497,13 +542,13 @@ class AcBrowserClient : public CefClient,
             int64_t id = RegCert(cb);
             return g_callbacks.on_certificate_error(
                 browser_id, (int)cert_error,
-                request_url.ToString().c_str(), id) != 0;
+                cefu8(request_url).c_str(), id) != 0;
         }
         return false;  // default: cancel (certificate error blocks navigation)
     }
 
 
-    // ── MessageRouter ────────────────────────────────────────────────────────
+    // â”€â”€ MessageRouter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
                                   CefRefPtr<CefFrame> frame,
                                   CefProcessId source_process,
@@ -517,7 +562,7 @@ class AcBrowserClient : public CefClient,
     IMPLEMENT_REFCOUNTING(AcBrowserClient);
 };
 
-// ─── C exports ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ C exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 extern "C" {
 
@@ -596,7 +641,12 @@ AC_CEF_EXPORT int ac_cef_initialize(
     printf("[ac_cef_bridge] CefExecuteProcess returned %d\n", ep);
     fflush(stdout);
     if (ep >= 0) {
-        return -(ep + 1);
+        // This process was launched as a CEF subprocess (renderer, GPU, utility).
+        // CefExecuteProcess has already handled the subprocess duties.
+        // Return 0 so Dart sees initialize() = false and can exit cleanly.
+        // (Previously returned -(ep+1) which Dart's `result != 0` treated as
+        //  success, causing a full Flutter UI to launch in the subprocess.)
+        return 0;
     }
 
     printf("[ac_cef_bridge] Calling CefInitialize...\n");
@@ -605,10 +655,19 @@ AC_CEF_EXPORT int ac_cef_initialize(
     printf("[ac_cef_bridge] CefInitialize returned %s\n", success ? "TRUE" : "FALSE");
     fflush(stdout);
 
-    return 1;
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
+
+    return success ? 1 : 0;
 }
 
-AC_CEF_EXPORT void ac_cef_shutdown()          { CefShutdown(); }
+AC_CEF_EXPORT void ac_cef_shutdown() {
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
+    CefShutdown();
+}
 AC_CEF_EXPORT void ac_cef_do_message_loop_work() { CefDoMessageLoopWork(); }
 AC_CEF_EXPORT void ac_cef_run_message_loop()  { CefRunMessageLoop(); }
 AC_CEF_EXPORT void ac_cef_quit_message_loop() { CefQuitMessageLoop(); }
@@ -621,7 +680,7 @@ AC_CEF_EXPORT int64_t ac_cef_create_browser(const char* url, int fps, int transp
     // Alloy runtime is required for off-screen rendering (OSR).
     wi.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
     CefBrowserSettings bs;
-    bs.windowless_frame_rate = fps > 0 ? fps : 30;
+    bs.windowless_frame_rate = fps > 0 ? fps : 60;
     CefBrowserHost::CreateBrowser(wi, client, url, bs, nullptr, nullptr);
     // browser_id assigned asynchronously in OnAfterCreated
     return 0;
@@ -630,8 +689,11 @@ AC_CEF_EXPORT int64_t ac_cef_create_browser(const char* url, int fps, int transp
 AC_CEF_EXPORT void ac_cef_set_view_size(int64_t id, int w, int h, float dpr) {
     std::lock_guard<std::mutex> lk(g_browsers_mutex);
     if (auto* info = GetInfo(id)) {
-        info->view_width  = w;
-        info->view_height = h;
+        // w and h are physical pixels (logical × dpr).
+        // GetViewRect returns LOGICAL pixels; GetScreenInfo supplies the DPR so
+        // CEF can compute the physical paint-buffer size correctly.
+        info->view_width  = (dpr > 0.0f) ? static_cast<int>(std::round(w / dpr)) : w;
+        info->view_height = (dpr > 0.0f) ? static_cast<int>(std::round(h / dpr)) : h;
         info->dpr         = dpr;
     }
 }
@@ -715,7 +777,7 @@ AC_CEF_EXPORT void ac_cef_ime_set_composition(
     int selection_start, int selection_end) {
     if (auto b = GetBrowser(id)) {
         CefString cef_text(text ? text : "");
-        // No underline styling — pass empty vector.
+        // No underline styling â€” pass empty vector.
         std::vector<CefCompositionUnderline> underlines;
         // cursor_pos: -1 means end of text
         int len = (int)cef_text.size();
@@ -743,7 +805,7 @@ AC_CEF_EXPORT void ac_cef_js_dialog_response(int64_t cb_id, int ok, const char* 
     }
 }
 
-// ─── Message router implementation ────────────────────────────────────────────
+// â”€â”€â”€ Message router implementation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AcQueryHandler : public CefMessageRouterBrowserSide::Handler {
 public:
@@ -768,7 +830,7 @@ public:
                 std::lock_guard<std::mutex> lk(g_cb_mutex);
                 g_query_cbs[query_id] = callback;
             }
-            on_query(browser_id, query_id, request.ToString().c_str(), persistent ? 1 : 0);
+            on_query(browser_id, query_id, cefu8(request).c_str(), persistent ? 1 : 0);
             return true;
         }
         return false;
@@ -884,16 +946,20 @@ AC_CEF_EXPORT void ac_cef_set_cookie(const char* url, const char* name,
     CefCookieManager::GetGlobalManager(nullptr)->SetCookie(url, c, nullptr);
 }
 
-// ─── Message router ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Message router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // (Implementation moved above)
 
-// ─── DevTools ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ DevTools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 AC_CEF_EXPORT void ac_cef_open_dev_tools(int64_t id) {
     if (auto b = GetBrowser(id)) {
         CefWindowInfo wi;
 #ifdef _WIN32
         wi.SetAsPopup(nullptr, "DevTools");
+        wi.bounds.x = 100;
+        wi.bounds.y = 100;
+        wi.bounds.width = 1024;
+        wi.bounds.height = 768;
 #endif
         CefBrowserSettings bs;
         b->GetHost()->ShowDevTools(wi, nullptr, bs, CefPoint());
@@ -905,7 +971,7 @@ AC_CEF_EXPORT void ac_cef_close_dev_tools(int64_t id) {
         b->GetHost()->CloseDevTools();
 }
 
-// ─── Print to PDF ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Print to PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class PdfPrintCallback : public CefPdfPrintCallback {
 public:
@@ -935,7 +1001,7 @@ AC_CEF_EXPORT void ac_cef_print_to_pdf(
     }
 }
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // NOTE: returned strings must be freed by the caller via free()
 static char* AllocStr(const std::string& s) {
@@ -946,7 +1012,7 @@ static char* AllocStr(const std::string& s) {
 
 AC_CEF_EXPORT const char* ac_cef_get_url(int64_t id) {
     if (auto b = GetBrowser(id))
-        return AllocStr(b->GetMainFrame()->GetURL().ToString());
+        return AllocStr(cefu8(b->GetMainFrame()->GetURL()));
     return AllocStr("");
 }
 
@@ -972,7 +1038,7 @@ AC_CEF_EXPORT int ac_cef_is_loading(int64_t id) {
     return 0;
 }
 
-// ─── LoadRequest (POST) ──────────────────────────────────────────────────────
+// â”€â”€â”€ LoadRequest (POST) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 AC_CEF_EXPORT void ac_cef_load_request(
     int64_t id, const char* url, const char* method,
@@ -992,7 +1058,7 @@ AC_CEF_EXPORT void ac_cef_load_request(
     b->GetMainFrame()->LoadRequest(req);
 }
 
-// ─── Audio ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 AC_CEF_EXPORT void ac_cef_set_audio_muted(int64_t id, int muted) {
     if (auto b = GetBrowser(id)) b->GetHost()->SetAudioMuted(muted != 0);
@@ -1003,7 +1069,7 @@ AC_CEF_EXPORT int ac_cef_is_audio_muted(int64_t id) {
     return 0;
 }
 
-// ─── Find in page ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Find in page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 AC_CEF_EXPORT void ac_cef_find(int64_t id, const char* search_text,
     int forward, int match_case, int find_next)
@@ -1017,7 +1083,7 @@ AC_CEF_EXPORT void ac_cef_stop_find(int64_t id, int clear_selection) {
         b->GetHost()->StopFinding(clear_selection != 0);
 }
 
-// ─── Async source / text retrieval ────────────────────────────────────────────
+// â”€â”€â”€ Async source / text retrieval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // CefStringVisitor implementation that fires a C callback and self-destructs.
 class StringVisitorCallback : public CefStringVisitor {
@@ -1026,7 +1092,7 @@ public:
         : cb_id_(cb_id), cb_(cb) {}
 
     void Visit(const CefString& str) override {
-        const std::string s = str.ToString();
+        const std::string s = cefu8(str);
         cb_(cb_id_, s.c_str());
     }
 private:
@@ -1052,3 +1118,6 @@ AC_CEF_EXPORT void ac_cef_get_text(int64_t id, int64_t cb_id,
 }
 
 } // extern "C"
+
+
+

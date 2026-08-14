@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -553,6 +553,15 @@ class CefView extends StatefulWidget {
   final CefViewCreatedCallback? onCreated;
   final Color backgroundColor;
   final int frameRate;
+  /// Multiplier applied to Flutter scroll deltas before forwarding to CEF.
+  ///
+  /// Flutter reports scroll in logical CSS pixels. CEF/Chromium interprets the
+  /// delta directly as CSS pixels when applying smooth-scroll. The default (1.0)
+  /// produces the same feel as a native browser on most platforms. Increase this
+  /// value if scrolling feels sluggish (e.g. 2.0–3.0 on trackpads where Flutter
+  /// reports small deltas). You can also verify live values by printing
+  /// `e.scrollDelta` inside `_onPointerSignal`.
+  final double scrollMultiplier;
   /// Optional JS dialog callback. When provided a [FlutterJSDialogHandler] is
   /// registered that calls this function for alert/confirm/prompt dialogs.
   /// If null, dialogs are auto-accepted (page is never frozen).
@@ -565,6 +574,7 @@ class CefView extends StatefulWidget {
     this.onCreated,
     this.backgroundColor = Colors.white,
     this.frameRate = 60,
+    this.scrollMultiplier = 1.0,
     this.onJSDialog,
   });
 
@@ -578,20 +588,16 @@ class _CefViewState extends State<CefView> {
   // Decoded frame image — rebuilt every OnPaint
   ui.Image? _frame;
 
-  // ─── Frame queue (1-slot): fixes the _decoding flag frame-drop bug ───────────
-  // When a decode is in progress and a new frame arrives, we overwrite the
-  // pending slot instead of dropping the frame.  After each decode completes
-  // we immediately start decoding the pending frame (if any), so the display
-  // always shows the very latest frame without accumulating a backlog.
   bool _decoding = false;
-  PaintFrame? _pendingFrame;       // latest main frame awaiting decode
+  bool _hasPendingFrame = false;
+  int  _pendingW = 0;
+  int  _pendingH = 0;
 
   // ─── Persistent RGBA backing buffers (partial-repaint optimisation) ──────────
   // BGRA→RGBA conversion only runs on dirty rects each frame, reducing CPU work
-  // by up to 95% on typical web pages.  The backing buffer is never modified
-  // while _decoding = true (the 1-slot queue ensures this), so passing it
-  // directly to decodeImageFromPixels is race-free.
+  // by up to 95% on typical web pages.
   Uint8List? _backingRgba;        // RGBA backing buffer for main frame
+  Uint8List? _snapshotRgba;       // pre-allocated snapshot buffer — reused every frame
   int        _backingW = 0;
   int        _backingH = 0;
 
@@ -624,14 +630,23 @@ class _CefViewState extends State<CefView> {
 
   // Popup overlay compositing
   ui.Image? _popupFrame;
-  bool _popupVisible    = false;
-  bool _popupDecoding   = false;
-  PaintFrame? _pendingPopupFrame; // latest popup frame awaiting decode
-  Rect _popupRect       = Rect.zero; // in logical pixels
+  bool _popupVisible          = false;
+  bool _popupDecoding         = false;
+  bool _hasPendingPopupFrame  = false;
+  int  _pendingPopupW         = 0;
+  int  _pendingPopupH         = 0;
+  Rect _popupRect             = Rect.zero; // in logical pixels
   StreamSubscription<CefPopupEvent>? _popupEventSub;
   Uint8List? _popupBackingRgba;   // RGBA backing buffer for popup overlay
+  Uint8List? _snapshotPopupRgba;  // pre-allocated popup snapshot buffer
   int        _popupBackingW = 0;
   int        _popupBackingH = 0;
+
+  // ─── Lifecycle handler references ───────────────────────────────────────────────
+  _BoundLifeSpanHandler?    _lifeSpanHandler;
+  _BoundDisplayHandler?     _boundDisplayHandler;
+  _BoundLoadHandler?        _boundLoadHandler;
+  _CallbackJSDialogHandler? _dialogHandler;
 
   @override
   void initState() {
@@ -641,95 +656,103 @@ class _CefViewState extends State<CefView> {
     // Use global keyboard handler — Focus.onKeyEvent can miss events
     HardwareKeyboard.instance.addHandler(_onHardwareKey);
 
-    // Register a life-span handler to capture the browser ID
-    widget.native.client.addLifeSpanHandler(
-      _BoundLifeSpanHandler(
-        onAfterCreated: (browser) {
-          final id = browser.nativeBrowserId;
-          _controller._bind(id);
+    // Register a life-span handler to capture the browser ID.
+    _lifeSpanHandler = _BoundLifeSpanHandler(
+      onAfterCreated: (browser) {
+        final id = browser.nativeBrowserId;
+        _controller._bind(id);
 
-          // Wire display / load callbacks → CefController callback slots so
-          // CefBrowserState (and any user code) receives URL/title/loading events.
-          widget.native.client.addDisplayHandler(_BoundDisplayHandler(
-            browserId: id,
-            onAddressChange: (url) => _controller.onUrlChanged?.call(url),
-            onTitleChange: (title) => _controller.onTitleChanged?.call(title),
-            onFaviconUrls: (urls) => _controller.onFaviconUrlsChanged?.call(urls),
-          ));
-          widget.native.client.addLoadHandler(_BoundLoadHandler(
-            browserId: id,
-            onLoadingStateChange: (loading, canBack, canFwd) =>
-                _controller.onLoadingStateChanged?.call(loading, canBack, canFwd),
-          ));
+        // Wire display / load callbacks → CefController callback slots
+        _boundDisplayHandler = _BoundDisplayHandler(
+          browserId: id,
+          onAddressChange: (url) => _controller.onUrlChanged?.call(url),
+          onTitleChange: (title) => _controller.onTitleChanged?.call(title),
+          onFaviconUrls: (urls) => _controller.onFaviconUrlsChanged?.call(urls),
+        );
+        widget.native.client.addDisplayHandler(_boundDisplayHandler!);
 
-          _paintSub = widget.native.paintFrames(id).listen(_onPaintFrame);
+        _boundLoadHandler = _BoundLoadHandler(
+          browserId: id,
+          onLoadingStateChange: (loading, canBack, canFwd) =>
+              _controller.onLoadingStateChanged?.call(loading, canBack, canFwd),
+        );
+        widget.native.client.addLoadHandler(_boundLoadHandler!);
 
-          // Subscribe to cursor changes for this browser
-          _cursorSub = widget.native.cursorChanges(id).listen((cursorType) {
-            if (mounted) {
+        _paintSub = widget.native.paintFrames(id).listen(_onPaintFrame);
+
+        // Subscribe to cursor changes for this browser
+        _cursorSub = widget.native.cursorChanges(id).listen((cursorType) {
+          if (mounted) {
+            setState(() {
+              _currentCursor = _mapCefCursor(cursorType);
+            });
+          }
+        });
+
+        // Subscribe to popup show/size events
+        _popupEventSub = widget.native.popupEvents(id).listen((event) {
+          if (!mounted) return;
+          switch (event) {
+            case CefPopupShowEvent(:final show):
               setState(() {
-                _currentCursor = _mapCefCursor(cursorType);
+                _popupVisible = show;
+                if (!show) {
+                  _popupFrame?.dispose();
+                  _popupFrame = null;
+                }
               });
-            }
-          });
-
-          // Subscribe to popup show/size events
-          _popupEventSub = widget.native.popupEvents(id).listen((event) {
-            if (!mounted) return;
-            switch (event) {
-              case CefPopupShowEvent(:final show):
-                setState(() {
-                  _popupVisible = show;
-                  if (!show) {
-                    _popupFrame?.dispose();
-                    _popupFrame = null;
-                  }
-                });
-              case CefPopupSizeEvent(:final x, :final y, :final width, :final height):
-                setState(() {
-                  // CEF gives us physical pixels; convert to logical for positioning
-                  _popupRect = Rect.fromLTWH(
-                    x / _dpr, y / _dpr,
-                    width / _dpr, height / _dpr,
-                  );
-                });
-            }
-          });
-
-          // Push initial view size if we have it
-          if (_physicalSize != Size.zero) {
-            widget.native.setViewSize(id,
-                _physicalSize.width / _dpr,
-                _physicalSize.height / _dpr,
-                _dpr);
+            case CefPopupSizeEvent(:final x, :final y, :final width, :final height):
+              setState(() {
+                // CEF gives us physical pixels; convert to logical for positioning
+                _popupRect = Rect.fromLTWH(
+                  x / _dpr, y / _dpr,
+                  width / _dpr, height / _dpr,
+                );
+              });
           }
+        });
 
-          // Give focus to the browser immediately
-          widget.native.setFocus(id, true);
+        // Push initial view size if we have it
+        if (_physicalSize != Size.zero) {
+          widget.native.setViewSize(id,
+              _physicalSize.width / _dpr,
+              _physicalSize.height / _dpr,
+              _dpr);
+        }
 
-          widget.onCreated?.call(_controller);
+        // Give focus to the browser immediately
+        widget.native.setFocus(id, true);
 
-          // Wire JS dialog handler if the CefView.onJSDialog prop was provided
-          if (widget.onJSDialog != null) {
-            widget.native.client.addJSDialogHandler(
-              _CallbackJSDialogHandler(widget.onJSDialog!),
-            );
-          }
-        },
-        onBeforeClose: (browser) {
-          _paintSub?.cancel();
-          _paintSub = null;
-          _cursorSub?.cancel();
-          _cursorSub = null;
-          _popupEventSub?.cancel();
-          _popupEventSub = null;
-          // Remove dialog handler when browser closes
-          if (widget.onJSDialog != null) {
-            widget.native.client.removeJSDialogHandler();
-          }
-        },
-      ),
+        widget.onCreated?.call(_controller);
+
+        // Wire JS dialog handler if the CefView.onJSDialog prop was provided
+        if (widget.onJSDialog != null) {
+          _dialogHandler = _CallbackJSDialogHandler(widget.onJSDialog!);
+          widget.native.client.addJSDialogHandler(_dialogHandler!);
+        }
+      },
+      onBeforeClose: (browser) {
+        _paintSub?.cancel();
+        _paintSub = null;
+        _cursorSub?.cancel();
+        _cursorSub = null;
+        _popupEventSub?.cancel();
+        _popupEventSub = null;
+        if (_boundDisplayHandler != null) {
+          widget.native.client.removeDisplayHandler(_boundDisplayHandler!);
+          _boundDisplayHandler = null;
+        }
+        if (_boundLoadHandler != null) {
+          widget.native.client.removeLoadHandler(_boundLoadHandler!);
+          _boundLoadHandler = null;
+        }
+        if (_dialogHandler != null) {
+          widget.native.client.removeJSDialogHandler(_dialogHandler!);
+          _dialogHandler = null;
+        }
+      },
     );
+    widget.native.client.addLifeSpanHandler(_lifeSpanHandler!);
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _createBrowser());
   }
@@ -755,69 +778,68 @@ class _CefViewState extends State<CefView> {
     if (!mounted) return;
 
     if (frame.isPopup) {
-      // Popup overlay: decoded independently from main frame.
+      _applyToPopupBacking(frame);
       if (_popupDecoding) {
-        // A decode is in progress — park this frame in the 1-slot queue.
-        _pendingPopupFrame = frame;
+        _hasPendingPopupFrame = true;
+        _pendingPopupW = frame.width;
+        _pendingPopupH = frame.height;
         return;
       }
-      _startPopupDecode(frame);
+      _dispatchPopupUpload(frame.width, frame.height);
     } else {
-      // Main frame.
+      _applyToMainBacking(frame);
       if (_decoding) {
-        // A decode is in progress — park this frame in the 1-slot queue.
-        _pendingFrame = frame;
+        _hasPendingFrame = true;
+        _pendingW = frame.width;
+        _pendingH = frame.height;
         return;
       }
-      _startMainDecode(frame);
+      _dispatchMainUpload(frame.width, frame.height);
     }
   }
 
-  /// Begin decoding a main frame.  When done, starts decoding any queued frame.
-  ///
-  /// Synchronously applies the dirty-rect-aware BGRA→RGBA conversion into the
-  /// persistent [_backingRgba] buffer, then asynchronously uploads it as a
-  /// [ui.Image].  The backing buffer is safe to read during the async upload
-  /// because [_decoding] = true prevents any concurrent modification.
-  void _startMainDecode(PaintFrame frame) {
+  void _dispatchMainUpload(int w, int h) {
     _decoding = true;
-    // CPU work (synchronous): blit only the dirty rects into the RGBA buffer.
-    final rgba = _applyToMainBacking(frame);
-    // GPU work (asynchronous): upload the full RGBA buffer.
-    _uploadToImage(rgba, frame.width, frame.height).then((image) {
-      if (!mounted) { image.dispose(); return; }
+    _hasPendingFrame = false;
+    final snapshot = _snapshotRgba!;
+    snapshot.setRange(0, w * h * 4, _backingRgba!);
+    _uploadToImage(snapshot, w, h).then((image) {
+      if (!mounted) {
+        image.dispose();
+        _decoding = false;
+        return;
+      }
       setState(() {
         _frame?.dispose();
         _frame = image;
       });
-    }).whenComplete(() {
-      _decoding = false;
-      // Drain the pending slot if a newer frame arrived while we were uploading.
-      final next = _pendingFrame;
-      if (next != null) {
-        _pendingFrame = null;
-        _startMainDecode(next);
+      if (_hasPendingFrame) {
+        _dispatchMainUpload(_pendingW, _pendingH);
+      } else {
+        _decoding = false;
       }
     });
   }
 
-  /// Begin decoding a popup frame.  When done, starts decoding any queued popup frame.
-  void _startPopupDecode(PaintFrame frame) {
+  void _dispatchPopupUpload(int w, int h) {
     _popupDecoding = true;
-    final rgba = _applyToPopupBacking(frame);
-    _uploadToImage(rgba, frame.width, frame.height).then((image) {
-      if (!mounted) { image.dispose(); return; }
+    _hasPendingPopupFrame = false;
+    final snapshot = _snapshotPopupRgba!;
+    snapshot.setRange(0, w * h * 4, _popupBackingRgba!);
+    _uploadToImage(snapshot, w, h).then((image) {
+      if (!mounted) {
+        image.dispose();
+        _popupDecoding = false;
+        return;
+      }
       setState(() {
         _popupFrame?.dispose();
         _popupFrame = image;
       });
-    }).whenComplete(() {
-      _popupDecoding = false;
-      // Drain the pending popup slot.
-      final next = _pendingPopupFrame;
-      if (next != null) {
-        _pendingPopupFrame = null;
-        _startPopupDecode(next);
+      if (_hasPendingPopupFrame) {
+        _dispatchPopupUpload(_pendingPopupW, _pendingPopupH);
+      } else {
+        _popupDecoding = false;
       }
     });
   }
@@ -832,7 +854,8 @@ class _CefViewState extends State<CefView> {
     final w = frame.width;
     final h = frame.height;
     if (_backingRgba == null || _backingW != w || _backingH != h) {
-      _backingRgba = Uint8List(w * h * 4);
+      _backingRgba   = Uint8List(w * h * 4);
+      _snapshotRgba  = Uint8List(w * h * 4); // allocate matching snapshot buffer
       _backingW = w;
       _backingH = h;
       _bgraToRgba(frame.pixels, _backingRgba!, 0, 0, w, h, w);
@@ -840,7 +863,7 @@ class _CefViewState extends State<CefView> {
       _bgraToRgba(frame.pixels, _backingRgba!, 0, 0, w, h, w);
     } else {
       for (final r in frame.dirtyRects) {
-        _bgraToRgba(frame.pixels, _backingRgba!, r.x, r.y, r.width, r.height, w);
+        _bgraToRgbaClamped(frame.pixels, _backingRgba!, r.x, r.y, r.width, r.height, w, h);
       }
     }
     return _backingRgba!;
@@ -851,7 +874,8 @@ class _CefViewState extends State<CefView> {
     final w = frame.width;
     final h = frame.height;
     if (_popupBackingRgba == null || _popupBackingW != w || _popupBackingH != h) {
-      _popupBackingRgba = Uint8List(w * h * 4);
+      _popupBackingRgba   = Uint8List(w * h * 4);
+      _snapshotPopupRgba  = Uint8List(w * h * 4); // allocate matching snapshot
       _popupBackingW = w;
       _popupBackingH = h;
       _bgraToRgba(frame.pixels, _popupBackingRgba!, 0, 0, w, h, w);
@@ -859,7 +883,7 @@ class _CefViewState extends State<CefView> {
       _bgraToRgba(frame.pixels, _popupBackingRgba!, 0, 0, w, h, w);
     } else {
       for (final r in frame.dirtyRects) {
-        _bgraToRgba(frame.pixels, _popupBackingRgba!, r.x, r.y, r.width, r.height, w);
+        _bgraToRgbaClamped(frame.pixels, _popupBackingRgba!, r.x, r.y, r.width, r.height, w, h);
       }
     }
     return _popupBackingRgba!;
@@ -886,6 +910,26 @@ class _CefViewState extends State<CefView> {
         i += 4;
       }
     }
+  }
+
+  /// Variant of [_bgraToRgba] that clamps the dirty rect to [frameW] × [frameH]
+  /// before blitting.  This guards against garbage dirty-rect values that the
+  /// native CEF layer can occasionally emit (e.g. on the first paint or during
+  /// a window-resize race), which would otherwise cause a RangeError.
+  static void _bgraToRgbaClamped(
+      Uint8List src, Uint8List dst,
+      int x, int y, int rw, int rh,
+      int frameW, int frameH) {
+    // Clamp origin to frame bounds.
+    final x0 = x.clamp(0, frameW);
+    final y0 = y.clamp(0, frameH);
+    // Clamp right/bottom edge.
+    final x1 = (x + rw).clamp(0, frameW);
+    final y1 = (y + rh).clamp(0, frameH);
+    final cw = x1 - x0;
+    final ch = y1 - y0;
+    if (cw <= 0 || ch <= 0) return; // rect is entirely outside the frame
+    _bgraToRgba(src, dst, x0, y0, cw, ch, frameW);
   }
 
   /// Upload an RGBA [buffer] to a [ui.Image] asynchronously.
@@ -977,7 +1021,7 @@ class _CefViewState extends State<CefView> {
     if (!_controller.isReady) return;
     widget.native.sendMouseMove(
       _controller.browserId,
-      _px(e.localPosition.dx), _px(e.localPosition.dy),
+      _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _pointerMods(e),
     );
   }
@@ -990,10 +1034,13 @@ class _CefViewState extends State<CefView> {
     final btn = _button(e.buttons);
     _lastPressedButton = btn;
 
+    final px = _pt(e.localPosition.dx);
+    final py = _pt(e.localPosition.dy);
+
     // Double-click detection: same button, same position (within 4px), within 500ms
     final now = DateTime.now();
-    final dx = (_px(e.localPosition.dx) - _lastClickX).abs();
-    final dy = (_px(e.localPosition.dy) - _lastClickY).abs();
+    final dx = (px - _lastClickX).abs();
+    final dy = (py - _lastClickY).abs();
     final elapsed = now.difference(_lastClickTime).inMilliseconds;
     if (btn == _lastClickButton && dx <= 4 && dy <= 4 && elapsed <= 500) {
       _clickCount++;
@@ -1001,13 +1048,13 @@ class _CefViewState extends State<CefView> {
       _clickCount = 1;
     }
     _lastClickButton = btn;
-    _lastClickX = _px(e.localPosition.dx);
-    _lastClickY = _px(e.localPosition.dy);
+    _lastClickX = px;
+    _lastClickY = py;
     _lastClickTime = now;
 
     widget.native.sendMouseClick(
       _controller.browserId,
-      _px(e.localPosition.dx), _px(e.localPosition.dy),
+      px, py,
       btn, false, _clickCount, _pointerMods(e),
     );
   }
@@ -1016,7 +1063,7 @@ class _CefViewState extends State<CefView> {
     if (!_controller.isReady) return;
     widget.native.sendMouseMove(
       _controller.browserId,
-      _px(e.localPosition.dx), _px(e.localPosition.dy),
+      _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _pointerMods(e),
     );
   }
@@ -1026,7 +1073,7 @@ class _CefViewState extends State<CefView> {
     // Use the button that was pressed — e.buttons is 0 on pointer-up.
     widget.native.sendMouseClick(
       _controller.browserId,
-      _px(e.localPosition.dx), _px(e.localPosition.dy),
+      _pt(e.localPosition.dx), _pt(e.localPosition.dy),
       _lastPressedButton, true, _clickCount, _pointerMods(e),
     );
   }
@@ -1035,13 +1082,15 @@ class _CefViewState extends State<CefView> {
     if (!_controller.isReady) return;
     if (e is PointerScrollEvent) {
       // CEF expects: positive dy = scroll up, negative dy = scroll down.
-      // Flutter gives: positive dy = scroll down.
-      // So we invert the sign. Also scale for CEF (120 units per notch).
+      // Flutter gives: positive dy = scroll down, so we invert the sign.
+      //
+      // Flutter's scrollDelta and mouse location are in LOGICAL pixels.
+      // CEF's SendMouseWheelEvent expects view coordinates matching GetViewRect (logical DIPs).
       widget.native.sendMouseWheel(
         _controller.browserId,
-        _px(e.localPosition.dx), _px(e.localPosition.dy),
-        -e.scrollDelta.dx.round(),
-        -e.scrollDelta.dy.round(),
+        _pt(e.localPosition.dx), _pt(e.localPosition.dy),
+        (-e.scrollDelta.dx * widget.scrollMultiplier).round(),
+        (-e.scrollDelta.dy * widget.scrollMultiplier).round(),
       );
     }
   }
@@ -1238,7 +1287,7 @@ class _CefViewState extends State<CefView> {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  int _px(double v) => (v * _dpr).round();
+  int _pt(double v) => v.round();
 
   /// Map Flutter button flags to CEF button index (0=left, 1=right, 2=middle).
   int _button(int buttons) {
@@ -1412,13 +1461,32 @@ class _CefViewState extends State<CefView> {
     _popupEventSub?.cancel();
     _frame?.dispose();
     _popupFrame?.dispose();
-    // Clear pending decode slots so in-flight .then() callbacks see !mounted.
-    _pendingFrame = null;
-    _pendingPopupFrame = null;
-    // Release RGBA backing buffers so GC can reclaim them promptly.
-    _backingRgba = null;
+    _hasPendingFrame = false;
+    _hasPendingPopupFrame = false;
+    _backingRgba      = null;
+    _snapshotRgba     = null;
     _popupBackingRgba = null;
+    _snapshotPopupRgba = null;
     _focusNode.dispose();
+    // Remove all handlers registered by this widget instance.
+    // This prevents accumulation when the widget is rebuilt while sharing
+    // a CefNativeClient across multiple CefView instances.
+    if (_lifeSpanHandler != null) {
+      widget.native.client.removeLifeSpanHandler(_lifeSpanHandler!);
+      _lifeSpanHandler = null;
+    }
+    if (_boundDisplayHandler != null) {
+      widget.native.client.removeDisplayHandler(_boundDisplayHandler!);
+      _boundDisplayHandler = null;
+    }
+    if (_boundLoadHandler != null) {
+      widget.native.client.removeLoadHandler(_boundLoadHandler!);
+      _boundLoadHandler = null;
+    }
+    if (_dialogHandler != null) {
+      widget.native.client.removeJSDialogHandler(_dialogHandler!);
+      _dialogHandler = null;
+    }
     if (_controller.isReady) {
       // Cancel any in-progress IME composition before closing.
       widget.native.imeCancelComposition(_controller.browserId);
@@ -1439,7 +1507,6 @@ class _BoundLifeSpanHandler extends CefLifeSpanHandler {
     required void Function(CefBrowser) onBeforeClose,
   }) : _onCreated = onAfterCreated, _onClose = onBeforeClose;
 
-  @override
   @override
   bool onBeforePopup(CefBrowser b, CefFrame f, String u, String n,
       CefWindowOpenDisposition disposition, bool userGesture) => false;

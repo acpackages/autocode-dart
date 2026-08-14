@@ -38,31 +38,31 @@ target_link_libraries(ac_cef_bridge PRIVATE
   "${CEF_ROOT}/Release/libcef.lib"   # import library on Windows
 )
 
-# ─── jcef_helper (subprocess) ────────────────────────────────────────────────
-add_executable(jcef_helper WIN32 jcef_helper.cpp)
-target_include_directories(jcef_helper PRIVATE "${CEF_ROOT}" "${CEF_ROOT}/include")
-target_link_libraries(jcef_helper PRIVATE 
+# ─── ac_cef_helper (subprocess) ──────────────────────────────────────────────
+add_executable(ac_cef_helper WIN32 ac_cef_helper.cpp)
+target_include_directories(ac_cef_helper PRIVATE "${CEF_ROOT}" "${CEF_ROOT}/include")
+target_link_libraries(ac_cef_helper PRIVATE 
   libcef_dll_wrapper
   "${CEF_ROOT}/Release/libcef.lib"
 )
 if(WIN32)
-    set_property(TARGET jcef_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set_property(TARGET ac_cef_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 # Windows-specific compiler flags
 if(WIN32)
   target_compile_definitions(ac_cef_bridge PRIVATE WIN32 _WINDOWS UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-  target_compile_definitions(jcef_helper PRIVATE WIN32 _WINDOWS UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+  target_compile_definitions(ac_cef_helper PRIVATE WIN32 _WINDOWS UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
   
   # Use static CRT in Release to match CEF's build
   set_property(TARGET ac_cef_bridge PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  set_property(TARGET jcef_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET ac_cef_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 # ─── Output directories ───────────────────────────────────────────────────────
 set(OUT_DIR "${CMAKE_BINARY_DIR}/out")
 
-set_target_properties(ac_cef_bridge jcef_helper PROPERTIES
+set_target_properties(ac_cef_bridge ac_cef_helper PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUT_DIR}"
   RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${OUT_DIR}"
   LIBRARY_OUTPUT_DIRECTORY         "${OUT_DIR}"

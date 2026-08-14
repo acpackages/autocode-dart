@@ -145,15 +145,31 @@ void _onQuery(int id, int qId, Pointer<Utf8> req, int persistent) =>
 void _onQueryCanceled(int id, int qId) =>
     _activeClient?._fwdQueryCanceled(id, qId);
 
+final Map<int, List<Uint8List>> _paintBufferPool = {};
+final Map<int, int> _paintBufferIndex = {};
+
 /// Called by C for every paint frame.  [buffer] is valid only during this call.
 /// [dirty] is a flat pointer to dirty_count * 4 ints (x, y, w, h per rect).
 void _onPaint(int id, int isPopup, Pointer<Void> buffer, int w, int h,
     Pointer<Int32> dirty, int dirtyCount) {
   final client = _activeClient;
   if (client == null) return;
-  // Copy the pixel data immediately — buffer is CEF-owned and freed after return.
-  final bytes = buffer.cast<Uint8>().asTypedList(w * h * 4);
-  final copy  = Uint8List.fromList(bytes);
+  final reqLen = w * h * 4;
+  if (reqLen <= 0) return;
+  final bytes = buffer.cast<Uint8>().asTypedList(reqLen);
+
+  // Reusable double-buffer per browser ID to eliminate ~500 MB/s heap churn
+  final pool = _paintBufferPool.putIfAbsent(
+      id, () => [Uint8List(reqLen), Uint8List(reqLen)]);
+  if (pool[0].length != reqLen) {
+    pool[0] = Uint8List(reqLen);
+    pool[1] = Uint8List(reqLen);
+  }
+  final idx = (_paintBufferIndex[id] ?? 0) ^ 1;
+  _paintBufferIndex[id] = idx;
+  final copy = pool[idx];
+  copy.setRange(0, reqLen, bytes);
+
   // Parse dirty rects from the flat int array.
   final rects = <DirtyRect>[];
   if (dirty != nullptr && dirtyCount > 0) {
@@ -185,9 +201,16 @@ void _onFaviconUrlChange(int id, Pointer<Utf8> urlsFlat) {
     _activeClient?._fwdFaviconUrlChange(id, const []);
     return;
   }
-  final raw  = urlsFlat.toDartString();
-  final urls = raw.split('\x00').where((s) => s.isNotEmpty).toList();
-  _activeClient?._fwdFaviconUrlChange(id, urls);
+  try {
+    final raw  = urlsFlat.toDartString();
+    final urls = raw.split('\x00').where((s) => s.isNotEmpty).toList();
+    _activeClient?._fwdFaviconUrlChange(id, urls);
+  } on FormatException {
+    // CEF can occasionally emit non-UTF-8 bytes for the favicon URL
+    // (e.g. during early/transient browser states). Swallow the error
+    // and forward an empty list so the app stays alive.
+    _activeClient?._fwdFaviconUrlChange(id, const []);
+  }
 }
 
 /// OnPreKeyEvent: returns 1 to consume the event. Writes isShortcut out-param.
@@ -236,13 +259,17 @@ void _onFindResult(int id, int identifier, int count,
 }
 
 /// Called by C to query the view rect for this browser.
+/// Returns LOGICAL pixels — CEF multiplies by device_scale_factor internally
+/// to determine the physical paint buffer size.
 void _getViewRect(int id, Pointer<Int32> x, Pointer<Int32> y,
     Pointer<Int32> w, Pointer<Int32> h) {
   final size = _activeClient?._viewSizes[id];
   x.value = 0;
   y.value = 0;
-  w.value = size?.width.toInt()  ?? 800;
-  h.value = size?.height.toInt() ?? 600;
+  // _viewSizes now stores logical width/height directly (after the fix to
+  // setViewSize). Round to int for the out-parameters.
+  w.value = size?.width.round()  ?? 800;
+  h.value = size?.height.round() ?? 600;
 }
 
 // ─── CefNativeClient ─────────────────────────────────────────────────────────
@@ -330,42 +357,45 @@ class CefNativeClient {
     }
 
     final cb = calloc<AcCefCallbacksStruct>();
-    
-    _regVoid(NativeCallable<OnUrlChangedCallback>.listener(_onUrlChanged), (p) => cb.ref.on_url_changed = p);
-    _regVoid(NativeCallable<OnTitleChangedCallback>.listener(_onTitleChanged), (p) => cb.ref.on_title_changed = p);
+
+    // ── String-passing callbacks: .isolateLocal so Dart reads the const char*
+    // synchronously while the C++ stack frame is still alive.
+    // (NativeCallable.listener is async — the pointer is freed before Dart runs.)
+    _regVoid(NativeCallable<OnUrlChangedCallback>.isolateLocal(_onUrlChanged), (p) => cb.ref.on_url_changed = p);
+    _regVoid(NativeCallable<OnTitleChangedCallback>.isolateLocal(_onTitleChanged), (p) => cb.ref.on_title_changed = p);
+    _regVoid(NativeCallable<OnLoadStartCallback>.isolateLocal(_onLoadStart), (p) => cb.ref.on_load_start = p);
+    _regVoid(NativeCallable<OnLoadEndCallback>.isolateLocal(_onLoadEnd), (p) => cb.ref.on_load_end = p);
+    _regVoid(NativeCallable<OnLoadErrorCallback>.isolateLocal(_onLoadError), (p) => cb.ref.on_load_error = p);
+    _regVoid(NativeCallable<OnStatusMessageCallback>.isolateLocal(_onStatusMessage), (p) => cb.ref.on_status_message = p);
+    _regVoid(NativeCallable<OnBeforeContextMenuCallback>.isolateLocal(_onBeforeContextMenu), (p) => cb.ref.on_before_context_menu = p);
+    _regVoid(NativeCallable<OnFaviconUrlChangeCallback>.isolateLocal(_onFaviconUrlChange), (p) => cb.ref.on_favicon_url_change = p);
+    _regVoid(NativeCallable<OnRenderProcessTerminatedCallback>.isolateLocal(_onRenderProcessTerminated), (p) => cb.ref.on_render_process_terminated = p);
+    _regVoid(NativeCallable<OnDownloadUpdatedCallback>.isolateLocal(_onDownloadUpdated), (p) => cb.ref.on_download_updated = p);
+
+    // GetViewRect writes to out-params synchronously — must also be .isolateLocal.
+    _regVoid(NativeCallable<GetViewRectCallback>.isolateLocal(_getViewRect), (p) => cb.ref.get_view_rect = p);
+
+    // ── Integer-only callbacks: .listener is fine (no pointer args).
     _regVoid(NativeCallable<OnLoadingStateChangedCallback>.listener(_onLoadingStateChanged), (p) => cb.ref.on_loading_state_changed = p);
-    _regVoid(NativeCallable<OnLoadStartCallback>.listener(_onLoadStart), (p) => cb.ref.on_load_start = p);
-    _regVoid(NativeCallable<OnLoadEndCallback>.listener(_onLoadEnd), (p) => cb.ref.on_load_end = p);
-    _regVoid(NativeCallable<OnLoadErrorCallback>.listener(_onLoadError), (p) => cb.ref.on_load_error = p);
     _regVoid(NativeCallable<OnAfterCreatedCallback>.listener(_onAfterCreated), (p) => cb.ref.on_after_created = p);
     _regVoid(NativeCallable<OnBeforeCloseCallback>.listener(_onBeforeClose), (p) => cb.ref.on_before_close = p);
     _regVoid(NativeCallable<OnCursorChangedCallback>.listener(_onCursorChanged), (p) => cb.ref.on_cursor_changed = p);
     _regVoid(NativeCallable<OnGotFocusCallback>.listener(_onGotFocus), (p) => cb.ref.on_got_focus = p);
-    _regVoid(NativeCallable<OnStatusMessageCallback>.listener(_onStatusMessage), (p) => cb.ref.on_status_message = p);
-    _regVoid(NativeCallable<OnDownloadUpdatedCallback>.listener(_onDownloadUpdated), (p) => cb.ref.on_download_updated = p);
-    _regVoid(NativeCallable<OnBeforeContextMenuCallback>.listener(_onBeforeContextMenu), (p) => cb.ref.on_before_context_menu = p);
     _regVoid(NativeCallable<OnPopupShowCallback>.listener(_onPopupShow), (p) => cb.ref.on_popup_show = p);
     _regVoid(NativeCallable<OnPopupSizeCallback>.listener(_onPopupSize), (p) => cb.ref.on_popup_size = p);
-    _regVoid(NativeCallable<OnPaintCallback>.listener(_onPaint), (p) => cb.ref.on_paint = p);
-    _regVoid(NativeCallable<GetViewRectCallback>.listener(_getViewRect), (p) => cb.ref.get_view_rect = p);
-
-    // Session 3: fullscreen (void → NativeCallable.listener)
+    // OnPaint passes a raw pixel buffer pointer. Use .isolateLocal so the
+    // handler runs synchronously on the Dart thread before C++ returns from
+    // OnPaint — this ensures we copy the buffer while it is still valid.
+    // This is safe because OnPaint is always called from CefDoMessageLoopWork(),
+    // which is driven by our Dart timer on the Dart isolate thread.
+    _regVoid(NativeCallable<OnPaintCallback>.isolateLocal(_onPaint), (p) => cb.ref.on_paint = p);
     _regVoid(NativeCallable<OnFullscreenModeChangeCallback>.listener(_onFullscreenModeChange),
              (p) => cb.ref.on_fullscreen_mode_change = p);
-
-    // Session 19: favicon URL change
-    _regVoid(NativeCallable<OnFaviconUrlChangeCallback>.listener(_onFaviconUrlChange),
-             (p) => cb.ref.on_favicon_url_change = p);
 
     // Session 3: pre-key / key-event / cert-error (return int → Pointer.fromFunction)
     cb.ref.on_pre_key_event     = Pointer.fromFunction<OnPreKeyEventCallback>(_onPreKeyEvent, 0);
     cb.ref.on_key_event         = Pointer.fromFunction<OnKeyEventCallback>(_onKeyEvent, 0);
     cb.ref.on_certificate_error = Pointer.fromFunction<OnCertificateErrorCallback>(_onCertificateError, 0);
-
-    // Session 7: render-process-terminated (void → NativeCallable.listener)
-    _regVoid(
-        NativeCallable<OnRenderProcessTerminatedCallback>.listener(_onRenderProcessTerminated),
-        (p) => cb.ref.on_render_process_terminated = p);
     // Session 7: before-unload-dialog and tooltip (return int → Pointer.fromFunction)
     cb.ref.on_before_unload_dialog =
         Pointer.fromFunction<OnBeforeUnloadDialogCallback>(_onBeforeUnloadDialog, 0);
@@ -561,7 +591,11 @@ class CefNativeClient {
   // ─── View size (must be called before first paint) ────────────────────────
 
   void setViewSize(int browserId, double width, double height, double dpr) {
-    _viewSizes[browserId] = _ViewSize(width * dpr, height * dpr, dpr);
+    // Store LOGICAL dimensions (width, height are already in logical pixels).
+    // The C bridge receives PHYSICAL pixels so it can pass them to
+    // ac_cef_set_view_size, which divides by dpr to recover the logical size
+    // and stores it in BrowserInfo for GetViewRect.
+    _viewSizes[browserId] = _ViewSize(width, height, dpr);
     bindings.setViewSize(
         browserId, (width * dpr).round(), (height * dpr).round(), dpr);
     bindings.wasResized(browserId);
@@ -787,9 +821,16 @@ class CefNativeClient {
   /// [ok] is true if the file was written successfully.
   void printToPdf(
       int browserId, String path, void Function(bool ok) onDone) {
-    final nc = NativeCallable<OnPrintToPdfCallback>.listener(
-        (int bid, Pointer<Utf8> pathPtr, int ok) => onDone(ok != 0));
-    _callables.add(nc); // kept alive until shutdown()
+    // Use a late variable so the callback can close and remove itself.
+    late final NativeCallable<OnPrintToPdfCallback> nc;
+    nc = NativeCallable<OnPrintToPdfCallback>.listener(
+        (int bid, Pointer<Utf8> pathPtr, int ok) {
+          onDone(ok != 0);
+          // Release the NativeCallable once the PDF is done — it is a one-shot.
+          nc.close();
+          _callables.remove(nc);
+        });
+    _callables.add(nc);
     final s = path.toNativeUtf8();
     bindings.printToPdf(browserId, s, nc.nativeFunction);
     calloc.free(s);
@@ -928,6 +969,10 @@ class CefNativeClient {
     _paintStreams.remove(id);
     _cursorStreams[id]?.close();
     _cursorStreams.remove(id);
+    _popupEventStreams[id]?.close();
+    _popupEventStreams.remove(id);
+    _paintBufferPool.remove(id);
+    _paintBufferIndex.remove(id);
   }
 
   bool _fwdBeforePopup(int id, String url, String name,

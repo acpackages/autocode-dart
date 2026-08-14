@@ -166,7 +166,7 @@ Dart cannot determine whether the key combination is a browser shortcut.
 - No Java layer - direct Dart FFI to C++ CEF bridge.
 - OSR (off-screen rendering) only.
 - One CefNativeClient per process (enforced by _activeClient global).
-- CEF message loop manually pumped by Dart timer at 10ms.
+- CEF message loop manually pumped — now via CefNativeClient.startMessagePump() (1ms Timer.periodic); old 10ms caller-managed approach replaced.
 - Browser IDs assigned by C++ side in OnAfterCreated.
 - use-alloy-style=1 flag required for OSR in CEF 146+ Chrome runtime.
 - CHAR event (not ImeCommitText) is the correct path for character insertion.
@@ -590,10 +590,100 @@ controller.onFaviconUrlsChanged = (urls) => print(urls);
 
 ## Current Priority / Next Session
 
-1. **Test popup OSR** — trigger `window.open()` on a page; verify new `CefView(browserId: id)` displays the popup
-2. **Multiple CefView instances** — confirm two `CefView` widgets on same `CefNativeClient` work concurrently
-3. **Horizontal scroll** — test that two-finger/shift-wheel events reach the browser correctly
-4. **Mark [PARTIAL] items** — update OnBeforeBrowse + OnBeforeResourceLoad to DONE (they do dispatch correctly)
+1. **Rebuild DLL** — C++ changes in this session require a DLL rebuild (OnBeforePopup + subprocess return fix).
+2. **Verify two-window fix** — confirm only one window appears after rebuild + main.dart fix.
+3. **Verify scroll** — confirm scroll speed at different DPR values (scroll now scaled by DPR).
+4. **Profile frame rate** — use Flutter DevTools to confirm no per-frame allocations.
+
+## Build Notes
+
+- Requires ac_cef_bridge.dll built with CEF SDK
+- Build script: ac_cef/native/build_win/
+- DLL must be adjacent to Flutter exe
+- CEF subprocess: **ac_cef_helper.exe** must be adjacent to Flutter exe (built by CMakeLists.txt)
+- use-alloy-style=1 flag is set in AcCefApp::OnBeforeCommandLineProcessing
+- NOTE: DLL must be rebuilt after C++ changes in sessions 3, 4, 7, and 20:
+  - Session 3: OnFullscreenModeChange, OnPreKeyEvent, OnKeyEvent, OnCertificateError added;
+    OnDownloadUpdated updated; ac_cef_cancel_download implemented;
+    ac_cef_certificate_error_response added
+  - Session 4: OnPaint extended with dirty_rects; ac_cef_pause_download / ac_cef_resume_download added;
+    ac_cef_ime_set_composition / ac_cef_ime_cancel_composition added
+  - Session 7: BrowserInfo::title cache + ac_cef_get_title fix;
+    OnRenderProcessTerminated / OnBeforeUnloadDialog / OnTooltip wired;
+    AcCefCallbacks struct extended with 3 new fields
+  - Session 9: OnBeforeContextMenuCallback extended with 12 CefContextMenuParams fields;
+    AcBrowserClient::OnBeforeContextMenu reads all params fields into temporaries
+  - Session 10: OnBeforePopup now sets OSR mode for allowed popups + creates new AcBrowserClient
+  - Session 11: OnBeforeBrowseCallback extended with user_gesture (+1 int param)
+  - **Session 20**: ac_cef_initialize subprocess return fix; OnBeforePopup runtime_style fix
+- Sessions 5 & 6 changes are Dart-only — no DLL rebuild required
+- Session 7: C++ changes require DLL rebuild; Dart changes are additive (no breaking changes)
+- Session 8: C++ changes require DLL rebuild; OnBeforePopup and OnBeforeContextMenu callback signatures changed
+- Session 9: C++ changes require DLL rebuild; OnBeforeContextMenuCallback signature extended again (+12 params)
+- Session 10: C++ changes require DLL rebuild (OnBeforePopup body changed); Dart changes (singleton guard) do not require rebuild
+- Session 11: C++ changes require DLL rebuild (OnBeforeBrowseCallback +1 param); Dart changes (evalJavaScript) do not require rebuild
+- **Session 20**: C++ changes require DLL rebuild; Dart/Flutter changes are additive (no breaking API changes)
+
+## Session 20 — Rendering, Coordinate & Window Audit (Full End-to-End Fix)
+
+### Bugs Found and Fixed
+
+#### Bug 1 — Two Windows on Launch (subprocess Flutter window)
+**Root cause**: `ac_cef_initialize` returned `-(ep+1)` (e.g. `-1`) when `CefExecuteProcess`
+detected the process was a CEF subprocess (renderer/GPU/utility). Dart's
+`_initialized = result != 0` treated `-1 != 0 = true` as success, so the
+subprocess Flutter app continued and launched a full UI — appearing as a second
+window with a broken/empty browser ("CEF not initialized error").
+
+**Fix 1a** (`ac_cef_bridge.cpp`): Changed `return -(ep+1)` → `return 0` for the
+subprocess path. Dart now sees `0 != 0 = false` → CEF initialization "failed" →
+subprocess path hits the `!ok` branch.
+
+**Fix 1b** (`example/main.dart`):
+- Added early subprocess guard: checks `Platform.executableArguments` for
+  `--type=<kind>` at the very start of `main()`. If found, exits immediately
+  so Flutter never opens a window for the subprocess.
+- Changed the `!ok` branch from `runApp(_InitFailedApp())` → `exit(0)` so a
+  subprocess that slips through the guard also exits cleanly instead of
+  showing a confusing error UI.
+
+**Fix 1c** (`ac_cef_bridge.cpp`): Added `windowInfo.runtime_style = CEF_RUNTIME_STYLE_ALLOY`
+to `OnBeforePopup`. Without this, the Chrome runtime creates a native windowed
+browser for popup targets, which is a separate OS window unrelated to the Flutter view.
+
+#### Bug 2 — _ViewSize stored physical pixels instead of logical
+**Root cause**: `setViewSize(browserId, logW, logH, dpr)` stored
+`_ViewSize(logW*dpr, logH*dpr, dpr)` (physical). The `_getViewRect` Dart callback
+was registered but not called by C++ (the C++ `GetViewRect` override reads from
+`BrowserInfo` directly, which is set correctly). However the stored physical value
+would have caused incorrect results if the callback were ever connected.
+
+**Fix** (`cef_native_client.dart`): Store `_ViewSize(width, height, dpr)` (logical).
+`_getViewRect` now returns `size.width.round()` / `size.height.round()` — correct
+logical pixels — ready for any future scenario where the Dart callback is wired.
+
+#### Bug 3 — Per-frame RGBA snapshot heap allocation (rendering performance)
+**Root cause**: `_startMainDecode` and `_startPopupDecode` called
+`Uint8List.fromList(_backingRgba!)` on every paint frame to get a stable copy for
+the async GPU upload. At 1920×1080 × 4 bytes = ~8 MB, and 60 fps, this allocated
+~480 MB/s of short-lived objects — significant GC pressure that caused frame
+delivery jitter and perceived render lag.
+
+**Fix** (`ac_cef_flutter.dart`): Added `_snapshotRgba` and `_snapshotPopupRgba`
+pre-allocated parallel buffers. Allocated alongside `_backingRgba` on first paint
+or on resize (same lifecycle). Each frame copies with `setRange()` into the
+pre-allocated buffer — zero heap allocation per frame. Both snapshot buffers are
+nulled in `dispose()`.
+
+#### Bug 4 — Scroll delta not scaled by DPR
+**Root cause**: `PointerScrollEvent.scrollDelta` is in **logical** pixels.
+Mouse position coordinates are sent as **physical** pixels via `_px()`.
+CEF's `SendMouseWheelEvent` expects physical pixels for both position and delta.
+At DPR=1.5, scroll was delivered at 1/1.5 of the correct speed.
+
+**Fix** (`ac_cef_flutter.dart`): Changed scroll multiplier from `widget.scrollMultiplier`
+to `widget.scrollMultiplier * _dpr`, converting logical delta to physical.
+`scrollMultiplier` still works as a speed tuner on top of the DPR scaling.
 
 ## Build Notes
 

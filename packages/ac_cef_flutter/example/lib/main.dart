@@ -1,10 +1,22 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:ac_cef/ac_cef.dart';
 import 'package:ac_cef_flutter/ac_cef_flutter.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+void main(List<String> args) {
+  // ── CEF subprocess guard ─────────────────────────────────────────────────
+  // When ac_cef_helper.exe is missing or not found, CEF falls back to using
+  // the Flutter exe itself as the renderer/GPU/utility subprocess. Those
+  // processes are launched with a --type=<kind> flag. We detect that and exit
+  // immediately so no Flutter window is opened for the subprocess.
+  if (args.any((a) => a.startsWith('--type='))) {
+    try {
+      final bp = _resolveBridgePath();
+      CefBindings.load(bp); // loads libcef.dll; CefExecuteProcess runs in initialize()
+    } catch (_) {}
+    exit(0);
+  }
+
   // On Windows, ac_cef_bridge.dll must be in the same directory as the .exe.
   // The build_windows.ps1 script copies it there automatically.
   final bridgePath = _resolveBridgePath();
@@ -32,7 +44,7 @@ void main() {
 
   print('[App] Initializing CEF...');
   final ok = native.initialize(CefSettings(
-    browserSubprocessPath: _siblingPath('jcef_helper.exe'),
+    browserSubprocessPath: _siblingPath('ac_cef_helper.exe'),
     // Cache goes next to the exe so it persists across runs.
     cachePath: _siblingPath('cef_cache'),
     logFile: _siblingPath('cef_debug.log'),
@@ -49,11 +61,9 @@ void main() {
   }
   print('[App] CEF initialized successfully.');
 
-  // IMPORTANT: Since we disabled multi_threaded_message_loop for thread safety 
-  // with Dart FFI callbacks, we must pump the CEF message loop manually.
-  Timer.periodic(const Duration(milliseconds: 10), (timer) {
-    native.doMessageLoopWork();
-  });
+  // Start the built-in 1 ms CEF message-loop pump (replaces the old 10 ms
+  // Timer.periodic approach — startMessagePump() is auto-stopped on shutdown).
+  native.startMessagePump();
 
   runApp(AcCefDemoApp(native: native));
 }
@@ -110,30 +120,24 @@ class _BrowserPageState extends State<BrowserPage> {
   final _focusNode = FocusNode();
 
   CefController? _controller;
-  String _title    = 'New Tab';
   String _status   = '';
-  bool _loading    = false;
-  bool _canBack    = false;
-  bool _canFwd     = false;
+
+  // Use CefBrowserState as the reactive source of truth for URL / title /
+  // loading / nav-state. It is wired automatically when CefController.state is
+  // first accessed (which happens inside CefView's OnAfterCreated via
+  // _BoundDisplayHandler / _BoundLoadHandler). Using it here avoids the
+  // handler-replacement problem that arose when _UiDisplayHandler was added
+  // before _BoundDisplayHandler was registered.
+  CefBrowserState? _browserState;
 
   @override
   void initState() {
     super.initState();
-
-    // Attach a display handler that feeds our UI state.
-    widget.native.client
-      ..addDisplayHandler(_UiDisplayHandler(
-        onTitle:  (t) => setState(() => _title = t),
-        onUrl:    (u) => setState(() => _urlCtrl.text = u),
-        onStatus: (s) => setState(() => _status = s),
-      ))
-      ..addLoadHandler(_UiLoadHandler(
-        onState: (loading, back, fwd) => setState(() {
-          _loading = loading;
-          _canBack = back;
-          _canFwd  = fwd;
-        }),
-      ));
+    // Status messages are delivered through the display handler that CefView
+    // registers internally (_BoundDisplayHandler). We still need a lightweight
+    // wrapper to capture onStatus because _BoundDisplayHandler doesn't expose it.
+    // We add our own AFTER CefView's handler has already been installed (i.e.
+    // we install it lazily in onCreated, not here, to avoid the replacement race).
   }
 
   @override
@@ -146,12 +150,22 @@ class _BrowserPageState extends State<BrowserPage> {
           // ── Browser surface ──────────────────────────────────────────────
           CefView(
             native: widget.native,
-            initialUrl: 'https://google.com',
+            initialUrl: 'https://flutter.dev',
             frameRate: 60,
             onCreated: (c) {
-              setState(() => _controller = c);
-              // Register the JS message router for this browser
+              // Register the JS message router for this browser.
               widget.native.registerMessageRouter(c.browserId);
+              // Attach CefBrowserState — this hooks into the controller's
+              // callback slots (onUrlChanged, onTitleChanged, …) which are
+              // already wired by CefView's _BoundDisplayHandler at this point.
+              final state = c.state;
+              state.addListener(_onBrowserStateChanged);
+              setState(() {
+                _controller   = c;
+                _browserState = state;
+                // Seed URL bar immediately if the state already has a URL.
+                if (state.url.isNotEmpty) _urlCtrl.text = state.url;
+              });
             },
           ),
 
@@ -179,23 +193,25 @@ class _BrowserPageState extends State<BrowserPage> {
           // Back
           _NavButton(
             icon: Icons.arrow_back_ios_new,
-            enabled: _canBack,
+            enabled: _browserState?.canGoBack ?? false,
             onTap: () => _controller?.goBack(),
             tooltip: 'Back',
           ),
           // Forward
           _NavButton(
             icon: Icons.arrow_forward_ios,
-            enabled: _canFwd,
+            enabled: _browserState?.canGoForward ?? false,
             onTap: () => _controller?.goForward(),
             tooltip: 'Forward',
           ),
           // Reload / Stop
           _NavButton(
-            icon: _loading ? Icons.close : Icons.refresh,
+            icon: (_browserState?.isLoading ?? false) ? Icons.close : Icons.refresh,
             enabled: true,
-            onTap: () => _loading ? _controller?.stopLoad() : _controller?.reload(),
-            tooltip: _loading ? 'Stop' : 'Reload',
+            onTap: () => (_browserState?.isLoading ?? false)
+                ? _controller?.stopLoad()
+                : _controller?.reload(),
+            tooltip: (_browserState?.isLoading ?? false) ? 'Stop' : 'Reload',
           ),
 
           // ── URL bar ───────────────────────────────────────────────────────
@@ -216,7 +232,7 @@ class _BrowserPageState extends State<BrowserPage> {
                       borderSide: BorderSide.none),
                   filled: true,
                   fillColor: Colors.white,
-                  prefixIcon: _loading
+                  prefixIcon: (_browserState?.isLoading ?? false)
                       ? const Padding(
                           padding: EdgeInsets.all(10),
                           child: SizedBox(
@@ -243,14 +259,14 @@ class _BrowserPageState extends State<BrowserPage> {
           const SizedBox(width: 4),
         ],
       ),
-      bottom: _title.isNotEmpty
+      bottom: ((_browserState?.title ?? '').isNotEmpty)
           ? PreferredSize(
               preferredSize: const Size.fromHeight(22),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
-                  child: Text(_title,
+                  child: Text(_browserState!.title,
                       style: const TextStyle(fontSize: 11, color: Colors.black54),
                       overflow: TextOverflow.ellipsis),
                 ),
@@ -315,11 +331,23 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  void _onBrowserStateChanged() {
+    final state = _browserState;
+    if (state == null || !mounted) return;
+    // Log state changes to the console so we can verify page loading.
+    if (state.url.isNotEmpty) {
+      debugPrint('[Browser] URL: ${state.url}  loading=${state.isLoading}  title="${state.title}"');
+    }
+    setState(() {
+      if (state.url.isNotEmpty) _urlCtrl.text = state.url;
+    });
+  }
+
   @override
   void dispose() {
+    _browserState?.removeListener(_onBrowserStateChanged);
     _urlCtrl.dispose();
     _focusNode.dispose();
-    widget.native.shutdown();
     super.dispose();
   }
 }
@@ -429,6 +457,11 @@ class _AppDisplayHandler extends CefDisplayHandler {
     return false;
   }
   @override bool onCursorChange(CefBrowser b, int t) => false;
+
+  @override
+  void onFaviconUrlChange(CefBrowser browser, List<String> iconUrls) {
+    // TODO: implement onFaviconUrlChange
+  }
 }
 
 class _AppLifeSpanHandler extends CefLifeSpanHandler {
@@ -455,30 +488,3 @@ class _AppJSDialogHandler extends CefJSDialogHandler {
   @override void onDialogClosed(CefBrowser b) {}
 }
 
-// ── Stateful UI handlers ───────────────────────────────────────────────────────
-
-class _UiDisplayHandler extends CefDisplayHandler {
-  final void Function(String) onTitle;
-  final void Function(String) onUrl;
-  final void Function(String) onStatus;
-  _UiDisplayHandler({required this.onTitle, required this.onUrl, required this.onStatus});
-  @override void onAddressChange(CefBrowser b, CefFrame f, String url) => onUrl(url);
-  @override void onTitleChange(CefBrowser b, String t)                  => onTitle(t);
-  @override void onFullscreenModeChange(CefBrowser b, bool f)           {}
-  @override bool onTooltip(CefBrowser b, String t)                      => false;
-  @override void onStatusMessage(CefBrowser b, String s)                => onStatus(s);
-  @override bool onConsoleMessage(CefBrowser b, CefLogSeverity l,
-      String m, String s, int ln) => false;
-  @override bool onCursorChange(CefBrowser b, int t)                    => false;
-}
-
-class _UiLoadHandler extends CefLoadHandler {
-  final void Function(bool, bool, bool) onState;
-  _UiLoadHandler({required this.onState});
-  @override void onLoadingStateChange(CefBrowser b, bool l, bool bk, bool fw) =>
-      onState(l, bk, fw);
-  @override void onLoadStart(CefBrowser b, CefFrame f, int t) {}
-  @override void onLoadEnd(CefBrowser b, CefFrame f, int s)   {}
-  @override void onLoadError(CefBrowser b, CefFrame f,
-      CefErrorCode e, String t, String u) {}
-}
