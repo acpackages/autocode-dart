@@ -10,6 +10,12 @@ class AcEvents {
     "description": "Stores event subscriptions mapped by event name and subscription ID."
   }) */
   final Map<String, Map<String, Function>> _events = {};
+  final Map<String, Function> _allEventCallbacks = {};
+
+  clearSubscriptions() {
+    _events.clear();
+    _allEventCallbacks.clear();
+  }
 
   /* AcDoc({
     "description": "Executes all subscribed callbacks for the given event key and aggregates the results.",
@@ -41,6 +47,18 @@ class AcEvents {
               functionResult.status == "success") {
             functionResults[functionId] = functionResult;
           }
+        }
+      }
+
+      for (final entry in _allEventCallbacks.entries) {
+        final functionId = entry.key;
+        final fun = entry.value;
+        final functionResult = await Function.apply(fun, [key,args]);
+
+        if (functionResult != null &&
+            functionResult is AcEventExecutionResult &&
+            functionResult.status == "success") {
+          functionResults[functionId] = functionResult;
         }
       }
 
@@ -77,6 +95,14 @@ class AcEvents {
     return subscriptionId;
   }
 
+  String subscribeAll({
+    required Function callback,
+  }) {
+    final subscriptionId = Autocode.uniqueId();
+    _allEventCallbacks[subscriptionId] = callback;
+    return subscriptionId;
+  }
+
   /* AcDoc({
     "description": "Unsubscribes a callback function using its subscription ID.",
     "params": [
@@ -90,5 +116,9 @@ class AcEvents {
         eventFunctions.remove(subscriptionId);
       }
     }
+  }
+
+  void unsubscribeAll({required String subscriptionId}) {
+    _allEventCallbacks.remove(subscriptionId);
   }
 }

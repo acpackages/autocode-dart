@@ -115,6 +115,12 @@ class AcDDRelationship {
     "returns_type": "AcDDRelationship"
   }) */
   AcDDRelationship fromJson({required Map<String, dynamic> jsonData}) {
+    if (jsonData.containsKey(keySourceTable)) sourceTable = jsonData[keySourceTable]?.toString() ?? '';
+    if (jsonData.containsKey(keySourceColumn)) sourceColumn = jsonData[keySourceColumn]?.toString() ?? '';
+    if (jsonData.containsKey(keyDestinationTable)) destinationTable = jsonData[keyDestinationTable]?.toString() ?? '';
+    if (jsonData.containsKey(keyDestinationColumn)) destinationColumn = jsonData[keyDestinationColumn]?.toString() ?? '';
+    if (jsonData.containsKey(keyCascadeDeleteDestination)) cascadeDeleteDestination = jsonData[keyCascadeDeleteDestination] == true;
+    if (jsonData.containsKey(keyCascadeDeleteSource)) cascadeDeleteSource = jsonData[keyCascadeDeleteSource] == true;
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: jsonData,

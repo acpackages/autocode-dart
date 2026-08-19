@@ -51,16 +51,8 @@ AcClassMirror<T> acReflectClass<T>(Type type) {
 }
 
 AcInstanceMirror<T> acReflect<T extends Object>(T instance) {
-  try{
-    final classMirror = acReflectClass<T>(instance.runtimeType as Type);
-    return AcInstanceMirrorImpl<T>(instance, classMirror);
-  }
-  catch(ex,stack){
-    print("Error while getting reflect for $instance");
-    print(stack);
-    throw ex;
-  }
-
+  final classMirror = acReflectClass<T>(instance.runtimeType as Type);
+  return AcInstanceMirrorImpl<T>(instance, classMirror);
 }
 
 // --- Implementation Classes ---

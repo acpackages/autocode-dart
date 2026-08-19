@@ -52,6 +52,9 @@ class AcLogger {
 
   Function({required String message,required String type})? callback;
 
+  /// Global callback invoked whenever an error or exception is logged across any [AcLogger] instance.
+  static void Function({required dynamic error, StackTrace? stackTrace, String? message})? onErrorCallback;
+
   /* AcDoc({"description": "Initializes the logger with optional configurations."}) */
   AcLogger({
     this.logMessages = true,
@@ -71,8 +74,18 @@ class AcLogger {
   }
 
   AcLogger debug(dynamic args) => _loggerMessage(args, "debug");
-  AcLogger error(dynamic args) => _loggerMessage(args, "error");
-  AcLogger exception(Exception exception) => _loggerMessage([exception.toString()], "error");
+  AcLogger error(dynamic args, [StackTrace? stackTrace]) {
+    if (onErrorCallback != null) {
+      onErrorCallback!(error: args, stackTrace: stackTrace, message: args?.toString());
+    }
+    return _loggerMessage(args, "error");
+  }
+  AcLogger exception(Exception exception, [StackTrace? stackTrace]) {
+    if (onErrorCallback != null) {
+      onErrorCallback!(error: exception, stackTrace: stackTrace, message: exception.toString());
+    }
+    return _loggerMessage([exception.toString()], "error");
+  }
   AcLogger info(dynamic args) => _loggerMessage(args, "info");
   AcLogger log(dynamic args) => _loggerMessage(args, "log");
   AcLogger warn(dynamic args) => _loggerMessage(args, "warn");

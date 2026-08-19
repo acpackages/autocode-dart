@@ -592,6 +592,10 @@ class AcDDTableColumn {
   }) */
   AcDDTableColumn fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
+    if (json.containsKey(keyColumnName)) {
+      columnName = json[keyColumnName]?.toString() ?? '';
+      json.remove(keyColumnName);
+    }
     if(json.containsKey(keyColumnType)){
       if(json[keyColumnType] is AcEnumDDColumnType){
         columnType = json[keyColumnType];

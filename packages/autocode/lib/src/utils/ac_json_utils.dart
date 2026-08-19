@@ -64,33 +64,35 @@ class AcJsonUtils {
       result = Map.from(instance);
     }
     else{
-      final instanceMirror = acReflect(instance);
-      final classMirror = instanceMirror.classMirror;
+      try {
+        final instanceMirror = acReflect(instance);
+        final classMirror = instanceMirror.classMirror;
 
-      for (final member in classMirror.instanceMembers.values) {
-        if (member is! AcVariableMirror || member.isStatic) {
-          continue;
-        }
-
-        final fieldSymbol = member.simpleName;
-        String jsonKey = symbolToName(fieldSymbol);
-
-        final bindProps = member.metadata.whereType<AcBindJsonProperty>().firstOrNull;
-
-        if (bindProps != null) {
-          if (bindProps.key != null) {
-            jsonKey = bindProps.key!;
-          }
-          if (bindProps.skipInToJson == true) {
+        for (final member in classMirror.instanceMembers.values) {
+          if (member is! AcVariableMirror || member.isStatic) {
             continue;
           }
-        }
 
-        var propertyValue = instanceMirror.getField(fieldSymbol);
-        if (propertyValue != null) {
-          result[jsonKey] = getJsonForPropertyValue(propertyValue);
+          final fieldSymbol = member.simpleName;
+          String jsonKey = symbolToName(fieldSymbol);
+
+          final bindProps = member.metadata.whereType<AcBindJsonProperty>().firstOrNull;
+
+          if (bindProps != null) {
+            if (bindProps.key != null) {
+              jsonKey = bindProps.key!;
+            }
+            if (bindProps.skipInToJson == true) {
+              continue;
+            }
+          }
+
+          var propertyValue = instanceMirror.getField(fieldSymbol);
+          if (propertyValue != null) {
+            result[jsonKey] = getJsonForPropertyValue(propertyValue);
+          }
         }
-      }
+      } catch (_) {}
     }
 
     return result;
@@ -113,17 +115,20 @@ class AcJsonUtils {
     required Object instance,
     required Map<String, dynamic> jsonData,
   }) {
-    final instanceMirror = acReflect(instance);
-    final classMirror = instanceMirror.classMirror;
-    for (final member in classMirror.instanceMembers.values) {
-      if (member is AcVariableMirror && !member.isStatic) {
-        setInstancePropertyValueFromJson(
-          instanceMirror: instanceMirror,
-          fieldMirror: member,
-          jsonData: jsonData,
-        );
+    if (jsonData.isEmpty) return;
+    try {
+      final instanceMirror = acReflect(instance);
+      final classMirror = instanceMirror.classMirror;
+      for (final member in classMirror.instanceMembers.values) {
+        if (member is AcVariableMirror && !member.isStatic) {
+          setInstancePropertyValueFromJson(
+            instanceMirror: instanceMirror,
+            fieldMirror: member,
+            jsonData: jsonData,
+          );
+        }
       }
-    }
+    } catch (_) {}
   }
 
   /* AcDoc({
@@ -203,6 +208,10 @@ class AcJsonUtils {
       return jsonValue;
     }
 
+    if(fieldType == DateTime){
+      return DateTime.parse(jsonValue);
+    }
+
     // Handle enums
     try {
       final classMirror = acReflectClass(fieldType);
@@ -274,6 +283,10 @@ class AcJsonUtils {
       if (propertyValue is Map) {
         return propertyValue.map((k, v) =>
             MapEntry(k.toString(), getJsonForPropertyValue(v)));
+      }
+
+      if(propertyValue is DateTime){
+        return propertyValue.toIso8601String();
       }
       if (propertyValue is Exception || propertyValue is Error) {
         return propertyValue.toString();

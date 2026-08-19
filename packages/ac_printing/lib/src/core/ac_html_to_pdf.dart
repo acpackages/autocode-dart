@@ -84,66 +84,72 @@ class AcHtmlToPdf {
       htmlFile.write(html);
       _debug("Creating browser page...");
       Page page = await browser.newPage();
-      await page.emulateMediaType(MediaType.print);
-      if(viewportHeight > 0 && viewportWidth > 0 ){
-        // viewportHeight = 1080;
-        // viewportWidth = 1920;
-        // await page.setViewport(DeviceViewport(height: viewportHeight, width: viewportWidth,deviceScaleFactor:deviceScaleFactor,isLandscape: true ));
-        // await page.reload();
-      }
-      _debug("Browser page created.");
-      await page.setContent(html, wait: Until.all([
-        Until.domContentLoaded,
-        Until.load,
-        Until.networkAlmostIdle,
-        Until.networkIdle
-      ]));
-      AcResult pdfResult = AcResult();
-      if(pageSizeQuerySelector != null){
-        final size = Map.from(await page.evaluate('''
-        function() {
-          const el = document.querySelector('${pageSizeQuerySelector}');
-          if (!el) return null;
-        
-          const rect = el.getBoundingClientRect();
-        
-          return {
-            dpr: window.devicePixelRatio,
-            innerWidth: window.innerWidth,
-            innerHeight: window.innerHeight,
-            pageWidth: getComputedStyle(el).width,
-            pageHeight: getComputedStyle(el).height,
-            font: getComputedStyle(document.body).fontFamily,
-            media: matchMedia('print').matches ? 'print' : 'screen',
-            widthPx: rect.width,
-            heightPx: rect.height,
-            widthIn: rect.width / 96,
-            heightIn: rect.height / 96
-          };
-        }
-        '''));
-        print("Page Size : "+jsonEncode(size));
-        result = await pagePdf(page, callback: callback, heightIN: size.getDouble('heightIn'), widthIN: size.getDouble('widthIn'));
-        completed = true;
-      }
-      else{
-        result = await pagePdf(page, callback: callback, pageFormat: pageFormat);
-        completed = true;
-      }
-      while (!completed) {
-        await Future.delayed(Duration(microseconds: 500));
-        if (startTime.isBefore(startTime.addTime(seconds: 10))) {
-          _debug("Completing because 10 seconds has elapsed");
+      try {
+        await page.emulateMediaType(MediaType.print);
+        _debug("Browser page created.");
+        await page.setContent(
+          html,
+          wait: Until.all([
+            Until.domContentLoaded,
+            Until.load,
+          ]),
+        ).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            _debug("page.setContent timed out after 15s, continuing with current DOM state");
+          },
+        );
+
+        if (pageSizeQuerySelector != null) {
+          print("PageSizeSelector" + pageSizeQuerySelector);
+          final size = Map.from(await page.evaluate('''
+          function() {
+            const el = document.querySelector('${pageSizeQuerySelector}');
+            if (!el) return null;
+          
+            const rect = el.getBoundingClientRect();
+          
+            return {
+              dpr: window.devicePixelRatio,
+              innerWidth: window.innerWidth,
+              innerHeight: window.innerHeight,
+              pageWidth: getComputedStyle(el).width,
+              pageHeight: getComputedStyle(el).height,
+              font: getComputedStyle(document.body).fontFamily,
+              media: matchMedia('print').matches ? 'print' : 'screen',
+              widthPx: rect.width,
+              heightPx: rect.height,
+              widthIn: rect.width / 96,
+              heightIn: rect.height / 96
+            };
+          }
+          '''));
+          print("Page Size : " + jsonEncode(size));
+          result = await pagePdf(page, callback: callback, heightIN: size.getDouble('heightIn'), widthIN: size.getDouble('widthIn'));
+          completed = true;
+        } else {
+          result = await pagePdf(page, callback: callback, pageFormat: pageFormat);
           completed = true;
         }
+
+        final deadline = startTime.add(const Duration(seconds: 10));
+        while (!completed) {
+          await Future.delayed(const Duration(milliseconds: 50));
+          if (DateTime.now().isAfter(deadline)) {
+            _debug("Completing because 10 seconds has elapsed");
+            completed = true;
+          }
+        }
+      } finally {
+        _debug("Closing browser page...");
+        try {
+          await page.close(runBeforeUnload: false);
+        } catch (_) {}
+        _debug("Closed browser page.");
       }
-      _debug("Closing browser page...");
-      await page.close(runBeforeUnload: false);
-      _debug("Closed browser page.");
       _debug("Returning PDF Data");
-    }
-    catch(ex,stack){
-      result.setException(exception: ex,stackTrace: stack,logger: logger);
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
     }
     return result;
   }

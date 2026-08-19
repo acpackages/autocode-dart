@@ -79,10 +79,12 @@ class AcSqlDbTable extends AcSqlDbBase {
       }
     }
 
-    List<Type> handlers = acGetClassTypesWithAnnotation(AcSqlEventHandler);
-    for (var handler in handlers) {
-      registerHandler(handlerClass: handler);
-    }
+    try {
+      List<Type> handlers = acGetClassTypesWithAnnotation(AcSqlEventHandler);
+      for (var handler in handlers) {
+        registerHandler(handlerClass: handler);
+      }
+    } catch (_) {}
   }
 
   /* AcDoc({
@@ -1131,28 +1133,33 @@ class AcSqlDbTable extends AcSqlDbBase {
               }
               result.lastInsertedId = primaryKeyValue;
               logger.log("Getting inserted row from database");
-              final condition = "$primaryKeyColumn = @primaryKeyValue";
-              final parameters = {"@primaryKeyValue": primaryKeyValue};
-              logger.log(["Select condition", condition, parameters]);
-              final selectResult = await getRows(
-                condition: condition,
-                parameters: parameters,
-              );
-              if (selectResult.isSuccess()) {
-                logger.log(["Select executed successfully", selectResult]);
-                if (selectResult.hasRows()) {
-                  result.rows = selectResult.rows;
+              if (primaryKeyColumn.isNotEmpty) {
+                final condition = "$primaryKeyColumn = @primaryKeyValue";
+                final parameters = {"@primaryKeyValue": primaryKeyValue};
+                logger.log(["Select condition", condition, parameters]);
+                final selectResult = await getRows(
+                  condition: condition,
+                  parameters: parameters,
+                );
+                if (selectResult.isSuccess()) {
+                  logger.log(["Select executed successfully", selectResult]);
+                  if (selectResult.hasRows()) {
+                    result.rows = selectResult.rows;
+                  } else {
+                    continueOperation = false;
+                    result.setFailure(
+                      message: 'Row inserted but cannot get inserted row',
+                      logger: logger,
+                    );
+                  }
                 } else {
                   continueOperation = false;
-                  result.setFailure(
-                    message: 'Row inserted but cannot get inserted row',
+                  result.setFromResult(
+                    result: selectResult,
+                    message: 'Error executing select query for inserted row',
                     logger: logger,
                   );
                 }
-              } else {
-                logger.error(["Error executing select statement"]);
-                continueOperation = false;
-                result.setFromResult(result: selectResult, logger: logger);
               }
               if (continueOperation && executeAfterEvent) {
                 if (_tableEventHandlers.containsKey(tableName) &&

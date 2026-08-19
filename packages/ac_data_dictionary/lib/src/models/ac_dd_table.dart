@@ -223,7 +223,6 @@ class AcDDTable {
       statement =
       "CREATE TABLE IF NOT EXISTS $tableName (${columnDefinitions.join(", ")});";
     }
-    print("Database type : ${databaseType.value}");
     return statement;
   }
 
@@ -378,6 +377,10 @@ class AcDDTable {
   }) */
   AcDDTable fromJson({required Map<String, dynamic> jsonData}) {
     Map<String, dynamic> json = Map.from(jsonData);
+    if (json.containsKey(keyTableName)) {
+      tableName = json[keyTableName]?.toString() ?? '';
+      json.remove(keyTableName);
+    }
     if (jsonData.containsKey(keyTableColumns) && jsonData[keyTableColumns] is Map) {
       (json[keyTableColumns] as Map).forEach((columnName, columnData) {
         final column = AcDDTableColumn.instanceFromJson(jsonData: columnData);

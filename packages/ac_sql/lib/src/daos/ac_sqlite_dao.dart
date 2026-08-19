@@ -14,6 +14,7 @@ import 'dart:convert';
 class AcSqliteDao extends AcBaseSqlDao {
   static Map<String, Database?> _databaseInstances = {};
   Database? _database;
+  bool _inTransaction = false;
   static bool autoCloseAfterExecution = false;
   static bool _platformResolved = false;
 
@@ -148,12 +149,9 @@ class AcSqliteDao extends AcBaseSqlDao {
     final result = AcResult();
     Database? db;
     try {
+      _initSqlite();
       db = await _getConnection();
-      if (db != null) {
-        result.setSuccess(value: true, message: 'Database created');
-      } else {
-        result.setFailure(message: 'Error connecting database');
-      }
+      result.setSuccess(message: 'Database created or already exists');
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
@@ -165,14 +163,14 @@ class AcSqliteDao extends AcBaseSqlDao {
   }
 
   /* AcDoc({
-    "summary": "Deletes rows from a table that match a given condition.",
+    "summary": "Deletes rows from a table based on a condition.",
     "description": "This SQLite implementation executes a `DELETE FROM` statement.",
     "params": [
-      {"name": "tableName", "description": "The name of the table."},
-      {"name": "condition", "description": "The WHERE clause for the deletion."},
-      {"name": "parameters", "description": "Parameters for the WHERE clause."}
+      {"name": "tableName", "description": "The name of the table to delete from."},
+      {"name": "condition", "description": "An optional WHERE clause condition."},
+      {"name": "parameters", "description": "A map of parameters to substitute into the condition."}
     ],
-    "returns": "An `AcSqlDaoResult` containing the number of affected rows.",
+    "returns": "An `AcSqlDaoResult` indicating the outcome of the delete operation.",
     "returns_type": "Future<AcSqlDaoResult>"
   }) */
   @override
@@ -181,28 +179,31 @@ class AcSqliteDao extends AcBaseSqlDao {
     String condition = "",
     Map<String, dynamic> parameters = const {},
   }) async {
-    final result = AcSqlDaoResult(operation: AcEnumDDRowOperation.delete);
+    final result = AcSqlDaoResult();
     Database? db;
     try {
       db = await _getConnection();
       if (db != null) {
-        final statement =
-            "DELETE FROM $tableName ${condition.isNotEmpty ? "WHERE $condition" : ""}";
+        var statement = "DELETE FROM $tableName";
+        if (condition.isNotEmpty) {
+          statement += " WHERE $condition";
+        }
         final setParametersResult = setSqlStatementParameters(
           statement: statement,
           passedParameters: parameters,
         );
         final updatedStatement = setParametersResult['statement'];
-        final updatedParameterValues =
-            (setParametersResult['statementParametersMap']
-                    as Map<String, dynamic>)
-                .values
-                .toList();
+        final updatedParameterValues = ensureValidParamsType(
+          params:
+          (setParametersResult['statementParametersMap']
+          as Map<String, dynamic>)
+              .values
+              .toList(),
+        );
         db.execute(
           updatedStatement,
-          ensureValidParamsType(params: updatedParameterValues),
+          updatedParameterValues,
         );
-        result.affectedRowsCount = db.select("SELECT changes() as count").first['count'];;
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
@@ -210,10 +211,8 @@ class AcSqliteDao extends AcBaseSqlDao {
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if(db!=null){
-        if (autoCloseAfterExecution) {
-          db.close();
-        }
+      if (autoCloseAfterExecution) {
+        db?.close();
       }
     }
     return result;
@@ -234,13 +233,31 @@ class AcSqliteDao extends AcBaseSqlDao {
   }
 
   /* AcDoc({
+    "summary": "Executes a custom SQL statement that is expected to return rows.",
+    "description": "This SQLite implementation is an alias for `getRows`.",
+    "params": [
+      {"name": "statement", "description": "The SQL query to execute."},
+      {"name": "parameters", "description": "A map of parameters to substitute into the statement."}
+    ],
+    "returns": "An `AcSqlDaoResult` containing the fetched rows.",
+    "returns_type": "Future<AcSqlDaoResult>"
+  }) */
+  Future<AcSqlDaoResult> executeCustomQuery({
+    required String statement,
+    Map<String, dynamic> parameters = const {},
+  }) {
+    return getRows(statement: statement, parameters: parameters);
+  }
+
+  /* AcDoc({
     "summary": "Executes multiple SQL statements within a single transaction.",
     "description": "This SQLite implementation wraps the list of statements in a transaction block to ensure atomicity.",
     "params": [
       {"name": "statements", "description": "The list of SQL statements to execute."},
-      {"name": "parameters", "description": "A map of shared parameters for the statements."}
+      {"name": "parameters", "description": "A map of parameters to substitute into the statements."},
+      {"name": "perStatementCallback", "description": "A callback invoked after each statement is executed."}
     ],
-    "returns": "An `AcSqlDaoResult` indicating the overall success or failure.",
+    "returns": "An `AcSqlDaoResult` indicating the overall outcome.",
     "returns_type": "Future<AcSqlDaoResult>"
   }) */
   @override
@@ -253,12 +270,14 @@ class AcSqliteDao extends AcBaseSqlDao {
     Database? db;
     dynamic lastSqlStatment;
     dynamic lastParameters;
+    bool inTx = false;
     try {
       db = await _getConnection();
       if (db != null) {
         int totalCount = statements.length;
         int completedCount = 0;
         db.execute("BEGIN");
+        inTx = true;
         for (final statement in statements) {
           completedCount++;
           if (statement.trim().isNotEmpty) {
@@ -290,25 +309,27 @@ class AcSqliteDao extends AcBaseSqlDao {
             }
           }
         }
+        db.execute("COMMIT");
+        inTx = false;
         result.setSuccess();
       } else {
         result.setFailure(message: 'Error connecting database');
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
-      if(db!=null) {
-        db.execute("ROLLBACK");
+      if (db != null && inTx) {
+        try {
+          db.execute("ROLLBACK");
+        } catch (_) {}
+        inTx = false;
       }
       result.value = {
         'last_sql_statement': lastSqlStatment,
         'last_sql_parameters': lastParameters,
       };
     } finally {
-      if(db!=null){
-        db.execute("COMMIT");
-        if (autoCloseAfterExecution) {
-          db.close();
-        }
+      if (autoCloseAfterExecution && db != null) {
+        db.close();
       }
     }
     return result;
@@ -321,6 +342,7 @@ class AcSqliteDao extends AcBaseSqlDao {
   }) async {
     final result = AcSqlDaoResult();
     Database? db;
+    bool inTx = false;
 
     logger.log(
       '=== START executeSqlOperations - ${operations.length} operation(s) to execute ===',
@@ -343,6 +365,7 @@ class AcSqliteDao extends AcBaseSqlDao {
           'Transaction started. Processing ${operations.length} SQL operation(s)',
         );
         db.execute("BEGIN");
+        inTx = true;
         for (int i = 0; i < operations.length; i++) {
           completedCount++;
           final sqlOperation = operations[i];
@@ -513,7 +536,8 @@ class AcSqliteDao extends AcBaseSqlDao {
         logger.log(
           'All ${operations.length} operations processed. Committing transaction...',
         );
-
+        db.execute("COMMIT");
+        inTx = false;
         logger.log('Transaction committed successfully');
         result.setSuccess();
         logger.log('executeSqlOperations COMPLETED SUCCESSFULLY');
@@ -522,18 +546,18 @@ class AcSqliteDao extends AcBaseSqlDao {
         result.setFailure(message: 'Error connecting database');
       }
     } catch (ex, stack) {
-      if(db!=null) {
-        db.execute("ROLLBACK");
+      if (db != null && inTx) {
+        try {
+          db.execute("ROLLBACK");
+        } catch (_) {}
+        inTx = false;
       }
       logger.log('EXCEPTION during executeSqlOperations: $ex');
       logger.log('Stack trace: $stack');
       result.setException(exception: ex, stackTrace: stack);
     } finally {
-      if(db!=null){
-        db.execute("COMMIT");
-        if (autoCloseAfterExecution) {
-          db.close();
-        }
+      if (autoCloseAfterExecution && db != null) {
+        db.close();
       }
     }
 
@@ -1088,9 +1112,9 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<AcResult> transactionCommit() async {
     AcResult result = AcResult();
     try {
-      if (_database != null) {
+      if (_inTransaction && _database != null) {
         _database!.execute("COMMIT");
-        _database = null;
+        _inTransaction = false;
         result.setSuccess();
       } else {
         result.setSuccess(message: 'Transaction not started');
@@ -1104,9 +1128,9 @@ class AcSqliteDao extends AcBaseSqlDao {
   Future<AcResult> transactionRollback() async {
     AcResult result = AcResult();
     try {
-      if (_database != null) {
+      if (_inTransaction && _database != null) {
         _database!.execute("ROLLBACK");
-        _database = null;
+        _inTransaction = false;
         result.setSuccess();
       } else {
         result.setSuccess(message: 'Transaction not started');
@@ -1121,16 +1145,15 @@ class AcSqliteDao extends AcBaseSqlDao {
     AcResult result = AcResult();
     Database? db;
     try {
-      if (_database == null) {
-        db = await _getConnection();
-        if (db != null) {
+      db = await _getConnection();
+      if (db != null) {
+        if (!_inTransaction) {
           db.execute("BEGIN");
-          result.setSuccess();
-        } else {
-          result.setFailure(message: 'Error connecting database');
+          _inTransaction = true;
         }
+        result.setSuccess();
       } else {
-        result.setSuccess(message: 'Transaction already started');
+        result.setFailure(message: 'Error connecting database');
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);

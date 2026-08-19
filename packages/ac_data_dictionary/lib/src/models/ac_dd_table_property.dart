@@ -68,6 +68,10 @@ class AcDDTableProperty {
       }
       json.remove(keyPropertyName);
     }
+    if(json.containsKey(keyPropertyValue)){
+      propertyValue = json[keyPropertyValue];
+      json.remove(keyPropertyValue);
+    }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
       jsonData: json,

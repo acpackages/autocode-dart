@@ -29,6 +29,9 @@ class AcResult {
   static const String keyStatus = 'status';
   static const String keyValue = 'value';
 
+  /// Global callback invoked whenever an exception is recorded via [setException].
+  static void Function(dynamic exception, dynamic stackTrace)? onException;
+
   @AcBindJsonProperty(skipInFromJson: true,skipInToJson: true)
   AcLogger? logger;
 
@@ -172,6 +175,10 @@ class AcResult {
     this.exception = exception;
     this.stackTrace = stackTrace;
     this.message = (message ?? exception?.toString())!;
+
+    if (onException != null) {
+      onException!(exception, stackTrace);
+    }
 
     if (logException) {
       print(exception);

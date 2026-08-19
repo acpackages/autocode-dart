@@ -535,9 +535,17 @@ class AcDataDictionary {
       }
       json.remove(keyRelationships);
     }
+    if (json.containsKey(keyName)) {
+      name = json[keyName]?.toString() ?? '';
+      json.remove(keyName);
+    }
+    if (json.containsKey(keyVersion)) {
+      version = json[keyVersion] is int ? json[keyVersion] : int.tryParse(json[keyVersion].toString()) ?? 0;
+      json.remove(keyVersion);
+    }
     AcJsonUtils.setInstancePropertiesFromJsonData(
       instance: this,
-      jsonData: jsonData,
+      jsonData: json,
     );
     return this;
   }
