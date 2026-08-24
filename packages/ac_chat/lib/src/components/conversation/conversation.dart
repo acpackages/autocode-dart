@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ac_extensions/ac_extensions.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../core/ac_chat.dart';
 import 'attachments.dart';
@@ -821,6 +822,7 @@ class _ConversationState extends State<Conversation>
   }
 
   void _showMockContactSelector(BuildContext context, AcChatTheme ct) {
+    final users = widget.api.getContacts?.call() ?? widget.api.getUsers();
     showModalBottomSheet(
       context: context,
       backgroundColor: ct.surface,
@@ -838,9 +840,18 @@ class _ConversationState extends State<Conversation>
               style: TextStyle(color: ct.text, fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 12),
-            _contactTile(context, ct, 'Alice Johnson', '+1 (555) 019-9821'),
-            _contactTile(context, ct, 'Bob Smith', '+1 (555) 014-2398'),
-            _contactTile(context, ct, 'Charlie Brown', '+1 (555) 017-7401'),
+            if (users.isNotEmpty)
+              ...users.take(5).map((u) => _contactTile(
+                    context,
+                    ct,
+                    u.name,
+                    u.phone!.isNotEmpty ? u.phone! : '@${u.username}',
+                  ))
+            else ...[
+              _contactTile(context, ct, 'Alice Johnson', '+1 (555) 019-9821'),
+              _contactTile(context, ct, 'Bob Smith', '+1 (555) 014-2398'),
+              _contactTile(context, ct, 'Charlie Brown', '+1 (555) 017-7401'),
+            ],
             const SizedBox(height: 12),
           ],
         ),

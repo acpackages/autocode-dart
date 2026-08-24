@@ -11,7 +11,6 @@ class AcPrinting {
     AcResult result = AcResult();
     try{
       List<AcPrinter> printers = List.empty(growable: true);
-      try{
         for(var printer in await Printing.listPrinters()){
           var acPrinter = AcPrinter();
           acPrinter.name = printer.name;
@@ -22,10 +21,6 @@ class AcPrinting {
           acPrinter.isAvailable = printer.isAvailable;
           printers.add(acPrinter);
         }
-      }
-      catch(ex,stack){
-        print(Autocode.getExceptionMessage(exception: ex,stackTrace: stack));
-      }
       result.setSuccess(value: printers);
     }
     catch(ex,stack){

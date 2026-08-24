@@ -15,7 +15,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
   String _query = '';
 
   List<AcChatUser> get _filtered {
-    final list = widget.api.getUsers();
+    final list = widget.api.getContacts?.call() ?? widget.api.getUsers();
     if (_query.isEmpty) return list;
     return list
         .where((u) =>
@@ -49,8 +49,26 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   void _startGroup() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('New Group — coming soon')));
+    if (widget.api.onNewGroup != null) {
+      widget.api.onNewGroup!(context);
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('New Group — coming soon')));
+    }
+  }
+
+  Future<void> _startNewContact() async {
+    if (widget.api.onNewContact != null) {
+      final user = await widget.api.onNewContact!(context);
+      if (user != null && mounted) {
+        _startChat(user);
+      } else if (mounted) {
+        setState(() {});
+      }
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('New Contact — coming soon')));
+    }
   }
 
   @override
@@ -127,8 +145,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     return _SpecialTile(
                       icon: Icons.group_rounded,
                       color: ct.unreadBadgeBg,
-                      label: 'New Group',
-                      subtitle: 'Create a group with contacts',
+                      label: widget.api.newGroupLabel ?? 'New Group',
+                      subtitle: widget.api.newGroupSubtitle ?? 'Create a group with contacts',
                       ct: ct,
                       onTap: _startGroup,
                     );
@@ -139,11 +157,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
                   return _SpecialTile(
                     icon: Icons.person_add_rounded,
                     color: ct.newChatGroupIconBg,
-                    label: 'Invite to Accountea',
-                    subtitle: 'Share the app with friends',
+                    label: widget.api.newContactLabel ?? 'New Contact',
+                    subtitle: widget.api.newContactSubtitle ?? 'Add a new contact to chat',
                     ct: ct,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite — coming soon'))),
+                    onTap: _startNewContact,
                   );
                 }
                 cur++;
@@ -157,7 +174,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                     child: Text(
-                      'CONTACTS ON ACCOUNTEA',
+                      widget.api.contactsSectionTitle ?? 'CONTACTS ON ACCOUNTEA',
                       style: TextStyle(
                           color: ct.unreadBadgeBg,
                           fontSize: 12,

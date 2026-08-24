@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:ac_chat/ac_chat.dart';
 import 'package:uuid/uuid.dart';
 
@@ -137,7 +137,28 @@ class AcChatFirebase implements AcChatSyncChannel {
   /// kept current by Firestore real-time listeners.
   ///
   /// Call [initialize] before calling this method.
-  AcChatApi buildApi(AcChatTheme theme) {
+  AcChatApi buildApi(
+    AcChatTheme theme, {
+    FutureOr<AcChatUser?> Function(BuildContext context)? onNewContact,
+    FutureOr<void> Function(BuildContext context)? onNewGroup,
+    List<AcChatUser> Function()? getContacts,
+    String? contactsSectionTitle,
+    String? newContactLabel,
+    String? newContactSubtitle,
+    String? newGroupLabel,
+    String? newGroupSubtitle,
+    Widget? Function(BuildContext context, AcChatMessage message)? customMessageBuilder,
+    void Function(AcChatMessage message)? onMessageTap,
+    Widget? Function(BuildContext context, AcChatConversation conversation)? customInputBuilder,
+    bool? enableVideoCall,
+    bool? enableVoiceCall,
+    bool? showNewConversationButton,
+    bool? searchConversations,
+    bool? pinConversations,
+    bool? showConversationMenu,
+    bool? showOnlineStatus,
+    bool? readOnly,
+  }) {
     return AcChatApi(
       theme: theme,
       getCurrentUser: _getCurrentUser,
@@ -151,6 +172,25 @@ class AcChatFirebase implements AcChatSyncChannel {
       sendMessage: _sendMessageStandalone,
       enableGroupsAndStatuses: true,
       updateMessage: _updateMessageStandalone,
+      onNewContact: onNewContact,
+      onNewGroup: onNewGroup,
+      getContacts: getContacts,
+      contactsSectionTitle: contactsSectionTitle,
+      newContactLabel: newContactLabel,
+      newContactSubtitle: newContactSubtitle,
+      newGroupLabel: newGroupLabel,
+      newGroupSubtitle: newGroupSubtitle,
+      customMessageBuilder: customMessageBuilder,
+      onMessageTap: onMessageTap,
+      customInputBuilder: customInputBuilder,
+      enableVideoCall: enableVideoCall ?? false,
+      enableVoiceCall: enableVoiceCall ?? false,
+      showNewConversationButton: showNewConversationButton ?? false,
+      searchConversations: searchConversations ?? true,
+      pinConversations: pinConversations ?? false,
+      showConversationMenu: showConversationMenu ?? true,
+      showOnlineStatus: showOnlineStatus ?? true,
+      readOnly: readOnly ?? false,
     );
   }
 

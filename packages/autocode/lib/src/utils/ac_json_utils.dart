@@ -293,7 +293,7 @@ class AcJsonUtils {
       }
 
       return instanceToJson(instance: propertyValue);
-    }catch(ex){
+    }catch(ex,stack){
       return null;
     }
   }

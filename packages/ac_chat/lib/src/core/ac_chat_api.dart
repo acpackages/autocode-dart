@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'ac_chat.dart';
 import 'package:flutter/widgets.dart';
 
@@ -16,6 +17,28 @@ class AcChatApi {
   final void Function(String messageId, Map<String, dynamic> data)? updateMessage;
   final Widget? Function(BuildContext context, AcChatMessage message)? customMessageBuilder;
   final void Function(AcChatMessage message)? onMessageTap;
+
+  /// Optional callback invoked when the user taps 'New Contact' in the new chat screen.
+  /// Receives the [BuildContext] and can return a newly created [AcChatUser] to immediately start a chat.
+  final FutureOr<AcChatUser?> Function(BuildContext context)? onNewContact;
+
+  /// Optional callback invoked when the user taps 'New Group' in the new chat screen or menu.
+  final FutureOr<void> Function(BuildContext context)? onNewGroup;
+
+  /// Optional callback to retrieve the contact list for new chat creation.
+  /// If not provided, [getUsers] is used.
+  final List<AcChatUser> Function()? getContacts;
+
+  /// Optional custom title for the contacts section in [NewChatScreen].
+  final String? contactsSectionTitle;
+
+  /// Optional custom label and subtitle for the new contact tile in [NewChatScreen].
+  final String? newContactLabel;
+  final String? newContactSubtitle;
+
+  /// Optional custom label and subtitle for the new group tile in [NewChatScreen].
+  final String? newGroupLabel;
+  final String? newGroupSubtitle;
 
   /// When true, the standard send bar is hidden and users cannot compose
   /// new messages.  Use this for read-only views like a transaction log.
@@ -79,6 +102,14 @@ class AcChatApi {
     this.updateMessage,
     this.customMessageBuilder,
     this.onMessageTap,
+    this.onNewContact,
+    this.onNewGroup,
+    this.getContacts,
+    this.contactsSectionTitle,
+    this.newContactLabel,
+    this.newContactSubtitle,
+    this.newGroupLabel,
+    this.newGroupSubtitle,
     this.readOnly = false,
     // Feature flags
     this.enableVideoCall = false,

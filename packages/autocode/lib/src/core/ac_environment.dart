@@ -65,7 +65,7 @@ class AcEnvironment {
         Map<String,dynamic> configJson = jsonDecode(envJsonString);
         AcEnvironment.config = configJson;
       }
-      catch(ex){
+      catch(ex,stack){
         //
       }
     }
