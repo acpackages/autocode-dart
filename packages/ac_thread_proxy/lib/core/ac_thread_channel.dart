@@ -23,8 +23,9 @@ class AcThreadChannel {
       sendPort!.send(handshakeData);
     }
     if (receivePort != null) {
-      receivePort!.listen((rawJson) async {
-        if (rawJson is! Map<String, dynamic>) return;
+      receivePort!.listen((rawData) async {
+        if (rawData is! Map) return;
+        final rawJson = Map<String, dynamic>.from(rawData);
         if (rawJson.containsKey("__is_channel_handshake__") && rawJson.containsKey("send_port")) {
           sendPort = rawJson['send_port'] as SendPort;
           _flushQueue();
@@ -80,10 +81,14 @@ class AcThreadChannel {
             try {
               logger.log("[AcThreadChannel] Calling callback for key : ${message.key}");
               final callback = _keyCallbacks[message.key]!;
+              dynamic callbackData = message.data;
+              if (callbackData is Map && callbackData is! Map<String, dynamic>) {
+                callbackData = Map<String, dynamic>.from(callbackData);
+              }
               dynamic res;
-              if (message.data != null) {
+              if (callbackData != null) {
                 try {
-                  res = await callback(message.data);
+                  res = await callback(callbackData);
                 } on NoSuchMethodError {
                   res = await callback();
                 }

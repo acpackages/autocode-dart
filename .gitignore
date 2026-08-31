@@ -9,3 +9,5 @@ environment.json
 /third_party_repositories/
 *.db
 /packages/ac_sync/logs
+**/build/**
+**/logs/**
