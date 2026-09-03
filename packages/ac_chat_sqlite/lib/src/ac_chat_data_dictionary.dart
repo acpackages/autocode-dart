@@ -6,7 +6,7 @@
 const String kAcChatDataDictionaryJson = r'''
 {
   "name": "ac_chat",
-  "version": 1,
+  "version": 2,
   "tables": {
     "users": {
       "tableName": "users",
@@ -129,14 +129,24 @@ const String kAcChatDataDictionaryJson = r'''
           "columnName": "conversation_id",
           "columnType": "STRING",
           "columnProperties": {
-            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
           }
         },
         "user_id": {
           "columnName": "user_id",
           "columnType": "STRING",
           "columnProperties": {
-            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
+          }
+        },
+        "role": {
+          "columnName": "role",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "member" }
           }
         }
       },
@@ -244,6 +254,124 @@ const String kAcChatDataDictionaryJson = r'''
         "reply_to_id": {
           "columnName": "reply_to_id",
           "columnType": "STRING"
+        },
+        "delivered_time": {
+          "columnName": "delivered_time",
+          "columnType": "INTEGER"
+        },
+        "read_time": {
+          "columnName": "read_time",
+          "columnType": "INTEGER"
+        },
+        "is_edited": {
+          "columnName": "is_edited",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "edited_time": {
+          "columnName": "edited_time",
+          "columnType": "INTEGER"
+        },
+        "is_deleted": {
+          "columnName": "is_deleted",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "reactions_json": {
+          "columnName": "reactions_json",
+          "columnType": "TEXT"
+        }
+      }
+    },
+    "outbox_messages": {
+      "tableName": "outbox_messages",
+      "tableColumns": {
+        "outbox_id": {
+          "columnName": "outbox_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+            "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
+          }
+        },
+        "message_id": {
+          "columnName": "message_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
+          }
+        },
+        "conversation_id": {
+          "columnName": "conversation_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+          }
+        },
+        "recipient_ids_json": {
+          "columnName": "recipient_ids_json",
+          "columnType": "TEXT",
+          "columnProperties": {
+            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+          }
+        },
+        "retry_count": {
+          "columnName": "retry_count",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "created_at": {
+          "columnName": "created_at",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+          }
+        },
+        "status": {
+          "columnName": "status",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "pending" }
+          }
+        }
+      }
+    },
+    "messages_fts": {
+      "tableName": "messages_fts",
+      "tableColumns": {
+        "message_id": {
+          "columnName": "message_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+            "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
+          }
+        },
+        "conversation_id": {
+          "columnName": "conversation_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
+          }
+        },
+        "text": {
+          "columnName": "text",
+          "columnType": "TEXT",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "" }
+          }
         }
       }
     }

@@ -1,11 +1,9 @@
-import 'dart:typed_data';
 import '../ac_web_internal.dart';
-import 'dart:convert';
 import 'package:autocode/autocode.dart';
 import '../models/ac_web_request.dart';
 import '../models/ac_web_response.dart';
 import './ac_web_interceptor.dart';
-import 'package:crypto/crypto.dart';
+
 
 /* AcDoc({
   "summary": "A built-in JWT (JSON Web Token) interceptor for AcWeb.",
@@ -85,7 +83,7 @@ class AcWebJwtInterceptor extends AcWebInterceptor {
     if (verifyToken != null) {
       claims = await verifyToken!(token);
     } else if (secretKey != null && secretKey!.isNotEmpty) {
-      claims = _verifyHs256(token, secretKey!);
+      claims = AcEncryption.verifyToken(token: token, secret: secretKey!);
     }
 
     if (claims == null) {
@@ -108,49 +106,6 @@ class AcWebJwtInterceptor extends AcWebInterceptor {
     return null;
   }
 
-  /* AcDoc({
-    "summary": "Verifies an HS256-signed JWT using the supplied secret.",
-    "description": "Validates the signature and checks exp/nbf claims. Returns the payload claims on success, null if the token is invalid or expired.",
-    "returns_type": "Map<String, dynamic>?"
-  }) */
-  Map<String, dynamic>? _verifyHs256(String token, String secret) {
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
-
-      // Verify signature
-      final signingInput = '${parts[0]}.${parts[1]}';
-      final keyBytes = utf8.encode(secret);
-      final hmac = Hmac(sha256, keyBytes);
-      final digest = hmac.convert(utf8.encode(signingInput));
-      final expectedSignature = _base64UrlEncode(Uint8List.fromList(digest.bytes));
-
-      if (expectedSignature != parts[2]) return null;
-
-      // Decode payload
-      final payloadJson = utf8.decode(_base64UrlDecode(parts[1]));
-      final claims = jsonDecode(payloadJson) as Map<String, dynamic>;
-
-      // Validate time claims
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (claims.containsKey('exp') && (claims['exp'] as int) < now) return null;
-      if (claims.containsKey('nbf') && (claims['nbf'] as int) > now) return null;
-
-      return claims;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String _base64UrlEncode(Uint8List bytes) {
-    return base64Url.encode(bytes).replaceAll('=', '');
-  }
-
-  Uint8List _base64UrlDecode(String input) {
-    // Pad to multiple of 4
-    final padded = input.padRight((input.length + 3) ~/ 4 * 4, '=');
-    return base64Url.decode(padded);
-  }
 
   AcWebResponse _unauthorized(String message) {
     return AcWebResponse.json(

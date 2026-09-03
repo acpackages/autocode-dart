@@ -24,6 +24,7 @@ class MessageBubble extends StatelessWidget {
   final bool showTail;
 
   const MessageBubble({
+    super.key,
     required this.message,
     required this.ct,
     required this.isDark,
@@ -247,12 +248,15 @@ class _TickIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (status) {
-      case 'read':
-        return Icon(Icons.done_all_rounded,
-            size: 14, color: ct.readTick);
+      case 'sending':
+        return Icon(Icons.access_time_rounded, size: 13, color: ct.messageCheckIcon);
       case 'delivered':
-        return Icon(Icons.done_all_rounded,
-            size: 14, color: ct.messageCheckIcon);
+        return Icon(Icons.done_all_rounded, size: 14, color: ct.messageCheckIcon);
+      case 'read':
+        return Icon(Icons.done_all_rounded, size: 14, color: ct.readTick);
+      case 'failed':
+        return Icon(Icons.error_outline_rounded, size: 14, color: ct.messageDestructive);
+      case 'sent':
       default:
         return Icon(Icons.check_rounded, size: 14, color: ct.messageCheckIcon);
     }

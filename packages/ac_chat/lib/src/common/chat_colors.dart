@@ -73,7 +73,10 @@ Color avatarColor(dynamic id) {
 class AcChatTheme {
   final bool isDark;
   final ThemeData? themeData;
-  const AcChatTheme(this.isDark, [this.themeData]);
+  const AcChatTheme({this.isDark = true, this.themeData});
+
+  factory AcChatTheme.dark({ThemeData? themeData}) => AcChatTheme(isDark: true, themeData: themeData);
+  factory AcChatTheme.light({ThemeData? themeData}) => AcChatTheme(isDark: false, themeData: themeData);
 
   bool get _isThemeDark => (themeData?.brightness == Brightness.dark) || isDark;
 
@@ -161,4 +164,14 @@ class AcChatTheme {
   Color get chatHeaderBg => _isThemeDark ? const Color(0xFF1F2C34) : const Color(0xFFF0F2F5);
   Color get messageBubbleSystemBg => _isThemeDark ? const Color(0xFF1E2A30) : Colors.white;
   Color get messageBubbleAttachmentPreviewBg => _isThemeDark ? const Color(0xFF26353D) : const Color(0xFFF0F2F5);
+
+  // Additional aliases for backward compatibility and clean UI
+  Color get dateChipBg => dateChip;
+  Color get dateChipText => _isThemeDark ? white : black;
+  Color get unreadBadgeText => white;
+  Color get chatDarkAppBar => _ChatColors.darkAppBar;
+  Color get searchBg => searchFill;
+  Color get textSecondary => subText;
+  Color get textPrimary => text;
+  Color get tabUnselected => white60;
 }

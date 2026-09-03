@@ -1,40 +1,29 @@
-import 'package:ac_chat/src/components/conversation/conversation.dart';
 import 'package:flutter/material.dart';
-import '../common/chat_colors.dart';
-import '../components/conversation_list_item.dart';
-import '../new_chat_screen.dart';
+import 'ac_chat_api.dart';
 import '../models/ac_chat_user.dart';
 import '../models/ac_chat_conversation.dart';
 import '../models/ac_chat_conversation_user.dart';
+import '../models/ac_chat_message.dart';
+import 'ac_chat_audio_player.dart';
+import '../common/chat_colors.dart';
+import '../common/theme_provider.dart';
+import '../components/conversation/conversation.dart';
+import '../components/conversation_list_item.dart';
 import '../chat_profile_screen.dart';
-import 'ac_chat_api.dart';
+import '../new_chat_screen.dart';
+
+export 'ac_chat_api.dart';
+export '../common/chat_colors.dart';
 export '../models/ac_chat_user.dart';
 export '../models/ac_chat_conversation.dart';
-export '../models/ac_chat_message.dart';
 export '../models/ac_chat_conversation_user.dart';
-export '../chat_profile_screen.dart';
-export 'ac_chat_api.dart';
+export '../models/ac_chat_message.dart';
+export '../common/theme_provider.dart';
+export '../sync/ac_chat_sync_channel.dart';
+export '../media/ac_chat_media_uploader.dart';
+export '../crypto/ac_chat_crypto_provider.dart';
+export '../connectivity/ac_chat_connectivity_provider.dart';
 export 'ac_chat_audio_player.dart';
-export '../common/chat_colors.dart';
-
-class AcChatApiProvider extends InheritedWidget {
-  final AcChatApi api;
-
-  const AcChatApiProvider({
-    super.key,
-    required this.api,
-    required super.child,
-  });
-
-  static AcChatApi of(BuildContext context) {
-    final provider = context.dependOnInheritedWidgetOfExactType<AcChatApiProvider>();
-    assert(provider != null, 'No AcChatApiProvider found in context');
-    return provider!.api;
-  }
-
-  @override
-  bool updateShouldNotify(AcChatApiProvider oldWidget) => api != oldWidget.api;
-}
 
 class AcChat extends StatefulWidget {
   final AcChatApi api;
@@ -72,338 +61,295 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    print("[AcChat] Rendering ac chat widget");
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
     final showGroupStatus = widget.api.enableGroupsAndStatuses;
 
-    final leftPane = Scaffold(
-      backgroundColor: ct.scaffold,
-      appBar: showGroupStatus
-          ? AppBar(
-              backgroundColor: ct.appBar,
-              elevation: 0,
-              toolbarHeight: 0,
-              automaticallyImplyLeading: false,
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(50), 
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: false,
-                    indicatorColor: isDark ? ct.activeTabColor : ct.white,
-                    indicatorWeight: 3,
-                    dividerColor: ct.divider,
-                    labelColor: ct.chatTabLabelColor,
-                    unselectedLabelColor: ct.chatTabUnselectedLabelColor,
-                    labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                    tabs: const [
-                      Tab(text: 'CHATS'),
-                      Tab(text: 'GROUPS'),
-                      Tab(text: 'STATUS'),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          : null,
-      body: showGroupStatus
-          ? TabBarView(
-              controller: _tabController,
-              children: [
-                _ChatTab(
-                  chats: widget.api.getConversations(),
-                  ct: ct,
-                  isDark: isDark,
-                  selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-                  showSearch: widget.api.searchConversations,
-                  pinningEnabled: widget.api.pinConversations,
-                  showOnlineStatus: widget.api.showOnlineStatus,
-                  onChatSelected: (chat) {
-                    if (isLarge) {
-                      setState(() {
-                        _selectedChat = chat;
-                      });
-                    } else {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => Conversation(
-                            chat: chat,
-                            isEmbedded: false,
-                            api: widget.api,
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  onRefresh: () => setState(() {}),
-                ),
-                _ChatTab(
-                  chats: widget.api.getConversations()
-                      .where((c) => c.type == 'group')
-                      .toList(),
-                  ct: ct,
-                  isDark: isDark,
-                  selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-                  showSearch: widget.api.searchConversations,
-                  pinningEnabled: widget.api.pinConversations,
-                  showOnlineStatus: widget.api.showOnlineStatus,
-                  onChatSelected: (chat) {
-                    if (isLarge) {
-                      setState(() {
-                        _selectedChat = chat;
-                      });
-                    } else {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => Conversation(
-                            chat: chat,
-                            isEmbedded: false,
-                            api: widget.api,
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  onRefresh: () => setState(() {}),
-                ),
-                _StatusTab(ct: ct),
-              ],
-            )
-          : _ChatTab(
-              chats: widget.api.getConversations().where((c) => c.type != 'group').toList(),
-              ct: ct,
-              isDark: isDark,
-              selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-              showSearch: widget.api.searchConversations,
-              pinningEnabled: widget.api.pinConversations,
-              showOnlineStatus: widget.api.showOnlineStatus,
-              onChatSelected: (chat) {
-                if (isLarge) {
-                  setState(() {
-                    _selectedChat = chat;
-                  });
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => Conversation(
-                        chat: chat,
-                        isEmbedded: false,
-                        api: widget.api,
+    return StreamBuilder<List<AcChatConversation>>(
+      stream: widget.api.watchConversations?.call(),
+      initialData: widget.api.getConversations(),
+      builder: (context, snapshot) {
+        final allConvs = snapshot.data ?? widget.api.getConversations();
+
+        final leftPane = Scaffold(
+          backgroundColor: ct.scaffold,
+          appBar: showGroupStatus
+              ? AppBar(
+                  backgroundColor: ct.appBar,
+                  elevation: 0,
+                  toolbarHeight: 0,
+                  automaticallyImplyLeading: false,
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(50),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: false,
+                        indicatorColor: isDark ? ct.activeTabColor : ct.white,
+                        indicatorWeight: 3,
+                        dividerColor: ct.divider,
+                        labelColor: ct.chatTabLabelColor,
+                        unselectedLabelColor: isDark ? ct.tabUnselected : ct.white.withOpacity(0.7),
+                        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        tabs: const [
+                          Tab(text: 'CHATS'),
+                          Tab(text: 'GROUPS'),
+                          Tab(text: 'STATUS'),
+                        ],
                       ),
                     ),
-                  );
-                }
-              },
-              onRefresh: () => setState(() {}),
-            ),
-      floatingActionButton: widget.api.showNewConversationButton
-          ? FloatingActionButton(
-              backgroundColor: ct.activeTabColor,
-              child: Icon(Icons.chat_rounded, color: ct.chatFloatingActionButtonColor),
-              onPressed: () async {
-                final result = await Navigator.of(context)
-                    .push<AcChatConversation>(MaterialPageRoute(builder: (_) => NewChatScreen(api: widget.api)));
-                if (result != null) {
-                  if (isLarge) {
-                    setState(() {
-                      _selectedChat = result;
-                    });
-                  } else {
-                    if (mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => Conversation(
-                            chat: result,
-                            isEmbedded: false,
-                            api: widget.api,
-                          ),
-                        ),
-                      );
-                    }
-                  }
-                }
-              },
-            )
-          : null,
-    );
-
-    if (!isLarge) {
-      return AcChatApiProvider(
-        api: widget.api,
-        child: leftPane,
-      );
-    }
-
-    final rightPane = Expanded(
-      child: _selectedChat == null
-          ? Container(
-              color: ct.scaffold,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  ),
+                )
+              : null,
+          body: showGroupStatus
+              ? TabBarView(
+                  controller: _tabController,
                   children: [
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 80,
-                      color: ct.subText.withOpacity(0.2),
+                    _ChatTab(
+                      chats: allConvs,
+                      ct: ct,
+                      isDark: isDark,
+                      selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+                      showSearch: widget.api.searchConversations,
+                      pinningEnabled: widget.api.pinConversations,
+                      showOnlineStatus: widget.api.showOnlineStatus,
+                      onChatSelected: (chat) {
+                        if (isLarge) {
+                          setState(() {
+                            _selectedChat = chat;
+                          });
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => Conversation(
+                                chat: chat,
+                                isEmbedded: false,
+                                api: widget.api,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      onRefresh: () => setState(() {}),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Select a chat to view conversation',
-                      style: TextStyle(
-                        color: ct.subText,
-                        fontSize: 16,
+                    _ChatTab(
+                      chats: allConvs.where((c) => c.type == 'group').toList(),
+                      ct: ct,
+                      isDark: isDark,
+                      selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+                      showSearch: widget.api.searchConversations,
+                      pinningEnabled: widget.api.pinConversations,
+                      showOnlineStatus: widget.api.showOnlineStatus,
+                      onChatSelected: (chat) {
+                        if (isLarge) {
+                          setState(() {
+                            _selectedChat = chat;
+                          });
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => Conversation(
+                                chat: chat,
+                                isEmbedded: false,
+                                api: widget.api,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      onRefresh: () => setState(() {}),
+                    ),
+                    _StatusTab(ct: ct),
+                  ],
+                )
+              : _ChatTab(
+                  chats: allConvs.where((c) => c.type != 'group').toList(),
+                  ct: ct,
+                  isDark: isDark,
+                  selectedChatId: isLarge ? _selectedChat?.conversationId : null,
+                  showSearch: widget.api.searchConversations,
+                  pinningEnabled: widget.api.pinConversations,
+                  showOnlineStatus: widget.api.showOnlineStatus,
+                  onChatSelected: (chat) {
+                    if (isLarge) {
+                      setState(() {
+                        _selectedChat = chat;
+                      });
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => Conversation(
+                            chat: chat,
+                            isEmbedded: false,
+                            api: widget.api,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  onRefresh: () => setState(() {}),
+                ),
+          floatingActionButton: widget.api.showNewConversationButton
+              ? FloatingActionButton(
+                  backgroundColor: ct.activeTabColor,
+                  child: Icon(Icons.chat_rounded, color: ct.chatFloatingActionButtonColor),
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push<AcChatConversation>(
+                      MaterialPageRoute(builder: (_) => NewChatScreen(api: widget.api)),
+                    );
+                    if (result != null) {
+                      if (isLarge) {
+                        setState(() {
+                          _selectedChat = result;
+                        });
+                      } else {
+                        if (mounted) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => Conversation(
+                                chat: result,
+                                isEmbedded: false,
+                                api: widget.api,
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                )
+              : null,
+        );
+
+        if (!isLarge) {
+          return AcChatApiProvider(
+            api: widget.api,
+            child: leftPane,
+          );
+        }
+
+        final rightPane = Expanded(
+          child: _selectedChat == null
+              ? Container(
+                  color: ct.scaffold,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 80,
+                          color: ct.subText.withOpacity(0.2),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Select a chat to view conversation',
+                          style: TextStyle(
+                            color: ct.subText,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Conversation(
+                  key: ValueKey(_selectedChat!.conversationId),
+                  chat: _selectedChat!,
+                  api: widget.api,
+                  isEmbedded: true,
+                ),
+        );
+
+        return AcChatApiProvider(
+          api: widget.api,
+          child: Scaffold(
+            backgroundColor: ct.scaffold,
+            body: Row(
+              children: [
+                SizedBox(
+                  width: _listWidth,
+                  child: leftPane,
+                ),
+                MouseRegion(
+                  cursor: SystemMouseCursors.resizeColumn,
+                  onEnter: (_) => setState(() => _hoveringListDivider = true),
+                  onExit: (_) => setState(() => _hoveringListDivider = false),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        _listWidth = (_listWidth + details.delta.dx).clamp(280.0, 500.0);
+                      });
+                    },
+                    child: Container(
+                      width: 6,
+                      color: _hoveringListDivider ? ct.activeTabColor : ct.divider,
+                    ),
+                  ),
+                ),
+                rightPane,
+                if (_showProfile && _selectedChat != null) ...[
+                  MouseRegion(
+                    cursor: SystemMouseCursors.resizeColumn,
+                    onEnter: (_) => setState(() => _hoveringProfileDivider = true),
+                    onExit: (_) => setState(() => _hoveringProfileDivider = false),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragUpdate: (details) {
+                        setState(() {
+                          _profileWidth = (_profileWidth - details.delta.dx).clamp(280.0, 500.0);
+                        });
+                      },
+                      child: Container(
+                        width: 6,
+                        color: _hoveringProfileDivider ? ct.activeTabColor : ct.divider,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            )
-          : Conversation(
-              key: ValueKey(_selectedChat!.conversationId),
-              chat: _selectedChat!,
-              isEmbedded: true,
-              api: widget.api,
-              onShowProfile: () {
-                setState(() {
-                  _showProfile = !_showProfile;
-                });
-              },
-            ),
-    );
-
-    return AcChatApiProvider(
-      api: widget.api,
-      child: Stack(
-        children: [
-        Row(
-          children: [
-            SizedBox(
-              width: _listWidth,
-              child: leftPane,
-            ),
-            rightPane,
-            if (_showProfile && _selectedChat != null)
-              SizedBox(
-                width: _profileWidth,
-                child: ChatProfileScreen(
-                  chat: _selectedChat!,
-                  isEmbedded: true,
-                  api: widget.api,
-                  onClose: () {
-                    setState(() {
-                      _showProfile = false;
-                    });
-                  },
-                ),
-              ),
-          ],
-        ),
-        Positioned(
-          left: _listWidth - 4,
-          top: 0,
-          bottom: 0,
-          width: 8,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragUpdate: (details) {
-              setState(() {
-                _listWidth = (_listWidth + details.delta.dx).clamp(250.0, 600.0);
-              });
-            },
-            child: MouseRegion(
-              cursor: SystemMouseCursors.resizeLeftRight,
-              onEnter: (_) => setState(() => _hoveringListDivider = true),
-              onExit: (_) => setState(() => _hoveringListDivider = false),
-              child: Container(
-                width: 8,
-                color: _hoveringListDivider
-                    ? (isDark ? ct.white.withValues(alpha: 0.08) : ct.black.withValues(alpha: 0.08))
-                    : ct.transparent,
-                alignment: Alignment.center,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _hoveringListDivider ? 1.0 : 0.0,
-                  child: Container(
-                    width: 2,
-                    height: 40,
-                    color: isDark ? ct.white.withValues(alpha: 0.3) : ct.black.withValues(alpha: 0.3),
                   ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (_showProfile && _selectedChat != null)
-          Positioned(
-            right: _profileWidth - 4,
-            top: 0,
-            bottom: 0,
-            width: 8,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragUpdate: (details) {
-                setState(() {
-                  _profileWidth = (_profileWidth - details.delta.dx).clamp(280.0, 500.0);
-                });
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                onEnter: (_) => setState(() => _hoveringProfileDivider = true),
-                onExit: (_) => setState(() => _hoveringProfileDivider = false),
-                child: Container(
-                  width: 8,
-                  color: _hoveringProfileDivider
-                      ? (isDark ? ct.white.withValues(alpha: 0.08) : ct.black.withValues(alpha: 0.08))
-                      : ct.transparent,
-                  alignment: Alignment.center,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: _hoveringProfileDivider ? 1.0 : 0.0,
-                    child: Container(
-                      width: 2,
-                      height: 40,
-                      color: isDark ? ct.white.withValues(alpha: 0.3) : ct.black.withValues(alpha: 0.3),
+                  SizedBox(
+                    width: _profileWidth,
+                    child: ChatProfileScreen(
+                      chat: _selectedChat!,
+                      isEmbedded: true,
+                      onClose: () => setState(() => _showProfile = false),
+                      api: widget.api,
                     ),
                   ),
-                ),
-              ),
+                ],
+              ],
             ),
           ),
-      ],
-    ),);
+        );
+      },
+    );
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Chat Tab (Includes Search & Options Bar inside the Tab)
-// ─────────────────────────────────────────────────────────────
 
 class _ChatTab extends StatefulWidget {
   final List<AcChatConversation> chats;
   final AcChatTheme ct;
   final bool isDark;
-  final VoidCallback onRefresh;
-  final Function(AcChatConversation) onChatSelected;
-  final dynamic selectedChatId;
+  final String? selectedChatId;
   final bool showSearch;
   final bool pinningEnabled;
   final bool showOnlineStatus;
+  final ValueChanged<AcChatConversation> onChatSelected;
+  final VoidCallback onRefresh;
 
   const _ChatTab({
     required this.chats,
     required this.ct,
     required this.isDark,
-    required this.onRefresh,
+    required this.selectedChatId,
+    required this.showSearch,
+    required this.pinningEnabled,
+    required this.showOnlineStatus,
     required this.onChatSelected,
-    this.selectedChatId,
-    this.showSearch = true,
-    this.pinningEnabled = false,
-    this.showOnlineStatus = true,
+    required this.onRefresh,
   });
 
   @override
@@ -424,7 +370,7 @@ class _ChatTabState extends State<_ChatTab> {
       if (!isGroup) {
         final members = _memberCache.putIfAbsent(
           c.conversationId,
-          () => api.getConversationUsers(c.conversationId),
+          () => api.getConversationUsers(conversationId: c.conversationId),
         );
         final otherMember = members.firstWhere(
           (m) => m.userId != api.getCurrentUser().userId,
@@ -433,7 +379,7 @@ class _ChatTabState extends State<_ChatTab> {
         if (otherMember.userId.isNotEmpty) {
           otherUser = _userCache.putIfAbsent(
             otherMember.userId,
-            () => api.getUserById(otherMember.userId) ?? AcChatUser(),
+            () => api.getUserById(userId: otherMember.userId) ?? AcChatUser(),
           );
         }
       }
@@ -444,7 +390,6 @@ class _ChatTabState extends State<_ChatTab> {
       return name.toLowerCase().contains(_query.toLowerCase());
     }).toList()
       ..sort((a, b) {
-        // Pinned first
         final pinA = a.isPinned ? 0 : 1;
         final pinB = b.isPinned ? 0 : 1;
         if (pinA != pinB) return pinA - pinB;
@@ -463,7 +408,6 @@ class _ChatTabState extends State<_ChatTab> {
     final filtered = _filteredChats;
     return Column(
       children: [
-        // Search & Actions Row inside Tab
         if (widget.showSearch)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -471,21 +415,19 @@ class _ChatTabState extends State<_ChatTab> {
               children: [
                 Expanded(
                   child: Container(
-                    height: 38,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: widget.ct.chatHeaderBg,
-                      borderRadius: BorderRadius.circular(20),
+                      color: widget.ct.searchBg,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: TextField(
                       controller: _searchCtrl,
+                      onChanged: (val) => setState(() => _query = val),
                       style: TextStyle(color: widget.ct.text, fontSize: 14),
-                      onChanged: (v) => setState(() => _query = v),
                       decoration: InputDecoration(
+                        hintText: 'Search…',
+                        hintStyle: TextStyle(color: widget.ct.subText, fontSize: 14),
                         prefixIcon: Icon(Icons.search, color: widget.ct.subText, size: 20),
-                        hintText: 'Search conversations...',
-                        hintStyle: TextStyle(color: widget.ct.subText, fontSize: 13),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         suffixIcon: _query.isNotEmpty
                             ? IconButton(
                                 icon: Icon(Icons.clear, color: widget.ct.subText, size: 16),
@@ -495,6 +437,8 @@ class _ChatTabState extends State<_ChatTab> {
                                 },
                               )
                             : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -504,12 +448,19 @@ class _ChatTabState extends State<_ChatTab> {
                   icon: Icon(Icons.more_vert, color: widget.isDark ? widget.ct.white70 : widget.ct.black54),
                   color: widget.ct.chatBubbleMenuBg,
                   onSelected: (v) {
+                    final api = AcChatApiProvider.of(context);
                     if (v == 'new_group') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('New Group — coming soon')));
+                      if (api.onNewGroup != null) {
+                        api.onNewGroup!(context: context);
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => NewChatScreen(api: api)),
+                        );
+                      }
                     } else if (v == 'starred') {
                       ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Starred Messages')));
+                        const SnackBar(content: Text('Starred Messages')),
+                      );
                     }
                   },
                   itemBuilder: (_) {
@@ -538,7 +489,6 @@ class _ChatTabState extends State<_ChatTab> {
               ],
             ),
           ),
-        // Conversation List
         Expanded(
           child: filtered.isEmpty
               ? Center(
@@ -548,15 +498,22 @@ class _ChatTabState extends State<_ChatTab> {
                       Icon(Icons.chat_bubble_outline_rounded,
                           size: 64, color: widget.ct.subText.withOpacity(0.4)),
                       const SizedBox(height: 12),
-                      Text(_query.isEmpty ? 'No chats yet' : 'No results found',
-                          style: TextStyle(color: widget.ct.subText, fontSize: 15)),
+                      Text(
+                        _query.isEmpty ? 'No conversations yet' : 'No results found',
+                        style: TextStyle(color: widget.ct.subText, fontSize: 15),
+                      ),
                     ],
                   ),
                 )
-              : ListView.builder(
+              : ListView.separated(
                   itemCount: filtered.length,
-                  itemBuilder: (_, i) {
-                    final chat = filtered[i];
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    indent: 76,
+                    color: widget.ct.divider,
+                  ),
+                  itemBuilder: (context, index) {
+                    final chat = filtered[index];
                     final isSelected = widget.selectedChatId == chat.conversationId;
                     AcChatUser? otherUser;
                     if (chat.type != 'group') {
@@ -581,9 +538,8 @@ class _ChatTabState extends State<_ChatTab> {
                       showOnlineStatus: widget.showOnlineStatus,
                       pinningEnabled: widget.pinningEnabled,
                       onTap: () async {
-                        // Mark as read
                         final api = AcChatApiProvider.of(context);
-                        api.markAsRead(chat.conversationId);
+                        api.markAsRead(conversationId: chat.conversationId);
                         widget.onChatSelected(chat);
                         widget.onRefresh();
                       },
@@ -596,10 +552,6 @@ class _ChatTabState extends State<_ChatTab> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Status Tab (stub)
-// ─────────────────────────────────────────────────────────────
-
 class _StatusTab extends StatelessWidget {
   final AcChatTheme ct;
   const _StatusTab({required this.ct});
@@ -608,104 +560,70 @@ class _StatusTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final api = AcChatApiProvider.of(context);
     final curUser = api.getCurrentUser();
-    final users = api.getUsers();
-    return ListView.builder(
-      itemCount: 4 + users.length + 1,
-      cacheExtent: 200.0,
-      addRepaintBoundaries: true,
-      addAutomaticKeepAlives: false,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text('MY STATUS',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: ct.subText,
-                    letterSpacing: 0.8)),
-          );
-        }
-        if (index == 1) {
-          return _StatusTile(
-              user: curUser,
-              subtitle: 'Tap to add status update',
-              ct: ct,
-              isMe: true);
-        }
-        if (index == 2) {
-          return Divider(height: 1, color: ct.divider);
-        }
-        if (index == 3) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text('RECENT UPDATES',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: ct.subText,
-                    letterSpacing: 0.8)),
-          );
-        }
-        final uIdx = index - 4;
-        if (uIdx < users.length) {
-          return _StatusTile(user: users[uIdx], ct: ct);
-        }
-        return const SizedBox(height: 80);
-      },
-    );
-  }
-}
-
-class _StatusTile extends StatelessWidget {
-  final AcChatUser user;
-  final String? subtitle;
-  final AcChatTheme ct;
-  final bool isMe;
-
-  const _StatusTile(
-      {required this.user,
-      this.subtitle,
-      required this.ct,
-      this.isMe = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = avatarColor(user.userId);
-    return ListTile(
-      leading: Stack(clipBehavior: Clip.none, children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isMe ? ct.subText : ct.unreadBadgeBg,
-              width: isMe ? 1.5 : 2.5,
+    return ListView(
+      children: [
+        ListTile(
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: ct.activeTabColor,
+                child: Text(
+                  curUser.name.isNotEmpty ? curUser.name[0].toUpperCase() : '?',
+                  style: TextStyle(color: ct.white, fontSize: 18),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: ct.activeTabColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: ct.scaffold, width: 2),
+                  ),
+                  child: Icon(Icons.add, size: 14, color: ct.white),
+                ),
+              )
+            ],
+          ),
+          title: Text(
+            'My status',
+            style: TextStyle(color: ct.text, fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            'Tap to add status update',
+            style: TextStyle(color: ct.subText, fontSize: 13),
+          ),
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Status update — coming soon')),
+            );
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(
+            'RECENT UPDATES',
+            style: TextStyle(
+              color: ct.subText,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          padding: const EdgeInsets.all(2),
-          child: CircleAvatar(
-            backgroundColor: color,
-            child: isMe
-                ? Icon(Icons.add, color: ct.white, size: 20)
-                : Text(
-                    user.name[0].toUpperCase(),
-                    style: TextStyle(
-                        color: ct.white,
-                        fontWeight: FontWeight.w600),
-                  ),
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Text(
+              'No recent status updates',
+              style: TextStyle(color: ct.subText, fontSize: 14),
+            ),
           ),
         ),
-      ]),
-      title: Text(isMe ? 'My Status' : user.name,
-          style: TextStyle(
-              color: ct.text, fontSize: 15, fontWeight: FontWeight.w500)),
-      subtitle: Text(
-          subtitle ?? '2 hours ago',
-          style: TextStyle(color: ct.subText, fontSize: 12)),
-      onTap: () => ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Status — coming soon'))),
+      ],
     );
   }
 }

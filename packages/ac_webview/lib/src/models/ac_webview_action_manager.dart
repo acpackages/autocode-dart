@@ -7,9 +7,9 @@ class AcWebviewActionManager {
   final AcLogger logger = AcLogger();
 
   String on({required String action,required Function callback}){
-    logger.log("Registering callback for action $action");
+    logger.log("[AcWebviewActionManager] Registering callback for action $action");
     var id = events.subscribe(event: action, callback: callback);
-    logger.log("Registered callback for action $action!");
+    logger.log("[AcWebviewActionManager] Registered callback for action $action!");
     return id;
   }
 
@@ -17,9 +17,9 @@ class AcWebviewActionManager {
     AcWebviewChannelAction channelAction = AcWebviewChannelAction.fromJson(jsonData: actionJson);
     logger.log(actionJson);
     if(channelAction.action.isNotEmpty){
-      logger.log("Performing action ${channelAction.action}");
+      logger.log("[AcWebviewActionManager] Performing action ${channelAction.action}");
       await events.execute(key: channelAction.action,args: [channelAction]);
-      logger.log("Action response ${channelAction.response}");
+      logger.log("[AcWebviewActionManager] Action response ${channelAction.response}");
     }
     else{
       logger.error("Action not found in channelAction");

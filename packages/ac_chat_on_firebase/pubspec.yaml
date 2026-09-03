@@ -1,6 +1,7 @@
 name: ac_chat_on_firebase
 description: Firebase backend adapter for ac_chat. Implements AcChatApi using Cloud Firestore and Firebase Storage. No Firebase Auth dependency.
 version: 0.1.0
+publish_to: none
 
 environment:
   sdk: ^3.6.2
@@ -19,3 +20,4 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  fake_cloud_firestore: ^3.0.0

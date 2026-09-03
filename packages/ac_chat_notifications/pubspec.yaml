@@ -1,0 +1,17 @@
+name: ac_chat_notifications
+description: Pluggable push and local notifications toolkit for ac_chat. Supports FCM, OneSignal, APNs, and custom REST backends.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.2
+  flutter: ">=3.27.4"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  uuid: ^4.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -56,3 +56,26 @@ class _ThemeInherited extends InheritedWidget {
   @override
   bool updateShouldNotify(_ThemeInherited old) => true;
 }
+
+// ─────────────────────────────────────────────────────────────
+// AcChatApiProvider — context provider for AcChatApi
+// ─────────────────────────────────────────────────────────────
+
+class AcChatApiProvider extends InheritedWidget {
+  final dynamic api;
+
+  const AcChatApiProvider({
+    super.key,
+    required this.api,
+    required super.child,
+  });
+
+  static dynamic of(BuildContext context) {
+    final provider = context.dependOnInheritedWidgetOfExactType<AcChatApiProvider>();
+    assert(provider != null, 'No AcChatApiProvider found in context');
+    return provider!.api;
+  }
+
+  @override
+  bool updateShouldNotify(AcChatApiProvider oldWidget) => api != oldWidget.api;
+}

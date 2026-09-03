@@ -1,6 +1,7 @@
 name: ac_chat_sqlite
 description: Offline-first SQLite cache layer for ac_chat. Pluggable channel interface supports Firebase, REST, WebSocket, or any remote backend.
 version: 0.1.0
+publish_to: none
 
 environment:
   sdk: ^3.6.2

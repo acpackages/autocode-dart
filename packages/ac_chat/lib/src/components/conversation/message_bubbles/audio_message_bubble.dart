@@ -51,7 +51,11 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                 // Play / Pause Icon Button
                 GestureDetector(
                   onTap: () {
-                    player.play(messageId, durationSeconds);
+                    player.play(
+                      messageId: messageId,
+                      durationInSeconds: durationSeconds,
+                      filePathOrUrl: widget.message.localPath ?? widget.message.text,
+                    );
                   },
                   child: Container(
                     width: 36,

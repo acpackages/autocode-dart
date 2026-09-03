@@ -18,6 +18,10 @@ class AcChatFirebaseConfig {
   /// member/participant documents.
   final String conversationUsersSubcollection;
 
+  /// Name of the subcollection inside each user document that holds
+  /// incoming synchronization update notifications.
+  final String updatesSubcollection;
+
   /// Root path inside Firebase Storage where chat media files are uploaded.
   /// Files are stored under `{storagePath}/{conversationId}/{messageId}/{fileName}`.
   final String storagePath;
@@ -26,13 +30,22 @@ class AcChatFirebaseConfig {
   /// subsequent real-time listener snapshots.
   final int messagesPageSize;
 
+  /// Number of recent updates fetched per user channel listener.
+  final int updatesPageSize;
+
+  /// Whether to automatically delete update documents once processed.
+  final bool autoAcknowledgeUpdates;
+
   /// Creates an [AcChatFirebaseConfig] with optional overrides.
   const AcChatFirebaseConfig({
     this.usersCollection = 'users',
     this.conversationsCollection = 'conversations',
     this.messagesSubcollection = 'messages',
     this.conversationUsersSubcollection = 'members',
+    this.updatesSubcollection = 'updates',
     this.storagePath = 'chat',
     this.messagesPageSize = 50,
+    this.updatesPageSize = 50,
+    this.autoAcknowledgeUpdates = false,
   });
 }

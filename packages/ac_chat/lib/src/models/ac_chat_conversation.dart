@@ -10,9 +10,10 @@ class AcChatConversation {
   String type = 'direct';
 
   String? groupName;
+  String? groupAvatar;
   List<String> memberIds = [];
   String lastMessage = '';
-  String lastMessageType = '';
+  String lastMessageType = 'text';
   DateTime lastTime = DateTime.now();
   int unread = 0;
   bool isPinned = false;
@@ -40,6 +41,9 @@ class AcChatConversation {
     } else if (json['lastTime'] is DateTime) {
       lastTime = json['lastTime'];
       json.remove('lastTime');
+    } else if (json['lastTime'] is int) {
+      lastTime = DateTime.fromMillisecondsSinceEpoch(json['lastTime']);
+      json.remove('lastTime');
     }
     if (json.containsKey('isGroup')) {
       type = (json['isGroup'] == true) ? 'group' : 'direct';
@@ -48,18 +52,41 @@ class AcChatConversation {
     if (json.containsKey('userId')) {
       json.remove('userId');
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: json,
-    );
+    if (json.containsKey('conversationId') || json.containsKey('id')) {
+      conversationId = (json['conversationId'] ?? json['id'] ?? '').toString();
+    }
+    if (json.containsKey('type')) type = (json['type'] ?? 'direct').toString();
+    if (json.containsKey('groupName')) groupName = json['groupName'] as String?;
+    if (json.containsKey('groupAvatar')) groupAvatar = json['groupAvatar'] as String?;
+    if (json.containsKey('lastMessage')) lastMessage = (json['lastMessage'] ?? '').toString();
+    if (json.containsKey('lastMessageType')) lastMessageType = (json['lastMessageType'] ?? 'text').toString();
+    if (json.containsKey('unread')) unread = int.tryParse(json['unread'].toString()) ?? 0;
+    if (json.containsKey('isPinned')) isPinned = json['isPinned'] == true || json['isPinned'] == 1;
+    if (json.containsKey('isMuted')) isMuted = json['isMuted'] == true || json['isMuted'] == 1;
+
+    try {
+      AcJsonUtils.setInstancePropertiesFromJsonData(
+        instance: this,
+        jsonData: json,
+      );
+    } catch (_) {}
     return this;
   }
 
   Map<String, dynamic> toJson() {
     var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    result['id'] = conversationId;
+    result['conversationId'] = conversationId;
+    result['type'] = type;
+    if (groupName != null) {
+      result['groupName'] = groupName;
+    }
     result['memberIds'] = memberIds;
-    result['lastTime'] = lastTime;
+    result['lastTime'] = lastTime.toIso8601String();
     result['isGroup'] = (type == 'group');
+    if (groupAvatar != null) {
+      result['groupAvatar'] = groupAvatar;
+    }
     return result;
   }
 }

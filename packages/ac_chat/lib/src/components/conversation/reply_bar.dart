@@ -16,7 +16,7 @@ class ReplyBar extends StatelessWidget {
     final senderName =
     message.senderId == api.getCurrentUser().userId
         ? 'You'
-        : api.getUserById(message.senderId)?.name ??
+        : api.getUserById(userId: message.senderId)?.name ??
         'Unknown';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

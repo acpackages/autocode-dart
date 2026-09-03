@@ -1,56 +1,54 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:ac_extensions/ac_extensions.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../core/ac_chat.dart';
-import 'attachments.dart';
-import 'conversation_background.dart';
-import 'date_seperator.dart';
-import 'input_bar.dart';
+import '../../common/chat_colors.dart';
 import 'message_bubble.dart';
+import 'input_bar.dart';
 import 'reply_bar.dart';
+import 'attachments.dart';
+import 'conversation_media_tabs.dart';
+import '../../chat_profile_screen.dart';
 import 'audio_recording_bottom_sheet.dart';
 
 class StickyDateState {
   final DateTime? date;
-  final double pushOffset;
-  const StickyDateState(this.date, this.pushOffset);
+  final double pushProgress;
+  const StickyDateState(this.date, this.pushProgress);
 }
 
 class Conversation extends StatefulWidget {
   final AcChatConversation chat;
-  final bool isEmbedded;
-  final VoidCallback? onShowProfile;
   final AcChatApi api;
+  final VoidCallback? onBack;
+  final bool isEmbedded;
 
   const Conversation({
     super.key,
     required this.chat,
-    this.isEmbedded = false,
-    this.onShowProfile,
     required this.api,
+    this.onBack,
+    this.isEmbedded = false,
   });
 
   @override
-  State<Conversation> createState() =>
-      _ConversationState();
+  State<Conversation> createState() => _ConversationState();
 }
 
 class _ConversationState extends State<Conversation>
     with TickerProviderStateMixin {
-  final _controller = TextEditingController();
-  final _searchController = TextEditingController();
-  final _scrollController = ScrollController();
-  final _focusNode = FocusNode();
-
-  AcChatMessage? _replyTo;
-  bool _showScrollFab = false;
-  bool _isRecording = false;
-  DateTime? _recordingStartTime;
+  final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   bool _showEmojiPicker = false;
+  bool _isComposing = false;
+  bool _showScrollFab = false;
   bool _showSearch = false;
   String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  AcChatMessage? _replyTo;
   late AnimationController _micAnim;
+
   List<AcChatMessage> _cachedMessages = [];
   List<dynamic> _flatItems = [];
   final Map<int, BuildContext> _itemContexts = {};
@@ -58,10 +56,13 @@ class _ConversationState extends State<Conversation>
   late final ValueNotifier<StickyDateState> _stickyDateNotifier =
       ValueNotifier<StickyDateState>(const StickyDateState(null, 0.0));
 
+  StreamSubscription<List<AcChatMessage>>? _messagesSub;
+  Timer? _typingTimer;
+
   bool get _isGroup => widget.chat.type == "group";
 
   void _loadMessages() {
-    final all = widget.api.getMessages(widget.chat.conversationId);
+    final all = widget.api.getMessages(conversationId: widget.chat.conversationId);
     if (_searchQuery.isEmpty) {
       _cachedMessages = all;
     } else {
@@ -90,9 +91,29 @@ class _ConversationState extends State<Conversation>
   void initState() {
     super.initState();
     _loadMessages();
+
+    // Live reactive stream subscription
+    if (widget.api.watchMessages != null) {
+      _messagesSub = widget.api.watchMessages!(conversationId: widget.chat.conversationId).listen((msgs) {
+        if (mounted) {
+          setState(() {
+            if (_searchQuery.isEmpty) {
+              _cachedMessages = msgs;
+            } else {
+              _cachedMessages = msgs
+                  .where((m) => m.text.toLowerCase().contains(_searchQuery.toLowerCase()))
+                  .toList();
+            }
+            _computeFlatItems();
+          });
+        }
+      });
+    }
+
     _micAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 800))
       ..repeat(reverse: true);
+
     _scrollController.addListener(() {
       _updateStickyDate();
       final atBottom = _scrollController.position.pixels <= 100;
@@ -100,107 +121,118 @@ class _ConversationState extends State<Conversation>
         setState(() => _showScrollFab = !atBottom);
       }
     });
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) {
-        setState(() {
-          _showEmojiPicker = false;
+
+    _controller.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+    if (hasText != _isComposing) {
+      setState(() => _isComposing = hasText);
+    }
+    if (widget.api.sendTypingIndicator != null) {
+      widget.api.sendTypingIndicator!(
+        conversationId: widget.chat.conversationId,
+        isTyping: hasText,
+      );
+      _typingTimer?.cancel();
+      if (hasText) {
+        _typingTimer = Timer(const Duration(milliseconds: 2000), () {
+          widget.api.sendTypingIndicator?.call(
+            conversationId: widget.chat.conversationId,
+            isTyping: false,
+          );
         });
       }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
   }
 
   @override
   void dispose() {
-    _micAnim.dispose();
+    _messagesSub?.cancel();
+    _typingTimer?.cancel();
+    _controller.removeListener(_onInputChanged);
     _controller.dispose();
-    _searchController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _searchController.dispose();
+    _micAnim.dispose();
     _stickyDateNotifier.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
   void _updateStickyDate() {
-    if (!mounted) return;
-    if (_itemContexts.isEmpty) {
-      if (_stickyDateNotifier.value.date != null) {
-        _stickyDateNotifier.value = const StickyDateState(null, 0.0);
-      }
+    if (_flatItems.isEmpty) {
+      _stickyDateNotifier.value = const StickyDateState(null, 0.0);
       return;
     }
 
-    final stackBox = _listStackKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? stackBox =
+        _listStackKey.currentContext?.findRenderObject() as RenderBox?;
     if (stackBox == null || !stackBox.hasSize) return;
 
-    final viewportTop = stackBox.localToGlobal(Offset.zero).dy;
+    final stackTop = stackBox.localToGlobal(Offset.zero).dy;
 
-    int? topmostIndex;
-    double minY = double.infinity;
+    int? topDateIndex;
+    int? nextDateIndex;
+    double? nextDateTop;
 
-    for (final entry in _itemContexts.entries) {
-      final box = entry.value.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) continue;
+    for (int i = 0; i < _flatItems.length; i++) {
+      if (_flatItems[i] is! DateTime) continue;
 
-      final y = box.localToGlobal(Offset.zero).dy;
-      if (y < minY) {
-        minY = y;
-        topmostIndex = entry.key;
-      }
-    }
+      final ctx = _itemContexts[i];
+      if (ctx == null) continue;
+      final renderBox = ctx.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) continue;
 
-    if (topmostIndex == null) return;
+      final itemTop = renderBox.localToGlobal(Offset.zero).dy - stackTop;
 
-    final topmostItem = _flatItems[topmostIndex];
-    DateTime? bestDate;
-    if (topmostItem is DateTime) {
-      bestDate = topmostItem;
-    } else if (topmostItem is AcChatMessage) {
-      bestDate = DateTime(topmostItem.time.year, topmostItem.time.month, topmostItem.time.day);
-    }
-
-    double pushOffset = 0.0;
-    const headerHeight = 36.0;
-
-    for (final entry in _itemContexts.entries) {
-      final item = _flatItems[entry.key];
-      if (item is! DateTime) continue;
-
-      final box = entry.value.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) continue;
-
-      final y = box.localToGlobal(Offset.zero).dy;
-      final relativeY = y - viewportTop;
-
-      if (relativeY > 0 && relativeY < headerHeight) {
-        pushOffset = relativeY - headerHeight;
+      if (itemTop <= 16.0) {
+        topDateIndex = i;
+      } else {
+        if (nextDateIndex == null) {
+          nextDateIndex = i;
+          nextDateTop = itemTop;
+        }
         break;
       }
     }
 
-    bool showHeader = true;
-    if (topmostItem is DateTime) {
-      if (minY > viewportTop) {
-        showHeader = false;
+    DateTime? currentDate;
+    if (topDateIndex != null) {
+      currentDate = _flatItems[topDateIndex] as DateTime;
+    } else {
+      for (int i = 0; i < _flatItems.length; i++) {
+        if (_flatItems[i] is DateTime) {
+          currentDate = _flatItems[i] as DateTime;
+          break;
+        }
       }
     }
 
-    final finalDate = showHeader ? bestDate : null;
-    final newState = StickyDateState(finalDate, pushOffset);
+    double progress = 0.0;
+    if (nextDateTop != null) {
+      const headerHeight = 36.0;
+      const targetY = 16.0;
+      if (nextDateTop < targetY + headerHeight) {
+        progress = (targetY + headerHeight - nextDateTop) / headerHeight;
+        progress = progress.clamp(0.0, 1.0);
+      }
+    }
 
-    if (_stickyDateNotifier.value.date != newState.date ||
-        _stickyDateNotifier.value.pushOffset != newState.pushOffset) {
-      _stickyDateNotifier.value = newState;
+    final cur = _stickyDateNotifier.value;
+    if (cur.date != currentDate || (cur.pushProgress - progress).abs() > 0.01) {
+      _stickyDateNotifier.value = StickyDateState(currentDate, progress);
+    }
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(0.0,
+          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
     }
   }
 
@@ -213,7 +245,8 @@ class _ConversationState extends State<Conversation>
       ..type = 'text'
       ..text = text
       ..replyTo = _replyTo;
-    widget.api.sendMessage(newMsg);
+
+    widget.api.sendMessage(message: newMsg);
     _controller.clear();
     _replyTo = null;
     setState(() {
@@ -222,7 +255,7 @@ class _ConversationState extends State<Conversation>
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
-  void _sendAudio(int durationSeconds) {
+  void _sendAudio({required String filePath, required int durationSeconds}) {
     if (durationSeconds < 1) return;
     final minutes = durationSeconds ~/ 60;
     final seconds = durationSeconds % 60;
@@ -234,9 +267,11 @@ class _ConversationState extends State<Conversation>
       ..type = 'voice_note'
       ..text = '🎤 Voice message'
       ..duration = durationStr
+      ..localPath = filePath
+      ..isDownloaded = true
       ..replyTo = _replyTo;
 
-    widget.api.sendMessage(newMsg);
+    widget.api.sendMessage(message: newMsg);
     _replyTo = null;
     setState(() {
       _loadMessages();
@@ -252,13 +287,13 @@ class _ConversationState extends State<Conversation>
 
     AcChatUser? user;
     if (!_isGroup) {
-      final members = widget.api.getConversationUsers(widget.chat.conversationId);
+      final members = widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
       final otherMember = members.firstWhere(
         (m) => m.userId != widget.api.getCurrentUser().userId,
         orElse: () => AcChatConversationUser(),
       );
       if (otherMember.userId.isNotEmpty) {
-        user = widget.api.getUserById(otherMember.userId);
+        user = widget.api.getUserById(userId: otherMember.userId);
       }
     }
 
@@ -289,41 +324,60 @@ class _ConversationState extends State<Conversation>
             leading: widget.isEmbedded
                 ? null
                 : IconButton(
-              icon: Icon(Icons.arrow_back, color: ct.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+                    icon: Icon(Icons.arrow_back, color: ct.white),
+                    onPressed: () {
+                      if (widget.onBack != null) {
+                        widget.onBack!();
+                      } else {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                  ),
             title: _showSearch
                 ? TextField(
                     controller: _searchController,
                     autofocus: true,
                     style: TextStyle(color: ct.white, fontSize: 16),
                     decoration: InputDecoration(
-                      hintText: 'Search messages...',
-                      hintStyle: TextStyle(color: ct.white60),
+                      hintText: 'Search messages…',
+                      hintStyle: TextStyle(color: ct.white.withOpacity(0.6)),
                       border: InputBorder.none,
                     ),
                     onChanged: (val) {
-                      _searchQuery = val;
                       setState(() {
+                        _searchQuery = val;
                         _loadMessages();
                       });
                     },
                   )
                 : InkWell(
-                    onTap: () => _showProfileSheet(context, ct, name, color),
+                    onTap: () {
+                      if (!widget.isEmbedded) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatProfileScreen(
+                              chat: widget.chat,
+                              api: widget.api,
+                            ),
+                          ),
+                        );
+                      }
+                    },
                     child: Row(children: [
-                      CircleAvatar(
-                        radius: 19,
-                        backgroundColor: color,
-                        child: _isGroup
-                            ? Icon(Icons.group, color: ct.white, size: 18)
-                            : Text(
-                                name[0].toUpperCase(),
-                                style: TextStyle(
-                                    color: ct.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600),
-                              ),
+                      Hero(
+                        tag: 'avatar-${widget.chat.conversationId}',
+                        child: CircleAvatar(
+                          radius: 19,
+                          backgroundColor: color,
+                          child: _isGroup
+                              ? Icon(Icons.group, color: ct.white, size: 20)
+                              : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: TextStyle(
+                                      color: ct.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16)),
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -337,15 +391,7 @@ class _ConversationState extends State<Conversation>
                                       color: ct.white,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600)),
-                              if (_isGroup || widget.api.showOnlineStatus)
-                                Text(
-                                  _isGroup ? _groupSubtitle() : 'Online',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      color: ct.white.withOpacity(0.8),
-                                      fontSize: 12),
-                                ),
+                              _buildSubtitle(ct: ct, user: user),
                             ]),
                       ),
                     ]),
@@ -362,16 +408,12 @@ class _ConversationState extends State<Conversation>
                           _loadMessages();
                         });
                       },
-                    ),
+                    )
                   ]
                 : [
                     IconButton(
                       icon: Icon(Icons.search, color: ct.white),
-                      onPressed: () {
-                        setState(() {
-                          _showSearch = true;
-                        });
-                      },
+                      onPressed: () => setState(() => _showSearch = true),
                     ),
                     if (widget.api.enableVideoCall)
                       IconButton(
@@ -388,313 +430,245 @@ class _ConversationState extends State<Conversation>
                         icon: Icon(Icons.more_vert, color: ct.white),
                         color: ct.surface,
                         onSelected: (v) {
-                          if (v == 'View Contact') {
-                            _showProfileSheet(context, ct, name, color);
-                          } else if (v == 'Search') {
-                            setState(() {
-                              _showSearch = true;
-                            });
+                          if (v == 'Media, Links, and Docs') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ConversationMediaTabs(
+                                  chat: widget.chat,
+                                  ct: ct,
+                                ),
+                              ),
+                            );
                           } else {
                             _toast(context, '$v — coming soon');
                           }
                         },
                         itemBuilder: (_) => [
-                          _menuItem('View Contact', ct),
-                          _menuItem('Media, Links and Docs', ct),
-                          _menuItem('Search', ct),
+                          _menuItem('Media, Links, and Docs', ct),
                           _menuItem('Mute Notifications', ct),
+                          _menuItem('Wallpaper', ct),
                           _menuItem('Clear Chat', ct),
                         ],
                       ),
                   ],
           ),
-          body: Stack(children: [
-            // Wallpaper pattern
-            Positioned.fill(child: ConversationBackground(ct: ct)),
-            Column(
-                children: [
-              // Messages list
+          body: Column(
+            children: [
               Expanded(
-                child: msgs.isEmpty
-                    ? Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: ct.dateChip.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '🔒 Messages are end-to-end encrypted',
-                      style:
-                      TextStyle(color: ct.subText, fontSize: 12),
-                    ),
-                  ),
-                )
-                    : Stack(
-                        key: _listStackKey,
-                        children: [
-                          Scrollbar(
-                            controller: _scrollController,
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              padding: EdgeInsets.fromLTRB(
-                                MediaQuery.sizeOf(context).width >= 768 ? 40.0 : 12.0,
-                                12,
-                                MediaQuery.sizeOf(context).width >= 768 ? 40.0 : 12.0,
-                                8,
+                child: Stack(
+                  key: _listStackKey,
+                  children: [
+                    msgs.isEmpty
+                        ? Center(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 32),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: ct.dateChipBg,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              reverse: true,
-                              itemCount: _flatItems.length,
-                              itemBuilder: (context, index) {
-                                final item = _flatItems[index];
-                                Widget child;
-                                if (item is DateTime) {
-                                  child = DateSeparator(
-                                    key: ValueKey(item),
-                                    date: item,
-                                    ct: ct,
-                                  );
-                                } else if (item is AcChatMessage) {
-                                  bool isSenderChanged = false;
-                                  if (index + 1 < _flatItems.length) {
-                                    final prevItem = _flatItems[index + 1];
-                                    if (prevItem is AcChatMessage && prevItem.senderId != item.senderId) {
-                                      isSenderChanged = true;
-                                    }
-                                  }
-
-                                  bool showTail = true;
-                                  if (index - 1 >= 0) {
-                                    final nextItem = _flatItems[index - 1];
-                                    if (nextItem is AcChatMessage && nextItem.senderId == item.senderId) {
-                                      showTail = false;
-                                    }
-                                  }
-
-                                  child = MessageBubble(
-                                    message: item,
-                                    ct: ct,
-                                    isDark: isDark,
-                                    isGroup: _isGroup,
-                                    onReply: (m) => setState(() => _replyTo = m),
-                                    onCopy: (text) {
-                                      Clipboard.setData(ClipboardData(text: text));
-                                      _toast(context, 'Copied');
-                                    },
-                                    isSenderChanged: isSenderChanged,
-                                    showTail: showTail,
-                                  );
-                                } else {
-                                  child = const SizedBox.shrink();
-                                }
-
-                                return _TrackedItem(
-                                  index: index,
-                                  onMounted: (ctx) {
-                                    _itemContexts[index] = ctx;
-                                    WidgetsBinding.instance.addPostFrameCallback((_) => _updateStickyDate());
-                                  },
-                                  onUnmounted: (idx) {
-                                    _itemContexts.remove(idx);
-                                    WidgetsBinding.instance.addPostFrameCallback((_) => _updateStickyDate());
-                                  },
-                                  child: child,
-                                );
-                              },
+                              child: Text(
+                                '🔒 Messages are end-to-end encrypted.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: ct.dateChipText, fontSize: 12),
+                              ),
                             ),
-                          ),
-                          ValueListenableBuilder<StickyDateState>(
-                            valueListenable: _stickyDateNotifier,
-                            builder: (context, state, child) {
-                              if (state.date == null) return const SizedBox.shrink();
-                              return Positioned(
-                                top: state.pushOffset,
-                                left: 0,
-                                right: 0,
-                                child: Center(
-                                  child: DateSeparator(
-                                    date: state.date!,
-                                    ct: ct,
-                                  ),
-                                ),
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            reverse: true,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
+                            itemCount: _flatItems.length,
+                            itemBuilder: (context, index) {
+                              final item = _flatItems[index];
+
+                              return _TrackedItem(
+                                index: index,
+                                onMounted: (ctx) => _itemContexts[index] = ctx,
+                                onUnmounted: (idx) => _itemContexts.remove(idx),
+                                child: item is DateTime
+                                    ? _DateChip(date: item, ct: ct)
+                                    : MessageBubble(
+                                        key: ValueKey((item as AcChatMessage).messageId),
+                                        message: item,
+                                        isGroup: _isGroup,
+                                        ct: ct,
+                                        isDark: isDark,
+                                        onReply: (m) => setState(() => _replyTo = m),
+                                        onCopy: (t) => _toast(context, 'Copied to clipboard'),
+                                      ),
                               );
                             },
                           ),
-                        ],
-                      ),
-              ),
-  
-              // Reply preview bar
-              if (!widget.api.readOnly && _replyTo != null)
-                ReplyBar(
-                  message: _replyTo!,
-                  ct: ct,
-                  onCancel: () => setState(() => _replyTo = null),
-                ),
-  
-              // Custom input builder (overrides default InputBar when provided)
-              if (widget.api.customInputBuilder != null)
-                widget.api.customInputBuilder!(context, widget.chat) ?? const SizedBox.shrink()
-              // Standard input bar
-              else if (!widget.api.readOnly)
-              InputBar(
-                controller: _controller,
-                ct: ct,
-                isDark: isDark,
-                isRecording: _isRecording,
-                micAnim: _micAnim,
-                onSend: _send,
-                onAttach: () => _showAttachSheet(context, ct, isDark),
-                onMicStart: () {
-                  setState(() {
-                    _isRecording = true;
-                    _recordingStartTime = DateTime.now();
-                  });
-                },
-                onMicStop: () {
-                  if (!_isRecording) return;
-                  final duration = _recordingStartTime != null
-                      ? DateTime.now().difference(_recordingStartTime!).inSeconds
-                      : 0;
-                  setState(() {
-                    _isRecording = false;
-                  });
-                  _sendAudio(duration);
-                },
-                onMicCancel: () {
-                  setState(() {
-                    _isRecording = false;
-                    _recordingStartTime = null;
-                  });
-                },
-                onMicTap: () => _showAudioRecordingBottomSheet(context, ct),
-                focusNode: _focusNode,
-                showEmojiPicker: _showEmojiPicker,
-                onEmojiToggle: () {
-                  final width = MediaQuery.sizeOf(context).width;
-                  final isDesktop = width >= 768;
-                  if (isDesktop) {
-                    _focusNode.unfocus();
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: ct.surface,
-                      builder: (context) => SizedBox(
-                        height: 300,
-                        child: EmojiPicker(
-                          textEditingController: _controller,
-                          config: Config(
-                            height: 300,
-                            checkPlatformCompatibility: true,
-                            viewOrderConfig: const ViewOrderConfig(),
-                            emojiViewConfig: EmojiViewConfig(
-                              backgroundColor: ct.surface,
-                            ),
-                            categoryViewConfig: CategoryViewConfig(
-                              backgroundColor: ct.inputBar,
-                              indicatorColor: ct.activeTabColor,
-                              iconColorSelected: ct.activeTabColor,
+
+                    // Sticky Date Chip
+                    ValueListenableBuilder<StickyDateState>(
+                      valueListenable: _stickyDateNotifier,
+                      builder: (context, state, child) {
+                        if (state.date == null) return const SizedBox.shrink();
+                        return Positioned(
+                          top: 8.0 - (state.pushProgress * 36.0),
+                          left: 0,
+                          right: 0,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Opacity(
+                              opacity: (1.0 - state.pushProgress).clamp(0.0, 1.0),
+                              child: _DateChip(date: state.date!, ct: ct),
                             ),
                           ),
+                        );
+                      },
+                    ),
+
+                    // Scroll-to-bottom FAB
+                    if (_showScrollFab)
+                      Positioned(
+                        bottom: 12,
+                        right: 12,
+                        child: FloatingActionButton.small(
+                          backgroundColor: ct.appBar,
+                          onPressed: _scrollToBottom,
+                          child: Icon(Icons.keyboard_arrow_down_rounded,
+                              color: ct.white),
                         ),
                       ),
-                    );
-                  } else {
-                    if (_showEmojiPicker) {
-                      _focusNode.requestFocus();
-                    } else {
-                      _focusNode.unfocus();
-                    }
-                    setState(() {
-                      _showEmojiPicker = !_showEmojiPicker;
-                    });
-                  }
-                },
-              ),
-              if (_showEmojiPicker && MediaQuery.sizeOf(context).width < 768)
-                SizedBox(
-                  height: 250,
-                  child: EmojiPicker(
-                    textEditingController: _controller,
-                    config: Config(
-                      height: 250,
-                      checkPlatformCompatibility: true,
-                      viewOrderConfig: const ViewOrderConfig(),
-                      emojiViewConfig: EmojiViewConfig(
-                        backgroundColor: ct.surface,
-                      ),
-                      categoryViewConfig: CategoryViewConfig(
-                        backgroundColor: ct.inputBar,
-                        indicatorColor: ct.activeTabColor,
-                        iconColorSelected: ct.activeTabColor,
-                      ),
-                    ),
-                  ),
-                ),
-            ]),
-  
-            // Scroll-to-bottom FAB
-            if (_showScrollFab)
-              Positioned(
-                bottom: 72,
-                right: 16,
-                child: GestureDetector(
-                  onTap: _scrollToBottom,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: ct.surface,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: ct.black.withOpacity(0.25),
-                            blurRadius: 6),
-                      ],
-                    ),
-                    child: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: ct.subText),
-                  ),
+                  ],
                 ),
               ),
-          ]),
+
+              // Bottom Input Bar
+              if (widget.api.customInputBuilder != null)
+                widget.api.customInputBuilder!(
+                  context: context,
+                  conversation: widget.chat,
+                ) ??
+                    _buildInputBar(ct, isDark)
+              else
+                _buildInputBar(ct, isDark),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  String _groupSubtitle() {
-    final ids = widget.chat.memberIds;
-    final names = ids
-        .map((id) =>
-    id == widget.api.getCurrentUser().userId
-        ? 'You'
-        : widget.api.getUserById(id)?.name ?? '')
-        .where((n) => n.isNotEmpty)
-        .toList();
-    return names.join(', ');
-  }
+  Widget _buildSubtitle({required AcChatTheme ct, AcChatUser? user}) {
+    if (widget.api.watchTyping != null) {
+      return StreamBuilder<Map<String, bool>>(
+        stream: widget.api.watchTyping!(conversationId: widget.chat.conversationId),
+        builder: (context, snapshot) {
+          final typingMap = snapshot.data ?? {};
+          final someoneTyping = typingMap.entries
+              .any((e) => e.key != widget.api.getCurrentUser().userId && e.value);
 
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+          if (someoneTyping) {
+            return Text(
+              'typing…',
+              style: TextStyle(
+                color: ct.activeTabColor,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w600,
+              ),
+            );
+          }
 
-  void _showProfileSheet(
-      BuildContext context, AcChatTheme ct, String name, Color color) {
-    if (widget.onShowProfile != null) {
-      widget.onShowProfile!();
-    } else {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChatProfileScreen(chat: widget.chat, api: widget.api),
-        ),
+          if (_isGroup) {
+            return Text(
+              _groupSubtitle(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+            );
+          }
+
+          if (widget.api.watchUserOnlineStatus != null && user != null) {
+            return StreamBuilder<bool>(
+              stream: widget.api.watchUserOnlineStatus!(userId: user.userId),
+              builder: (ctx, onlSnap) {
+                final isOnline = onlSnap.data ?? false;
+                return Text(
+                  isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+                );
+              },
+            );
+          }
+
+          return Text(
+            widget.api.showOnlineStatus ? 'Online' : '',
+            style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+          );
+        },
       );
     }
+
+    return Text(
+      _isGroup ? _groupSubtitle() : (widget.api.showOnlineStatus ? 'Online' : ''),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+    );
   }
 
-  void _showAttachSheet(BuildContext context, AcChatTheme ct, bool isDark) {
+  Widget _buildInputBar(AcChatTheme ct, bool isDark) {
+    if (widget.api.readOnly) return const SizedBox.shrink();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyTo != null)
+          ReplyBar(
+            message: _replyTo!,
+            ct: ct,
+            onCancel: () => setState(() => _replyTo = null),
+          ),
+        InputBar(
+          controller: _controller,
+          ct: ct,
+          isDark: isDark,
+          isRecording: false,
+          micAnim: _micAnim,
+          onSend: _send,
+          onAttach: () => _showAttachmentModal(context, ct, isDark),
+          onMicStart: () {},
+          onMicStop: () {},
+          onMicTap: () => _showAudioRecordingBottomSheet(context, ct),
+          focusNode: _focusNode,
+          showEmojiPicker: _showEmojiPicker,
+          onEmojiToggle: () {
+            setState(() {
+              _showEmojiPicker = !_showEmojiPicker;
+              if (_showEmojiPicker) {
+                _focusNode.unfocus();
+              } else {
+                _focusNode.requestFocus();
+              }
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  String _groupSubtitle() {
+    final members = widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
+    final names = members
+        .map((m) => widget.api.getUserById(userId: m.userId)?.name ?? 'Unknown')
+        .where((n) => n.isNotEmpty)
+        .join(', ');
+    return names.isNotEmpty ? names : 'tap here for group info';
+  }
+
+  void _showAttachmentModal(BuildContext context, AcChatTheme ct, bool isDark) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: ct.transparent,
+      backgroundColor: Colors.transparent,
       builder: (_) => Attachments(
         ct: ct,
         isDark: isDark,
@@ -729,7 +703,7 @@ class _ConversationState extends State<Conversation>
       ..fileName = 'Project_Proposal.pdf'
       ..fileSize = '1.2 MB'
       ..isDownloaded = true;
-    widget.api.sendMessage(newMsg);
+    widget.api.sendMessage(message: newMsg);
     setState(() {
       _loadMessages();
     });
@@ -745,7 +719,7 @@ class _ConversationState extends State<Conversation>
       ..fileName = 'image.png'
       ..mediaCaption = 'Captured via $source'
       ..isDownloaded = true;
-    widget.api.sendMessage(newMsg);
+    widget.api.sendMessage(message: newMsg);
     setState(() {
       _loadMessages();
     });
@@ -762,7 +736,7 @@ class _ConversationState extends State<Conversation>
       ..fileSize = '4.5 MB'
       ..duration = '3:20'
       ..isDownloaded = true;
-    widget.api.sendMessage(newMsg);
+    widget.api.sendMessage(message: newMsg);
     setState(() {
       _loadMessages();
     });
@@ -774,112 +748,85 @@ class _ConversationState extends State<Conversation>
       context: context,
       backgroundColor: ct.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Location to Share',
-              style: TextStyle(color: ct.text, fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Share Location',
+              style: TextStyle(
+                color: ct.text,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 12),
-            _locationTile(context, ct, 'Times Square, New York', '40.7580° N, 73.9855° W'),
-            _locationTile(context, ct, 'Eiffel Tower, Paris', '48.8584° N, 2.2945° E'),
-            _locationTile(context, ct, 'Colosseum, Rome', '41.8902° N, 12.4922° E'),
-            const SizedBox(height: 12),
-          ],
-        ),
+          ),
+          ListTile(
+            leading: Icon(Icons.my_location, color: ct.activeTabColor),
+            title: Text('Share Current Location', style: TextStyle(color: ct.text)),
+            subtitle: Text('Accurate to 10 meters', style: TextStyle(color: ct.subText, fontSize: 12)),
+            onTap: () {
+              Navigator.pop(context);
+              final newMsg = AcChatMessage()
+                ..conversationId = widget.chat.conversationId
+                ..senderId = widget.api.getCurrentUser().userId
+                ..type = 'location'
+                ..text = '📍 Current Location\nLat: 37.7749, Lng: -122.4194'
+                ..isDownloaded = true;
+              widget.api.sendMessage(message: newMsg);
+              setState(() => _loadMessages());
+              WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
-    );
-  }
-
-  Widget _locationTile(BuildContext context, AcChatTheme ct, String name, String coords) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: ct.attachLocationBg.withOpacity(0.15),
-        child: Icon(Icons.location_on_rounded, color: ct.attachLocationBg),
-      ),
-      title: Text(name, style: TextStyle(color: ct.text)),
-      subtitle: Text(coords, style: TextStyle(color: ct.subText, fontSize: 12)),
-      onTap: () {
-        Navigator.pop(context);
-        final newMsg = AcChatMessage()
-          ..conversationId = widget.chat.conversationId
-          ..senderId = widget.api.getCurrentUser().userId
-          ..type = 'location'
-          ..text = '$name ($coords)';
-        widget.api.sendMessage(newMsg);
-        setState(() {
-          _loadMessages();
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-      },
     );
   }
 
   void _showMockContactSelector(BuildContext context, AcChatTheme ct) {
-    final users = widget.api.getContacts?.call() ?? widget.api.getUsers();
+    final contacts = widget.api.getUsers();
     showModalBottomSheet(
       context: context,
       backgroundColor: ct.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Contact to Share',
-              style: TextStyle(color: ct.text, fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (_) => ListView.builder(
+        shrinkWrap: true,
+        itemCount: contacts.length,
+        itemBuilder: (ctx, i) {
+          final c = contacts[i];
+          final phone = c.phone;
+          final contactInfo = (phone != null && phone.isNotEmpty) ? phone : (c.email ?? '');
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: avatarColor(c.userId),
+              child: Text(
+                c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
+                style: TextStyle(color: ct.white),
+              ),
             ),
-            const SizedBox(height: 12),
-            if (users.isNotEmpty)
-              ...users.take(5).map((u) => _contactTile(
-                    context,
-                    ct,
-                    u.name,
-                    u.phone!.isNotEmpty ? u.phone! : '@${u.username}',
-                  ))
-            else ...[
-              _contactTile(context, ct, 'Alice Johnson', '+1 (555) 019-9821'),
-              _contactTile(context, ct, 'Bob Smith', '+1 (555) 014-2398'),
-              _contactTile(context, ct, 'Charlie Brown', '+1 (555) 017-7401'),
-            ],
-            const SizedBox(height: 12),
-          ],
-        ),
+            title: Text(c.name, style: TextStyle(color: ct.text)),
+            subtitle: Text(contactInfo, style: TextStyle(color: ct.subText, fontSize: 12)),
+            onTap: () {
+              Navigator.pop(context);
+              final newMsg = AcChatMessage()
+                ..conversationId = widget.chat.conversationId
+                ..senderId = widget.api.getCurrentUser().userId
+                ..type = 'contact'
+                ..text = '👤 ${c.name}\n$contactInfo'
+                ..isDownloaded = true;
+              widget.api.sendMessage(message: newMsg);
+              setState(() => _loadMessages());
+              WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+            },
+          );
+        },
       ),
-    );
-  }
-
-  Widget _contactTile(BuildContext context, AcChatTheme ct, String name, String phone) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: ct.attachContactBg.withOpacity(0.15),
-        child: Text(name[0], style: TextStyle(color: ct.attachContactBg, fontWeight: FontWeight.bold)),
-      ),
-      title: Text(name, style: TextStyle(color: ct.text)),
-      subtitle: Text(phone, style: TextStyle(color: ct.subText, fontSize: 12)),
-      onTap: () {
-        Navigator.pop(context);
-        final newMsg = AcChatMessage()
-          ..conversationId = widget.chat.conversationId
-          ..senderId = widget.api.getCurrentUser().userId
-          ..type = 'contact'
-          ..text = '$name\n$phone';
-        widget.api.sendMessage(newMsg);
-        setState(() {
-          _loadMessages();
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-      },
     );
   }
 
@@ -902,8 +849,8 @@ class _ConversationState extends State<Conversation>
       isScrollControlled: true,
       builder: (_) => AudioRecordingBottomSheet(
         ct: ct,
-        onCompleted: (duration) {
-          _sendAudio(duration);
+        onCompleted: ({required String filePath, required int durationSeconds}) {
+          _sendAudio(filePath: filePath, durationSeconds: durationSeconds);
         },
       ),
     );
@@ -932,9 +879,7 @@ class _TrackedItemState extends State<_TrackedItem> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.onMounted(context);
-      }
+      if (mounted) widget.onMounted(context);
     });
   }
 
@@ -948,4 +893,48 @@ class _TrackedItemState extends State<_TrackedItem> {
   Widget build(BuildContext context) => widget.child;
 }
 
+class _DateChip extends StatelessWidget {
+  final DateTime date;
+  final AcChatTheme ct;
 
+  const _DateChip({required this.date, required this.ct});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: ct.dateChipBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          _formatChipDate(date),
+          style: TextStyle(
+            color: ct.dateChipText,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatChipDate(DateTime d) {
+    final now = DateTime.now();
+    if (d.year == now.year && d.month == now.month && d.day == now.day) {
+      return 'Today';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (d.year == yesterday.year &&
+        d.month == yesterday.month &&
+        d.day == yesterday.day) {
+      return 'Yesterday';
+    }
+    if (now.difference(d).inDays < 7) {
+      return DateFormat('EEEE').format(d);
+    }
+    return DateFormat('dd MMMM yyyy').format(d);
+  }
+}

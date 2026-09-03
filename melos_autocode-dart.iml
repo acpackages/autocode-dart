@@ -511,6 +511,21 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_thread_proxy/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_thread_proxy/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_thread_proxy/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_sqlite/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_sqlite/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_sqlite/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_firebase/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_firebase/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_firebase/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_firebase/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_firebase/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_sync_on_firebase/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/arcitect/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/arcitect/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/arcitect/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

@@ -434,13 +434,13 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       if (lowerName.endsWith('.pdf')) {
         previewTitle = 'Invoice Details';
         pages = [
-          _buildMockPdfPage(1, 'Accountea Pro Invoice', 'Invoice ID: INV-2026-098\nDate: 2026-08-01\nDue Date: 2026-08-15', [
-            _buildTableRow('Consulting Services', '15 hrs', '₹10,500'),
-            _buildTableRow('Database Migration', '1 Unit', '₹15,000'),
-            _buildTableRow('Support Plan', '1 Month', '₹2,500'),
-          ], 'Total: ₹28,000'),
-          _buildMockPdfPage(2, 'Payment Instructions', 'Please wire payment to the following bank details:\nBank: HDFC Bank Accountea Corp\nA/C: 50200045239108\nIFSC: HDFC0000240\nUPI: accountea@hdfcbank', [], ''),
-          _buildMockPdfPage(3, 'Terms & Conditions', '1. Payments are due within 15 days of invoice date.\n2. Interest of 1.5% per month will be charged on late payments.\n3. Thank you for your business!', [], ''),
+          _buildMockPdfPage(1, 'Document Preview - Invoice', 'Invoice ID: INV-2026-098\nDate: 2026-08-01\nDue Date: 2026-08-15', [
+            _buildTableRow('Consulting Services', '15 hrs', '10,500'),
+            _buildTableRow('Technical Services', '1 Unit', '15,000'),
+            _buildTableRow('Support Plan', '1 Month', '2,500'),
+          ], 'Total: 28,000'),
+          _buildMockPdfPage(2, 'Payment Instructions', 'Please wire payment to the following bank details:\nBank: Commercial Bank\nA/C: 100200300400\nIFSC: BANK0001', [], ''),
+          _buildMockPdfPage(3, 'Terms & Conditions', '1. Payments are due within 15 days of invoice date.\n2. Standard terms apply.\n3. Thank you for your business!', [], ''),
         ];
       } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
         previewTitle = 'Q2 Expense Sheet';
@@ -617,7 +617,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             Divider(color: widget.ct.grey),
             Center(
               child: Text(
-                'Confidential Document • Accountea Corporate',
+                'Confidential Document',
                 style: TextStyle(color: widget.ct.grey, fontSize: 9),
               ),
             )
@@ -739,7 +739,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '- Document verified: Yes\n- Secure Signature: Valid\n- Scanned via Accountea AI OCR\n- Status: Settle Pending',
+              '- Document verified: Yes\n- Secure Signature: Valid\n- Document scanned and verified\n- Status: Ready',
               style: TextStyle(color: widget.ct.white70, fontSize: 12, height: 1.6),
             ),
           ],

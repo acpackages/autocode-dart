@@ -55,6 +55,18 @@ class AcBackgroundFile {
   }
 
   /* AcDoc({
+    "summary": "Asynchronously appends content to the file using named parameters.",
+    "description": "Enqueues the given string content to be written to the file in the background. Provides cross-language naming parity with TypeScript and PHP.",
+    "params": [
+      { "name": "content", "description": "The text content to append to the file." }
+    ],
+    "returns": "A future that completes when the content is successfully enqueued for writing.",
+    "returns_type": "Future<void>"
+  }) */
+  Future<void> writeAsString({required String content}) => write(content);
+
+
+  /* AcDoc({
     "summary": "Closes the file writer and terminates the background isolate.",
     "description": "Signals the background isolate to process any remaining buffered content and then terminate gracefully. No further writes are permitted after calling this method.",
     "returns": "A future that completes once the close signal has been sent to the isolate.",

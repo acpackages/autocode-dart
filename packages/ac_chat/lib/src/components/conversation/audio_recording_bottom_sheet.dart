@@ -5,7 +5,7 @@ import '../../core/ac_chat.dart';
 
 class AudioRecordingBottomSheet extends StatefulWidget {
   final AcChatTheme ct;
-  final ValueChanged<int> onCompleted;
+  final void Function({required String filePath, required int durationSeconds}) onCompleted;
 
   const AudioRecordingBottomSheet({
     super.key,
@@ -61,7 +61,7 @@ class _AudioRecordingBottomSheetState extends State<AudioRecordingBottomSheet>
     super.dispose();
   }
 
-  String _formatTime(int seconds) {
+  String _formatTime({required int seconds}) {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
@@ -79,103 +79,94 @@ class _AudioRecordingBottomSheetState extends State<AudioRecordingBottomSheet>
           BoxShadow(
             color: ct.black.withOpacity(0.15),
             blurRadius: 10,
-            spreadRadius: 1,
-          )
+            offset: const Offset(0, -2),
+          ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
+          // Drag handle
           Container(
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: ct.subText.withOpacity(0.2),
+              color: ct.divider,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Pulsing recording indicator and Title
+          // Header: Live recording indicator + Duration
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               AnimatedBuilder(
                 animation: _pulseController,
-                builder: (context, _) {
+                builder: (context, child) {
                   return Container(
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: ct.messageDestructive.withOpacity(0.5 + 0.5 * _pulseController.value),
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withOpacity(0.4 * _pulseController.value),
-                          blurRadius: 6,
-                          spreadRadius: 3 * _pulseController.value,
-                        )
-                      ],
                     ),
                   );
                 },
               ),
               const SizedBox(width: 8),
               Text(
-                'Recording Voice Message',
+                'Recording Voice Note',
                 style: TextStyle(
-                  color: ct.text,
-                  fontWeight: FontWeight.w600,
+                  color: ct.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _formatTime(seconds: _secondsElapsed),
+                style: TextStyle(
+                  color: ct.textPrimary,
                   fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Recording Time Elapsed
-          Text(
-            _formatTime(_secondsElapsed),
-            style: TextStyle(
-              color: ct.text,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Waveform
           AudioWaveforms(
             enableGesture: false,
-            size: Size(MediaQuery.of(context).size.width * 0.6, 40.0),
+            size: Size(MediaQuery.of(context).size.width - 40, 50),
             recorderController: _recorderController,
             waveStyle: WaveStyle(
               waveColor: ct.activeTabColor,
-              spacing: 6.0,
               showMiddleLine: false,
               extendWaveform: true,
+              spacing: 5.0,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // Controls Row
+          // Bottom Controls: Cancel vs Send
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Discard / Cancel Button
+              // Cancel Button
               GestureDetector(
                 onTap: () async {
                   await _recorderController.stop();
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: Container(
-                  width: 56,
-                  height: 56,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: ct.inputBar,
+                    color: ct.messageDestructive.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -189,9 +180,12 @@ class _AudioRecordingBottomSheetState extends State<AudioRecordingBottomSheet>
               // Done / Send Button
               GestureDetector(
                 onTap: () async {
-                  await _recorderController.stop();
-                  if (_secondsElapsed > 0) {
-                    widget.onCompleted(_secondsElapsed);
+                  final path = await _recorderController.stop();
+                  if (_secondsElapsed > 0 && path != null && path.isNotEmpty) {
+                    widget.onCompleted(
+                      filePath: path,
+                      durationSeconds: _secondsElapsed,
+                    );
                   }
                   if (context.mounted) Navigator.pop(context);
                 },

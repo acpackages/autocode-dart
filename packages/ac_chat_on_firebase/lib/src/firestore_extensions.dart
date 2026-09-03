@@ -47,6 +47,14 @@ class FirestoreExtensions {
   static const String fFileSize = 'file_size';
   static const String fReplyToId = 'reply_to_id';
 
+  // ─── User Update field names ───────────────────────────────────────────────
+
+  static const String fUpdateId = 'update_id';
+  static const String fUpdateType = 'type';
+  static const String fMessageType = 'message_type';
+  static const String fTimestamp = 'timestamp';
+  static const String fData = 'data';
+
   // ── Constructors ──────────────────────────────────────────────────────────
 
   FirestoreExtensions._(); // prevent instantiation — static helpers only
@@ -96,6 +104,42 @@ class FirestoreExtensions {
   }
 
   // ─── AcChatConversation ────────────────────────────────────────────────────
+
+  /// Converts a Firestore document snapshot into an [AcChatConversation].
+  static AcChatConversation conversationFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    int unread = 0,
+  }) {
+    final data = doc.data() ?? {};
+    final conv = AcChatConversation();
+    conv.conversationId = doc.id;
+
+    final isGroup = data[fIsGroup] as bool? ?? false;
+    conv.type = isGroup ? 'group' : 'direct';
+
+    conv.groupName = data[fGroupName] as String?;
+
+    final rawIds = data[fMemberIds];
+    if (rawIds is List) {
+      conv.memberIds = rawIds.map((e) => e.toString()).toList();
+    }
+
+    conv.lastMessage = (data[fLastMessage] as String?) ?? '';
+    conv.lastMessageType = (data[fLastMessageType] as String?) ?? '';
+
+    final rawTime = data[fLastTime];
+    if (rawTime is Timestamp) {
+      conv.lastTime = rawTime.toDate();
+    } else if (rawTime is DateTime) {
+      conv.lastTime = rawTime;
+    }
+
+    conv.isPinned = data[fIsPinned] as bool? ?? false;
+    conv.isMuted = data[fIsMuted] as bool? ?? false;
+    conv.unread = unread;
+
+    return conv;
+  }
 
   /// Converts a Firestore [QueryDocumentSnapshot] into an [AcChatConversation].
   ///
@@ -182,6 +226,52 @@ class FirestoreExtensions {
 
   // ─── AcChatMessage ────────────────────────────────────────────────────────
 
+  /// Converts a Firestore document snapshot into an [AcChatMessage].
+  ///
+  /// [replyToId] is resolved externally using a message index to avoid
+  /// recursive Firestore fetches.
+  static AcChatMessage messageFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    AcChatMessage? resolvedReplyTo,
+  }) {
+    final data = doc.data() ?? {};
+    final msg = AcChatMessage();
+    msg.messageId = doc.id;
+    msg.conversationId = (data[fConversationId] as String?) ?? '';
+    msg.senderId = (data[fSenderId] as String?) ?? '';
+    msg.type = (data[fType] as String?) ?? 'text';
+    msg.text = (data[fText] as String?) ?? '';
+
+    final rawTime = data[fTime];
+    if (rawTime is Timestamp) {
+      msg.time = rawTime.toDate();
+    } else if (rawTime is DateTime) {
+      msg.time = rawTime;
+    }
+
+    msg.status = (data[fStatus] as String?) ?? 'sent';
+    msg.mediaCaption = data[fMediaCaption] as String?;
+
+    final rawAmount = data[fAmount];
+    if (rawAmount != null) {
+      msg.amount = (rawAmount as num).toDouble();
+    }
+
+    msg.paymentNote = data[fPaymentNote] as String?;
+    msg.duration = data[fDuration] as String?;
+    msg.fileName = data[fFileName] as String?;
+    msg.fileSize = data[fFileSize] as String?;
+
+    // isDownloaded and localPath are device-local — not stored in Firestore.
+    msg.isDownloaded = false;
+    msg.localPath = null;
+
+    // replyTo is resolved from the in-memory message index by the caller.
+    msg.replyTo = resolvedReplyTo;
+
+    return msg;
+  }
+
   /// Converts a Firestore [QueryDocumentSnapshot] into an [AcChatMessage].
   ///
   /// [replyToId] is resolved externally using a message index to avoid
@@ -250,4 +340,121 @@ class FirestoreExtensions {
       fReplyToId: msg.replyTo?.messageId,
     };
   }
+
+  // ─── Direct User Updates Mailbox Helpers ────────────────────────────────────
+
+  /// Serializes an [AcChatMessage] into a self-contained update document payload
+  /// for `users/{userId}/updates/{updateId}` without needing a conversations collection.
+  static Map<String, dynamic> messageToUpdatePayload(
+    AcChatMessage msg, {
+    List<String>? memberIds,
+    String? groupName,
+    bool isGroup = false,
+  }) {
+    return {
+      fUpdateId: msg.messageId,
+      fUpdateType: AcChatUpdateType.message,
+      fMessageType: msg.type,
+      fConversationId: msg.conversationId,
+      fMessageId: msg.messageId,
+      fSenderId: msg.senderId,
+      fText: msg.text,
+      fTime: Timestamp.fromDate(msg.time),
+      fTimestamp: Timestamp.fromDate(msg.time),
+      fStatus: msg.status,
+      fMediaCaption: msg.mediaCaption,
+      fAmount: msg.amount,
+      fPaymentNote: msg.paymentNote,
+      fDuration: msg.duration,
+      fFileName: msg.fileName,
+      fFileSize: msg.fileSize,
+      fReplyToId: msg.replyTo?.messageId,
+      if (memberIds != null) fMemberIds: memberIds,
+      if (groupName != null) fGroupName: groupName,
+      fIsGroup: isGroup,
+    };
+  }
+
+  /// Deserializes an [AcChatMessage] directly from an update document map.
+  static AcChatMessage messageFromUpdateData(
+    Map<String, dynamic> data, {
+    String? docId,
+    AcChatMessage? resolvedReplyTo,
+  }) {
+    final msg = AcChatMessage();
+    msg.messageId = (data[fMessageId] as String?) ?? docId ?? '';
+    msg.conversationId = (data[fConversationId] as String?) ?? '';
+    msg.senderId = (data[fSenderId] as String?) ?? '';
+
+    final rawType = (data[fMessageType] as String?) ?? (data[fType] as String?) ?? 'text';
+    msg.type = rawType == 'message' ? 'text' : rawType;
+    msg.text = (data[fText] as String?) ?? '';
+
+    final rawTime = data[fTime] ?? data[fTimestamp];
+    if (rawTime is Timestamp) {
+      msg.time = rawTime.toDate();
+    } else if (rawTime is DateTime) {
+      msg.time = rawTime;
+    }
+
+    msg.status = (data[fStatus] as String?) ?? 'sent';
+    msg.mediaCaption = data[fMediaCaption] as String?;
+
+    final rawAmount = data[fAmount];
+    if (rawAmount != null) {
+      msg.amount = (rawAmount as num).toDouble();
+    }
+
+    msg.paymentNote = data[fPaymentNote] as String?;
+    msg.duration = data[fDuration] as String?;
+    msg.fileName = data[fFileName] as String?;
+    msg.fileSize = data[fFileSize] as String?;
+    msg.isDownloaded = false;
+    msg.localPath = null;
+    msg.replyTo = resolvedReplyTo;
+
+    return msg;
+  }
+
+  /// Deserializes an [AcChatConversation] directly from an update document map.
+  static AcChatConversation conversationFromUpdateData(
+    Map<String, dynamic> data,
+  ) {
+    final conv = AcChatConversation();
+    conv.conversationId = (data[fConversationId] as String?) ?? '';
+    final isGroup = data[fIsGroup] as bool? ?? false;
+    conv.type = isGroup ? 'group' : 'direct';
+    conv.groupName = data[fGroupName] as String?;
+
+    final rawIds = data[fMemberIds];
+    if (rawIds is List) {
+      conv.memberIds = rawIds.map((e) => e.toString()).toList();
+    }
+
+    conv.lastMessage =
+        (data[fText] as String?) ?? (data[fLastMessage] as String?) ?? '';
+    final rawType = (data[fMessageType] as String?) ?? (data[fLastMessageType] as String?) ?? 'text';
+    conv.lastMessageType = rawType == 'message' ? 'text' : rawType;
+
+    final rawTime = data[fTime] ?? data[fTimestamp] ?? data[fLastTime];
+    if (rawTime is Timestamp) {
+      conv.lastTime = rawTime.toDate();
+    } else if (rawTime is DateTime) {
+      conv.lastTime = rawTime;
+    }
+
+    conv.isPinned = data[fIsPinned] as bool? ?? false;
+    conv.isMuted = data[fIsMuted] as bool? ?? false;
+    conv.unread = (data[fUnread] as int?) ?? 0;
+
+    return conv;
+  }
+}
+
+/// Constants representing user channel update types in Firestore.
+abstract class AcChatUpdateType {
+  static const String message = 'message';
+  static const String conversation = 'conversation';
+  static const String messageUpdate = 'message_update';
+  static const String read = 'read';
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:ac_chat/ac_chat.dart';
@@ -26,12 +27,17 @@ abstract class _C {
   static const conversationId = 'conversation_id';
   static const type = 'type';
   static const groupName = 'group_name';
+  static const groupAvatar = 'group_avatar';
   static const lastMessage = 'last_message';
   static const lastMessageType = 'last_message_type';
   static const lastTime = 'last_time';
   static const unread = 'unread';
   static const isPinned = 'is_pinned';
   static const isMuted = 'is_muted';
+
+  // conversation_members
+  static const memberId = 'member_id';
+  static const role = 'role';
 
   // messages
   static const messageId = 'message_id';
@@ -48,6 +54,18 @@ abstract class _C {
   static const isDownloaded = 'is_downloaded';
   static const localPath = 'local_path';
   static const replyToId = 'reply_to_id';
+  static const deliveredTime = 'delivered_time';
+  static const readTime = 'read_time';
+  static const isEdited = 'is_edited';
+  static const editedTime = 'edited_time';
+  static const isDeleted = 'is_deleted';
+  static const reactionsJson = 'reactions_json';
+
+  // outbox_messages
+  static const outboxId = 'outbox_id';
+  static const recipientIdsJson = 'recipient_ids_json';
+  static const retryCount = 'retry_count';
+  static const createdAt = 'created_at';
 }
 
 // ─── Table name constants ────────────────────────────────────────────────────
@@ -57,70 +75,49 @@ abstract class _T {
   static const conversations = 'conversations';
   static const conversationMembers = 'conversation_members';
   static const messages = 'messages';
+  static const outboxMessages = 'outbox_messages';
+  static const messagesFts = 'messages_fts';
 }
 
 /// Offline-first SQLite cache layer for `ac_chat`.
 ///
-/// [AcChatSqlite] keeps an in-memory copy of all users, conversations,
-/// members, and lazily loaded messages. **All UI reads come from memory**
-/// (synchronous). SQLite is the persistent source of truth and is always
-/// written before in-memory state is updated.
-///
-/// Database schema creation and migrations are handled automatically by
-/// [AcSqlDbSchemaManager] using the [kAcChatDataDictionaryJson] data
-/// dictionary. CRUD operations use [AcSqlDbTable] DAOs backed by
-/// [AcSqliteDao].
-///
-/// An optional [AcChatSyncChannel] (e.g. `AcChatFirebase`) handles remote
-/// message transport. The package works fully offline when no channel is
-/// provided.
-///
-/// ## Typical setup
-///
-/// ```dart
-/// final dir = await getApplicationDocumentsDirectory();
-/// final sqlite = AcChatSqlite(
-///   currentUserId: 'user_123',
-///   channel: AcChatFirebase(currentUserId: 'user_123'),
-///   config: AcChatSqliteConfig(databasePath: '${dir.path}/ac_chat.db'),
-/// );
-/// sqlite.onDataChanged = () => setState(() {});
-/// await sqlite.initialize();
-/// final api = sqlite.buildApi(AcChatTheme.dark());
-/// ```
+/// Strictly uses [AcSqlDbTable] for all schema persistence and CRUD operations.
+/// Raw SQL statements are forbidden. Synchronous in-memory reads, background SQLite writes.
 class AcChatSqlite {
   // ─── Constructor ───────────────────────────────────────────────────────
 
-  /// Creates an [AcChatSqlite] instance.
-  ///
-  /// [currentUserId] must match the authenticated user's ID.
-  ///
-  /// [channel] is optional. When `null`, the instance operates fully offline.
-  ///
-  /// [config] allows overriding the database path and data-dictionary name.
   AcChatSqlite({
     required String currentUserId,
     AcChatSyncChannel? channel,
     AcChatSqliteConfig? config,
+    AcChatConnectivityProvider? connectivityProvider,
+    AcChatMediaUploader? mediaUploader,
+    AcChatCryptoProvider? cryptoProvider,
   })  : _currentUserId = currentUserId,
         _channel = channel,
-        _config = config ?? const AcChatSqliteConfig();
+        _config = config ?? const AcChatSqliteConfig(),
+        _connectivityProvider = connectivityProvider,
+        _mediaUploader = mediaUploader,
+        _cryptoProvider = cryptoProvider;
 
   // ─── Private fields ────────────────────────────────────────────────────
 
   final String _currentUserId;
-  AcChatSyncChannel? _channel;   // mutable — can be attached post-init via startFirebaseSync()
+  AcChatSyncChannel? _channel;
   final AcChatSqliteConfig _config;
+  final AcChatConnectivityProvider? _connectivityProvider;
+  final AcChatMediaUploader? _mediaUploader;
+  final AcChatCryptoProvider? _cryptoProvider;
   final _uuid = const Uuid();
 
-  /// The DAO that owns the SQLite connection.
   late AcSqliteDao _dao;
 
-  /// Per-table high-level DAO objects.
   late AcSqlDbTable _tblUsers;
   late AcSqlDbTable _tblConversations;
   late AcSqlDbTable _tblMembers;
   late AcSqlDbTable _tblMessages;
+  late AcSqlDbTable _tblOutbox;
+  late AcSqlDbTable _tblMessagesFts;
 
   bool _initialized = false;
 
@@ -129,35 +126,33 @@ class AcChatSqlite {
   final List<AcChatUser> _users = [];
   final List<AcChatConversation> _conversations = [];
   final Map<String, List<AcChatConversationUser>> _members = {};
-
-  /// Per-conversation message list. A `null` value means messages have NOT
-  /// yet been loaded for that conversation from SQLite.
   final Map<String, List<AcChatMessage>?> _messages = {};
-
-  /// O(1) user lookup.
   final Map<String, AcChatUser> _userIndex = {};
-
-  /// O(1) message lookup — used for reply resolution and deduplication.
   final Map<String, AcChatMessage> _messageIndex = {};
-
-  /// O(1) conversation lookup.
   final Map<String, AcChatConversation> _conversationIndex = {};
 
-  // ─── Public API ────────────────────────────────────────────────────────
+  // ── Reactive Stream Controllers ────────────────────────────────────────
 
-  /// Set this to `() => setState(() {})` in your [StatefulWidget] to trigger
-  /// UI rebuilds whenever data changes.
+  final StreamController<List<AcChatConversation>> _conversationsStreamCtrl =
+      StreamController<List<AcChatConversation>>.broadcast();
+
+  final Map<String, StreamController<List<AcChatMessage>>> _messagesStreamCtrls = {};
+  final Map<String, StreamController<Map<String, bool>>> _typingStreamCtrls = {};
+  final Map<String, Map<String, bool>> _typingState = {};
+  final Map<String, StreamController<bool>> _presenceStreamCtrls = {};
+  final Map<String, bool> _presenceState = {};
+
+  StreamSubscription<bool>? _connectivitySub;
+  Timer? _outboxDrainTimer;
+  bool _isDrainingOutbox = false;
+
   VoidCallback? onDataChanged;
+
+  /// Callback fired when an incoming message from another user is received and saved.
+  void Function({required AcChatMessage message})? onMessageReceived;
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────
 
-  /// Opens (or creates) the SQLite database, loads initial data, and starts
-  /// channel listeners (if a channel was provided).
-  ///
-  /// Messages are **not** loaded here — they are loaded lazily per
-  /// conversation on first access.
-  ///
-  /// Call this once before [buildApi].
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -170,14 +165,34 @@ class AcChatSqlite {
       rethrow;
     }
 
+    // Bind connectivity-aware outbox draining
+    final conn = _connectivityProvider;
+    if (conn != null) {
+      _connectivitySub = conn.watchIsOnline().listen((isOnline) {
+        if (isOnline) {
+          _drainOutbox();
+        }
+      });
+    }
+
+    // Start periodic background drain timer (every 30s)
+    _outboxDrainTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _drainOutbox();
+    });
+
     final ch = _channel;
     if (ch != null) {
       try {
         await ch.startListening(
           currentUserId: _currentUserId,
-          onMessageReceived: _handleIncomingMessage,
-          onConversationChanged: _handleConversationChanged,
-          onUsersLoaded: _handleUsersLoaded,
+          onMessageReceived: ({required message}) => _handleIncomingMessage(message),
+          onConversationChanged: ({required conversation, required members}) =>
+              _handleConversationChanged(conversation, members),
+          onUsersLoaded: ({required users}) => _handleUsersLoaded(users),
+          onTypingChanged: ({required conversationId, required userId, required isTyping}) =>
+              _handleIncomingTyping(conversationId: conversationId, userId: userId, isTyping: isTyping),
+          onUserPresenceChanged: ({required userId, required isOnline}) =>
+              _handleIncomingPresence(userId: userId, isOnline: isOnline),
         );
       } catch (e, st) {
         _log('channel startListening error', e, st);
@@ -185,22 +200,74 @@ class AcChatSqlite {
     }
   }
 
-  /// Returns a fully wired [AcChatApi] backed by the in-memory SQLite cache.
-  ///
-  /// Call [initialize] before calling this method.
-  AcChatApi buildApi(
-    AcChatTheme theme, {
-    FutureOr<AcChatUser?> Function(BuildContext context)? onNewContact,
-    FutureOr<void> Function(BuildContext context)? onNewGroup,
+  Future<void> dispose() async {
+    _connectivitySub?.cancel();
+    _outboxDrainTimer?.cancel();
+    await _conversationsStreamCtrl.close();
+    for (final ctrl in _messagesStreamCtrls.values) {
+      await ctrl.close();
+    }
+    for (final ctrl in _typingStreamCtrls.values) {
+      await ctrl.close();
+    }
+    for (final ctrl in _presenceStreamCtrls.values) {
+      await ctrl.close();
+    }
+  }
+
+  /// Attaches [channel] to this instance (post-initialization) and starts
+  /// listening for remote mailbox updates asynchronously.
+  /// Automatically triggers an outbox drain once attached.
+  void startSync({required AcChatSyncChannel channel}) {
+    if (identical(_channel, channel)) return;
+    _channel = channel;
+    channel.startListening(
+      currentUserId: _currentUserId,
+      onMessageReceived: ({required message}) => _handleIncomingMessage(message),
+      onConversationChanged: ({required conversation, required members}) =>
+          _handleConversationChanged(conversation, members),
+      onUsersLoaded: ({required users}) => _handleUsersLoaded(users),
+      onTypingChanged: ({required conversationId, required userId, required isTyping}) =>
+          _handleIncomingTyping(conversationId: conversationId, userId: userId, isTyping: isTyping),
+      onUserPresenceChanged: ({required userId, required isOnline}) =>
+          _handleIncomingPresence(userId: userId, isOnline: isOnline),
+    ).catchError((Object e, StackTrace st) {
+      _log('startSync error', e, st);
+      return null;
+    });
+    _drainOutbox();
+  }
+
+  /// Persists a user/contact into SQLite and updates the in-memory cache.
+  Future<void> saveUser({required AcChatUser user}) async {
+    await _upsertUser(user: user);
+    final idx = _users.indexWhere((u) => u.userId == user.userId);
+    if (idx >= 0) {
+      _users[idx] = user;
+    } else {
+      _users.add(user);
+    }
+    _userIndex[user.userId] = user;
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  // ─── Public API Builder ────────────────────────────────────────────────
+
+  AcChatApi buildApi({
+    required AcChatTheme theme,
+    FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact,
+    FutureOr<void> Function({required BuildContext context})? onNewGroup,
     List<AcChatUser> Function()? getContacts,
     String? contactsSectionTitle,
     String? newContactLabel,
     String? newContactSubtitle,
     String? newGroupLabel,
     String? newGroupSubtitle,
-    Widget? Function(BuildContext context, AcChatMessage message)? customMessageBuilder,
-    void Function(AcChatMessage message)? onMessageTap,
-    Widget? Function(BuildContext context, AcChatConversation conversation)? customInputBuilder,
+    FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers,
+    Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder,
+    void Function({required AcChatMessage message})? onMessageTap,
+    Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder,
     bool? enableVideoCall,
     bool? enableVoiceCall,
     bool? showNewConversationButton,
@@ -217,12 +284,22 @@ class AcChatSqlite {
       getUserById: _getUserById,
       getConversations: _getConversations,
       getConversationUsers: _getConversationUsers,
-      markAsRead: _markAsRead,
-      insertConversation: _insertConversation,
       getMessages: _getMessages,
       sendMessage: _sendMessage,
-      enableGroupsAndStatuses: true,
+      markAsRead: _markAsRead,
+      insertConversation: _insertConversation,
       updateMessage: _updateMessage,
+      watchConversations: watchConversations,
+      watchMessages: watchMessages,
+      watchTyping: watchTyping,
+      watchUserOnlineStatus: watchUserOnlineStatus,
+      sendTypingIndicator: sendTypingIndicator,
+      createGroupConversation: createGroupConversation,
+      addGroupMembers: addGroupMembers,
+      removeGroupMember: removeGroupMember,
+      searchMessages: searchMessages,
+      mediaUploader: _mediaUploader,
+      cryptoProvider: _cryptoProvider,
       onNewContact: onNewContact,
       onNewGroup: onNewGroup,
       getContacts: getContacts,
@@ -231,118 +308,713 @@ class AcChatSqlite {
       newContactSubtitle: newContactSubtitle,
       newGroupLabel: newGroupLabel,
       newGroupSubtitle: newGroupSubtitle,
+      onSearchRemoteUsers: onSearchRemoteUsers,
       customMessageBuilder: customMessageBuilder,
       onMessageTap: onMessageTap,
       customInputBuilder: customInputBuilder,
-      enableVideoCall: enableVideoCall ?? false,
-      enableVoiceCall: enableVoiceCall ?? false,
-      showNewConversationButton: showNewConversationButton ?? false,
+      enableVideoCall: enableVideoCall ?? true,
+      enableVoiceCall: enableVoiceCall ?? true,
+      showNewConversationButton: showNewConversationButton ?? true,
       searchConversations: searchConversations ?? true,
-      pinConversations: pinConversations ?? false,
+      pinConversations: pinConversations ?? true,
       showConversationMenu: showConversationMenu ?? true,
       showOnlineStatus: showOnlineStatus ?? true,
       readOnly: readOnly ?? false,
     );
   }
 
-  /// Adds or updates a user in memory and persists to SQLite.
-  Future<void> insertUser(AcChatUser user) async {
-    await _upsertUser(user);
-    _userIndex[user.userId] = user;
-    final idx = _users.indexWhere((u) => u.userId == user.userId);
-    if (idx >= 0) {
-      _users[idx] = user;
-    } else {
-      _users.add(user);
-    }
-    onDataChanged?.call();
+  // ─── Reactive Streams ──────────────────────────────────────────────────
+
+  Stream<List<AcChatConversation>> watchConversations() {
+    return _conversationsStreamCtrl.stream;
   }
 
-  /// Attaches [channel] to this already-initialised instance and starts
-  /// listening for remote events.
-  ///
-  /// Use this for the **offline-first** pattern: call [initialize] first
-  /// (which loads SQLite data immediately with no network dependency), then
-  /// call [startFirebaseSync] in the background to layer on Firestore sync:
-  ///
-  /// ```dart
-  /// await sqlite.initialize();               // instant — reads local DB
-  /// sqlite.startFirebaseSync(channel);       // background — non-blocking
-  /// ```
-  ///
-  /// Safe to call multiple times — subsequent calls with the same channel
-  /// are silently ignored. Any errors from [AcChatSyncChannel.startListening]
-  /// are caught and logged so the app never crashes if Firestore is
-  /// unavailable.
-  void startFirebaseSync(AcChatSyncChannel channel) {
-    // Ignore if we already have this channel attached.
-    if (identical(_channel, channel)) return;
+  Stream<List<AcChatMessage>> watchMessages({required String conversationId}) {
+    return _messagesStreamCtrls
+        .putIfAbsent(
+          conversationId,
+          () => StreamController<List<AcChatMessage>>.broadcast(),
+        )
+        .stream;
+  }
 
-    _attachAndListen(channel).catchError((Object e) {
-      _log('startFirebaseSync error', e, StackTrace.current);
+  Stream<Map<String, bool>> watchTyping({required String conversationId}) {
+    return _typingStreamCtrls
+        .putIfAbsent(
+          conversationId,
+          () => StreamController<Map<String, bool>>.broadcast(),
+        )
+        .stream;
+  }
+
+  Stream<bool> watchUserOnlineStatus({required String userId}) {
+    return _presenceStreamCtrls
+        .putIfAbsent(
+          userId,
+          () => StreamController<bool>.broadcast(),
+        )
+        .stream;
+  }
+
+  Future<void> sendTypingIndicator({
+    required String conversationId,
+    required bool isTyping,
+  }) async {
+    final memberList = _members[conversationId] ?? [];
+    final recipientIds = memberList
+        .map((m) => m.userId)
+        .where((id) => id != _currentUserId)
+        .toList();
+
+    _channel?.sendTypingIndicator(
+      conversationId: conversationId,
+      isTyping: isTyping,
+      recipientIds: recipientIds,
+    ).catchError((Object e) {
+      _log('sendTypingIndicator error', e, StackTrace.current);
       return null;
     });
   }
 
-  Future<void> _attachAndListen(AcChatSyncChannel channel) async {
-    // Assign the channel first so _sendMessage / _markAsRead / _insertConversation
-    // etc. start routing through Firestore from this point on.
-    _channel = channel;
-    await channel.startListening(
-      currentUserId: _currentUserId,
-      onMessageReceived: _handleIncomingMessage,
-      onConversationChanged: _handleConversationChanged,
-      onUsersLoaded: _handleUsersLoaded,
-    );
+  // ─── In-Memory Read Getters ────────────────────────────────────────────
+
+  AcChatUser _getCurrentUser() {
+    return _userIndex[_currentUserId] ??
+        (AcChatUser()
+          ..userId = _currentUserId
+          ..name = 'Me');
   }
 
-  /// Closes the SQLite database and stops all channel listeners.
-  ///
-  /// This method is `async`. Call with `unawaited()` from `State.dispose()`
-  /// since `State.dispose()` is synchronous:
-  ///
-  /// ```dart
-  /// @override
-  /// void dispose() {
-  ///   unawaited(_sqlite.dispose());
-  ///   super.dispose();
-  /// }
-  /// ```
-  Future<void> dispose() async {
+  List<AcChatUser> _getUsers() {
+    return List.unmodifiable(_users);
+  }
+
+  AcChatUser? _getUserById({required String userId}) {
+    return _userIndex[userId];
+  }
+
+  List<AcChatConversation> _getConversations() {
+    return List.unmodifiable(_conversations);
+  }
+
+  List<AcChatConversationUser> _getConversationUsers({
+    required String conversationId,
+  }) {
+    return List.unmodifiable(_members[conversationId] ?? []);
+  }
+
+  List<AcChatMessage> _getMessages({required String conversationId}) {
+    final cached = _messages[conversationId];
+    if (cached != null) {
+      return List.unmodifiable(cached);
+    }
+
+    _ensureMessagesLoaded(conversationId: conversationId).then((_) {
+      _notifyMessagesChanged(conversationId: conversationId);
+      onDataChanged?.call();
+    }).catchError((Object e) {
+      _log('_getMessages background load error for $conversationId', e, StackTrace.current);
+      return null;
+    });
+    return const [];
+  }
+
+  // ─── Sending and Outbox Pipeline ───────────────────────────────────────
+
+  void _sendMessage({required AcChatMessage message}) {
+    if (message.messageId.isEmpty) {
+      message.messageId = _uuid.v4();
+    }
+    message.status = 'sending';
+
+    _sendMessageAsync(message: message).catchError((Object e) {
+      _log('sendMessage async error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  Future<void> _sendMessageAsync({required AcChatMessage message}) async {
+    await _ensureMessagesLoaded(conversationId: message.conversationId);
+
+    // 1. Optimistic memory update
+    _messages[message.conversationId]!.add(message);
+    _messageIndex[message.messageId] = message;
+    _updateConversationLastMessage(message: message);
+
+    // 2. Persist to SQLite using AcSqlDbTable
+    await _upsertMessage(message: message);
+    await _updateConversationFields(
+      conversationId: message.conversationId,
+      fields: {
+        _C.lastMessage: message.text,
+        _C.lastMessageType: message.type,
+        _C.lastTime: message.time.millisecondsSinceEpoch,
+      },
+    );
+
+    // 3. Resolve recipients
+    final memberList = _members[message.conversationId] ?? [];
+    final recipientIds = memberList
+        .map((m) => m.userId)
+        .where((id) => id != _currentUserId)
+        .toList();
+
+    // 4. Save into Outbox
+    final outboxId = _uuid.v4();
+    await _tblOutbox.saveRow(
+      row: {
+        _C.outboxId: outboxId,
+        _C.messageId: message.messageId,
+        _C.conversationId: message.conversationId,
+        _C.recipientIdsJson: jsonEncode(recipientIds),
+        _C.retryCount: 0,
+        _C.createdAt: DateTime.now().millisecondsSinceEpoch,
+        _C.status: 'pending',
+      },
+      executeBeforeEvent: false,
+      executeAfterEvent: false,
+    );
+
+    _notifyMessagesChanged(conversationId: message.conversationId);
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+
+    // 5. Attempt immediate channel transmission
     final ch = _channel;
     if (ch != null) {
-      try {
-        await ch.stopListening();
-      } catch (e, st) {
-        _log('channel stopListening error', e, st);
-      }
-    }
-    try {
-      await _dao.close();
-    } catch (e, st) {
-      _log('dao close error', e, st);
+      ch.sendMessage(
+        message: message,
+        recipientIds: recipientIds,
+      ).then((_) async {
+        message.status = 'sent';
+        await _updateMessageFields(
+          messageId: message.messageId,
+          fields: {_C.status: 'sent'},
+        );
+        await _removeOutboxRow(outboxId: outboxId);
+        _notifyMessagesChanged(conversationId: message.conversationId);
+        onDataChanged?.call();
+      }).catchError((Object e) {
+        _log('channel.sendMessage transient error (queued in outbox)', e, StackTrace.current);
+      });
+    } else {
+      // Offline mode: mark sent
+      message.status = 'sent';
+      await _updateMessageFields(
+        messageId: message.messageId,
+        fields: {_C.status: 'sent'},
+      );
+      await _removeOutboxRow(outboxId: outboxId);
+      _notifyMessagesChanged(conversationId: message.conversationId);
+      onDataChanged?.call();
     }
   }
 
-  // ─── Database setup ────────────────────────────────────────────────────
+  Future<void> _drainOutbox() async {
+    if (_isDrainingOutbox || _channel == null) return;
+    _isDrainingOutbox = true;
 
-  /// Registers the data dictionary, configures the global [AcSqlDatabase]
-  /// settings, and runs [AcSqlDbSchemaManager.initDatabase] to create or
-  /// migrate the schema.
+    try {
+      final outboxResult = await _tblOutbox.getRows(
+        condition: '${_C.status} = :status',
+        parameters: {':status': 'pending'},
+        orderBy: '${_C.createdAt} ASC',
+      );
+
+      if (outboxResult.isSuccess()) {
+        for (final row in outboxResult.rows) {
+          final outboxId = row[_C.outboxId] as String;
+          final msgId = row[_C.messageId] as String;
+          final convId = row[_C.conversationId] as String;
+          final recipsJson = row[_C.recipientIdsJson] as String;
+          final retryCount = (row[_C.retryCount] as int?) ?? 0;
+
+          final msg = _messageIndex[msgId];
+          if (msg == null) {
+            await _removeOutboxRow(outboxId: outboxId);
+            continue;
+          }
+
+          List<String> recipientIds = [];
+          try {
+            recipientIds = (jsonDecode(recipsJson) as List).cast<String>();
+          } catch (_) {}
+
+          try {
+            await _channel!.sendMessage(
+              message: msg,
+              recipientIds: recipientIds,
+            );
+            msg.status = 'sent';
+            await _updateMessageFields(
+              messageId: msg.messageId,
+              fields: {_C.status: 'sent'},
+            );
+            await _removeOutboxRow(outboxId: outboxId);
+            _notifyMessagesChanged(conversationId: convId);
+          } catch (e) {
+            final nextRetry = retryCount + 1;
+            await _tblOutbox.saveRow(
+              row: {
+                _C.outboxId: outboxId,
+                _C.messageId: msgId,
+                _C.conversationId: convId,
+                _C.recipientIdsJson: recipsJson,
+                _C.retryCount: nextRetry,
+                _C.createdAt: row[_C.createdAt],
+                _C.status: nextRetry > 5 ? 'failed' : 'pending',
+              },
+              executeBeforeEvent: false,
+              executeAfterEvent: false,
+            );
+          }
+        }
+      }
+    } catch (e, st) {
+      _log('_drainOutbox error', e, st);
+    } finally {
+      _isDrainingOutbox = false;
+    }
+  }
+
+  Future<void> _removeOutboxRow({required String outboxId}) async {
+    try {
+      await _tblOutbox.deleteRows(
+        condition: '${_C.outboxId} = :outboxId',
+        parameters: {':outboxId': outboxId},
+      );
+    } catch (e, st) {
+      _log('_removeOutboxRow error', e, st);
+    }
+  }
+
+  void _markAsRead({required String conversationId}) {
+    final conv = _conversationIndex[conversationId];
+    if (conv == null) return;
+
+    conv.unread = 0;
+    final idx = _conversations.indexWhere((c) => c.conversationId == conversationId);
+    if (idx >= 0) _conversations[idx].unread = 0;
+
+    _updateConversationFields(
+      conversationId: conversationId,
+      fields: {_C.unread: 0},
+    ).catchError((Object e) => null);
+
+    _notifyConversationsChanged();
+
+    _channel?.markAsRead(
+      conversationId: conversationId,
+      currentUserId: _currentUserId,
+    ).catchError((Object e) {
+      _log('channel.markAsRead error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  AcChatConversation _insertConversation({
+    required AcChatConversation newConv,
+    required String otherUserId,
+  }) {
+    if (newConv.conversationId.isEmpty) {
+      newConv.conversationId = _uuid.v4();
+    }
+    newConv.memberIds = [_currentUserId, otherUserId];
+    newConv.lastTime = DateTime.now();
+
+    _insertConversationAsync(newConv: newConv, otherUserId: otherUserId).catchError((Object e) {
+      _log('insertConversation async error', e, StackTrace.current);
+      return null;
+    });
+
+    _conversationIndex[newConv.conversationId] = newConv;
+    _conversations.insert(0, newConv);
+
+    final members = [
+      AcChatConversationUser()
+        ..conversationId = newConv.conversationId
+        ..userId = _currentUserId,
+      AcChatConversationUser()
+        ..conversationId = newConv.conversationId
+        ..userId = otherUserId,
+    ];
+    _members[newConv.conversationId] = members;
+    _messages[newConv.conversationId] = [];
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+    return newConv;
+  }
+
+  Future<void> _insertConversationAsync({
+    required AcChatConversation newConv,
+    required String otherUserId,
+  }) async {
+    await _upsertConversation(conversation: newConv);
+    await _insertMember(
+      conversationId: newConv.conversationId,
+      userId: _currentUserId,
+    );
+    await _insertMember(
+      conversationId: newConv.conversationId,
+      userId: otherUserId,
+    );
+
+    _channel?.createConversation(
+      conversation: newConv,
+      memberIds: [_currentUserId, otherUserId],
+    ).catchError((Object e) {
+      _log('channel.createConversation error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  Future<AcChatConversation> createGroupConversation({
+    required String groupName,
+    required List<String> memberUserIds,
+    String? groupAvatar,
+  }) async {
+    final convId = _uuid.v4();
+    final allMembers = {_currentUserId, ...memberUserIds}.toList();
+    final conv = AcChatConversation()
+      ..conversationId = convId
+      ..type = 'group'
+      ..groupName = groupName
+      ..groupAvatar = groupAvatar
+      ..memberIds = allMembers
+      ..lastMessage = 'Group created'
+      ..lastMessageType = 'system'
+      ..lastTime = DateTime.now()
+      ..unread = 0;
+
+    await _upsertConversation(conversation: conv);
+    for (final uid in allMembers) {
+      await _insertMember(
+        conversationId: convId,
+        userId: uid,
+        role: uid == _currentUserId ? 'admin' : 'member',
+      );
+    }
+
+    _conversationIndex[convId] = conv;
+    _conversations.insert(0, conv);
+
+    final convUsers = allMembers
+        .map((uid) => AcChatConversationUser()
+          ..conversationId = convId
+          ..userId = uid)
+        .toList();
+    _members[convId] = convUsers;
+    _messages[convId] = [];
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+
+    _channel?.createConversation(
+      conversation: conv,
+      memberIds: allMembers,
+    ).catchError((Object e) {
+      _log('channel.createConversation error', e, StackTrace.current);
+      return null;
+    });
+
+    return conv;
+  }
+
+  Future<void> addGroupMembers({
+    required String conversationId,
+    required List<String> userIds,
+  }) async {
+    final conv = _conversationIndex[conversationId];
+    if (conv == null) return;
+
+    for (final uid in userIds) {
+      await _insertMember(conversationId: conversationId, userId: uid);
+      if (!conv.memberIds.contains(uid)) {
+        conv.memberIds.add(uid);
+      }
+      _members[conversationId]?.add(
+        AcChatConversationUser()
+          ..conversationId = conversationId
+          ..userId = uid,
+      );
+    }
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+
+    _channel?.addGroupMembers(
+      conversationId: conversationId,
+      memberIds: userIds,
+    ).catchError((Object e) {
+      _log('channel.addGroupMembers error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  Future<void> removeGroupMember({
+    required String conversationId,
+    required String userId,
+  }) async {
+    final conv = _conversationIndex[conversationId];
+    if (conv == null) return;
+
+    conv.memberIds.remove(userId);
+    _members[conversationId]?.removeWhere((m) => m.userId == userId);
+
+    try {
+      await _tblMembers.deleteRows(
+        condition: '${_C.conversationId} = :cid AND ${_C.userId} = :uid',
+        parameters: {':cid': conversationId, ':uid': userId},
+      );
+    } catch (e, st) {
+      _log('removeGroupMember error', e, st);
+    }
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+
+    _channel?.removeGroupMember(
+      conversationId: conversationId,
+      userId: userId,
+    ).catchError((Object e) {
+      _log('channel.removeGroupMember error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  Future<List<AcChatMessage>> searchMessages({
+    required String query,
+    String? conversationId,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final cond = conversationId != null
+          ? '${_C.conversationId} = :cid AND ${_C.text} LIKE :q'
+          : '${_C.text} LIKE :q';
+      final params = <String, dynamic>{
+        ':q': '%$trimmed%',
+        if (conversationId != null) ':cid': conversationId,
+      };
+      final result = await _tblMessages.getRows(
+        condition: cond,
+        parameters: params,
+        orderBy: '${_C.time} DESC',
+      );
+      if (result.isSuccess()) {
+        return result.rows
+            .map((r) => _rowToMessage(r, (id) => _messageIndex[id]))
+            .toList();
+      }
+    } catch (e, st) {
+      _log('searchMessages error', e, st);
+    }
+    return [];
+  }
+
+  void _updateMessage({
+    required String messageId,
+    required Map<String, dynamic> data,
+  }) {
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    if (data.containsKey('status')) msg.status = data['status'] as String;
+    if (data.containsKey('text')) msg.text = data['text'] as String;
+    if (data.containsKey('localPath')) msg.localPath = data['localPath'] as String?;
+    if (data.containsKey('isDownloaded')) msg.isDownloaded = data['isDownloaded'] as bool;
+    if (data.containsKey('deliveredTime')) {
+      final dt = data['deliveredTime'];
+      msg.deliveredTime = dt is DateTime ? dt : DateTime.fromMillisecondsSinceEpoch(dt as int);
+    }
+    if (data.containsKey('readTime')) {
+      final rt = data['readTime'];
+      msg.readTime = rt is DateTime ? rt : DateTime.fromMillisecondsSinceEpoch(rt as int);
+    }
+
+    _updateMessageFields(
+      messageId: msg.messageId,
+      fields: _dataToMessageFields(data),
+    ).catchError((Object e) => null);
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+
+    final memberList = _members[msg.conversationId] ?? [];
+    final recipientIds = memberList
+        .map((m) => m.userId)
+        .where((id) => id != _currentUserId)
+        .toList();
+
+    _channel?.updateMessage(
+      messageId: messageId,
+      conversationId: msg.conversationId,
+      data: data,
+      recipientIds: recipientIds,
+    ).catchError((Object e) {
+      _log('channel.updateMessage error', e, StackTrace.current);
+      return null;
+    });
+  }
+
+  // ─── Incoming Channel Handlers ─────────────────────────────────────────
+
+  Future<void> _handleIncomingMessage(AcChatMessage message) async {
+    final existing = _messageIndex[message.messageId];
+    if (existing != null) {
+      var changed = false;
+      if (existing.status != message.status) {
+        existing.status = message.status;
+        changed = true;
+      }
+      if (message.deliveredTime != null && existing.deliveredTime != message.deliveredTime) {
+        existing.deliveredTime = message.deliveredTime;
+        changed = true;
+      }
+      if (message.readTime != null && existing.readTime != message.readTime) {
+        existing.readTime = message.readTime;
+        changed = true;
+      }
+      if (changed) {
+        await _updateMessageFields(
+          messageId: message.messageId,
+          fields: {
+            _C.status: existing.status,
+            if (existing.deliveredTime != null)
+              _C.deliveredTime: existing.deliveredTime!.millisecondsSinceEpoch,
+            if (existing.readTime != null)
+              _C.readTime: existing.readTime!.millisecondsSinceEpoch,
+          },
+        );
+        _notifyMessagesChanged(conversationId: message.conversationId);
+        onDataChanged?.call();
+      }
+      return;
+    }
+
+    await _ensureMessagesLoaded(conversationId: message.conversationId);
+    await _upsertMessage(message: message);
+
+    _messages[message.conversationId]?.add(message);
+    _messageIndex[message.messageId] = message;
+
+    _updateConversationLastMessage(message: message);
+    await _updateConversationFields(
+      conversationId: message.conversationId,
+      fields: {
+        _C.lastMessage: message.text,
+        _C.lastMessageType: message.type,
+        _C.lastTime: message.time.millisecondsSinceEpoch,
+      },
+    );
+
+    if (message.senderId != _currentUserId) {
+      final conv = _conversationIndex[message.conversationId];
+      if (conv != null) {
+        conv.unread += 1;
+        await _updateConversationFields(
+          conversationId: message.conversationId,
+          fields: {_C.unread: conv.unread},
+        );
+      }
+      onMessageReceived?.call(message: message);
+    }
+
+    _notifyMessagesChanged(conversationId: message.conversationId);
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> _handleConversationChanged(
+    AcChatConversation conversation,
+    List<AcChatConversationUser> members,
+  ) async {
+    final convId = conversation.conversationId;
+    conversation.memberIds = members.map((m) => m.userId).toList();
+
+    await _upsertConversation(conversation: conversation);
+    for (final m in members) {
+      await _insertMember(conversationId: convId, userId: m.userId);
+    }
+
+    if (!_conversationIndex.containsKey(convId)) {
+      _conversations.insert(0, conversation);
+      _conversationIndex[convId] = conversation;
+      _members[convId] = members;
+    } else {
+      _conversationIndex[convId] = conversation;
+      final idx = _conversations.indexWhere((c) => c.conversationId == convId);
+      if (idx >= 0) _conversations[idx] = conversation;
+      _members[convId] = members;
+    }
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> _handleUsersLoaded(List<AcChatUser> users) async {
+    for (final user in users) {
+      await _upsertUser(user: user);
+    }
+    _users.clear();
+    _userIndex.clear();
+    for (final user in users) {
+      _users.add(user);
+      _userIndex[user.userId] = user;
+    }
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  void _handleIncomingTyping({
+    required String conversationId,
+    required String userId,
+    required bool isTyping,
+  }) {
+    final state = _typingState.putIfAbsent(conversationId, () => {});
+    state[userId] = isTyping;
+    _typingStreamCtrls[conversationId]?.add(Map.unmodifiable(state));
+  }
+
+  void _handleIncomingPresence({
+    required String userId,
+    required bool isOnline,
+  }) {
+    _presenceState[userId] = isOnline;
+    _presenceStreamCtrls[userId]?.add(isOnline);
+  }
+
+  // ─── Stream Notification Helpers ───────────────────────────────────────
+
+  void _notifyConversationsChanged() {
+    _conversationsStreamCtrl.add(List.unmodifiable(_conversations));
+  }
+
+  void _notifyMessagesChanged({required String conversationId}) {
+    final list = _messages[conversationId];
+    if (list != null) {
+      _messagesStreamCtrls[conversationId]?.add(List.unmodifiable(list));
+    }
+  }
+
+  // ─── SQLite DB & CRUD (No Raw SQL) ────────────────────────────────────
+
   Future<void> _openDatabase() async {
-    // 1. Register the schema with AcDataDictionary.
+    // 1. Register data dictionary schema
     AcDataDictionary.registerDataDictionaryJsonString(
       jsonString: kAcChatDataDictionaryJson,
       dataDictionaryName: _config.dataDictionaryName,
     );
 
-    // 2. Configure the global ac_sql settings for SQLite.
+    // 2. Global settings
     AcSqlDatabase.databaseType = AcEnumSqlDatabaseType.sqlite;
     AcSqlDatabase.sqlConnection = AcSqlConnection(
       database: _config.databasePath,
     );
 
-    // 3. Build the DAO and table helpers.
+    // 3. Build DAO and tables
     _dao = AcSqliteDao();
     await _dao.setSqlConnection(
       sqlConnection: AcSqlConnection(database: _config.databasePath),
@@ -368,13 +1040,22 @@ class AcChatSqlite {
       dataDictionaryName: _config.dataDictionaryName,
       dao: _dao,
     );
+    _tblOutbox = AcSqlDbTable(
+      tableName: _T.outboxMessages,
+      dataDictionaryName: _config.dataDictionaryName,
+      dao: _dao,
+    );
+    _tblMessagesFts = AcSqlDbTable(
+      tableName: _T.messagesFts,
+      dataDictionaryName: _config.dataDictionaryName,
+      dao: _dao,
+    );
 
-    // 4. Create / migrate the schema from the data dictionary.
     final schemaManager = AcSqlDbSchemaManager(
       dataDictionaryName: _config.dataDictionaryName,
       dao: _dao,
     );
-    // Disable features not supported by SQLite.
+    schemaManager.ignoreViews = true;
     schemaManager.ignoreFunctions = true;
     schemaManager.ignoreStoredProcedures = true;
 
@@ -386,10 +1067,7 @@ class AcChatSqlite {
     }
   }
 
-  // ─── Initial data loading ──────────────────────────────────────────────
-
   Future<void> _loadInitialData() async {
-    // Load users.
     final usersResult = await _tblUsers.getRows();
     _users.clear();
     _userIndex.clear();
@@ -401,7 +1079,6 @@ class AcChatSqlite {
       }
     }
 
-    // Load conversations (newest first).
     final convsResult = await _tblConversations.getRows(
       orderBy: '${_C.lastTime} DESC',
     );
@@ -415,7 +1092,6 @@ class AcChatSqlite {
       }
     }
 
-    // Load all members.
     final membersResult = await _tblMembers.getRows();
     _members.clear();
     if (membersResult.isSuccess()) {
@@ -428,19 +1104,13 @@ class AcChatSqlite {
       }
     }
 
-    // Restore memberIds on each conversation from the members map.
     for (final conv in _conversations) {
       final memberList = _members[conv.conversationId] ?? [];
       conv.memberIds = memberList.map((m) => m.userId).toList();
     }
-
-    // _messages starts empty — loaded lazily per conversation.
   }
 
-  // ─── Lazy message loading ──────────────────────────────────────────────
-
-  /// Loads messages for [conversationId] from SQLite if not already loaded.
-  Future<void> _ensureMessagesLoaded(String conversationId) async {
+  Future<void> _ensureMessagesLoaded({required String conversationId}) async {
     if (_messages[conversationId] != null) return;
 
     try {
@@ -449,319 +1119,23 @@ class AcChatSqlite {
         parameters: {':conversationId': conversationId},
         orderBy: '${_C.time} ASC',
       );
-      final msgs = <AcChatMessage>[];
+
+      final list = <AcChatMessage>[];
       if (result.isSuccess()) {
         for (final row in result.rows) {
           final m = _rowToMessage(row, (id) => _messageIndex[id]);
-          msgs.add(m);
+          list.add(m);
           _messageIndex[m.messageId] = m;
         }
       }
-      _messages[conversationId] = msgs;
+      _messages[conversationId] = list;
     } catch (e, st) {
-      _log('_ensureMessagesLoaded[$conversationId] error', e, st);
+      _log('_ensureMessagesLoaded error for $conversationId', e, st);
       _messages[conversationId] = [];
     }
   }
 
-  // ─── AcChatApi callback implementations ───────────────────────────────
-
-  AcChatUser _getCurrentUser() {
-    return _userIndex[_currentUserId] ??
-        (AcChatUser()..userId = _currentUserId);
-  }
-
-  List<AcChatUser> _getUsers() {
-    return _users.where((u) => u.userId != _currentUserId).toList();
-  }
-
-  AcChatUser? _getUserById(String userId) {
-    return _userIndex[userId];
-  }
-
-  List<AcChatConversation> _getConversations() {
-    return List.unmodifiable(_conversations);
-  }
-
-  List<AcChatConversationUser> _getConversationUsers(String conversationId) {
-    return List.unmodifiable(_members[conversationId] ?? []);
-  }
-
-  /// Returns messages for [conversationId] in ascending time order.
-  ///
-  /// If messages have not yet been loaded for this conversation they are
-  /// fetched from SQLite in the background and [onDataChanged] is called
-  /// when the load completes. Returns `[]` for the first call.
-  List<AcChatMessage> _getMessages(String conversationId) {
-    final cached = _messages[conversationId];
-    if (cached != null) {
-      return List.unmodifiable(cached);
-    }
-
-    // Kick off a background load — the next rebuild will have data.
-    _ensureMessagesLoaded(conversationId).then((_) {
-      onDataChanged?.call();
-    }).catchError((Object e) {
-      _log(
-        '_getMessages background load error for $conversationId',
-        e,
-        StackTrace.current,
-      );
-      return null;
-    });
-    return const [];
-  }
-
-  /// Sends [newMsg] optimistically: writes to SQLite and memory first,
-  /// then delegates to the channel.
-  void _sendMessage(AcChatMessage newMsg) {
-    if (newMsg.messageId.isEmpty) {
-      newMsg.messageId = _uuid.v4();
-    }
-    newMsg.status = 'sending';
-
-    // Fire-and-forget — never block the UI thread.
-    _sendMessageAsync(newMsg).catchError((Object e) {
-      _log('sendMessage async error', e, StackTrace.current);
-      return null;
-    });
-  }
-
-  Future<void> _sendMessageAsync(AcChatMessage msg) async {
-    // 1. Persist to SQLite.
-    await _upsertMessage(msg);
-
-    // 2. Ensure message list is loaded for this conversation.
-    await _ensureMessagesLoaded(msg.conversationId);
-
-    // 3. Append to in-memory list.
-    _messages[msg.conversationId]!.add(msg);
-    _messageIndex[msg.messageId] = msg;
-
-    // 4. Update conversation metadata in memory.
-    _updateConversationLastMessage(msg);
-
-    // 5. Persist conversation last-message fields.
-    await _updateConversationFields(
-      msg.conversationId,
-      {
-        _C.lastMessage: msg.text,
-        _C.lastMessageType: msg.type,
-        _C.lastTime: msg.time.millisecondsSinceEpoch,
-      },
-    );
-
-    // 6. Notify UI.
-    onDataChanged?.call();
-
-    // 7. Delegate to channel or mark as sent immediately.
-    final ch = _channel;
-    if (ch != null) {
-      ch.sendMessage(msg).catchError((Object e) {
-        _log('channel.sendMessage error', e, StackTrace.current);
-        msg.status = 'failed';
-        _updateMessageFields(msg.messageId, {_C.status: 'failed'})
-            .catchError((Object e2) => null);
-        onDataChanged?.call();
-        return null;
-      });
-    } else {
-      // Fully offline — mark sent immediately.
-      msg.status = 'sent';
-      await _updateMessageFields(msg.messageId, {_C.status: 'sent'});
-      onDataChanged?.call();
-    }
-  }
-
-  /// Sets `unread = 0` for the conversation identified by [conversationId].
-  void _markAsRead(String conversationId) {
-    final conv = _conversationIndex[conversationId];
-    if (conv == null) return;
-
-    conv.unread = 0;
-    final idx =
-        _conversations.indexWhere((c) => c.conversationId == conversationId);
-    if (idx >= 0) _conversations[idx].unread = 0;
-
-    _updateConversationFields(conversationId, {_C.unread: 0})
-        .catchError((Object e) => null);
-
-    _channel
-        ?.markAsRead(conversationId, _currentUserId)
-        .catchError((Object e) {
-      _log('channel.markAsRead error', e, StackTrace.current);
-      return null;
-    });
-  }
-
-  /// Creates a new conversation in SQLite and memory, then delegates to
-  /// the channel.
-  AcChatConversation _insertConversation(
-    AcChatConversation newConv,
-    String otherUserId,
-  ) {
-    if (newConv.conversationId.isEmpty) {
-      newConv.conversationId = _uuid.v4();
-    }
-    newConv.memberIds = [_currentUserId, otherUserId];
-    newConv.lastTime = DateTime.now();
-
-    _insertConversationAsync(newConv, otherUserId).catchError((Object e) {
-      _log('insertConversation async error', e, StackTrace.current);
-      return null;
-    });
-
-    // Optimistic local insert.
-    _conversationIndex[newConv.conversationId] = newConv;
-    _conversations.insert(0, newConv);
-
-    final members = [
-      AcChatConversationUser()
-        ..conversationId = newConv.conversationId
-        ..userId = _currentUserId,
-      AcChatConversationUser()
-        ..conversationId = newConv.conversationId
-        ..userId = otherUserId,
-    ];
-    _members[newConv.conversationId] = members;
-    _messages[newConv.conversationId] = [];
-
-    onDataChanged?.call();
-    return newConv;
-  }
-
-  Future<void> _insertConversationAsync(
-    AcChatConversation conv,
-    String otherUserId,
-  ) async {
-    await _upsertConversation(conv);
-    await _insertMember(conv.conversationId, _currentUserId);
-    await _insertMember(conv.conversationId, otherUserId);
-
-    _channel?.createConversation(conv, otherUserId).catchError((Object e) {
-      _log('channel.createConversation error', e, StackTrace.current);
-      return null;
-    });
-  }
-
-  /// Applies a partial [data] update to the message identified by [messageId].
-  void _updateMessage(String messageId, Map<String, dynamic> data) {
-    final msg = _messageIndex[messageId];
-    if (msg == null) return;
-
-    if (data.containsKey('status')) msg.status = data['status'] as String;
-    if (data.containsKey('text')) msg.text = data['text'] as String;
-    if (data.containsKey('localPath')) {
-      msg.localPath = data['localPath'] as String?;
-    }
-    if (data.containsKey('isDownloaded')) {
-      msg.isDownloaded = data['isDownloaded'] as bool;
-    }
-
-    _updateMessageFields(msg.messageId, _dataToMessageFields(data))
-        .catchError((Object e) => null);
-
-    onDataChanged?.call();
-
-    _channel
-        ?.updateMessage(messageId, msg.conversationId, data)
-        .catchError((Object e) {
-      _log('channel.updateMessage error', e, StackTrace.current);
-      return null;
-    });
-  }
-
-  // ─── Incoming channel events ───────────────────────────────────────────
-
-  Future<void> _handleIncomingMessage(AcChatMessage message) async {
-    final existing = _messageIndex[message.messageId];
-    if (existing != null) {
-      // Dedup — only update status if it changed.
-      if (existing.status != message.status) {
-        existing.status = message.status;
-        await _updateMessageFields(
-          message.messageId,
-          {_C.status: message.status},
-        );
-        onDataChanged?.call();
-      }
-      return;
-    }
-
-    // Genuinely new message from another user.
-    await _ensureMessagesLoaded(message.conversationId);
-
-    await _upsertMessage(message);
-    _messages[message.conversationId]?.add(message);
-    _messageIndex[message.messageId] = message;
-
-    _updateConversationLastMessage(message);
-    await _updateConversationFields(
-      message.conversationId,
-      {
-        _C.lastMessage: message.text,
-        _C.lastMessageType: message.type,
-        _C.lastTime: message.time.millisecondsSinceEpoch,
-      },
-    );
-
-    if (message.senderId != _currentUserId) {
-      final conv = _conversationIndex[message.conversationId];
-      if (conv != null) {
-        conv.unread += 1;
-        await _updateConversationFields(
-          message.conversationId,
-          {_C.unread: conv.unread},
-        );
-      }
-    }
-
-    onDataChanged?.call();
-  }
-
-  Future<void> _handleConversationChanged(
-    AcChatConversation conversation,
-    List<AcChatConversationUser> members,
-  ) async {
-    final convId = conversation.conversationId;
-    conversation.memberIds = members.map((m) => m.userId).toList();
-
-    if (!_conversationIndex.containsKey(convId)) {
-      await _upsertConversation(conversation);
-      for (final m in members) {
-        await _insertMember(convId, m.userId);
-      }
-      _conversations.insert(0, conversation);
-      _conversationIndex[convId] = conversation;
-      _members[convId] = members;
-    } else {
-      await _upsertConversation(conversation);
-      _conversationIndex[convId] = conversation;
-      final idx =
-          _conversations.indexWhere((c) => c.conversationId == convId);
-      if (idx >= 0) _conversations[idx] = conversation;
-      _members[convId] = members;
-    }
-
-    onDataChanged?.call();
-  }
-
-  Future<void> _handleUsersLoaded(List<AcChatUser> users) async {
-    for (final user in users) {
-      await _upsertUser(user);
-    }
-    _users.clear();
-    _userIndex.clear();
-    for (final user in users) {
-      _users.add(user);
-      _userIndex[user.userId] = user;
-    }
-    onDataChanged?.call();
-  }
-
-  // ─── SQLite persistence helpers ────────────────────────────────────────
-
-  Future<void> _upsertUser(AcChatUser user) async {
+  Future<void> _upsertUser({required AcChatUser user}) async {
     try {
       await _tblUsers.saveRow(
         row: _userToRow(user),
@@ -773,10 +1147,10 @@ class AcChatSqlite {
     }
   }
 
-  Future<void> _upsertConversation(AcChatConversation conv) async {
+  Future<void> _upsertConversation({required AcChatConversation conversation}) async {
     try {
       await _tblConversations.saveRow(
-        row: _conversationToRow(conv),
+        row: _conversationToRow(conversation),
         executeBeforeEvent: false,
         executeAfterEvent: false,
       );
@@ -785,28 +1159,42 @@ class AcChatSqlite {
     }
   }
 
-  /// Inserts a conversation-member row, silently ignoring duplicates.
-  Future<void> _insertMember(String conversationId, String userId) async {
+  Future<void> _insertMember({
+    required String conversationId,
+    required String userId,
+    String role = 'member',
+  }) async {
+    final memberId = '${conversationId}_$userId';
     try {
-      await _dao.executeStatement(
-        statement: 'INSERT OR IGNORE INTO ${_T.conversationMembers}'
-            ' (${_C.conversationId}, ${_C.userId})'
-            ' VALUES (:conversationId, :userId)',
-        parameters: {
-          ':conversationId': conversationId,
-          ':userId': userId,
+      await _tblMembers.saveRow(
+        row: {
+          _C.memberId: memberId,
+          _C.conversationId: conversationId,
+          _C.userId: userId,
+          _C.role: role,
         },
-        operation: AcEnumDDRowOperation.insert,
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
       );
     } catch (e, st) {
       _log('_insertMember error', e, st);
     }
   }
 
-  Future<void> _upsertMessage(AcChatMessage msg) async {
+  Future<void> _upsertMessage({required AcChatMessage message}) async {
     try {
       await _tblMessages.saveRow(
-        row: _messageToRow(msg),
+        row: _messageToRow(message),
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
+      );
+      // Also update FTS table
+      await _tblMessagesFts.saveRow(
+        row: {
+          _C.messageId: message.messageId,
+          _C.conversationId: message.conversationId,
+          _C.text: message.text,
+        },
         executeBeforeEvent: false,
         executeAfterEvent: false,
       );
@@ -815,58 +1203,54 @@ class AcChatSqlite {
     }
   }
 
-  Future<void> _updateConversationFields(
-    String conversationId,
-    Map<String, Object?> fields,
-  ) async {
+  Future<void> _updateConversationFields({
+    required String conversationId,
+    required Map<String, Object?> fields,
+  }) async {
     if (fields.isEmpty) return;
     try {
-      final setClauses = fields.keys.map((k) => '$k = :$k').join(', ');
-      final params = <String, dynamic>{
-        ':${_C.conversationId}': conversationId,
-        for (final e in fields.entries) ':${e.key}': e.value,
-      };
-      await _dao.executeStatement(
-        statement: 'UPDATE ${_T.conversations} SET $setClauses'
-            ' WHERE ${_C.conversationId} = :${_C.conversationId}',
-        parameters: params,
-        operation: AcEnumDDRowOperation.update,
+      final conv = _conversationIndex[conversationId];
+      final row = conv != null
+          ? _conversationToRow(conv)
+          : <String, Object?>{_C.conversationId: conversationId};
+      row.addAll(fields);
+      await _tblConversations.saveRow(
+        row: row,
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
       );
     } catch (e, st) {
       _log('_updateConversationFields error', e, st);
     }
   }
 
-  Future<void> _updateMessageFields(
-    String messageId,
-    Map<String, Object?> fields,
-  ) async {
+  Future<void> _updateMessageFields({
+    required String messageId,
+    required Map<String, Object?> fields,
+  }) async {
     if (fields.isEmpty) return;
     try {
-      final setClauses = fields.keys.map((k) => '$k = :$k').join(', ');
-      final params = <String, dynamic>{
-        ':${_C.messageId}': messageId,
-        for (final e in fields.entries) ':${e.key}': e.value,
-      };
-      await _dao.executeStatement(
-        statement: 'UPDATE ${_T.messages} SET $setClauses'
-            ' WHERE ${_C.messageId} = :${_C.messageId}',
-        parameters: params,
-        operation: AcEnumDDRowOperation.update,
+      final msg = _messageIndex[messageId];
+      final row = msg != null
+          ? _messageToRow(msg)
+          : <String, Object?>{_C.messageId: messageId};
+      row.addAll(fields);
+      await _tblMessages.saveRow(
+        row: row,
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
       );
     } catch (e, st) {
       _log('_updateMessageFields error', e, st);
     }
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────
-
-  void _updateConversationLastMessage(AcChatMessage msg) {
-    final conv = _conversationIndex[msg.conversationId];
+  void _updateConversationLastMessage({required AcChatMessage message}) {
+    final conv = _conversationIndex[message.conversationId];
     if (conv == null) return;
-    conv.lastMessage = msg.text;
-    conv.lastMessageType = msg.type;
-    conv.lastTime = msg.time;
+    conv.lastMessage = message.text;
+    conv.lastMessageType = message.type;
+    conv.lastTime = message.time;
     _conversations.sort((a, b) => b.lastTime.compareTo(a.lastTime));
   }
 
@@ -878,10 +1262,18 @@ class AcChatSqlite {
     if (data.containsKey('isDownloaded')) {
       fields[_C.isDownloaded] = (data['isDownloaded'] as bool) ? 1 : 0;
     }
+    if (data.containsKey('deliveredTime')) {
+      final dt = data['deliveredTime'];
+      fields[_C.deliveredTime] = dt is DateTime ? dt.millisecondsSinceEpoch : dt;
+    }
+    if (data.containsKey('readTime')) {
+      final rt = data['readTime'];
+      fields[_C.readTime] = rt is DateTime ? rt.millisecondsSinceEpoch : rt;
+    }
     return fields;
   }
 
-  // ─── Row <-> model converters ──────────────────────────────────────────
+  // ─── Row Mappers ───────────────────────────────────────────────────────
 
   static AcChatUser _rowToUser(Map<String, dynamic> row) {
     return AcChatUser()
@@ -909,10 +1301,10 @@ class AcChatSqlite {
       ..conversationId = row[_C.conversationId] as String
       ..type = (row[_C.type] as String?) ?? 'direct'
       ..groupName = row[_C.groupName] as String?
+      ..groupAvatar = row[_C.groupAvatar] as String?
       ..lastMessage = (row[_C.lastMessage] as String?) ?? ''
       ..lastMessageType = (row[_C.lastMessageType] as String?) ?? ''
-      ..lastTime =
-          DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int)
+      ..lastTime = DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int)
       ..unread = (row[_C.unread] as int?) ?? 0
       ..isPinned = ((row[_C.isPinned] as int?) ?? 0) == 1
       ..isMuted = ((row[_C.isMuted] as int?) ?? 0) == 1;
@@ -923,6 +1315,7 @@ class AcChatSqlite {
       _C.conversationId: conv.conversationId,
       _C.type: conv.type,
       _C.groupName: conv.groupName,
+      _C.groupAvatar: conv.groupAvatar,
       _C.lastMessage: conv.lastMessage,
       _C.lastMessageType: conv.lastMessageType,
       _C.lastTime: conv.lastTime.millisecondsSinceEpoch,
@@ -937,8 +1330,15 @@ class AcChatSqlite {
     AcChatMessage? Function(String replyToId) replyResolver,
   ) {
     final replyToIdVal = row[_C.replyToId] as String?;
-    final resolvedReply =
-        replyToIdVal != null ? replyResolver(replyToIdVal) : null;
+    final resolvedReply = replyToIdVal != null ? replyResolver(replyToIdVal) : null;
+
+    Map<String, List<String>> reactions = {};
+    if (row[_C.reactionsJson] != null) {
+      try {
+        final decoded = jsonDecode(row[_C.reactionsJson] as String) as Map;
+        reactions = decoded.map((k, v) => MapEntry(k.toString(), (v as List).cast<String>()));
+      } catch (_) {}
+    }
 
     return AcChatMessage()
       ..messageId = row[_C.messageId] as String
@@ -946,8 +1346,7 @@ class AcChatSqlite {
       ..senderId = row[_C.senderId] as String
       ..type = (row[_C.type] as String?) ?? 'text'
       ..text = (row[_C.text] as String?) ?? ''
-      ..time =
-          DateTime.fromMillisecondsSinceEpoch(row[_C.time] as int)
+      ..time = DateTime.fromMillisecondsSinceEpoch(row[_C.time] as int)
       ..status = (row[_C.status] as String?) ?? 'sent'
       ..mediaCaption = row[_C.mediaCaption] as String?
       ..amount = (row[_C.amount] as num?)?.toDouble()
@@ -957,6 +1356,18 @@ class AcChatSqlite {
       ..fileSize = row[_C.fileSize] as String?
       ..isDownloaded = ((row[_C.isDownloaded] as int?) ?? 0) == 1
       ..localPath = row[_C.localPath] as String?
+      ..deliveredTime = row[_C.deliveredTime] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.deliveredTime] as int)
+          : null
+      ..readTime = row[_C.readTime] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.readTime] as int)
+          : null
+      ..isEdited = ((row[_C.isEdited] as int?) ?? 0) == 1
+      ..editedTime = row[_C.editedTime] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.editedTime] as int)
+          : null
+      ..isDeleted = ((row[_C.isDeleted] as int?) ?? 0) == 1
+      ..reactions = reactions
       ..replyTo = resolvedReply;
   }
 
@@ -978,10 +1389,14 @@ class AcChatSqlite {
       _C.isDownloaded: msg.isDownloaded ? 1 : 0,
       _C.localPath: msg.localPath,
       _C.replyToId: msg.replyTo?.messageId,
+      _C.deliveredTime: msg.deliveredTime?.millisecondsSinceEpoch,
+      _C.readTime: msg.readTime?.millisecondsSinceEpoch,
+      _C.isEdited: msg.isEdited ? 1 : 0,
+      _C.editedTime: msg.editedTime?.millisecondsSinceEpoch,
+      _C.isDeleted: msg.isDeleted ? 1 : 0,
+      _C.reactionsJson: msg.reactions.isNotEmpty ? jsonEncode(msg.reactions) : null,
     };
   }
-
-  // ─── Logging ───────────────────────────────────────────────────────────
 
   void _log(String message, Object error, StackTrace stackTrace) {
     developer.log(

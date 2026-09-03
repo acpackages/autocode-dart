@@ -1,91 +1,132 @@
 import 'dart:async';
-import 'ac_chat.dart';
 import 'package:flutter/widgets.dart';
+import 'ac_chat.dart';
+import '../media/ac_chat_media_uploader.dart';
+import '../crypto/ac_chat_crypto_provider.dart';
 
+/// The central contract and API bridge for the `ac_chat` UI.
+///
+/// Fully generic and platform-agnostic. All methods, callbacks, and constructors
+/// strictly use named parameters.
 class AcChatApi {
   final AcChatTheme theme;
+
+  // ── Synchronous Snapshot Getters ──────────────────────────────────────────
   final AcChatUser Function() getCurrentUser;
   final List<AcChatUser> Function() getUsers;
-  final AcChatUser? Function(String userId) getUserById;
+  final AcChatUser? Function({required String userId}) getUserById;
   final List<AcChatConversation> Function() getConversations;
-  final List<AcChatConversationUser> Function(String conversationId) getConversationUsers;
-  final void Function(String conversationId) markAsRead;
-  final AcChatConversation Function(AcChatConversation newConv, String otherUserId) insertConversation;
-  final List<AcChatMessage> Function(String conversationId) getMessages;
-  final void Function(AcChatMessage newMsg) sendMessage;
+  final List<AcChatConversationUser> Function({required String conversationId}) getConversationUsers;
+  final List<AcChatMessage> Function({required String conversationId}) getMessages;
+
+  // ── Reactive Streams ──────────────────────────────────────────────────────
+  /// Stream of conversations for live list binding.
+  final Stream<List<AcChatConversation>> Function()? watchConversations;
+
+  /// Stream of messages for an active conversation screen.
+  final Stream<List<AcChatMessage>> Function({required String conversationId})? watchMessages;
+
+  /// Stream of active typing indicators (userId -> isTyping) in a conversation.
+  final Stream<Map<String, bool>> Function({required String conversationId})? watchTyping;
+
+  /// Stream of online/presence state for a given user.
+  final Stream<bool> Function({required String userId})? watchUserOnlineStatus;
+
+  // ── Mutations & Actions ───────────────────────────────────────────────────
+  final void Function({required String conversationId}) markAsRead;
+  final void Function({required AcChatMessage message}) sendMessage;
+  final AcChatConversation Function({
+    required AcChatConversation newConv,
+    required String otherUserId,
+  }) insertConversation;
+
+  /// Creates a multi-user group conversation.
+  final Future<AcChatConversation> Function({
+    required String groupName,
+    required List<String> memberUserIds,
+    String? groupAvatar,
+  })? createGroupConversation;
+
+  /// Adds members to an existing group conversation.
+  final Future<void> Function({
+    required String conversationId,
+    required List<String> userIds,
+  })? addGroupMembers;
+
+  /// Removes a member from an existing group conversation.
+  final Future<void> Function({
+    required String conversationId,
+    required String userId,
+  })? removeGroupMember;
+
+  /// Dispatches an ephemeral typing status signal.
+  final void Function({
+    required String conversationId,
+    required bool isTyping,
+  })? sendTypingIndicator;
+
+  /// Performs full-text or indexed searching across messages.
+  final Future<List<AcChatMessage>> Function({
+    required String query,
+    String? conversationId,
+  })? searchMessages;
+
+  /// Applies a partial field update to a message.
+  final void Function({
+    required String messageId,
+    required Map<String, dynamic> data,
+  })? updateMessage;
+
+  /// Edits message text.
+  final Future<void> Function({
+    required String messageId,
+    required String newText,
+  })? onEditMessage;
+
+  /// Deletes a message (soft-delete).
+  final Future<void> Function({
+    required String messageId,
+    required bool forEveryone,
+  })? onDeleteMessage;
+
+  /// Adds an emoji reaction to a message.
+  final Future<void> Function({
+    required String messageId,
+    required String emoji,
+  })? onAddReaction;
+
+  // ── Media & Security Providers ────────────────────────────────────────────
+  final AcChatMediaUploader? mediaUploader;
+  final AcChatCryptoProvider? cryptoProvider;
+
+  // ── UI Customization & Builders ───────────────────────────────────────────
   final bool enableGroupsAndStatuses;
-  final void Function(String messageId, Map<String, dynamic> data)? updateMessage;
-  final Widget? Function(BuildContext context, AcChatMessage message)? customMessageBuilder;
-  final void Function(AcChatMessage message)? onMessageTap;
+  final Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder;
+  final void Function({required AcChatMessage message})? onMessageTap;
 
-  /// Optional callback invoked when the user taps 'New Contact' in the new chat screen.
-  /// Receives the [BuildContext] and can return a newly created [AcChatUser] to immediately start a chat.
-  final FutureOr<AcChatUser?> Function(BuildContext context)? onNewContact;
-
-  /// Optional callback invoked when the user taps 'New Group' in the new chat screen or menu.
-  final FutureOr<void> Function(BuildContext context)? onNewGroup;
-
-  /// Optional callback to retrieve the contact list for new chat creation.
-  /// If not provided, [getUsers] is used.
+  final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
+  final FutureOr<void> Function({required BuildContext context})? onNewGroup;
   final List<AcChatUser> Function()? getContacts;
-
-  /// Optional custom title for the contacts section in [NewChatScreen].
   final String? contactsSectionTitle;
-
-  /// Optional custom label and subtitle for the new contact tile in [NewChatScreen].
   final String? newContactLabel;
   final String? newContactSubtitle;
-
-  /// Optional custom label and subtitle for the new group tile in [NewChatScreen].
   final String? newGroupLabel;
   final String? newGroupSubtitle;
+  final FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers;
 
-  /// When true, the standard send bar is hidden and users cannot compose
-  /// new messages.  Use this for read-only views like a transaction log.
   final bool readOnly;
-
-  // ── Feature flags / UI configuration ─────────────────────────────────────
-
-  /// Show/hide the video-call icon button in the conversation app bar.
-  /// Default: false.
   final bool enableVideoCall;
-
-  /// Show/hide the voice-call icon button in the conversation app bar.
-  /// Default: false.
   final bool enableVoiceCall;
-
-  /// Show/hide the floating-action-button that starts a new conversation.
-  /// Default: false.
   final bool showNewConversationButton;
-
-  /// Show/hide the search input in the conversation list pane.
-  /// Default: true.
   final bool searchConversations;
-
-  /// Enable conversation-pinning UI (pin icon, pinned background highlight).
-  /// Default: false.
   final bool pinConversations;
-
-  /// Show/hide the ⋮ overflow menu in the conversation app bar.
-  /// Default: true.
   final bool showConversationMenu;
-
-  /// Show/hide the online-status indicator:
-  ///   • green dot on avatar in the conversation list
-  ///   • "Online" subtitle in the conversation header
-  /// Default: true.
   final bool showOnlineStatus;
 
-  /// Optional custom widget rendered at the bottom of a conversation in place
-  /// of the standard [InputBar].
-  ///
-  /// Receives the current [BuildContext] and the active [AcChatConversation].
-  /// Return a non-null [Widget] to override the default bar, or return `null`
-  /// to fall back to the standard send bar (when [readOnly] is false).
-  ///
-  /// Example use: the Transactions screen injects an expense / income
-  /// quick-entry form via this builder.
-  final Widget? Function(BuildContext context, AcChatConversation conversation)? customInputBuilder;
+  final Widget? Function({
+    required BuildContext context,
+    required AcChatConversation conversation,
+  })? customInputBuilder;
 
   AcChatApi({
     required this.theme,
@@ -98,8 +139,22 @@ class AcChatApi {
     required this.insertConversation,
     required this.getMessages,
     required this.sendMessage,
-    this.enableGroupsAndStatuses = false,
+    this.watchConversations,
+    this.watchMessages,
+    this.watchTyping,
+    this.watchUserOnlineStatus,
+    this.createGroupConversation,
+    this.addGroupMembers,
+    this.removeGroupMember,
+    this.sendTypingIndicator,
+    this.searchMessages,
     this.updateMessage,
+    this.onEditMessage,
+    this.onDeleteMessage,
+    this.onAddReaction,
+    this.mediaUploader,
+    this.cryptoProvider,
+    this.enableGroupsAndStatuses = false,
     this.customMessageBuilder,
     this.onMessageTap,
     this.onNewContact,
@@ -110,8 +165,8 @@ class AcChatApi {
     this.newContactSubtitle,
     this.newGroupLabel,
     this.newGroupSubtitle,
+    this.onSearchRemoteUsers,
     this.readOnly = false,
-    // Feature flags
     this.enableVideoCall = false,
     this.enableVoiceCall = false,
     this.showNewConversationButton = false,

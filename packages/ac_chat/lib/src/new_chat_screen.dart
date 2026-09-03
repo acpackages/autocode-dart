@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core/ac_chat.dart';
 import 'common/chat_colors.dart';
-import 'common/theme_provider.dart';
 
 class NewChatScreen extends StatefulWidget {
   final AcChatApi api;
+
   const NewChatScreen({super.key, required this.api});
 
   @override
@@ -12,25 +13,82 @@ class NewChatScreen extends StatefulWidget {
 }
 
 class _NewChatScreenState extends State<NewChatScreen> {
+  final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
+  List<AcChatUser> _remoteUsers = [];
+  bool _isSearchingRemote = false;
+  Timer? _debounceTimer;
 
-  List<AcChatUser> get _filtered {
-    final list = widget.api.getContacts?.call() ?? widget.api.getUsers();
-    if (_query.isEmpty) return list;
-    return list
-        .where((u) =>
-            u.name
-                .toLowerCase()
-                .contains(_query.toLowerCase()) ||
-            u.username
-                .toLowerCase()
-                .contains(_query.toLowerCase()))
-        .toList();
+  // Multi-select state for creating groups
+  bool _isGroupCreationMode = false;
+  final Set<String> _selectedMemberIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchCtrl.removeListener(_onSearchChanged);
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final q = _searchCtrl.text.trim();
+    if (q == _query) return;
+    setState(() => _query = q);
+
+    _debounceTimer?.cancel();
+    if (widget.api.onSearchRemoteUsers != null && q.length >= 2) {
+      _debounceTimer = Timer(const Duration(milliseconds: 400), () => _searchRemote(q));
+    } else {
+      setState(() {
+        _remoteUsers = [];
+        _isSearchingRemote = false;
+      });
+    }
+  }
+
+  Future<void> _searchRemote(String q) async {
+    if (widget.api.onSearchRemoteUsers == null) return;
+    setState(() => _isSearchingRemote = true);
+    try {
+      final results = await widget.api.onSearchRemoteUsers!(query: q);
+      if (mounted && _query == q) {
+        final localIds = _localUsers.map((u) => u.userId).toSet();
+        setState(() {
+          _remoteUsers = results.where((u) => !localIds.contains(u.userId)).toList();
+          _isSearchingRemote = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isSearchingRemote = false);
+    }
+  }
+
+  List<AcChatUser> get _localUsers {
+    return widget.api.getContacts?.call() ?? widget.api.getUsers();
+  }
+
+  List<AcChatUser> get _filteredLocal {
+    if (_query.isEmpty) return _localUsers;
+    final q = _query.toLowerCase();
+    return _localUsers.where((u) {
+      return u.name.toLowerCase().contains(q) ||
+          u.username.toLowerCase().contains(q) ||
+          u.email.toLowerCase().contains(q);
+    }).toList();
   }
 
   void _startChat(AcChatUser user) {
-    final existing =
-        widget.api.getConversations().where((c) => c.type == 'direct' && c.memberIds.contains(user.userId)).toList();
+    final existing = widget.api.getConversations().where(
+      (c) => c.type == 'direct' && c.memberIds.contains(user.userId),
+    ).toList();
+
     AcChatConversation? conversation;
     if (existing.isNotEmpty) {
       conversation = existing.first;
@@ -38,43 +96,98 @@ class _NewChatScreenState extends State<NewChatScreen> {
       final newConv = AcChatConversation()
         ..type = 'direct'
         ..groupName = null
-        ..memberIds = []
+        ..memberIds = [widget.api.getCurrentUser().userId, user.userId]
         ..lastMessage = ''
         ..lastMessageType = 'text'
         ..isPinned = false
         ..isMuted = false;
-      conversation = widget.api.insertConversation(newConv, user.userId);
+      conversation = widget.api.insertConversation(
+        newConv: newConv,
+        otherUserId: user.userId,
+      );
     }
     Navigator.of(context).pop(conversation);
   }
 
   void _startGroup() {
     if (widget.api.onNewGroup != null) {
-      widget.api.onNewGroup!(context);
+      widget.api.onNewGroup!(context: context);
+    } else if (widget.api.createGroupConversation != null) {
+      setState(() {
+        _isGroupCreationMode = true;
+        _selectedMemberIds.clear();
+      });
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('New Group — coming soon')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New Group creation is not configured')),
+      );
+    }
+  }
+
+  Future<void> _proceedGroupCreation() async {
+    if (_selectedMemberIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select at least 1 contact to create a group')),
+      );
+      return;
+    }
+
+    final groupNameCtrl = TextEditingController();
+    final groupName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Group Name'),
+        content: TextField(
+          controller: groupNameCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Enter group subject...'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = groupNameCtrl.text.trim();
+              if (val.isNotEmpty) Navigator.pop(ctx, val);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (groupName != null && groupName.isNotEmpty && mounted) {
+      final allMembers = [widget.api.getCurrentUser().userId, ..._selectedMemberIds];
+      final groupConv = await widget.api.createGroupConversation!(
+        groupName: groupName,
+        memberUserIds: allMembers,
+      );
+      if (mounted) Navigator.of(context).pop(groupConv);
     }
   }
 
   Future<void> _startNewContact() async {
     if (widget.api.onNewContact != null) {
-      final user = await widget.api.onNewContact!(context);
+      final user = await widget.api.onNewContact!(context: context);
       if (user != null && mounted) {
         _startChat(user);
       } else if (mounted) {
         setState(() {});
       }
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('New Contact — coming soon')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New Contact — coming soon')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final ct = widget.api.theme;
-    final users = _filtered;
+    final localUsers = _filteredLocal;
+    final totalContacts = _localUsers.length;
 
     return Scaffold(
       backgroundColor: ct.scaffold,
@@ -83,147 +196,211 @@ class _NewChatScreenState extends State<NewChatScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: ct.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (_isGroupCreationMode) {
+              setState(() => _isGroupCreationMode = false);
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New Chat',
-                style: TextStyle(
-                    color: ct.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600)),
-            Text('${users.length} contacts',
-                style: TextStyle(color: ct.white70, fontSize: 12)),
+            Text(
+              _isGroupCreationMode ? 'New Group' : 'New Chat',
+              style: TextStyle(
+                color: ct.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              _isGroupCreationMode
+                  ? '${_selectedMemberIds.length} selected'
+                  : '$totalContacts contacts',
+              style: TextStyle(color: ct.white.withOpacity(0.7), fontSize: 12),
+            ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.search, color: ct.white),
-            onPressed: () {},
-          ),
+          if (_isGroupCreationMode)
+            TextButton(
+              onPressed: _selectedMemberIds.isNotEmpty ? _proceedGroupCreation : null,
+              child: Text(
+                'Next',
+                style: TextStyle(
+                  color: _selectedMemberIds.isNotEmpty ? ct.activeTabColor : ct.white.withOpacity(0.4),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
         ],
       ),
-      body: Column(children: [
-        // Search bar
-        Container(
-          color: ct.scaffold,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: ct.searchFill,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: TextField(
-              autofocus: false,
-              style: TextStyle(color: ct.text, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Search name or username…',
-                hintStyle: TextStyle(color: ct.subText, fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: ct.subText, size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                isDense: true,
+      body: Column(
+        children: [
+          // Search Input Bar
+          Container(
+            color: ct.appBar,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: ct.searchBg,
+                borderRadius: BorderRadius.circular(8),
               ),
-              onChanged: (v) => setState(() => _query = v),
+              child: TextField(
+                controller: _searchCtrl,
+                style: TextStyle(color: ct.text, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: _isGroupCreationMode ? 'Search contacts to add…' : 'Search name, username or email…',
+                  hintStyle: TextStyle(color: ct.subText, fontSize: 13),
+                  prefixIcon: Icon(Icons.search, color: ct.subText, size: 20),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: ct.subText, size: 18),
+                          onPressed: () => _searchCtrl.clear(),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: Builder(builder: (context) {
-            final showGroup = widget.api.enableGroupsAndStatuses;
-            final specialTilesCount = showGroup ? 2 : 1;
-            return ListView.builder(
-              itemCount: specialTilesCount + 2 + (users.isEmpty ? 1 : users.length) + 1,
-              cacheExtent: 200.0,
-              addRepaintBoundaries: true,
-              addAutomaticKeepAlives: false,
-              itemBuilder: (context, index) {
-                int cur = 0;
-                if (showGroup) {
-                  if (index == cur) {
-                    return _SpecialTile(
-                      icon: Icons.group_rounded,
-                      color: ct.unreadBadgeBg,
-                      label: widget.api.newGroupLabel ?? 'New Group',
-                      subtitle: widget.api.newGroupSubtitle ?? 'Create a group with contacts',
-                      ct: ct,
-                      onTap: _startGroup,
-                    );
-                  }
-                  cur++;
-                }
-                if (index == cur) {
-                  return _SpecialTile(
+
+          // Action Items & Contacts List
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                if (!_isGroupCreationMode && _query.isEmpty) ...[
+                  _SpecialTile(
+                    icon: Icons.group_add_rounded,
+                    label: widget.api.newGroupLabel ?? 'New Group',
+                    subtitle: widget.api.newGroupSubtitle ?? 'Create a group chat',
+                    ct: ct,
+                    onTap: _startGroup,
+                  ),
+                  _SpecialTile(
                     icon: Icons.person_add_rounded,
-                    color: ct.newChatGroupIconBg,
                     label: widget.api.newContactLabel ?? 'New Contact',
                     subtitle: widget.api.newContactSubtitle ?? 'Add a new contact to chat',
                     ct: ct,
                     onTap: _startNewContact,
-                  );
-                }
-                cur++;
+                  ),
+                  Divider(height: 1, color: ct.divider),
+                ],
 
-                if (index == cur) {
-                  return Divider(height: 1, color: ct.divider);
-                }
-                cur++;
-
-                if (index == cur) {
-                  return Padding(
+                // Local Contacts Section
+                if (localUsers.isNotEmpty || _query.isEmpty) ...[
+                  Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                     child: Text(
-                      widget.api.contactsSectionTitle ?? 'CONTACTS ON ACCOUNTEA',
+                      widget.api.contactsSectionTitle ?? 'CONTACTS',
                       style: TextStyle(
-                          color: ct.unreadBadgeBg,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8),
+                        color: ct.unreadBadgeBg,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
                     ),
-                  );
-                }
-                cur++;
-
-                final contactIndex = index - cur;
-                if (users.isEmpty) {
-                  if (contactIndex == 0) {
-                    return Padding(
+                  ),
+                  if (localUsers.isEmpty && _query.isEmpty)
+                    Padding(
                       padding: const EdgeInsets.all(24),
                       child: Center(
-                        child: Text('No contacts found',
-                            style: TextStyle(color: ct.subText, fontSize: 14)),
+                        child: Text(
+                          'No contacts found',
+                          style: TextStyle(color: ct.subText, fontSize: 14),
+                        ),
                       ),
-                    );
-                  }
-                  return const SizedBox(height: 80);
-                }
+                    ),
+                  for (final u in localUsers)
+                    _ContactTile(
+                      user: u,
+                      ct: ct,
+                      isSelectable: _isGroupCreationMode,
+                      isSelected: _selectedMemberIds.contains(u.userId),
+                      onTap: () {
+                        if (_isGroupCreationMode) {
+                          setState(() {
+                            if (_selectedMemberIds.contains(u.userId)) {
+                              _selectedMemberIds.remove(u.userId);
+                            } else {
+                              _selectedMemberIds.add(u.userId);
+                            }
+                          });
+                        } else {
+                          _startChat(u);
+                        }
+                      },
+                    ),
+                ],
 
-                if (contactIndex < users.length) {
-                  final u = users[contactIndex];
-                  return _ContactTile(
-                    user: u,
-                    ct: ct,
-                    onTap: () => _startChat(u),
-                  );
-                }
-                return const SizedBox(height: 80);
-              },
-            );
-          }),
-        ),
-      ]),
+                // Remote Users Section
+                if (!_isGroupCreationMode && _isSearchingRemote)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: ct.unreadBadgeBg,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Searching remote contacts…',
+                          style: TextStyle(color: ct.subText, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                if (!_isGroupCreationMode && _remoteUsers.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                    child: Row(
+                      children: [
+                        Icon(Icons.cloud_outlined, size: 14, color: ct.unreadBadgeBg),
+                        const SizedBox(width: 6),
+                        Text(
+                          'REMOTE CONTACTS FOUND',
+                          style: TextStyle(
+                            color: ct.unreadBadgeBg,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  for (final u in _remoteUsers)
+                    _ContactTile(
+                      user: u,
+                      ct: ct,
+                      isRemote: true,
+                      onTap: () => _startChat(u),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Special Tile (New Group / Invite)
-// ─────────────────────────────────────────────────────────────
-
 class _SpecialTile extends StatelessWidget {
   final IconData icon;
-  final Color color;
   final String label;
   final String subtitle;
   final AcChatTheme ct;
@@ -231,7 +408,6 @@ class _SpecialTile extends StatelessWidget {
 
   const _SpecialTile({
     required this.icon,
-    required this.color,
     required this.label,
     required this.subtitle,
     required this.ct,
@@ -241,59 +417,120 @@ class _SpecialTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      tileColor: ct.scaffold,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: CircleAvatar(
-        radius: 22,
-        backgroundColor: color.withOpacity(0.18),
-        child: Icon(icon, color: color, size: 22),
+        radius: 20,
+        backgroundColor: ct.activeTabColor,
+        child: Icon(icon, color: ct.white, size: 20),
       ),
-      title: Text(label,
-          style: TextStyle(
-              color: ct.text, fontSize: 15, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle,
-          style: TextStyle(color: ct.subText, fontSize: 12)),
+      title: Text(
+        label,
+        style: TextStyle(color: ct.text, fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: ct.subText, fontSize: 12),
+      ),
       onTap: onTap,
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Contact Tile
-// ─────────────────────────────────────────────────────────────
-
 class _ContactTile extends StatelessWidget {
   final AcChatUser user;
   final AcChatTheme ct;
+  final bool isRemote;
+  final bool isSelectable;
+  final bool isSelected;
   final VoidCallback onTap;
 
-  const _ContactTile(
-      {required this.user, required this.ct, required this.onTap});
+  const _ContactTile({
+    required this.user,
+    required this.ct,
+    this.isRemote = false,
+    this.isSelectable = false,
+    this.isSelected = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final name = user.name;
-    final username = user.username;
+    final name = user.name.isNotEmpty ? user.name : user.username;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final color = avatarColor(user.userId);
 
     return ListTile(
-      tileColor: ct.scaffold,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: CircleAvatar(
-        radius: 22,
-        backgroundColor: color,
-        child: Text(
-          name[0].toUpperCase(),
-          style: TextStyle(
-              color: ct.white, fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+      leading: Stack(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: color,
+            child: Text(
+              initial,
+              style: TextStyle(
+                color: ct.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          if (isSelectable && isSelected)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: ct.activeTabColor,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check, size: 12, color: Colors.white),
+              ),
+            ),
+        ],
       ),
-      title: Text(name,
-          style: TextStyle(
-              color: ct.text, fontSize: 15, fontWeight: FontWeight.w600)),
-      subtitle: Text('@$username',
-          style: TextStyle(color: ct.subText, fontSize: 12)),
-      trailing: Icon(Icons.message_outlined, color: ct.subText, size: 18),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                color: ct.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (isRemote)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: ct.unreadBadgeBg.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Remote',
+                style: TextStyle(
+                  color: ct.unreadBadgeBg,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        user.username.isNotEmpty ? user.username : user.email,
+        style: TextStyle(color: ct.subText, fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: isSelectable
+          ? Checkbox(
+              value: isSelected,
+              onChanged: (_) => onTap(),
+              activeColor: ct.activeTabColor,
+            )
+          : Icon(Icons.message_outlined, color: ct.subText, size: 18),
       onTap: onTap,
     );
   }
