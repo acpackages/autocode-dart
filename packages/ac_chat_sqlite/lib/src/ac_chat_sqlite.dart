@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io' as io;
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:ac_chat/ac_chat.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_sql/ac_sql.dart';
@@ -22,18 +25,35 @@ abstract class _C {
   static const email = 'email';
   static const phone = 'phone';
   static const avatar = 'avatar';
+  static const bio = 'bio';
+  static const lastSeenUtc = 'last_seen_utc';
+  static const isOnline = 'is_online';
 
   // conversations
   static const conversationId = 'conversation_id';
   static const type = 'type';
   static const groupName = 'group_name';
+  static const groupDescription = 'group_description';
   static const groupAvatar = 'group_avatar';
+  static const createdBy = 'created_by';
+  static const createdAtUtc = 'created_at_utc';
   static const lastMessage = 'last_message';
   static const lastMessageType = 'last_message_type';
   static const lastTime = 'last_time';
   static const unread = 'unread';
   static const isPinned = 'is_pinned';
   static const isMuted = 'is_muted';
+
+  // user_conversation_prefs
+  static const unreadCount = 'unread_count';
+  static const muteUntilUtc = 'mute_until_utc';
+  static const isArchived = 'is_archived';
+  static const isHidden = 'is_hidden';
+  static const lastReadMessageId = 'last_read_message_id';
+  static const lastReadTimeUtc = 'last_read_time_utc';
+
+  // blocked_users
+  static const blockedAtUtc = 'blocked_at_utc';
 
   // conversation_members
   static const memberId = 'member_id';
@@ -60,6 +80,11 @@ abstract class _C {
   static const editedTime = 'edited_time';
   static const isDeleted = 'is_deleted';
   static const reactionsJson = 'reactions_json';
+  static const isStarred = 'is_starred';
+  static const mentionsJson = 'mentions_json';
+  static const pinnedUntilUtc = 'pinned_until_utc';
+  static const scheduledTimeUtc = 'scheduled_time_utc';
+  static const expiresAtUtc = 'expires_at_utc';
 
   // outbox_messages
   static const outboxId = 'outbox_id';
@@ -74,6 +99,8 @@ abstract class _T {
   static const users = 'users';
   static const conversations = 'conversations';
   static const conversationMembers = 'conversation_members';
+  static const userConversationPrefs = 'user_conversation_prefs';
+  static const blockedUsers = 'blocked_users';
   static const messages = 'messages';
   static const outboxMessages = 'outbox_messages';
   static const messagesFts = 'messages_fts';
@@ -115,6 +142,8 @@ class AcChatSqlite {
   late AcSqlDbTable _tblUsers;
   late AcSqlDbTable _tblConversations;
   late AcSqlDbTable _tblMembers;
+  late AcSqlDbTable _tblUserPrefs;
+  late AcSqlDbTable _tblBlockedUsers;
   late AcSqlDbTable _tblMessages;
   late AcSqlDbTable _tblOutbox;
   late AcSqlDbTable _tblMessagesFts;
@@ -130,6 +159,8 @@ class AcChatSqlite {
   final Map<String, AcChatUser> _userIndex = {};
   final Map<String, AcChatMessage> _messageIndex = {};
   final Map<String, AcChatConversation> _conversationIndex = {};
+  final Set<String> _blockedUsers = {};
+  final Map<String, AcChatConversationUser> _prefs = {};
 
   // ── Reactive Stream Controllers ────────────────────────────────────────
 
@@ -150,6 +181,46 @@ class AcChatSqlite {
 
   /// Callback fired when an incoming message from another user is received and saved.
   void Function({required AcChatMessage message})? onMessageReceived;
+
+  AcChatConfig get config => _config.chatConfig;
+  AcChatMediaUploader? get mediaUploader => _mediaUploader;
+  AcChatCryptoProvider? get cryptoProvider => _cryptoProvider;
+  String? get dataDirectory => _config.dataDirectory;
+
+  /// Returns the subdirectory path for the specified media [type] inside [dataDirectory].
+  String getMediaDirectoryForType(String type) {
+    final base = (_config.dataDirectory ?? 'media').replaceAll(RegExp(r'[/\\]+$'), '');
+    final sub = switch (type.toLowerCase().trim()) {
+      'image' || 'images' => 'images',
+      'video' || 'videos' => 'videos',
+      'audio' || 'audios' || 'voice' => 'audio',
+      'document' || 'documents' || 'doc' || 'file' || 'files' => 'documents',
+      _ => type.isNotEmpty ? type.toLowerCase().trim() : 'other',
+    };
+    return '$base/$sub';
+  }
+
+  /// Saves raw media bytes into the categorized subdirectory by [type] inside [dataDirectory].
+  Future<String?> saveMediaFile({
+    required String type,
+    required String fileName,
+    required Uint8List bytes,
+    String? messageId,
+  }) async {
+    if (kIsWeb) return null;
+    final dirPath = getMediaDirectoryForType(type);
+    final dir = io.Directory(dirPath);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+
+    final safeName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final name = safeName.isNotEmpty ? safeName : 'attachment';
+    final targetPath = '$dirPath/$name';
+    final file = io.File(targetPath);
+    await file.writeAsBytes(bytes);
+    return targetPath;
+  }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -175,10 +246,12 @@ class AcChatSqlite {
       });
     }
 
-    // Start periodic background drain timer (every 30s)
-    _outboxDrainTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _drainOutbox();
-    });
+    // Start periodic background drain timer using config interval
+    if (config.enableOfflineOutbox) {
+      _outboxDrainTimer = Timer.periodic(config.outboxRetryInterval, (_) {
+        _drainOutbox();
+      });
+    }
 
     final ch = _channel;
     if (ch != null) {
@@ -189,6 +262,12 @@ class AcChatSqlite {
           onConversationChanged: ({required conversation, required members}) =>
               _handleConversationChanged(conversation, members),
           onUsersLoaded: ({required users}) => _handleUsersLoaded(users),
+          onMessageStatusUpdated: ({required messageId, required conversationId, required status}) =>
+              _handleMessageStatusUpdated(
+                messageId: messageId,
+                conversationId: conversationId,
+                status: status,
+              ),
           onTypingChanged: ({required conversationId, required userId, required isTyping}) =>
               _handleIncomingTyping(conversationId: conversationId, userId: userId, isTyping: isTyping),
           onUserPresenceChanged: ({required userId, required isOnline}) =>
@@ -217,7 +296,6 @@ class AcChatSqlite {
 
   /// Attaches [channel] to this instance (post-initialization) and starts
   /// listening for remote mailbox updates asynchronously.
-  /// Automatically triggers an outbox drain once attached.
   void startSync({required AcChatSyncChannel channel}) {
     if (identical(_channel, channel)) return;
     _channel = channel;
@@ -227,6 +305,12 @@ class AcChatSqlite {
       onConversationChanged: ({required conversation, required members}) =>
           _handleConversationChanged(conversation, members),
       onUsersLoaded: ({required users}) => _handleUsersLoaded(users),
+      onMessageStatusUpdated: ({required messageId, required conversationId, required status}) =>
+          _handleMessageStatusUpdated(
+            messageId: messageId,
+            conversationId: conversationId,
+            status: status,
+          ),
       onTypingChanged: ({required conversationId, required userId, required isTyping}) =>
           _handleIncomingTyping(conversationId: conversationId, userId: userId, isTyping: isTyping),
       onUserPresenceChanged: ({required userId, required isOnline}) =>
@@ -235,7 +319,9 @@ class AcChatSqlite {
       _log('startSync error', e, st);
       return null;
     });
-    _drainOutbox();
+    if (config.enableOfflineOutbox) {
+      _drainOutbox();
+    }
   }
 
   /// Persists a user/contact into SQLite and updates the in-memory cache.
@@ -276,30 +362,29 @@ class AcChatSqlite {
     bool? showConversationMenu,
     bool? showOnlineStatus,
     bool? readOnly,
+    bool? enableTypingIndicator,
+    bool? enableTyping,
+    bool? enableGroups,
+    int? maxGroupParticipants,
   }) {
-    return AcChatApi(
+    final effectiveConfig = _config.chatConfig.copyWith(
+      enableTypingIndicators: enableTypingIndicator ?? _config.chatConfig.enableTypingIndicators,
+      enableTextMessaging: enableTyping ?? (!(readOnly ?? false) && _config.chatConfig.enableTextMessaging),
+      enableGroupConversations: enableGroups ?? _config.chatConfig.enableGroupConversations,
+      maxGroupParticipants: maxGroupParticipants ?? 50,
+      enableConversationPinning: pinConversations ?? _config.chatConfig.enableConversationPinning,
+      enableConversationSearch: searchConversations ?? _config.chatConfig.enableConversationSearch,
+      enableOnlinePresence: showOnlineStatus ?? _config.chatConfig.enableOnlinePresence,
+    );
+
+    return _AcChatSqliteApi(
+      sqlite: this,
       theme: theme,
-      getCurrentUser: _getCurrentUser,
-      getUsers: _getUsers,
-      getUserById: _getUserById,
-      getConversations: _getConversations,
-      getConversationUsers: _getConversationUsers,
-      getMessages: _getMessages,
-      sendMessage: _sendMessage,
-      markAsRead: _markAsRead,
-      insertConversation: _insertConversation,
-      updateMessage: _updateMessage,
-      watchConversations: watchConversations,
-      watchMessages: watchMessages,
-      watchTyping: watchTyping,
-      watchUserOnlineStatus: watchUserOnlineStatus,
-      sendTypingIndicator: sendTypingIndicator,
-      createGroupConversation: createGroupConversation,
-      addGroupMembers: addGroupMembers,
-      removeGroupMember: removeGroupMember,
-      searchMessages: searchMessages,
-      mediaUploader: _mediaUploader,
-      cryptoProvider: _cryptoProvider,
+      config: effectiveConfig,
+      enableVoiceCall: enableVoiceCall ?? false,
+      enableVideoCall: enableVideoCall ?? false,
+      showNewConversationButton: showNewConversationButton ?? true,
+      showConversationMenu: showConversationMenu ?? true,
       onNewContact: onNewContact,
       onNewGroup: onNewGroup,
       getContacts: getContacts,
@@ -312,14 +397,6 @@ class AcChatSqlite {
       customMessageBuilder: customMessageBuilder,
       onMessageTap: onMessageTap,
       customInputBuilder: customInputBuilder,
-      enableVideoCall: enableVideoCall ?? true,
-      enableVoiceCall: enableVoiceCall ?? true,
-      showNewConversationButton: showNewConversationButton ?? true,
-      searchConversations: searchConversations ?? true,
-      pinConversations: pinConversations ?? true,
-      showConversationMenu: showConversationMenu ?? true,
-      showOnlineStatus: showOnlineStatus ?? true,
-      readOnly: readOnly ?? false,
     );
   }
 
@@ -360,10 +437,11 @@ class AcChatSqlite {
     required String conversationId,
     required bool isTyping,
   }) async {
+    if (!config.enableTypingIndicators) return;
     final memberList = _members[conversationId] ?? [];
     final recipientIds = memberList
         .map((m) => m.userId)
-        .where((id) => id != _currentUserId)
+        .where((id) => id != _currentUserId && !_blockedUsers.contains(id))
         .toList();
 
     _channel?.sendTypingIndicator(
@@ -378,32 +456,186 @@ class AcChatSqlite {
 
   // ─── In-Memory Read Getters ────────────────────────────────────────────
 
-  AcChatUser _getCurrentUser() {
+  AcChatUser getCurrentUser() {
     return _userIndex[_currentUserId] ??
         (AcChatUser()
           ..userId = _currentUserId
           ..name = 'Me');
   }
 
-  List<AcChatUser> _getUsers() {
+  List<AcChatUser> getUsers() {
     return List.unmodifiable(_users);
   }
 
-  AcChatUser? _getUserById({required String userId}) {
+  AcChatUser? getUserById({required String userId}) {
     return _userIndex[userId];
   }
 
-  List<AcChatConversation> _getConversations() {
+  Future<void> saveUserProfile({required AcChatUser user}) async {
+    await saveUser(user: user);
+  }
+
+  bool isUserBlocked({required String userId}) => _blockedUsers.contains(userId);
+
+  List<String> getBlockedUserIds() => _blockedUsers.toList();
+
+  Future<void> blockUser({required String userId}) async {
+    if (userId.isEmpty) return;
+    _blockedUsers.add(userId);
+    try {
+      await _tblBlockedUsers.saveRow(
+        row: {
+          _C.userId: userId,
+          _C.blockedAtUtc: DateTime.now().millisecondsSinceEpoch,
+        },
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
+      );
+    } catch (e, st) {
+      _log('blockUser error', e, st);
+    }
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> unblockUser({required String userId}) async {
+    _blockedUsers.remove(userId);
+    try {
+      await _tblBlockedUsers.deleteRows(
+        condition: '${_C.userId} = :uid',
+        parameters: {':uid': userId},
+      );
+    } catch (e, st) {
+      _log('unblockUser error', e, st);
+    }
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> reportUser({required String userId, required String reason}) async {
+    _log('User reported: $userId for $reason', '', StackTrace.current);
+  }
+
+  List<AcChatConversation> getConversations() {
     return List.unmodifiable(_conversations);
   }
 
-  List<AcChatConversationUser> _getConversationUsers({
+  AcChatConversationUser? getConversationPrefs({required String conversationId}) {
+    return _prefs[conversationId];
+  }
+
+  Future<void> updateConversationPrefs({required AcChatConversationUser prefs}) async {
+    _prefs[prefs.conversationId] = prefs;
+    final conv = _conversationIndex[prefs.conversationId];
+    if (conv != null) {
+      conv.unread = prefs.unreadCount;
+      conv.isPinned = prefs.isPinned;
+      conv.isMuted = prefs.isMuted;
+      conv.isArchived = prefs.isArchived;
+      _sortConversations();
+    }
+    try {
+      await _tblUserPrefs.saveRow(
+        row: _userPrefsToRow(prefs),
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
+      );
+    } catch (e, st) {
+      _log('updateConversationPrefs error', e, st);
+    }
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> pinConversation({required String conversationId, required bool isPinned}) async {
+    final pref = _prefs.putIfAbsent(
+      conversationId,
+      () => AcChatConversationUser()
+        ..conversationId = conversationId
+        ..userId = _currentUserId,
+    );
+    pref.isPinned = isPinned;
+    await updateConversationPrefs(prefs: pref);
+  }
+
+  Future<void> archiveConversation({required String conversationId, required bool isArchived}) async {
+    final pref = _prefs.putIfAbsent(
+      conversationId,
+      () => AcChatConversationUser()
+        ..conversationId = conversationId
+        ..userId = _currentUserId,
+    );
+    pref.isArchived = isArchived;
+    await updateConversationPrefs(prefs: pref);
+  }
+
+  Future<void> muteConversation({required String conversationId, Duration? muteDuration, bool? muted}) async {
+    final pref = _prefs.putIfAbsent(
+      conversationId,
+      () => AcChatConversationUser()
+        ..conversationId = conversationId
+        ..userId = _currentUserId,
+    );
+    if (muted != null) {
+      pref.isMuted = muted;
+      pref.muteUntilUtc = muted ? DateTime.now().toUtc().add(const Duration(days: 3650)) : null;
+    } else {
+      pref.isMuted = muteDuration != null;
+      pref.muteUntilUtc = muteDuration != null ? DateTime.now().toUtc().add(muteDuration) : null;
+    }
+    await updateConversationPrefs(prefs: pref);
+  }
+
+  Future<void> hideConversation({required String conversationId, required bool isHidden}) async {
+    final pref = _prefs.putIfAbsent(
+      conversationId,
+      () => AcChatConversationUser()
+        ..conversationId = conversationId
+        ..userId = _currentUserId,
+    );
+    pref.isHidden = isHidden;
+    await updateConversationPrefs(prefs: pref);
+  }
+
+  Future<void> deleteConversation({required String conversationId}) async {
+    _conversations.removeWhere((c) => c.conversationId == conversationId);
+    _conversationIndex.remove(conversationId);
+    _members.remove(conversationId);
+    _messages.remove(conversationId);
+    _prefs.remove(conversationId);
+
+    try {
+      await _tblConversations.deleteRows(
+        condition: '${_C.conversationId} = :cid',
+        parameters: {':cid': conversationId},
+      );
+      await _tblMembers.deleteRows(
+        condition: '${_C.conversationId} = :cid',
+        parameters: {':cid': conversationId},
+      );
+      await _tblMessages.deleteRows(
+        condition: '${_C.conversationId} = :cid',
+        parameters: {':cid': conversationId},
+      );
+      await _tblUserPrefs.deleteRows(
+        condition: '${_C.conversationId} = :cid',
+        parameters: {':cid': conversationId},
+      );
+    } catch (e, st) {
+      _log('deleteConversation error', e, st);
+    }
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  List<AcChatConversationUser> getConversationUsers({
     required String conversationId,
   }) {
     return List.unmodifiable(_members[conversationId] ?? []);
   }
 
-  List<AcChatMessage> _getMessages({required String conversationId}) {
+  List<AcChatMessage> getMessages({required String conversationId}) {
     final cached = _messages[conversationId];
     if (cached != null) {
       return List.unmodifiable(cached);
@@ -421,7 +653,7 @@ class AcChatSqlite {
 
   // ─── Sending and Outbox Pipeline ───────────────────────────────────────
 
-  void _sendMessage({required AcChatMessage message}) {
+  void sendMessage({required AcChatMessage message}) {
     if (message.messageId.isEmpty) {
       message.messageId = _uuid.v4();
     }
@@ -456,30 +688,33 @@ class AcChatSqlite {
     final memberList = _members[message.conversationId] ?? [];
     final recipientIds = memberList
         .map((m) => m.userId)
-        .where((id) => id != _currentUserId)
+        .where((id) => id != _currentUserId && !_blockedUsers.contains(id))
         .toList();
 
-    // 4. Save into Outbox
-    final outboxId = _uuid.v4();
-    await _tblOutbox.saveRow(
-      row: {
-        _C.outboxId: outboxId,
-        _C.messageId: message.messageId,
-        _C.conversationId: message.conversationId,
-        _C.recipientIdsJson: jsonEncode(recipientIds),
-        _C.retryCount: 0,
-        _C.createdAt: DateTime.now().millisecondsSinceEpoch,
-        _C.status: 'pending',
-      },
-      executeBeforeEvent: false,
-      executeAfterEvent: false,
-    );
+    // 4. Save into Outbox (if offline outbox enabled)
+    String? outboxId;
+    if (config.enableOfflineOutbox) {
+      outboxId = _uuid.v4();
+      await _tblOutbox.saveRow(
+        row: {
+          _C.outboxId: outboxId,
+          _C.messageId: message.messageId,
+          _C.conversationId: message.conversationId,
+          _C.recipientIdsJson: jsonEncode(recipientIds),
+          _C.retryCount: 0,
+          _C.createdAt: DateTime.now().millisecondsSinceEpoch,
+          _C.status: 'pending',
+        },
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
+      );
+    }
 
     _notifyMessagesChanged(conversationId: message.conversationId);
     _notifyConversationsChanged();
     onDataChanged?.call();
 
-    // 5. Attempt immediate channel transmission
+    // 5. Attempt transmission
     final ch = _channel;
     if (ch != null) {
       ch.sendMessage(
@@ -491,28 +726,34 @@ class AcChatSqlite {
           messageId: message.messageId,
           fields: {_C.status: 'sent'},
         );
-        await _removeOutboxRow(outboxId: outboxId);
+        if (outboxId != null) {
+          await _removeOutboxRow(outboxId: outboxId);
+        }
         _notifyMessagesChanged(conversationId: message.conversationId);
         onDataChanged?.call();
       }).catchError((Object e) {
-        _log('channel.sendMessage transient error (queued in outbox)', e, StackTrace.current);
+        _log('channel.sendMessage error (queued in outbox)', e, StackTrace.current);
       });
     } else {
-      // Offline mode: mark sent
+      // Standalone mode: mark sent
       message.status = 'sent';
       await _updateMessageFields(
         messageId: message.messageId,
         fields: {_C.status: 'sent'},
       );
-      await _removeOutboxRow(outboxId: outboxId);
+      if (outboxId != null) {
+        await _removeOutboxRow(outboxId: outboxId);
+      }
       _notifyMessagesChanged(conversationId: message.conversationId);
       onDataChanged?.call();
     }
   }
 
   Future<void> _drainOutbox() async {
-    if (_isDrainingOutbox || _channel == null) return;
+    if (_isDrainingOutbox || _channel == null || !config.enableOfflineOutbox) return;
     _isDrainingOutbox = true;
+
+    final maxRetries = config.outboxMaxRetries;
 
     try {
       final outboxResult = await _tblOutbox.getRows(
@@ -562,7 +803,7 @@ class AcChatSqlite {
                 _C.recipientIdsJson: recipsJson,
                 _C.retryCount: nextRetry,
                 _C.createdAt: row[_C.createdAt],
-                _C.status: nextRetry > 5 ? 'failed' : 'pending',
+                _C.status: nextRetry >= maxRetries ? 'failed' : 'pending',
               },
               executeBeforeEvent: false,
               executeAfterEvent: false,
@@ -588,13 +829,16 @@ class AcChatSqlite {
     }
   }
 
-  void _markAsRead({required String conversationId}) {
+  void markAsRead({required String conversationId}) {
     final conv = _conversationIndex[conversationId];
     if (conv == null) return;
 
     conv.unread = 0;
-    final idx = _conversations.indexWhere((c) => c.conversationId == conversationId);
-    if (idx >= 0) _conversations[idx].unread = 0;
+    final pref = _prefs[conversationId];
+    if (pref != null) {
+      pref.unreadCount = 0;
+      updateConversationPrefs(prefs: pref);
+    }
 
     _updateConversationFields(
       conversationId: conversationId,
@@ -612,7 +856,7 @@ class AcChatSqlite {
     });
   }
 
-  AcChatConversation _insertConversation({
+  AcChatConversation insertConversation({
     required AcChatConversation newConv,
     required String otherUserId,
   }) {
@@ -673,6 +917,7 @@ class AcChatSqlite {
     required String groupName,
     required List<String> memberUserIds,
     String? groupAvatar,
+    String? groupDescription,
   }) async {
     final convId = _uuid.v4();
     final allMembers = {_currentUserId, ...memberUserIds}.toList();
@@ -680,7 +925,10 @@ class AcChatSqlite {
       ..conversationId = convId
       ..type = 'group'
       ..groupName = groupName
+      ..groupDescription = groupDescription
       ..groupAvatar = groupAvatar
+      ..createdBy = _currentUserId
+      ..createdAtUtc = DateTime.now().toUtc()
       ..memberIds = allMembers
       ..lastMessage = 'Group created'
       ..lastMessageType = 'system'
@@ -702,7 +950,8 @@ class AcChatSqlite {
     final convUsers = allMembers
         .map((uid) => AcChatConversationUser()
           ..conversationId = convId
-          ..userId = uid)
+          ..userId = uid
+          ..role = uid == _currentUserId ? 'admin' : 'member')
         .toList();
     _members[convId] = convUsers;
     _messages[convId] = [];
@@ -719,6 +968,38 @@ class AcChatSqlite {
     });
 
     return conv;
+  }
+
+  Future<void> updateGroupDetails({
+    required String conversationId,
+    String? groupName,
+    String? groupAvatar,
+    String? groupDescription,
+  }) async {
+    final conv = _conversationIndex[conversationId];
+    if (conv == null) return;
+    if (groupName != null) conv.groupName = groupName;
+    if (groupAvatar != null) conv.groupAvatar = groupAvatar;
+    if (groupDescription != null) conv.groupDescription = groupDescription;
+
+    await _updateConversationFields(
+      conversationId: conversationId,
+      fields: {
+        if (groupName != null) _C.groupName: groupName,
+        if (groupAvatar != null) _C.groupAvatar: groupAvatar,
+        if (groupDescription != null) _C.groupDescription: groupDescription,
+      },
+    );
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  Future<void> leaveGroup({required String conversationId}) async {
+    await removeGroupMember(conversationId: conversationId, userId: _currentUserId);
+  }
+
+  Future<String> getGroupInviteLink({required String conversationId}) async {
+    return 'https://chat.example.com/join/$conversationId';
   }
 
   Future<void> addGroupMembers({
@@ -786,20 +1067,45 @@ class AcChatSqlite {
   Future<List<AcChatMessage>> searchMessages({
     required String query,
     String? conversationId,
+    String? senderId,
+    DateTime? startDateUtc,
+    DateTime? endDateUtc,
+    bool? hasAttachment,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
 
     try {
-      final cond = conversationId != null
-          ? '${_C.conversationId} = :cid AND ${_C.text} LIKE :q'
-          : '${_C.text} LIKE :q';
-      final params = <String, dynamic>{
-        ':q': '%$trimmed%',
-        if (conversationId != null) ':cid': conversationId,
-      };
+      final condParts = <String>[];
+      final params = <String, dynamic>{};
+
+      if (conversationId != null) {
+        condParts.add('${_C.conversationId} = :cid');
+        params[':cid'] = conversationId;
+      }
+      if (trimmed.isNotEmpty) {
+        condParts.add('${_C.text} LIKE :q');
+        params[':q'] = '%$trimmed%';
+      }
+      if (senderId != null && senderId.isNotEmpty) {
+        condParts.add('${_C.senderId} = :sid');
+        params[':sid'] = senderId;
+      }
+      if (startDateUtc != null) {
+        condParts.add('${_C.time} >= :start');
+        params[':start'] = startDateUtc.millisecondsSinceEpoch;
+      }
+      if (endDateUtc != null) {
+        condParts.add('${_C.time} <= :end');
+        params[':end'] = endDateUtc.millisecondsSinceEpoch;
+      }
+      if (hasAttachment == true) {
+        condParts.add("(${_C.type} != 'text' AND ${_C.type} != 'system')");
+      }
+
+      final condition = condParts.isNotEmpty ? condParts.join(' AND ') : '1=1';
+
       final result = await _tblMessages.getRows(
-        condition: cond,
+        condition: condition,
         parameters: params,
         orderBy: '${_C.time} DESC',
       );
@@ -813,6 +1119,281 @@ class AcChatSqlite {
     }
     return [];
   }
+
+  Future<void> editMessage({required String messageId, required String newText}) async {
+    if (!config.enableMessageEditing) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    if (msg.senderId != _currentUserId) return;
+    if (DateTime.now().toUtc().difference(msg.timeUtc) > config.editTimeWindow) return;
+
+    msg.text = newText;
+    msg.isEdited = true;
+    msg.editedTime = DateTime.now().toUtc();
+
+    await _updateMessageFields(
+      messageId: messageId,
+      fields: {
+        _C.text: newText,
+        _C.isEdited: 1,
+        _C.editedTime: msg.editedTime!.millisecondsSinceEpoch,
+      },
+    );
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+
+    final memberList = _members[msg.conversationId] ?? [];
+    final recipientIds = memberList
+        .map((m) => m.userId)
+        .where((id) => id != _currentUserId)
+        .toList();
+
+    _channel?.updateMessage(
+      messageId: messageId,
+      conversationId: msg.conversationId,
+      data: {'text': newText, 'isEdited': true, 'editedTime': msg.editedTime!.millisecondsSinceEpoch},
+      recipientIds: recipientIds,
+    );
+  }
+
+  Future<void> deleteMessageForMe({required String messageId}) async {
+    if (!config.enableMessageDeletingForMe) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    final convMsgs = _messages[msg.conversationId];
+    convMsgs?.removeWhere((m) => m.messageId == messageId);
+    _messageIndex.remove(messageId);
+
+    try {
+      await _tblMessages.deleteRows(
+        condition: '${_C.messageId} = :mid',
+        parameters: {':mid': messageId},
+      );
+    } catch (e, st) {
+      _log('deleteMessageForMe error', e, st);
+    }
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+  }
+
+  Future<void> deleteMessageForEveryone({required String messageId}) async {
+    if (!config.enableMessageDeletingForEveryone) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    if (msg.senderId != _currentUserId) return;
+    if (DateTime.now().toUtc().difference(msg.timeUtc) > config.deleteForEveryoneWindow) return;
+
+    msg.isDeleted = true;
+    msg.text = '';
+
+    await _updateMessageFields(
+      messageId: messageId,
+      fields: {
+        _C.isDeleted: 1,
+        _C.text: '',
+      },
+    );
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+
+    final memberList = _members[msg.conversationId] ?? [];
+    final recipientIds = memberList
+        .map((m) => m.userId)
+        .where((id) => id != _currentUserId)
+        .toList();
+
+    _channel?.updateMessage(
+      messageId: messageId,
+      conversationId: msg.conversationId,
+      data: {'isDeleted': true, 'text': ''},
+      recipientIds: recipientIds,
+    );
+  }
+
+  Future<void> addReaction({required String messageId, required String emoji}) async {
+    if (!config.enableMessageReactions) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    final currentList = msg.reactions.putIfAbsent(emoji, () => []);
+    if (!currentList.contains(_currentUserId)) {
+      currentList.add(_currentUserId);
+    }
+
+    await _updateMessageFields(
+      messageId: messageId,
+      fields: {_C.reactionsJson: jsonEncode(msg.reactions)},
+    );
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+
+    final memberList = _members[msg.conversationId] ?? [];
+    final recipientIds = memberList.map((m) => m.userId).where((id) => id != _currentUserId).toList();
+    _channel?.updateMessage(
+      messageId: messageId,
+      conversationId: msg.conversationId,
+      data: {'reactions': msg.reactions},
+      recipientIds: recipientIds,
+    );
+  }
+
+  Future<void> removeReaction({required String messageId, required String emoji}) async {
+    if (!config.enableMessageReactions) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+
+    msg.reactions[emoji]?.remove(_currentUserId);
+    if (msg.reactions[emoji]?.isEmpty ?? false) {
+      msg.reactions.remove(emoji);
+    }
+
+    await _updateMessageFields(
+      messageId: messageId,
+      fields: {_C.reactionsJson: msg.reactions.isNotEmpty ? jsonEncode(msg.reactions) : null},
+    );
+
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+
+    final memberList = _members[msg.conversationId] ?? [];
+    final recipientIds = memberList.map((m) => m.userId).where((id) => id != _currentUserId).toList();
+    _channel?.updateMessage(
+      messageId: messageId,
+      conversationId: msg.conversationId,
+      data: {'reactions': msg.reactions},
+      recipientIds: recipientIds,
+    );
+  }
+
+  Future<void> setStarred({required String messageId, required bool isStarred}) async {
+    if (!config.enableStarredMessages) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+    msg.isStarred = isStarred;
+    await _updateMessageFields(messageId: messageId, fields: {_C.isStarred: isStarred ? 1 : 0});
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+  }
+
+  Future<void> pinMessage({required String messageId, Duration? duration}) async {
+    if (!config.enablePinnedMessages) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+    msg.pinnedUntilUtc = duration != null ? DateTime.now().toUtc().add(duration) : DateTime.now().toUtc().add(const Duration(days: 30));
+    await _updateMessageFields(messageId: messageId, fields: {_C.pinnedUntilUtc: msg.pinnedUntilUtc?.millisecondsSinceEpoch});
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+  }
+
+  Future<void> unpinMessage({required String messageId}) async {
+    if (!config.enablePinnedMessages) return;
+    final msg = _messageIndex[messageId];
+    if (msg == null) return;
+    msg.pinnedUntilUtc = null;
+    await _updateMessageFields(messageId: messageId, fields: {_C.pinnedUntilUtc: null});
+    _notifyMessagesChanged(conversationId: msg.conversationId);
+    onDataChanged?.call();
+  }
+
+  Future<void> forwardMessages({
+    required List<String> messageIds,
+    required String targetConversationId,
+  }) async {
+    if (!config.enableMessageForwarding) return;
+    for (final id in messageIds) {
+      final original = _messageIndex[id];
+      if (original == null) continue;
+      final forwarded = AcChatMessage()
+        ..messageId = _uuid.v4()
+        ..conversationId = targetConversationId
+        ..senderId = _currentUserId
+        ..type = original.type
+        ..text = original.text
+        ..time = DateTime.now().toUtc()
+        ..fileName = original.fileName
+        ..fileSize = original.fileSize
+        ..localPath = original.localPath
+        ..mediaCaption = original.mediaCaption;
+      sendMessage(message: forwarded);
+    }
+  }
+
+  Future<void> deleteMessagesBatch({
+    required List<String> messageIds,
+    required bool forEveryone,
+  }) async {
+    for (final id in messageIds) {
+      if (forEveryone) {
+        await deleteMessageForEveryone(messageId: id);
+      } else {
+        await deleteMessageForMe(messageId: id);
+      }
+    }
+  }
+
+  Future<String> exportChat({required String conversationId, required bool asJson}) async {
+    final msgs = getMessages(conversationId: conversationId);
+    if (asJson) {
+      final list = msgs.map((m) => m.toJson()).toList();
+      return jsonEncode(list);
+    } else {
+      final sb = StringBuffer();
+      for (final m in msgs) {
+        final sender = _userIndex[m.senderId]?.name ?? m.senderId;
+        sb.writeln('[${formatUtcIso(m.timeUtc)}] $sender: ${m.text}');
+      }
+      return sb.toString();
+    }
+  }
+
+  Future<void> wipeAllData() async {
+    try {
+      await _tblMessages.deleteRows(condition: '1=1');
+      await _tblConversations.deleteRows(condition: '1=1');
+      await _tblMembers.deleteRows(condition: '1=1');
+      await _tblUsers.deleteRows(condition: '1=1');
+      await _tblOutbox.deleteRows(condition: '1=1');
+      await _tblUserPrefs.deleteRows(condition: '1=1');
+      await _tblBlockedUsers.deleteRows(condition: '1=1');
+      await _tblMessagesFts.deleteRows(condition: '1=1');
+    } catch (e, st) {
+      _log('wipeAllData error', e, st);
+    }
+
+    _users.clear();
+    _conversations.clear();
+    _members.clear();
+    _messages.clear();
+    _userIndex.clear();
+    _messageIndex.clear();
+    _conversationIndex.clear();
+    _blockedUsers.clear();
+    _prefs.clear();
+
+    if (!kIsWeb && _config.dataDirectory != null) {
+      try {
+        final dir = io.Directory(_config.dataDirectory!);
+        if (dir.existsSync()) {
+          dir.deleteSync(recursive: true);
+        }
+      } catch (_) {}
+    }
+
+    _notifyConversationsChanged();
+    onDataChanged?.call();
+  }
+
+  void updateMessage({
+    required String messageId,
+    required Map<String, dynamic> data,
+  }) => _updateMessage(messageId: messageId, data: data);
 
   void _updateMessage({
     required String messageId,
@@ -862,6 +1443,11 @@ class AcChatSqlite {
   // ─── Incoming Channel Handlers ─────────────────────────────────────────
 
   Future<void> _handleIncomingMessage(AcChatMessage message) async {
+    if (_blockedUsers.contains(message.senderId)) {
+      _log('Incoming message suppressed from blocked user ${message.senderId}', '', StackTrace.current);
+      return;
+    }
+
     final existing = _messageIndex[message.messageId];
     if (existing != null) {
       var changed = false;
@@ -895,6 +1481,31 @@ class AcChatSqlite {
     }
 
     await _ensureMessagesLoaded(conversationId: message.conversationId);
+
+    // Save received media into directories by type if dataDirectory is configured
+    if (_config.dataDirectory != null &&
+        _config.dataDirectory!.isNotEmpty &&
+        message.type != 'text') {
+      if (message.byteData != null && message.byteData!.isNotEmpty) {
+        try {
+          final fileName = message.fileName ??
+              (message.text.isNotEmpty && !message.text.startsWith('http')
+                  ? message.text.split(RegExp(r'[/\\]')).last
+                  : '${message.messageId}.${_defaultExtensionForType(message.type)}');
+          final savedPath = await saveMediaFile(
+            type: message.type,
+            fileName: fileName,
+            bytes: message.byteData!,
+            messageId: message.messageId,
+          );
+          if (savedPath != null) {
+            message.localPath = savedPath;
+            message.isDownloaded = true;
+          }
+        } catch (_) {}
+      }
+    }
+
     await _upsertMessage(message: message);
 
     _messages[message.conversationId]?.add(message);
@@ -914,9 +1525,21 @@ class AcChatSqlite {
       final conv = _conversationIndex[message.conversationId];
       if (conv != null) {
         conv.unread += 1;
+        final pref = _prefs[message.conversationId];
+        if (pref != null) {
+          pref.unreadCount += 1;
+          updateConversationPrefs(prefs: pref);
+        }
         await _updateConversationFields(
           conversationId: message.conversationId,
           fields: {_C.unread: conv.unread},
+        );
+      }
+      if (config.enableDeliveryReceipts) {
+        _channel?.sendDeliveryReceipt(
+          messageId: message.messageId,
+          conversationId: message.conversationId,
+          senderId: message.senderId,
         );
       }
       onMessageReceived?.call(message: message);
@@ -925,6 +1548,38 @@ class AcChatSqlite {
     _notifyMessagesChanged(conversationId: message.conversationId);
     _notifyConversationsChanged();
     onDataChanged?.call();
+  }
+
+  Future<void> _handleMessageStatusUpdated({
+    required String messageId,
+    required String conversationId,
+    required String status,
+  }) async {
+    var msg = _messageIndex[messageId];
+    if (msg == null) {
+      await _ensureMessagesLoaded(conversationId: conversationId);
+      msg = _messageIndex[messageId];
+    }
+    if (msg != null) {
+      msg.status = status;
+      if (status == 'delivered') {
+        msg.deliveredTime ??= DateTime.now();
+      } else if (status == 'read') {
+        msg.readTime ??= DateTime.now();
+      }
+      await _updateMessageFields(
+        messageId: messageId,
+        fields: {
+          _C.status: msg.status,
+          if (msg.deliveredTime != null)
+            _C.deliveredTime: msg.deliveredTime!.millisecondsSinceEpoch,
+          if (msg.readTime != null)
+            _C.readTime: msg.readTime!.millisecondsSinceEpoch,
+        },
+      );
+      _notifyMessagesChanged(conversationId: conversationId);
+      onDataChanged?.call();
+    }
   }
 
   Future<void> _handleConversationChanged(
@@ -950,6 +1605,7 @@ class AcChatSqlite {
       _members[convId] = members;
     }
 
+    _sortConversations();
     _notifyConversationsChanged();
     onDataChanged?.call();
   }
@@ -1035,6 +1691,16 @@ class AcChatSqlite {
       dataDictionaryName: _config.dataDictionaryName,
       dao: _dao,
     );
+    _tblUserPrefs = AcSqlDbTable(
+      tableName: _T.userConversationPrefs,
+      dataDictionaryName: _config.dataDictionaryName,
+      dao: _dao,
+    );
+    _tblBlockedUsers = AcSqlDbTable(
+      tableName: _T.blockedUsers,
+      dataDictionaryName: _config.dataDictionaryName,
+      dao: _dao,
+    );
     _tblMessages = AcSqlDbTable(
       tableName: _T.messages,
       dataDictionaryName: _config.dataDictionaryName,
@@ -1068,6 +1734,16 @@ class AcChatSqlite {
   }
 
   Future<void> _loadInitialData() async {
+    // Load blocked users
+    final blockedResult = await _tblBlockedUsers.getRows();
+    _blockedUsers.clear();
+    if (blockedResult.isSuccess()) {
+      for (final row in blockedResult.rows) {
+        _blockedUsers.add(row[_C.userId] as String);
+      }
+    }
+
+    // Load users
     final usersResult = await _tblUsers.getRows();
     _users.clear();
     _userIndex.clear();
@@ -1079,6 +1755,20 @@ class AcChatSqlite {
       }
     }
 
+    // Load conversation prefs
+    final prefsResult = await _tblUserPrefs.getRows(
+      condition: '${_C.userId} = :uid',
+      parameters: {':uid': _currentUserId},
+    );
+    _prefs.clear();
+    if (prefsResult.isSuccess()) {
+      for (final row in prefsResult.rows) {
+        final p = _rowToUserPrefs(row);
+        _prefs[p.conversationId] = p;
+      }
+    }
+
+    // Load conversations
     final convsResult = await _tblConversations.getRows(
       orderBy: '${_C.lastTime} DESC',
     );
@@ -1087,11 +1777,35 @@ class AcChatSqlite {
     if (convsResult.isSuccess()) {
       for (final row in convsResult.rows) {
         final c = _rowToConversation(row);
+
+        // Migrate or sync user conversation prefs
+        var pref = _prefs[c.conversationId];
+        if (pref == null) {
+          pref = AcChatConversationUser()
+            ..conversationId = c.conversationId
+            ..userId = _currentUserId
+            ..unreadCount = c.unread
+            ..isPinned = c.isPinned
+            ..isMuted = c.isMuted;
+          _prefs[c.conversationId] = pref;
+          _tblUserPrefs.saveRow(
+            row: _userPrefsToRow(pref),
+            executeBeforeEvent: false,
+            executeAfterEvent: false,
+          ).ignore();
+        }
+
+        c.unread = pref.unreadCount;
+        c.isPinned = pref.isPinned;
+        c.isMuted = pref.isMuted;
+        c.isArchived = pref.isArchived;
+
         _conversations.add(c);
         _conversationIndex[c.conversationId] = c;
       }
     }
 
+    // Load members
     final membersResult = await _tblMembers.getRows();
     _members.clear();
     if (membersResult.isSuccess()) {
@@ -1108,6 +1822,17 @@ class AcChatSqlite {
       final memberList = _members[conv.conversationId] ?? [];
       conv.memberIds = memberList.map((m) => m.userId).toList();
     }
+
+    _sortConversations();
+  }
+
+  void _sortConversations() {
+    _conversations.sort((a, b) {
+      final pinA = a.isPinned ? 0 : 1;
+      final pinB = b.isPinned ? 0 : 1;
+      if (pinA != pinB) return pinA - pinB;
+      return b.lastTimeUtc.compareTo(a.lastTimeUtc);
+    });
   }
 
   Future<void> _ensureMessagesLoaded({required String conversationId}) async {
@@ -1251,7 +1976,7 @@ class AcChatSqlite {
     conv.lastMessage = message.text;
     conv.lastMessageType = message.type;
     conv.lastTime = message.time;
-    _conversations.sort((a, b) => b.lastTime.compareTo(a.lastTime));
+    _sortConversations();
   }
 
   Map<String, Object?> _dataToMessageFields(Map<String, dynamic> data) {
@@ -1282,7 +2007,12 @@ class AcChatSqlite {
       ..username = (row[_C.username] as String?) ?? ''
       ..email = (row[_C.email] as String?) ?? ''
       ..phone = row[_C.phone] as String?
-      ..avatar = row[_C.avatar] as String?;
+      ..avatar = row[_C.avatar] as String?
+      ..bio = row[_C.bio] as String?
+      ..lastSeenUtc = row[_C.lastSeenUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.lastSeenUtc] as int, isUtc: true)
+          : null
+      ..isOnline = ((row[_C.isOnline] as int?) ?? 0) == 1;
   }
 
   static Map<String, Object?> _userToRow(AcChatUser user) {
@@ -1293,6 +2023,9 @@ class AcChatSqlite {
       _C.email: user.email,
       _C.phone: user.phone,
       _C.avatar: user.avatar,
+      _C.bio: user.bio,
+      _C.lastSeenUtc: user.lastSeenUtc?.millisecondsSinceEpoch,
+      _C.isOnline: user.isOnline ? 1 : 0,
     };
   }
 
@@ -1301,10 +2034,15 @@ class AcChatSqlite {
       ..conversationId = row[_C.conversationId] as String
       ..type = (row[_C.type] as String?) ?? 'direct'
       ..groupName = row[_C.groupName] as String?
+      ..groupDescription = row[_C.groupDescription] as String?
       ..groupAvatar = row[_C.groupAvatar] as String?
+      ..createdBy = row[_C.createdBy] as String?
+      ..createdAtUtc = row[_C.createdAtUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.createdAtUtc] as int, isUtc: true)
+          : DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int, isUtc: true)
       ..lastMessage = (row[_C.lastMessage] as String?) ?? ''
       ..lastMessageType = (row[_C.lastMessageType] as String?) ?? ''
-      ..lastTime = DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int)
+      ..lastTime = DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int, isUtc: true)
       ..unread = (row[_C.unread] as int?) ?? 0
       ..isPinned = ((row[_C.isPinned] as int?) ?? 0) == 1
       ..isMuted = ((row[_C.isMuted] as int?) ?? 0) == 1;
@@ -1315,13 +2053,51 @@ class AcChatSqlite {
       _C.conversationId: conv.conversationId,
       _C.type: conv.type,
       _C.groupName: conv.groupName,
+      _C.groupDescription: conv.groupDescription,
       _C.groupAvatar: conv.groupAvatar,
+      _C.createdBy: conv.createdBy,
+      _C.createdAtUtc: conv.createdAtUtc.millisecondsSinceEpoch,
       _C.lastMessage: conv.lastMessage,
       _C.lastMessageType: conv.lastMessageType,
-      _C.lastTime: conv.lastTime.millisecondsSinceEpoch,
+      _C.lastTime: conv.lastTimeUtc.millisecondsSinceEpoch,
       _C.unread: conv.unread,
       _C.isPinned: conv.isPinned ? 1 : 0,
       _C.isMuted: conv.isMuted ? 1 : 0,
+    };
+  }
+
+  static AcChatConversationUser _rowToUserPrefs(Map<String, dynamic> row) {
+    return AcChatConversationUser()
+      ..conversationId = row[_C.conversationId] as String
+      ..userId = row[_C.userId] as String
+      ..unreadCount = (row[_C.unreadCount] as int?) ?? 0
+      ..isPinned = ((row[_C.isPinned] as int?) ?? 0) == 1
+      ..isMuted = ((row[_C.isMuted] as int?) ?? 0) == 1
+      ..muteUntilUtc = row[_C.muteUntilUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.muteUntilUtc] as int, isUtc: true)
+          : null
+      ..isArchived = ((row[_C.isArchived] as int?) ?? 0) == 1
+      ..isHidden = ((row[_C.isHidden] as int?) ?? 0) == 1
+      ..role = (row[_C.role] as String?) ?? 'member'
+      ..lastReadMessageId = row[_C.lastReadMessageId] as String?
+      ..lastReadTimeUtc = row[_C.lastReadTimeUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.lastReadTimeUtc] as int, isUtc: true)
+          : null;
+  }
+
+  static Map<String, Object?> _userPrefsToRow(AcChatConversationUser prefs) {
+    return {
+      _C.conversationId: prefs.conversationId,
+      _C.userId: prefs.userId,
+      _C.unreadCount: prefs.unreadCount,
+      _C.isPinned: prefs.isPinned ? 1 : 0,
+      _C.isMuted: prefs.isMuted ? 1 : 0,
+      _C.muteUntilUtc: prefs.muteUntilUtc?.millisecondsSinceEpoch,
+      _C.isArchived: prefs.isArchived ? 1 : 0,
+      _C.isHidden: prefs.isHidden ? 1 : 0,
+      _C.role: prefs.role,
+      _C.lastReadMessageId: prefs.lastReadMessageId,
+      _C.lastReadTimeUtc: prefs.lastReadTimeUtc?.millisecondsSinceEpoch,
     };
   }
 
@@ -1340,13 +2116,21 @@ class AcChatSqlite {
       } catch (_) {}
     }
 
+    List<String> mentions = [];
+    if (row[_C.mentionsJson] != null) {
+      try {
+        final decoded = jsonDecode(row[_C.mentionsJson] as String) as List;
+        mentions = decoded.cast<String>();
+      } catch (_) {}
+    }
+
     return AcChatMessage()
       ..messageId = row[_C.messageId] as String
       ..conversationId = row[_C.conversationId] as String
       ..senderId = row[_C.senderId] as String
       ..type = (row[_C.type] as String?) ?? 'text'
       ..text = (row[_C.text] as String?) ?? ''
-      ..time = DateTime.fromMillisecondsSinceEpoch(row[_C.time] as int)
+      ..time = DateTime.fromMillisecondsSinceEpoch(row[_C.time] as int, isUtc: true)
       ..status = (row[_C.status] as String?) ?? 'sent'
       ..mediaCaption = row[_C.mediaCaption] as String?
       ..amount = (row[_C.amount] as num?)?.toDouble()
@@ -1357,17 +2141,28 @@ class AcChatSqlite {
       ..isDownloaded = ((row[_C.isDownloaded] as int?) ?? 0) == 1
       ..localPath = row[_C.localPath] as String?
       ..deliveredTime = row[_C.deliveredTime] != null
-          ? DateTime.fromMillisecondsSinceEpoch(row[_C.deliveredTime] as int)
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.deliveredTime] as int, isUtc: true)
           : null
       ..readTime = row[_C.readTime] != null
-          ? DateTime.fromMillisecondsSinceEpoch(row[_C.readTime] as int)
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.readTime] as int, isUtc: true)
           : null
       ..isEdited = ((row[_C.isEdited] as int?) ?? 0) == 1
       ..editedTime = row[_C.editedTime] != null
-          ? DateTime.fromMillisecondsSinceEpoch(row[_C.editedTime] as int)
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.editedTime] as int, isUtc: true)
           : null
       ..isDeleted = ((row[_C.isDeleted] as int?) ?? 0) == 1
       ..reactions = reactions
+      ..isStarred = ((row[_C.isStarred] as int?) ?? 0) == 1
+      ..mentions = mentions
+      ..pinnedUntilUtc = row[_C.pinnedUntilUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.pinnedUntilUtc] as int, isUtc: true)
+          : null
+      ..scheduledTimeUtc = row[_C.scheduledTimeUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.scheduledTimeUtc] as int, isUtc: true)
+          : null
+      ..expiresAtUtc = row[_C.expiresAtUtc] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row[_C.expiresAtUtc] as int, isUtc: true)
+          : null
       ..replyTo = resolvedReply;
   }
 
@@ -1395,7 +2190,35 @@ class AcChatSqlite {
       _C.editedTime: msg.editedTime?.millisecondsSinceEpoch,
       _C.isDeleted: msg.isDeleted ? 1 : 0,
       _C.reactionsJson: msg.reactions.isNotEmpty ? jsonEncode(msg.reactions) : null,
+      _C.isStarred: msg.isStarred ? 1 : 0,
+      _C.mentionsJson: msg.mentions.isNotEmpty ? jsonEncode(msg.mentions) : null,
+      _C.pinnedUntilUtc: msg.pinnedUntilUtc?.millisecondsSinceEpoch,
+      _C.scheduledTimeUtc: msg.scheduledTimeUtc?.millisecondsSinceEpoch,
+      _C.expiresAtUtc: msg.expiresAtUtc?.millisecondsSinceEpoch,
     };
+  }
+
+  static String _defaultExtensionForType(String type) {
+    switch (type.toLowerCase().trim()) {
+      case 'image':
+      case 'images':
+        return 'jpg';
+      case 'video':
+      case 'videos':
+        return 'mp4';
+      case 'audio':
+      case 'audios':
+      case 'voice':
+        return 'm4a';
+      case 'document':
+      case 'documents':
+      case 'doc':
+      case 'file':
+      case 'files':
+        return 'pdf';
+      default:
+        return 'bin';
+    }
   }
 
   void _log(String message, Object error, StackTrace stackTrace) {
@@ -1406,4 +2229,335 @@ class AcChatSqlite {
       stackTrace: stackTrace,
     );
   }
+}
+
+/// Concrete strongly-typed [AcChatApi] delegating to an underlying [AcChatSqlite] instance.
+class _AcChatSqliteApi implements AcChatApi {
+  final AcChatSqlite sqlite;
+  @override
+  final AcChatTheme theme;
+  @override
+  final AcChatConfig config;
+
+  @override
+  final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
+  @override
+  final FutureOr<void> Function({required BuildContext context})? onNewGroup;
+  @override
+  final List<AcChatUser> Function()? getContacts;
+  @override
+  final String? contactsSectionTitle;
+  @override
+  final String? newContactLabel;
+  @override
+  final String? newContactSubtitle;
+  @override
+  final String? newGroupLabel;
+  @override
+  final String? newGroupSubtitle;
+  @override
+  final FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers;
+  @override
+  final Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder;
+  @override
+  final void Function({required AcChatMessage message})? onMessageTap;
+  @override
+  final Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder;
+
+  final bool _enableVoiceCall;
+  final bool _enableVideoCall;
+  final bool _showNewConversationButton;
+  final bool _showConversationMenu;
+
+  _AcChatSqliteApi({
+    required this.sqlite,
+    required this.theme,
+    required this.config,
+    bool enableVoiceCall = false,
+    bool enableVideoCall = false,
+    bool showNewConversationButton = true,
+    bool showConversationMenu = true,
+    this.onNewContact,
+    this.onNewGroup,
+    this.getContacts,
+    this.contactsSectionTitle,
+    this.newContactLabel,
+    this.newContactSubtitle,
+    this.newGroupLabel,
+    this.newGroupSubtitle,
+    this.onSearchRemoteUsers,
+    this.customMessageBuilder,
+    this.onMessageTap,
+    this.customInputBuilder,
+  })  : _enableVoiceCall = enableVoiceCall,
+        _enableVideoCall = enableVideoCall,
+        _showNewConversationButton = showNewConversationButton,
+        _showConversationMenu = showConversationMenu;
+
+  @override
+  bool get enableGroups => config.enableGroupConversations;
+  @override
+  bool get enableGroupsAndStatuses => config.enableGroupConversations;
+  @override
+  bool get enableTyping => config.enableTextMessaging;
+  @override
+  bool get enableTypingIndicator => config.enableTypingIndicators;
+  @override
+  bool get pinConversations => config.enableConversationPinning;
+  @override
+  bool get searchConversations => config.enableConversationSearch;
+  @override
+  bool get showOnlineStatus => config.enableOnlinePresence;
+  @override
+  int get maxGroupParticipants => config.maxGroupParticipants;
+  @override
+  bool get readOnly => !config.enableTextMessaging;
+  @override
+  bool get enableVideoCall => _enableVideoCall;
+  @override
+  bool get enableVoiceCall => _enableVoiceCall;
+  @override
+  bool get showNewConversationButton => _showNewConversationButton;
+  @override
+  bool get showConversationMenu => _showConversationMenu;
+
+  @override
+  AcChatUser getCurrentUser() => sqlite.getCurrentUser();
+
+  @override
+  List<AcChatUser> getUsers() => sqlite.getUsers();
+
+  @override
+  AcChatUser? getUserById({required String userId}) => sqlite.getUserById(userId: userId);
+
+  @override
+  Future<void> saveUserProfile({required AcChatUser user}) => sqlite.saveUserProfile(user: user);
+
+  @override
+  bool isUserBlocked({required String userId}) => sqlite.isUserBlocked(userId: userId);
+
+  @override
+  List<String> getBlockedUserIds() => sqlite.getBlockedUserIds();
+
+  @override
+  Future<void> blockUser({required String userId}) => sqlite.blockUser(userId: userId);
+
+  @override
+  Future<void> unblockUser({required String userId}) => sqlite.unblockUser(userId: userId);
+
+  @override
+  Future<void> reportUser({required String userId, required String reason}) =>
+      sqlite.reportUser(userId: userId, reason: reason);
+
+  @override
+  Stream<bool>? watchUserOnlineStatus({required String userId}) =>
+      config.enableOnlinePresence ? sqlite.watchUserOnlineStatus(userId: userId) : null;
+
+  @override
+  List<AcChatConversation> getConversations() => sqlite.getConversations();
+
+  @override
+  Stream<List<AcChatConversation>>? watchConversations() => sqlite.watchConversations();
+
+  @override
+  AcChatConversationUser? getConversationPrefs({required String conversationId}) =>
+      sqlite.getConversationPrefs(conversationId: conversationId);
+
+  @override
+  Future<void> updateConversationPrefs({required AcChatConversationUser prefs}) =>
+      sqlite.updateConversationPrefs(prefs: prefs);
+
+  @override
+  List<AcChatConversationUser> getConversationUsers({required String conversationId}) =>
+      sqlite.getConversationUsers(conversationId: conversationId);
+
+  @override
+  AcChatConversation insertConversation({
+    required AcChatConversation newConv,
+    required String otherUserId,
+  }) =>
+      sqlite.insertConversation(newConv: newConv, otherUserId: otherUserId);
+
+  @override
+  Future<void> pinConversation({required String conversationId, required bool isPinned}) =>
+      sqlite.pinConversation(conversationId: conversationId, isPinned: isPinned);
+
+  @override
+  Future<void> archiveConversation({required String conversationId, required bool isArchived}) =>
+      sqlite.archiveConversation(conversationId: conversationId, isArchived: isArchived);
+
+  @override
+  Future<void> muteConversation({required String conversationId, Duration? muteDuration, bool? muted}) =>
+      sqlite.muteConversation(conversationId: conversationId, muteDuration: muteDuration, muted: muted);
+
+  @override
+  Future<void> deleteConversation({required String conversationId}) =>
+      sqlite.deleteConversation(conversationId: conversationId);
+
+  @override
+  Future<void> hideConversation({required String conversationId, required bool isHidden}) =>
+      sqlite.hideConversation(conversationId: conversationId, isHidden: isHidden);
+
+  @override
+  Future<AcChatConversation> createGroupConversation({
+    required String groupName,
+    required List<String> memberUserIds,
+    String? groupAvatar,
+    String? groupDescription,
+  }) =>
+      sqlite.createGroupConversation(
+        groupName: groupName,
+        memberUserIds: memberUserIds,
+        groupAvatar: groupAvatar,
+        groupDescription: groupDescription,
+      );
+
+  @override
+  Future<void> addGroupMembers({required String conversationId, required List<String> userIds}) =>
+      sqlite.addGroupMembers(conversationId: conversationId, userIds: userIds);
+
+  @override
+  Future<void> removeGroupMember({required String conversationId, required String userId}) =>
+      sqlite.removeGroupMember(conversationId: conversationId, userId: userId);
+
+  @override
+  Future<void> updateGroupDetails({
+    required String conversationId,
+    String? groupName,
+    String? groupAvatar,
+    String? groupDescription,
+  }) =>
+      sqlite.updateGroupDetails(
+        conversationId: conversationId,
+        groupName: groupName,
+        groupAvatar: groupAvatar,
+        groupDescription: groupDescription,
+      );
+
+  @override
+  Future<void> leaveGroup({required String conversationId}) =>
+      sqlite.leaveGroup(conversationId: conversationId);
+
+  @override
+  Future<String> getGroupInviteLink({required String conversationId}) =>
+      sqlite.getGroupInviteLink(conversationId: conversationId);
+
+  @override
+  List<AcChatMessage> getMessages({required String conversationId}) =>
+      sqlite.getMessages(conversationId: conversationId);
+
+  @override
+  Stream<List<AcChatMessage>>? watchMessages({required String conversationId}) =>
+      sqlite.watchMessages(conversationId: conversationId);
+
+  @override
+  void sendMessage({required AcChatMessage message}) =>
+      sqlite.sendMessage(message: message);
+
+  @override
+  void updateMessage({
+    required String messageId,
+    required Map<String, dynamic> data,
+  }) => sqlite.updateMessage(messageId: messageId, data: data);
+
+  @override
+  Future<void> editMessage({required String messageId, required String newText}) =>
+      sqlite.editMessage(messageId: messageId, newText: newText);
+
+  @override
+  Future<void> deleteMessageForMe({required String messageId}) =>
+      sqlite.deleteMessageForMe(messageId: messageId);
+
+  @override
+  Future<void> deleteMessageForEveryone({required String messageId}) =>
+      sqlite.deleteMessageForEveryone(messageId: messageId);
+
+  @override
+  Future<void> addReaction({required String messageId, required String emoji}) =>
+      sqlite.addReaction(messageId: messageId, emoji: emoji);
+
+  @override
+  Future<void> removeReaction({required String messageId, required String emoji}) =>
+      sqlite.removeReaction(messageId: messageId, emoji: emoji);
+
+  @override
+  Future<void> setStarred({required String messageId, required bool isStarred}) =>
+      sqlite.setStarred(messageId: messageId, isStarred: isStarred);
+
+  @override
+  Future<void> pinMessage({required String messageId, Duration? duration}) =>
+      sqlite.pinMessage(messageId: messageId, duration: duration);
+
+  @override
+  Future<void> unpinMessage({required String messageId}) =>
+      sqlite.unpinMessage(messageId: messageId);
+
+  @override
+  void markAsRead({required String conversationId}) =>
+      sqlite.markAsRead(conversationId: conversationId);
+
+  @override
+  void sendTypingIndicator({required String conversationId, required bool isTyping}) =>
+      sqlite.sendTypingIndicator(conversationId: conversationId, isTyping: isTyping);
+
+  @override
+  Stream<Map<String, bool>>? watchTyping({required String conversationId}) =>
+      config.enableTypingIndicators ? sqlite.watchTyping(conversationId: conversationId) : null;
+
+  @override
+  Future<void> forwardMessages({
+    required List<String> messageIds,
+    required String targetConversationId,
+  }) =>
+      sqlite.forwardMessages(
+        messageIds: messageIds,
+        targetConversationId: targetConversationId,
+      );
+
+  @override
+  Future<void> deleteMessagesBatch({
+    required List<String> messageIds,
+    required bool forEveryone,
+  }) =>
+      sqlite.deleteMessagesBatch(
+        messageIds: messageIds,
+        forEveryone: forEveryone,
+      );
+
+  @override
+  Future<List<AcChatMessage>> searchMessages({
+    required String query,
+    String? conversationId,
+    String? senderId,
+    DateTime? startDateUtc,
+    DateTime? endDateUtc,
+    bool? hasAttachment,
+  }) =>
+      sqlite.searchMessages(
+        query: query,
+        conversationId: conversationId,
+        senderId: senderId,
+        startDateUtc: startDateUtc,
+        endDateUtc: endDateUtc,
+        hasAttachment: hasAttachment,
+      );
+
+  @override
+  AcChatMediaUploader? get mediaUploader => sqlite.mediaUploader;
+
+  @override
+  AcChatCryptoProvider? get cryptoProvider => sqlite.cryptoProvider;
+
+  @override
+  String? get dataDirectory => sqlite.dataDirectory;
+
+  @override
+  Future<String?> downloadMedia({required AcChatMessage message}) async => message.localPath;
+
+  @override
+  Future<String> exportChat({required String conversationId, required bool asJson}) =>
+      sqlite.exportChat(conversationId: conversationId, asJson: asJson);
+
+  @override
+  Future<void> wipeAllData() => sqlite.wipeAllData();
 }

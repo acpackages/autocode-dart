@@ -350,6 +350,20 @@ class AcDDTableColumn {
       }
       if (isNotNull()) {
         result += " NOT NULL";
+        if([AcEnumDDColumnType.integer,AcEnumDDColumnType.autoIncrement,AcEnumDDColumnType.autoIndex,AcEnumDDColumnType.double_,AcEnumDDColumnType.yesNo].contains(columnType)){
+          defaultValue ??= 0;
+        }
+        else{
+          defaultValue ??= '';
+        }
+      }
+      if(defaultValue != null){
+        if(defaultValue is String){
+          result += " DEFAULT '$defaultValue'";
+        }
+        else{
+          result += " DEFAULT $defaultValue";
+        }
       }
       // Default value logic can be added as needed.
     } else if (databaseType == AcEnumSqlDatabaseType.postgres) {

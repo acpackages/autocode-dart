@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/ac_chat.dart';
-import '../common/chat_colors.dart';
 
 class ConversationListItem extends StatelessWidget {
   final AcChatConversation chat;
@@ -66,7 +65,7 @@ class ConversationListItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      onLongPress: () => _showContextMenu(context: context),
+      onLongPress: () => _showContextMenu(context: context, api: api),
       child: Container(
         color: isSelected
             ? ct.activeConversationBackgroundColor
@@ -150,7 +149,7 @@ class ConversationListItem extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(children: [
                   // Tick for last message from me
-                  if (isSentByMe && lastMessageObj != null)
+                  if (isSentByMe)
                     Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: _buildTickIcon(status: lastMessageObj.status),
@@ -218,14 +217,14 @@ class ConversationListItem extends StatelessWidget {
     }
   }
 
-  void _showContextMenu({required BuildContext context}) {
+  void _showContextMenu({required BuildContext context, required AcChatApi api}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: ct.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => Column(mainAxisSize: MainAxisSize.min, children: [
+      builder: (bottomCtx) => Column(mainAxisSize: MainAxisSize.min, children: [
         const SizedBox(height: 8),
         Container(
           width: 36,
@@ -236,14 +235,62 @@ class ConversationListItem extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        _ContextOption(icon: Icons.archive_outlined, label: 'Archive', ct: ct),
-        _ContextOption(icon: Icons.volume_off_outlined, label: 'Mute', ct: ct),
-        _ContextOption(icon: Icons.push_pin_outlined, label: 'Pin Chat', ct: ct),
+        _ContextOption(
+          icon: chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+          label: chat.isArchived ? 'Unarchive Chat' : 'Archive Chat',
+          ct: ct,
+          onTap: () async {
+            Navigator.pop(bottomCtx);
+            await api.archiveConversation(conversationId: chat.conversationId, isArchived: !chat.isArchived);
+          },
+        ),
+        _ContextOption(
+          icon: chat.isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+          label: chat.isMuted ? 'Unmute' : 'Mute',
+          ct: ct,
+          onTap: () async {
+            Navigator.pop(bottomCtx);
+            await api.muteConversation(conversationId: chat.conversationId, muted: !chat.isMuted);
+          },
+        ),
+        if (pinningEnabled)
+          _ContextOption(
+            icon: chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+            label: chat.isPinned ? 'Unpin Chat' : 'Pin Chat',
+            ct: ct,
+            onTap: () async {
+              Navigator.pop(bottomCtx);
+              await api.pinConversation(conversationId: chat.conversationId, isPinned: !chat.isPinned);
+            },
+          ),
         _ContextOption(
           icon: Icons.delete_outline,
           label: 'Delete Chat',
           ct: ct,
           isDestructive: true,
+          onTap: () async {
+            Navigator.pop(bottomCtx);
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                title: const Text('Delete Chat'),
+                content: const Text('Are you sure you want to delete this conversation? This action cannot be undone.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dCtx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dCtx, true),
+                    child: Text('Delete', style: TextStyle(color: ct.messageDestructive)),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed == true) {
+              await api.deleteConversation(conversationId: chat.conversationId);
+            }
+          },
         ),
         const SizedBox(height: 16),
       ]),
@@ -274,12 +321,14 @@ class _ContextOption extends StatelessWidget {
   final String label;
   final AcChatTheme ct;
   final bool isDestructive;
+  final VoidCallback? onTap;
 
   const _ContextOption({
     required this.icon,
     required this.label,
     required this.ct,
     this.isDestructive = false,
+    this.onTap,
   });
 
   @override
@@ -288,7 +337,7 @@ class _ContextOption extends StatelessWidget {
     return ListTile(
       leading: Icon(icon, color: color, size: 22),
       title: Text(label, style: TextStyle(color: color, fontSize: 15)),
-      onTap: () {
+      onTap: onTap ?? () {
         Navigator.pop(context);
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('$label — coming soon')));

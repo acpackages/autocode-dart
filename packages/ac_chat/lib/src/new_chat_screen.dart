@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core/ac_chat.dart';
-import 'common/chat_colors.dart';
 
 class NewChatScreen extends StatefulWidget {
   final AcChatApi api;
@@ -59,9 +58,12 @@ class _NewChatScreenState extends State<NewChatScreen> {
     try {
       final results = await widget.api.onSearchRemoteUsers!(query: q);
       if (mounted && _query == q) {
+        final myId = widget.api.getCurrentUser().userId;
         final localIds = _localUsers.map((u) => u.userId).toSet();
         setState(() {
-          _remoteUsers = results.where((u) => !localIds.contains(u.userId)).toList();
+          _remoteUsers = results
+              .where((u) => !localIds.contains(u.userId) && u.userId != myId)
+              .toList();
           _isSearchingRemote = false;
         });
       }
@@ -71,7 +73,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   List<AcChatUser> get _localUsers {
-    return widget.api.getContacts?.call() ?? widget.api.getUsers();
+    final myId = widget.api.getCurrentUser().userId;
+    final users = widget.api.getContacts?.call() ?? widget.api.getUsers();
+    return users.where((u) => u.userId.isNotEmpty && u.userId != myId).toList();
   }
 
   List<AcChatUser> get _filteredLocal {
@@ -112,15 +116,11 @@ class _NewChatScreenState extends State<NewChatScreen> {
   void _startGroup() {
     if (widget.api.onNewGroup != null) {
       widget.api.onNewGroup!(context: context);
-    } else if (widget.api.createGroupConversation != null) {
+    } else {
       setState(() {
         _isGroupCreationMode = true;
         _selectedMemberIds.clear();
       });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New Group creation is not configured')),
-      );
     }
   }
 
@@ -160,7 +160,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
     if (groupName != null && groupName.isNotEmpty && mounted) {
       final allMembers = [widget.api.getCurrentUser().userId, ..._selectedMemberIds];
-      final groupConv = await widget.api.createGroupConversation!(
+      final groupConv = await widget.api.createGroupConversation(
         groupName: groupName,
         memberUserIds: allMembers,
       );
@@ -217,7 +217,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             ),
             Text(
               _isGroupCreationMode
-                  ? '${_selectedMemberIds.length} selected'
+                  ? '${_selectedMemberIds.length} / ${widget.api.maxGroupParticipants}'
                   : '$totalContacts contacts',
               style: TextStyle(color: ct.white.withOpacity(0.7), fontSize: 12),
             ),
@@ -276,13 +276,14 @@ class _NewChatScreenState extends State<NewChatScreen> {
               padding: EdgeInsets.zero,
               children: [
                 if (!_isGroupCreationMode && _query.isEmpty) ...[
-                  _SpecialTile(
-                    icon: Icons.group_add_rounded,
-                    label: widget.api.newGroupLabel ?? 'New Group',
-                    subtitle: widget.api.newGroupSubtitle ?? 'Create a group chat',
-                    ct: ct,
-                    onTap: _startGroup,
-                  ),
+                  if (widget.api.enableGroups)
+                    _SpecialTile(
+                      icon: Icons.group_add_rounded,
+                      label: widget.api.newGroupLabel ?? 'New Group',
+                      subtitle: widget.api.newGroupSubtitle ?? 'Create a group chat',
+                      ct: ct,
+                      onTap: _startGroup,
+                    ),
                   _SpecialTile(
                     icon: Icons.person_add_rounded,
                     label: widget.api.newContactLabel ?? 'New Contact',
@@ -325,13 +326,19 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       isSelected: _selectedMemberIds.contains(u.userId),
                       onTap: () {
                         if (_isGroupCreationMode) {
-                          setState(() {
-                            if (_selectedMemberIds.contains(u.userId)) {
-                              _selectedMemberIds.remove(u.userId);
+                          if (_selectedMemberIds.contains(u.userId)) {
+                            setState(() => _selectedMemberIds.remove(u.userId));
+                          } else {
+                            if (_selectedMemberIds.length >= widget.api.maxGroupParticipants) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Maximum of ${widget.api.maxGroupParticipants} participants allowed'),
+                                ),
+                              );
                             } else {
-                              _selectedMemberIds.add(u.userId);
+                              setState(() => _selectedMemberIds.add(u.userId));
                             }
-                          });
+                          }
                         } else {
                           _startChat(u);
                         }

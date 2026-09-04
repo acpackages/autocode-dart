@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import '../../common/chat_colors.dart';
+import '../../core/ac_chat_config.dart';
+import '../../models/ac_chat_user.dart';
 
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
@@ -18,8 +20,14 @@ class InputBar extends StatefulWidget {
   final FocusNode focusNode;
   final bool showEmojiPicker;
   final VoidCallback onEmojiToggle;
+  final bool enableTyping;
+  final void Function(String)? onAttachOption;
+  final AcChatConfig? config;
+  final List<AcChatUser> mentionCandidates;
+  final ValueChanged<AcChatUser>? onMentionSelected;
 
   const InputBar({
+    super.key,
     required this.controller,
     required this.ct,
     required this.isDark,
@@ -34,6 +42,11 @@ class InputBar extends StatefulWidget {
     required this.focusNode,
     required this.showEmojiPicker,
     required this.onEmojiToggle,
+    this.enableTyping = true,
+    this.onAttachOption,
+    this.config,
+    this.mentionCandidates = const [],
+    this.onMentionSelected,
   });
 
   @override
@@ -45,6 +58,8 @@ class _InputBarState extends State<InputBar> {
   int _secondsElapsed = 0;
   Timer? _recordingTimer;
   late final RecorderController _recorderController;
+  String _mentionQuery = '';
+  bool _showMentions = false;
 
   @override
   void initState() {
@@ -67,8 +82,26 @@ class _InputBarState extends State<InputBar> {
   }
 
   void _handleTextChanged() {
-    final has = widget.controller.text.trim().isNotEmpty;
+    final text = widget.controller.text;
+    final has = text.trim().isNotEmpty;
     if (has != _hasText) setState(() => _hasText = has);
+
+    // Mentions detection
+    final cfg = widget.config ?? const AcChatConfig();
+    if (cfg.enableMentions && text.contains('@')) {
+      final lastAt = text.lastIndexOf('@');
+      final query = text.substring(lastAt + 1).toLowerCase();
+      if (!query.contains(' ')) {
+        setState(() {
+          _showMentions = true;
+          _mentionQuery = query;
+        });
+        return;
+      }
+    }
+    if (_showMentions) {
+      setState(() => _showMentions = false);
+    }
   }
 
   Future<void> _startRecordingTimers() async {
@@ -110,17 +143,76 @@ class _InputBarState extends State<InputBar> {
   @override
   Widget build(BuildContext context) {
     final ct = widget.ct;
+    final cfg = widget.config ?? const AcChatConfig();
+
+    final filteredMentions = widget.mentionCandidates.where((u) {
+      if (_mentionQuery.isEmpty) return true;
+      return u.name.toLowerCase().contains(_mentionQuery) ||
+          u.username.toLowerCase().contains(_mentionQuery);
+    }).toList();
+
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
       color: ct.scaffold,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Mentions autocomplete popup
+          if (_showMentions && filteredMentions.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 150),
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: ct.surface,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: ct.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filteredMentions.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: ct.divider),
+                itemBuilder: (ctx, idx) {
+                  final u = filteredMentions[idx];
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: avatarColor(u.userId),
+                      child: Text(
+                        u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                        style: TextStyle(color: ct.white, fontSize: 12),
+                      ),
+                    ),
+                    title: Text(u.name, style: TextStyle(color: ct.text, fontSize: 13)),
+                    subtitle: u.username.isNotEmpty
+                        ? Text('@${u.username}', style: TextStyle(color: ct.subText, fontSize: 11))
+                        : null,
+                    onTap: () {
+                      final text = widget.controller.text;
+                      final lastAt = text.lastIndexOf('@');
+                      final newText = '${text.substring(0, lastAt)}@${u.name} ';
+                      widget.controller.text = newText;
+                      widget.controller.selection = TextSelection.fromPosition(
+                        TextPosition(offset: newText.length),
+                      );
+                      setState(() => _showMentions = false);
+                      widget.onMentionSelected?.call(u);
+                    },
+                  );
+                },
+              ),
+            ),
+
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (widget.isRecording) ...[
-                // Pulsing recording indicator
                 AnimatedBuilder(
                   animation: widget.micAnim,
                   builder: (context, _) {
@@ -147,8 +239,6 @@ class _InputBarState extends State<InputBar> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
-                // Live Waveform visualizer
                 Expanded(
                   child: AudioWaveforms(
                     enableGesture: false,
@@ -162,8 +252,6 @@ class _InputBarState extends State<InputBar> {
                     ),
                   ),
                 ),
-                
-                // Cancel Button
                 TextButton(
                   onPressed: widget.onMicCancel,
                   child: Text(
@@ -176,9 +264,11 @@ class _InputBarState extends State<InputBar> {
                   ),
                 ),
               ] else ...[
-                // Attachment Button (left most, '+' icon)
-                _buildAttachButton(context, ct),
-                // Emoji Picker Button (next to it)
+                // Attachment Button (only rendered if media attachments enabled)
+                if (cfg.enableMediaAttachments)
+                  _buildAttachButton(context, ct, cfg),
+
+                // Emoji Picker Button
                 IconButton(
                   padding: const EdgeInsets.all(8),
                   icon: Icon(
@@ -191,7 +281,8 @@ class _InputBarState extends State<InputBar> {
                   onPressed: widget.onEmojiToggle,
                 ),
                 const SizedBox(width: 4),
-                // Input field container (flat/inline)
+
+                // Input field container
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -206,11 +297,12 @@ class _InputBarState extends State<InputBar> {
                           child: TextField(
                             controller: widget.controller,
                             focusNode: widget.focusNode,
+                            enabled: widget.enableTyping,
                             style: TextStyle(color: ct.inputText, fontSize: 15),
                             maxLines: 5,
                             minLines: 1,
                             decoration: InputDecoration(
-                              hintText: 'Message',
+                              hintText: widget.enableTyping ? 'Message' : 'Typing is disabled',
                               hintStyle: TextStyle(color: ct.inputHint, fontSize: 15),
                               border: InputBorder.none,
                               isDense: true,
@@ -225,17 +317,18 @@ class _InputBarState extends State<InputBar> {
                 ),
               ],
               const SizedBox(width: 4),
-              // Send / Mic button (inline, right most)
+
+              // Send / Mic button
               GestureDetector(
                 onTap: () {
                   if (_hasText) {
                     widget.onSend();
-                  } else {
+                  } else if (cfg.enableVoiceNotes) {
                     widget.onMicTap?.call();
                   }
                 },
-                onLongPressStart: _hasText ? null : (_) => widget.onMicStart(),
-                onLongPressEnd: _hasText ? null : (_) => widget.onMicStop(),
+                onLongPressStart: (_hasText || !cfg.enableVoiceNotes) ? null : (_) => widget.onMicStart(),
+                onLongPressEnd: (_hasText || !cfg.enableVoiceNotes) ? null : (_) => widget.onMicStop(),
                 child: AnimatedBuilder(
                   animation: widget.micAnim,
                   builder: (_, __) {
@@ -245,7 +338,7 @@ class _InputBarState extends State<InputBar> {
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: Icon(
-                          _hasText
+                          _hasText || !cfg.enableVoiceNotes
                               ? Icons.send_rounded
                               : (widget.isRecording ? Icons.stop_rounded : Icons.mic_rounded),
                           color: _hasText
@@ -265,26 +358,37 @@ class _InputBarState extends State<InputBar> {
     );
   }
 
-  Widget _buildAttachButton(BuildContext context, AcChatTheme ct) {
+  Widget _buildAttachButton(BuildContext context, AcChatTheme ct, AcChatConfig cfg) {
     final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = width >= 768; // Desktop mode
+    final isDesktop = width >= 768;
 
     if (isDesktop) {
+      final items = <PopupMenuItem<String>>[];
+      if (cfg.enableDocumentAttachments) {
+        items.add(_attachMenuItem(Icons.description, ct.attachDocumentBg, 'Document', ct));
+      }
+      if (cfg.enableImageAttachments || cfg.enableVideoAttachments) {
+        items.add(_attachMenuItem(Icons.camera_alt, ct.attachCameraBg, 'Camera', ct));
+        items.add(_attachMenuItem(Icons.image, ct.attachGalleryBg, 'Gallery', ct));
+      }
+      if (cfg.enableVoiceNotes) {
+        items.add(_attachMenuItem(Icons.headset, ct.attachAudioBg, 'Audio', ct));
+      }
+      items.add(_attachMenuItem(Icons.location_on, ct.attachLocationBg, 'Location', ct));
+      items.add(_attachMenuItem(Icons.person, ct.attachContactBg, 'Contact', ct));
+
       return PopupMenuButton<String>(
         icon: Icon(Icons.add, color: ct.iconColor, size: 22),
         color: ct.surface,
         offset: const Offset(0, -280),
         onSelected: (label) {
-          _toast(context, '$label — coming soon');
+          if (widget.onAttachOption != null) {
+            widget.onAttachOption!(label);
+          } else {
+            widget.onAttach();
+          }
         },
-        itemBuilder: (context) => [
-          _attachMenuItem(Icons.description, ct.attachDocumentBg, 'Document', ct),
-          _attachMenuItem(Icons.camera_alt, ct.attachCameraBg, 'Camera', ct),
-          _attachMenuItem(Icons.image, ct.attachGalleryBg, 'Gallery', ct),
-          _attachMenuItem(Icons.headset, ct.attachAudioBg, 'Audio', ct),
-          _attachMenuItem(Icons.location_on, ct.attachLocationBg, 'Location', ct),
-          _attachMenuItem(Icons.person, ct.attachContactBg, 'Contact', ct),
-        ],
+        itemBuilder: (context) => items,
       );
     } else {
       return IconButton(
@@ -303,21 +407,12 @@ class _InputBarState extends State<InputBar> {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: color.withValues(alpha: 0.15),
+            backgroundColor: color.withOpacity(0.15),
             child: Icon(icon, color: color, size: 16),
           ),
           const SizedBox(width: 12),
           Text(label, style: TextStyle(color: ct.text, fontSize: 14)),
         ],
-      ),
-    );
-  }
-
-  void _toast(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        duration: const Duration(seconds: 2),
       ),
     );
   }

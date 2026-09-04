@@ -42,13 +42,29 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
       if (otherMember.userId.isNotEmpty) {
         user = api.getUserById(userId: otherMember.userId);
       }
+      if (user == null) {
+        final otherId = chat.memberIds.firstWhere(
+          (id) => id != api.getCurrentUser().userId,
+          orElse: () => '',
+        );
+        if (otherId.isNotEmpty) {
+          user = api.getUserById(userId: otherId);
+        }
+      }
     }
 
     final name = isGroup
         ? (chat.groupName ?? 'Group')
         : (user?.name ?? 'Unknown');
 
-    final membersList = api.getConversationUsers(conversationId: chat.conversationId);
+    var membersList = api.getConversationUsers(conversationId: chat.conversationId);
+    if (isGroup && membersList.isEmpty && chat.memberIds.isNotEmpty) {
+      membersList = chat.memberIds
+          .map((id) => AcChatConversationUser()
+            ..conversationId = chat.conversationId
+            ..userId = id)
+          .toList();
+    }
     final subtitleText = isGroup
         ? 'Group • ${membersList.length} members'
         : 'Direct Message • ${user?.email ?? "No email"}';
@@ -112,7 +128,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                     children: [
                       const SizedBox(height: 40),
                       Hero(
-                        tag: 'avatar-${chat.conversationId}',
+                        tag: widget.isEmbedded ? 'avatar-profile-${chat.conversationId}' : 'avatar-${chat.conversationId}',
                         child: CircleAvatar(
                           radius: 54,
                           backgroundColor: ct.white.withOpacity(0.2),
@@ -174,6 +190,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               builder: (_) => ConversationMediaTabs(
                                 chat: chat,
                                 ct: ct,
+                                api: api,
                               ),
                             ),
                           );
@@ -299,9 +316,20 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               IconButton(
                                 icon: Icon(Icons.person_add_alt_1_rounded, color: ct.activeTabColor, size: 22),
                                 onPressed: () async {
+                                  if (membersList.length >= api.maxGroupParticipants) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Group participant limit (${api.maxGroupParticipants}) reached'),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   final allUsers = api.getUsers();
                                   final currentMemberIds = membersList.map((m) => m.userId).toSet();
-                                  final candidates = allUsers.where((u) => !currentMemberIds.contains(u.userId)).toList();
+                                  final myId = api.getCurrentUser().userId;
+                                  final candidates = allUsers
+                                      .where((u) => !currentMemberIds.contains(u.userId) && u.userId != myId)
+                                      .toList();
 
                                   if (candidates.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -417,6 +445,156 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               );
                             },
                           ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // 4. Settings & Actions Card
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+                child: Card(
+                  elevation: 0,
+                  color: isDark ? ct.chatDarkAppBar : ct.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: ct.divider, width: 0.5),
+                  ),
+                  child: Column(
+                    children: [
+                      // Mute Notifications
+                      SwitchListTile(
+                        secondary: Icon(chat.isMuted ? Icons.volume_off : Icons.volume_up_outlined, color: ct.subText),
+                        title: Text('Mute Notifications', style: TextStyle(color: ct.text)),
+                        value: chat.isMuted,
+                        activeColor: ct.activeTabColor,
+                        onChanged: (val) async {
+                          await api.muteConversation(conversationId: chat.conversationId, muted: val);
+                          setState(() {
+                            chat.isMuted = val;
+                          });
+                        },
+                      ),
+                      // Edit Group (if isGroup)
+                      if (isGroup && (!api.config.enableGroupAdminRoles || chat.createdBy == api.getCurrentUser().userId)) ...[
+                        Divider(color: ct.divider, height: 1),
+                        ListTile(
+                          leading: Icon(Icons.edit_outlined, color: ct.subText),
+                          title: Text('Edit Group Details', style: TextStyle(color: ct.text)),
+                          onTap: () async {
+                            final nameCtrl = TextEditingController(text: chat.groupName);
+                            final descCtrl = TextEditingController(text: chat.groupDescription);
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (dCtx) => AlertDialog(
+                                title: const Text('Edit Group Details'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextField(
+                                      controller: nameCtrl,
+                                      decoration: const InputDecoration(labelText: 'Group Name'),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextField(
+                                      controller: descCtrl,
+                                      decoration: const InputDecoration(labelText: 'Description'),
+                                    ),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                                  ElevatedButton(onPressed: () => Navigator.pop(dCtx, true), child: const Text('Save')),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true && mounted) {
+                              chat.groupName = nameCtrl.text.trim();
+                              chat.groupDescription = descCtrl.text.trim();
+                              await api.updateGroupDetails(
+                                conversationId: chat.conversationId,
+                                groupName: chat.groupName,
+                                groupDescription: chat.groupDescription,
+                              );
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ],
+                      // Export Chat
+                      Divider(color: ct.divider, height: 1),
+                      ListTile(
+                        leading: Icon(Icons.file_download_outlined, color: ct.subText),
+                        title: Text('Export Chat', style: TextStyle(color: ct.text)),
+                        onTap: () async {
+                          final data = await api.exportChat(conversationId: chat.conversationId, asJson: true);
+                          if (mounted) {
+                            showDialog(
+                              context: context,
+                              builder: (dCtx) => AlertDialog(
+                                title: const Text('Exported Chat Data'),
+                                content: SingleChildScrollView(child: SelectableText(data)),
+                                actions: [TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Close'))],
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      // Block User (Direct Chat)
+                      if (!isGroup && user != null) ...[
+                        Divider(color: ct.divider, height: 1),
+                        Builder(
+                          builder: (context) {
+                            final targetUid = user!.userId;
+                            final isBlocked = api.isUserBlocked(userId: targetUid);
+                            return ListTile(
+                              leading: Icon(isBlocked ? Icons.lock_open : Icons.block, color: ct.messageDestructive),
+                              title: Text(isBlocked ? 'Unblock User' : 'Block User', style: TextStyle(color: ct.messageDestructive)),
+                              onTap: () async {
+                                if (isBlocked) {
+                                  await api.unblockUser(userId: targetUid);
+                                } else {
+                                  await api.blockUser(userId: targetUid);
+                                }
+                                setState(() {});
+                              },
+                            );
+                          },
+                        ),
+                        Divider(color: ct.divider, height: 1),
+                        ListTile(
+                          leading: Icon(Icons.report_outlined, color: ct.messageDestructive),
+                          title: Text('Report User', style: TextStyle(color: ct.messageDestructive)),
+                          onTap: () async {
+                            final targetUid = user!.userId;
+                            final reasonCtrl = TextEditingController();
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (dCtx) => AlertDialog(
+                                title: const Text('Report User'),
+                                content: TextField(
+                                  controller: reasonCtrl,
+                                  decoration: const InputDecoration(hintText: 'Enter reason for report...'),
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                                  ElevatedButton(onPressed: () => Navigator.pop(dCtx, true), child: const Text('Report')),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true && mounted) {
+                              await api.reportUser(userId: targetUid, reason: reasonCtrl.text.trim());
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Report submitted. Thank you.')),
+                                );
+                              }
+                            }
+                          },
+                        ),
                       ],
                     ],
                   ),

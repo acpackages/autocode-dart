@@ -49,7 +49,13 @@ class AcHttp {
         queryParams: queryParams,
       );
 
-      final hasFormData = method != AcEnumHttpMethod.get && method != AcEnumHttpMethod.delete && data != null;
+      final isRawBinary = data is Uint8List;
+      final hasFormData = !isRawBinary &&
+          data is! String &&
+          method != AcEnumHttpMethod.get &&
+          method != AcEnumHttpMethod.delete &&
+          data != null &&
+          (data is Map || (data is List && data is! Uint8List));
 
       late http.Response httpResponse;
 
@@ -95,7 +101,30 @@ class AcHttp {
             httpResponse = await _client.post(
               Uri.parse(url),
               headers: headers,
-              body:data
+              body: data,
+            );
+            break;
+
+          case AcEnumHttpMethod.put:
+            httpResponse = await _client.put(
+              Uri.parse(url),
+              headers: headers,
+              body: data,
+            );
+            break;
+
+          case AcEnumHttpMethod.patch:
+            httpResponse = await _client.patch(
+              Uri.parse(url),
+              headers: headers,
+              body: data,
+            );
+            break;
+
+          case AcEnumHttpMethod.head:
+            httpResponse = await _client.head(
+              Uri.parse(url),
+              headers: headers,
             );
             break;
 
@@ -106,9 +135,11 @@ class AcHttp {
         }
       }
 
-      result.responseCode = AcEnumHttpResponseCode.fromValue(httpResponse.statusCode)!;
-      if(result.responseCode == AcEnumHttpResponseCode.ok){
+      result.responseCode = AcEnumHttpResponseCode.fromValue(httpResponse.statusCode) ?? AcEnumHttpResponseCode.unknown;
+      if (httpResponse.statusCode >= 200 && httpResponse.statusCode < 300) {
         result.setSuccess();
+      } else {
+        result.setFailure(message: 'HTTP ${httpResponse.statusCode}: ${httpResponse.reasonPhrase ?? ''}');
       }
       try {
         result.data = jsonDecode(httpResponse.body);

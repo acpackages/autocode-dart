@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:ac_chat/ac_chat.dart';
 import 'package:ac_chat_on_firebase/ac_chat_on_firebase.dart';
@@ -102,6 +103,178 @@ void main() {
 
       await backendBob.stopListening();
       backendAlice.dispose();
+    });
+
+    test('markAsRead sends read receipt to Alice when Bob marks as read', () async {
+      final backendAlice = AcChatFirebase(
+        currentUserId: userA,
+        firestore: fakeFirestore,
+      );
+
+      final aliceStatusUpdates = <Map<String, String>>[];
+      await backendAlice.startListening(
+        currentUserId: userA,
+        onMessageReceived: ({required message}) {},
+        onConversationChanged: ({required conversation, required members}) {},
+        onUsersLoaded: ({required users}) {},
+        onMessageStatusUpdated: ({required messageId, required conversationId, required status}) {
+          aliceStatusUpdates.add({
+            'messageId': messageId,
+            'conversationId': conversationId,
+            'status': status,
+          });
+        },
+      );
+
+      final backendBob = AcChatFirebase(
+        currentUserId: userB,
+        firestore: fakeFirestore,
+      );
+
+      final bobReceived = <AcChatMessage>[];
+      await backendBob.startListening(
+        currentUserId: userB,
+        onMessageReceived: ({required message}) {
+          bobReceived.add(message);
+        },
+        onConversationChanged: ({required conversation, required members}) {},
+        onUsersLoaded: ({required users}) {},
+      );
+
+      // Create conversation
+      final conv = AcChatConversation()
+        ..conversationId = 'conv_ab_receipt'
+        ..type = 'direct'
+        ..memberIds = [userA, userB]
+        ..lastTime = DateTime.now();
+
+      await backendAlice.createConversation(
+        conversation: conv,
+        memberIds: [userA, userB],
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Alice sends message
+      final msg = AcChatMessage()
+        ..messageId = 'm_alice_read_test'
+        ..conversationId = 'conv_ab_receipt'
+        ..senderId = userA
+        ..type = 'text'
+        ..text = 'Hello Bob'
+        ..time = DateTime.now()
+        ..status = 'delivered';
+
+      await backendAlice.sendMessage(
+        message: msg,
+        recipientIds: [userB],
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(bobReceived.length, equals(1));
+
+      // Bob marks as read
+      await backendBob.markAsRead(
+        conversationId: 'conv_ab_receipt',
+        currentUserId: userB,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Alice should receive status update
+      expect(aliceStatusUpdates.any((u) => u['messageId'] == 'm_alice_read_test' && u['status'] == 'read'), isTrue);
+
+      await backendAlice.stopListening();
+      await backendBob.stopListening();
+    });
+
+    test('buildApi forwards typing and group configuration parameters', () {
+      final backend = AcChatFirebase(
+        currentUserId: userA,
+        firestore: fakeFirestore,
+      );
+
+      final defaultApi = backend.buildApi(theme: const AcChatTheme(isDark: false));
+      expect(defaultApi.enableTypingIndicator, isTrue);
+      expect(defaultApi.enableTyping, isTrue);
+      expect(defaultApi.enableGroups, isTrue);
+      expect(defaultApi.maxGroupParticipants, equals(50));
+
+      final customApi = backend.buildApi(
+        theme: const AcChatTheme(isDark: false),
+        enableTypingIndicator: false,
+        enableTyping: false,
+        enableGroups: false,
+        maxGroupParticipants: 30,
+      );
+      expect(customApi.enableTypingIndicator, isFalse);
+      expect(customApi.enableTyping, isFalse);
+      expect(customApi.enableGroups, isFalse);
+      expect(customApi.maxGroupParticipants, equals(30));
+    });
+
+    test('messageUpdate parses delivered_time and read_time correctly', () async {
+      final backend = AcChatFirebase(
+        currentUserId: userA,
+        firestore: fakeFirestore,
+      );
+
+      AcChatMessage? received;
+      await backend.startListening(
+        currentUserId: userA,
+        onMessageReceived: ({required message}) {
+          received = message;
+        },
+        onConversationChanged: ({required conversation, required members}) {},
+        onUsersLoaded: ({required users}) {},
+      );
+
+      final now = DateTime.now();
+      final nowEpoch = now.millisecondsSinceEpoch;
+
+      // Simulate incoming message to Alice from userB
+      await fakeFirestore
+          .collection('users')
+          .doc(userA)
+          .collection('updates')
+          .add({
+        FirestoreExtensions.fUpdateId: 'u_msg_1',
+        FirestoreExtensions.fUpdateType: AcChatUpdateType.message,
+        FirestoreExtensions.fConversationId: 'conv_test',
+        FirestoreExtensions.fMessageId: 'm_timestamp_test',
+        FirestoreExtensions.fSenderId: userB,
+        FirestoreExtensions.fText: 'Test message',
+        FirestoreExtensions.fTimestamp: Timestamp.fromDate(now),
+        FirestoreExtensions.fTime: Timestamp.fromDate(now),
+        FirestoreExtensions.fStatus: 'sent',
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(received, isNotNull);
+      expect(received!.messageId, equals('m_timestamp_test'));
+
+      // Now send update with delivered_time and read_time to Alice's user channel
+      await fakeFirestore
+          .collection('users')
+          .doc(userA)
+          .collection('updates')
+          .add({
+        FirestoreExtensions.fUpdateId: 'u_msg_update_1',
+        FirestoreExtensions.fUpdateType: AcChatUpdateType.messageUpdate,
+        FirestoreExtensions.fConversationId: 'conv_test',
+        FirestoreExtensions.fMessageId: 'm_timestamp_test',
+        FirestoreExtensions.fSenderId: userB,
+        FirestoreExtensions.fTimestamp: Timestamp.fromDate(now.add(const Duration(seconds: 1))),
+        FirestoreExtensions.fData: {
+          FirestoreExtensions.fStatus: 'read',
+          'delivered_time': nowEpoch - 1000,
+          'read_time': nowEpoch,
+        },
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(received!.status, equals('read'));
+      expect(received!.deliveredTime, equals(DateTime.fromMillisecondsSinceEpoch(nowEpoch - 1000, isUtc: true)));
+      expect(received!.readTime, equals(DateTime.fromMillisecondsSinceEpoch(nowEpoch, isUtc: true)));
+
+      await backend.stopListening();
     });
   });
 }

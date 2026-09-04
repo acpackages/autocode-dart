@@ -7,11 +7,13 @@ import 'media_viewer_screen.dart';
 class ConversationMediaTabs extends StatefulWidget {
   final AcChatConversation chat;
   final AcChatTheme ct;
+  final AcChatApi? api;
 
   const ConversationMediaTabs({
     super.key,
     required this.chat,
     required this.ct,
+    this.api,
   });
 
   @override
@@ -35,18 +37,9 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
   }
 
   void _openViewer(BuildContext context, AcChatMessage msg) {
-    if (!msg.isDownloaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please download this media from the chat screen to view it.'),
-          duration: Duration(seconds: 5),
-        ),
-      );
-      return;
-    }
-    final api = AcChatApiProvider.of(context);
-    final sender = api.getUserById(msg.senderId);
-    final senderName = msg.senderId == api.getCurrentUser().userId
+    final effectiveApi = widget.api ?? AcChatApiProvider.of(context);
+    final sender = effectiveApi.getUserById(userId: msg.senderId);
+    final senderName = msg.senderId == effectiveApi.getCurrentUser().userId
         ? 'You'
         : (sender?.name ?? 'Unknown');
     Navigator.push(
@@ -63,12 +56,12 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
+    final effectiveApi = widget.api ?? AcChatApiProvider.of(context);
     final ct = widget.ct;
     final isDark = ct.isDark;
 
     // Fetch and filter messages for media, docs, links
-    final allMessages = api.getMessages(widget.chat.conversationId);
+    final allMessages = effectiveApi.getMessages(conversationId: widget.chat.conversationId);
 
     final mediaMsgs = allMessages
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')

@@ -1,7 +1,9 @@
 export 'src/common/chat_colors.dart';
 export 'src/common/theme_provider.dart';
+export 'src/common/utc_utils.dart';
 
 export 'src/core/ac_chat.dart';
+export 'src/core/ac_chat_config.dart';
 export 'src/core/ac_chat_api.dart';
 export 'src/core/ac_chat_audio_player.dart';
 

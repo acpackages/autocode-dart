@@ -2,7 +2,6 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../core/ac_chat.dart';
-import '../../../common/chat_colors.dart';
 
 class ImageMessageBubble extends StatelessWidget {
   final AcChatMessage message;
@@ -13,9 +12,18 @@ class ImageMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget imageWidget;
 
-    if (message.byteData != null) {
+    if (message.byteData != null && message.byteData!.isNotEmpty) {
       imageWidget = Image.memory(
         message.byteData!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
+      );
+    } else if (!kIsWeb &&
+        message.localPath != null &&
+        message.localPath!.isNotEmpty &&
+        io.File(message.localPath!).existsSync()) {
+      imageWidget = Image.file(
+        io.File(message.localPath!),
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
       );
@@ -31,7 +39,7 @@ class ImageMessageBubble extends StatelessWidget {
             return _buildLoader();
           },
         );
-      } else if (!kIsWeb && pathOrUrl.isNotEmpty) {
+      } else if (!kIsWeb && pathOrUrl.isNotEmpty && io.File(pathOrUrl).existsSync()) {
         imageWidget = Image.file(
           io.File(pathOrUrl),
           fit: BoxFit.cover,

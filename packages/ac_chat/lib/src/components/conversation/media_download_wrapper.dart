@@ -38,6 +38,10 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
     });
 
     _timer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         _progress += 0.1;
         if (_progress >= 1.0) {
@@ -45,10 +49,42 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
           _isDownloading = false;
           widget.message.isDownloaded = true;
           widget.message.localPath = widget.message.text;
-          api.updateMessage?.call(widget.message.messageId, {
-            'isDownloaded': true,
-            'localPath': widget.message.text,
-          });
+          try {
+            if (api is AcChatApi) {
+              api.updateMessage(
+                messageId: widget.message.messageId,
+                data: {
+                  'isDownloaded': true,
+                  'localPath': widget.message.text,
+                },
+              );
+            } else {
+              try {
+                api.updateMessage(
+                  messageId: widget.message.messageId,
+                  data: {
+                    'isDownloaded': true,
+                    'localPath': widget.message.text,
+                  },
+                );
+              } catch (_) {
+                try {
+                  api.updateMessage?.call(
+                    messageId: widget.message.messageId,
+                    data: {
+                      'isDownloaded': true,
+                      'localPath': widget.message.text,
+                    },
+                  );
+                } catch (_) {
+                  api.updateMessage?.call(widget.message.messageId, {
+                    'isDownloaded': true,
+                    'localPath': widget.message.text,
+                  });
+                }
+              }
+            }
+          } catch (_) {}
           timer.cancel();
         }
       });

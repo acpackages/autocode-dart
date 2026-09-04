@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/ac_chat.dart';
-import '../../common/chat_colors.dart';
 
 class ReplyBar extends StatelessWidget {
   final AcChatMessage message;

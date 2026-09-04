@@ -3,8 +3,6 @@ import 'ac_chat_api.dart';
 import '../models/ac_chat_user.dart';
 import '../models/ac_chat_conversation.dart';
 import '../models/ac_chat_conversation_user.dart';
-import '../models/ac_chat_message.dart';
-import 'ac_chat_audio_player.dart';
 import '../common/chat_colors.dart';
 import '../common/theme_provider.dart';
 import '../components/conversation/conversation.dart';
@@ -13,6 +11,8 @@ import '../chat_profile_screen.dart';
 import '../new_chat_screen.dart';
 
 export 'ac_chat_api.dart';
+export 'ac_chat_config.dart';
+export '../common/utc_utils.dart';
 export '../common/chat_colors.dart';
 export '../models/ac_chat_user.dart';
 export '../models/ac_chat_conversation.dart';
@@ -46,8 +46,8 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     final showGroupStatus = widget.api.enableGroupsAndStatuses;
-    _tabController = TabController(length: showGroupStatus ? 3 : 1, vsync: this);
-    final conversations = widget.api.getConversations().where((c) => showGroupStatus || c.type != 'group').toList();
+    _tabController = TabController(length: showGroupStatus ? 2 : 1, vsync: this);
+    final conversations = widget.api.getConversations().where((c) => widget.api.enableGroups || c.type != 'group').toList();
     if (conversations.isNotEmpty) {
       _selectedChat = conversations.first;
     }
@@ -68,10 +68,11 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
     final showGroupStatus = widget.api.enableGroupsAndStatuses;
 
     return StreamBuilder<List<AcChatConversation>>(
-      stream: widget.api.watchConversations?.call(),
+      stream: widget.api.watchConversations(),
       initialData: widget.api.getConversations(),
       builder: (context, snapshot) {
         final allConvs = snapshot.data ?? widget.api.getConversations();
+        final conversations = allConvs.where((c) => widget.api.enableGroups || c.type != 'group').toList();
 
         final leftPane = Scaffold(
           backgroundColor: ct.scaffold,
@@ -96,7 +97,6 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         tabs: const [
                           Tab(text: 'CHATS'),
-                          Tab(text: 'GROUPS'),
                           Tab(text: 'STATUS'),
                         ],
                       ),
@@ -109,34 +109,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   controller: _tabController,
                   children: [
                     _ChatTab(
-                      chats: allConvs,
-                      ct: ct,
-                      isDark: isDark,
-                      selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-                      showSearch: widget.api.searchConversations,
-                      pinningEnabled: widget.api.pinConversations,
-                      showOnlineStatus: widget.api.showOnlineStatus,
-                      onChatSelected: (chat) {
-                        if (isLarge) {
-                          setState(() {
-                            _selectedChat = chat;
-                          });
-                        } else {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => Conversation(
-                                chat: chat,
-                                isEmbedded: false,
-                                api: widget.api,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      onRefresh: () => setState(() {}),
-                    ),
-                    _ChatTab(
-                      chats: allConvs.where((c) => c.type == 'group').toList(),
+                      chats: conversations,
                       ct: ct,
                       isDark: isDark,
                       selectedChatId: isLarge ? _selectedChat?.conversationId : null,
@@ -166,7 +139,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   ],
                 )
               : _ChatTab(
-                  chats: allConvs.where((c) => c.type != 'group').toList(),
+                  chats: conversations,
                   ct: ct,
                   isDark: isDark,
                   selectedChatId: isLarge ? _selectedChat?.conversationId : null,
@@ -261,6 +234,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   chat: _selectedChat!,
                   api: widget.api,
                   isEmbedded: true,
+                  onViewProfile: () => setState(() => _showProfile = !_showProfile),
                 ),
         );
 
@@ -365,6 +339,7 @@ class _ChatTabState extends State<_ChatTab> {
   List<AcChatConversation> get _filteredChats {
     final api = AcChatApiProvider.of(context);
     return widget.chats.where((c) {
+      if (!api.enableGroups && c.type == 'group') return false;
       final isGroup = c.type == 'group';
       AcChatUser? otherUser;
       if (!isGroup) {

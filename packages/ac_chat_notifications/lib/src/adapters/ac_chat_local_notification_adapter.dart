@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'package:ac_chat/ac_chat.dart';
 import '../models/ac_chat_notification_payload.dart';
 import '../services/ac_chat_notification_service.dart';
 
 /// A delegate-based notification service that handles in-app notification routing,
 /// listener registration, and device tokens with strictly named parameters.
 class AcChatLocalNotificationAdapter implements AcChatNotificationService {
+  final AcChatConfig? config;
+  String? activeConversationId;
+
   final Future<void> Function({required AcChatNotificationPayload payload})? onDisplayNotification;
   final Future<void> Function({required String notificationId})? onCancelNotification;
   final Future<void> Function({required int count})? onSetBadgeCount;
@@ -23,6 +27,8 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
   final Map<String, AcChatNotificationPayload> _activeNotifications = {};
 
   AcChatLocalNotificationAdapter({
+    this.config,
+    this.activeConversationId,
     this.onDisplayNotification,
     this.onCancelNotification,
     this.onSetBadgeCount,
@@ -74,6 +80,14 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
   Future<void> displayNotification({
     required AcChatNotificationPayload payload,
   }) async {
+    // Suppress notification if foreground conversation matches and suppression is enabled
+    final suppressForeground = config?.enableForegroundNotificationSuppression ?? true;
+    if (suppressForeground &&
+        activeConversationId != null &&
+        activeConversationId == payload.conversationId) {
+      return;
+    }
+
     _activeNotifications[payload.notificationId] = payload;
     if (onDisplayNotification != null) {
       await onDisplayNotification!(payload: payload);
@@ -108,6 +122,9 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
   Future<void> setBadgeCount({
     required int count,
   }) async {
+    if (config != null && !config!.enableBadgeCountSync) {
+      return;
+    }
     if (onSetBadgeCount != null) {
       await onSetBadgeCount!(count: count);
     }

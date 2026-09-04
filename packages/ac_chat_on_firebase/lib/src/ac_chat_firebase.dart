@@ -162,6 +162,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       final payload = FirestoreExtensions.messageToUpdatePayload(
         message,
         memberIds: conv?.memberIds ?? [_currentUserId, ...targets],
+        conversationName: conv?.conversationName,
         groupName: conv?.groupName,
         isGroup: conv?.type == 'group',
       );
@@ -210,9 +211,17 @@ class AcChatFirebase implements AcChatSyncChannel {
           FirestoreExtensions.fUpdateType: AcChatUpdateType.conversation,
           FirestoreExtensions.fConversationId: conversation.conversationId,
           FirestoreExtensions.fMemberIds: allMembers.toList(),
+          FirestoreExtensions.fConversationName: conversation.conversationName,
           FirestoreExtensions.fGroupName: conversation.groupName,
+          if (conversation.conversationAvatar != null)
+            FirestoreExtensions.fConversationAvatar: conversation.conversationAvatar,
+          if (conversation.conversationDescription != null)
+            FirestoreExtensions.fConversationDescription: conversation.conversationDescription,
+          FirestoreExtensions.fCreatedBy: conversation.createdBy,
+          FirestoreExtensions.fCreatedAt: Timestamp.fromDate(conversation.createdAtUtc),
           FirestoreExtensions.fIsGroup: conversation.type == 'group',
-          FirestoreExtensions.fTimestamp: Timestamp.fromDate(conversation.lastTime),
+          FirestoreExtensions.fTimestamp: Timestamp.fromDate(conversation.lastTimeUtc),
+          FirestoreExtensions.fLastTime: Timestamp.fromDate(conversation.lastTimeUtc),
           FirestoreExtensions.fSenderId: _currentUserId,
           if (notificationPayload != null) 'notification': notificationPayload,
         });
@@ -237,6 +246,25 @@ class AcChatFirebase implements AcChatSyncChannel {
         _notifyDataChanged();
       }
     }
+
+    final msgs = _messages[conversationId] ?? [];
+    final unreadMsgs = msgs.where((m) =>
+        m.senderId != currentUserId &&
+        m.senderId.isNotEmpty &&
+        m.status != 'read' &&
+        (messageIds == null || messageIds.contains(m.messageId))).toList();
+
+    final Map<String, List<String>> bySender = {};
+    for (final m in unreadMsgs) {
+      bySender.putIfAbsent(m.senderId, () => []).add(m.messageId);
+    }
+    for (final entry in bySender.entries) {
+      await sendReadReceipt(
+        conversationId: conversationId,
+        senderId: entry.key,
+        messageIds: entry.value,
+      );
+    }
   }
 
   @override
@@ -259,7 +287,7 @@ class AcChatFirebase implements AcChatSyncChannel {
         FirestoreExtensions.fConversationId: conversationId,
         FirestoreExtensions.fMessageId: messageId,
         FirestoreExtensions.fSenderId: _currentUserId,
-        FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
+        FirestoreExtensions.fTimestamp: Timestamp.now(),
         FirestoreExtensions.fData: {
           FirestoreExtensions.fStatus: 'delivered',
           'delivered_time': DateTime.now().millisecondsSinceEpoch,
@@ -294,7 +322,7 @@ class AcChatFirebase implements AcChatSyncChannel {
           FirestoreExtensions.fConversationId: conversationId,
           FirestoreExtensions.fMessageId: msgId,
           FirestoreExtensions.fSenderId: _currentUserId,
-          FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
+          FirestoreExtensions.fTimestamp: Timestamp.now(),
           FirestoreExtensions.fData: {
             FirestoreExtensions.fStatus: 'read',
             'read_time': nowMs,
@@ -673,6 +701,33 @@ class AcChatFirebase implements AcChatSyncChannel {
           if (updatePayload.containsKey(FirestoreExtensions.fStatus)) {
             existingMsg.status = updatePayload[FirestoreExtensions.fStatus] as String;
           }
+          if (updatePayload.containsKey('delivered_time')) {
+            final dt = updatePayload['delivered_time'];
+            existingMsg.deliveredTime = dt is int
+                ? DateTime.fromMillisecondsSinceEpoch(dt, isUtc: true)
+                : (dt is Timestamp ? dt.toDate().toUtc() : (dt is DateTime ? dt.toUtc() : (dt is String ? parseUtc(dt) : null)));
+          }
+          if (updatePayload.containsKey('read_time')) {
+            final rt = updatePayload['read_time'];
+            existingMsg.readTime = rt is int
+                ? DateTime.fromMillisecondsSinceEpoch(rt, isUtc: true)
+                : (rt is Timestamp ? rt.toDate().toUtc() : (rt is DateTime ? rt.toUtc() : (rt is String ? parseUtc(rt) : null)));
+          }
+          if (updatePayload.containsKey('reactions')) {
+            final raw = updatePayload['reactions'];
+            if (raw is Map) {
+              existingMsg.reactions = raw.map((k, v) => MapEntry(
+                    k.toString(),
+                    (v as List).map((e) => e.toString()).toList(),
+                  ));
+            }
+          }
+          if (updatePayload.containsKey('edited_time')) {
+            final et = updatePayload['edited_time'];
+            existingMsg.editedTimeUtc = et is int
+                ? DateTime.fromMillisecondsSinceEpoch(et, isUtc: true)
+                : (et is Timestamp ? et.toDate().toUtc() : (et is DateTime ? et.toUtc() : (et is String ? parseUtc(et) : null)));
+          }
           _upsertMessage(convId, existingMsg);
 
           if (_isChannelMode) {
@@ -686,6 +741,14 @@ class AcChatFirebase implements AcChatSyncChannel {
             }
           } else {
             _notifyDataChanged();
+          }
+        } else if (_isChannelMode) {
+          if (updatePayload.containsKey(FirestoreExtensions.fStatus)) {
+            _onMessageStatusUpdated?.call(
+              messageId: msgId,
+              conversationId: convId,
+              status: updatePayload[FirestoreExtensions.fStatus] as String,
+            );
           }
         }
       } else if (type == AcChatUpdateType.read || type == 'read') {
@@ -736,8 +799,23 @@ class AcChatFirebase implements AcChatSyncChannel {
     bool? showConversationMenu,
     bool? showOnlineStatus,
     bool? readOnly,
+    bool? enableTypingIndicator,
+    bool? enableTyping,
+    bool? enableGroups,
+    int? maxGroupParticipants,
   }) {
+    final effectiveConfig = const AcChatConfig().copyWith(
+      enableTypingIndicators: enableTypingIndicator ?? true,
+      enableTextMessaging: enableTyping ?? (!(readOnly ?? false)),
+      enableGroupConversations: enableGroups ?? true,
+      maxGroupParticipants: maxGroupParticipants ?? 50,
+      enableConversationPinning: pinConversations ?? true,
+      enableConversationSearch: searchConversations ?? true,
+      enableOnlinePresence: showOnlineStatus ?? true,
+    );
+
     return AcChatApi(
+      config: effectiveConfig,
       theme: theme,
       getCurrentUser: _getCurrentUser,
       getUsers: _getUsers,
@@ -775,6 +853,10 @@ class AcChatFirebase implements AcChatSyncChannel {
       showConversationMenu: showConversationMenu ?? true,
       showOnlineStatus: showOnlineStatus ?? true,
       readOnly: readOnly ?? false,
+      enableTypingIndicator: enableTypingIndicator ?? true,
+      enableTyping: enableTyping ?? true,
+      enableGroups: enableGroups ?? true,
+      maxGroupParticipants: maxGroupParticipants ?? 50,
     );
   }
 

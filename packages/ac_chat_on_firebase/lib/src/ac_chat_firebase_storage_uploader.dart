@@ -7,10 +7,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 class AcChatFirebaseStorageUploader implements AcChatMediaUploader {
   final FirebaseStorage _storage;
   final String storagePathPrefix;
+  final AcChatConfig? config;
 
   AcChatFirebaseStorageUploader({
     FirebaseStorage? storage,
     this.storagePathPrefix = 'chat_media',
+    this.config,
   }) : _storage = storage ?? FirebaseStorage.instance;
 
   @override
@@ -22,6 +24,12 @@ class AcChatFirebaseStorageUploader implements AcChatMediaUploader {
     String? mimeType,
     void Function({required double progress})? onProgress,
   }) async {
+    if (config != null && bytes.lengthInBytes > config!.maxAttachmentSizeBytes) {
+      throw ArgumentError(
+        'Attachment size (${bytes.lengthInBytes} bytes) exceeds configured limit (${config!.maxAttachmentSizeBytes} bytes)',
+      );
+    }
+
     final cleanPrefix = storagePathPrefix.isEmpty ? '' : '$storagePathPrefix/';
     final path = '$cleanPrefix$conversationId/$messageId/$fileName';
     final ref = _storage.ref().child(path);

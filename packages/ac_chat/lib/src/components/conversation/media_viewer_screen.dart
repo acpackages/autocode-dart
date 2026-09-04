@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io' as io;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/ac_chat.dart';
 
 class MediaViewerScreen extends StatefulWidget {
@@ -98,24 +100,19 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           IconButton(
             icon: Icon(Icons.share_rounded, color: widget.ct.white),
             onPressed: () {
+              final text = widget.message.text;
+              Clipboard.setData(ClipboardData(text: text));
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Sharing $title...'),
-                  duration: const Duration(seconds: 1),
+                const SnackBar(
+                  content: Text('File link copied to clipboard'),
+                  duration: Duration(seconds: 2),
                 ),
               );
             },
           ),
           IconButton(
             icon: Icon(Icons.file_download_outlined, color: widget.ct.white),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Downloading $title to downloads directory...'),
-                  duration: const Duration(seconds: 5),
-                ),
-              );
-            },
+            onPressed: () => _downloadMedia(context),
           ),
         ],
       ),
@@ -425,326 +422,263 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       );
     } else {
       // Document type
-      final fileName = widget.message.fileName ?? 'Document.pdf';
-      final lowerName = fileName.toLowerCase();
-      
-      String previewTitle = 'Document Preview';
-      List<Widget> pages = [];
-
-      if (lowerName.endsWith('.pdf')) {
-        previewTitle = 'Invoice Details';
-        pages = [
-          _buildMockPdfPage(1, 'Document Preview - Invoice', 'Invoice ID: INV-2026-098\nDate: 2026-08-01\nDue Date: 2026-08-15', [
-            _buildTableRow('Consulting Services', '15 hrs', '10,500'),
-            _buildTableRow('Technical Services', '1 Unit', '15,000'),
-            _buildTableRow('Support Plan', '1 Month', '2,500'),
-          ], 'Total: 28,000'),
-          _buildMockPdfPage(2, 'Payment Instructions', 'Please wire payment to the following bank details:\nBank: Commercial Bank\nA/C: 100200300400\nIFSC: BANK0001', [], ''),
-          _buildMockPdfPage(3, 'Terms & Conditions', '1. Payments are due within 15 days of invoice date.\n2. Standard terms apply.\n3. Thank you for your business!', [], ''),
-        ];
-      } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
-        previewTitle = 'Q2 Expense Sheet';
-        pages = [
-          _buildMockExcelPage('Office Splits', [
-            ['Category', 'Amount', 'Date', 'Paid By'],
-            ['Office Rent', '₹45,000', '01 Jun', 'HDFC Bank'],
-            ['Electricity', '₹4,200', '03 Jun', 'GPay'],
-            ['Snacks & Tea', '₹2,100', '08 Jun', 'Cash'],
-            ['WiFi Router', '₹1,500', '12 Jun', 'Credit Card'],
-            ['Software Subs', '₹8,500', '15 Jun', 'Credit Card'],
-          ]),
-          _buildMockExcelPage('Marketing', [
-            ['Campaign', 'Budget', 'Spent', 'ROAS'],
-            ['Google Ads', '₹25,000', '₹24,100', '2.8x'],
-            ['Meta Ads', '₹35,000', '₹35,000', '3.4x'],
-            ['Newsletters', '₹5,000', '₹4,800', '1.5x'],
-            ['Sponsorships', '₹15,000', '₹15,000', '1.1x'],
-          ]),
-        ];
-      } else {
-        // Word, Zip, Text files
-        previewTitle = fileName;
-        pages = [
-          _buildMockTextPage(fileName, text),
-        ];
-      }
-
-      return Container(
-        color: widget.ct.black,
-        child: Column(
-          children: [
-            // Top Reader Options
-            Container(
-              color: widget.ct.greyShade900,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    previewTitle,
-                    style: TextStyle(color: widget.ct.white, fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.zoom_in, color: widget.ct.white70, size: 20),
-                      const SizedBox(width: 16),
-                      Text(
-                        'Page $_currentPage of ${pages.length}',
-                        style: TextStyle(color: widget.ct.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // Document Page View Canvas
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (idx) {
-                  setState(() {
-                    _currentPage = idx + 1;
-                  });
-                },
-                children: pages,
-              ),
-            ),
-            // Navigation Dots/Arrows
-            if (pages.length > 1)
-              Container(
-                color: widget.ct.greyShade900,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.chevron_left, color: widget.ct.white),
-                      onPressed: _currentPage > 1
-                          ? () {
-                              _pageController.previousPage(
-                                  duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-                            }
-                          : null,
-                    ),
-                    ...List.generate(pages.length, (index) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _currentPage == index + 1 ? widget.ct.activeTabColor : widget.ct.divider,
-                          shape: BoxShape.circle,
-                        ),
-                      );
-                    }),
-                    IconButton(
-                      icon: Icon(Icons.chevron_right, color: widget.ct.white),
-                      onPressed: _currentPage < pages.length
-                          ? () {
-                              _pageController.nextPage(
-                                  duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-                            }
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
+      return _buildDocumentViewer(context);
     }
   }
 
-  Widget _buildMockPdfPage(int pageNum, String header, String metadata, List<Widget> items, String footer) {
+  Widget _buildDocumentViewer(BuildContext context) {
+    final fileName = widget.message.fileName ?? 'Document.pdf';
+    final lowerName = fileName.toLowerCase();
+    final fileSize = widget.message.fileSize ?? '';
+
+    Color iconColor;
+    IconData iconData;
+    Color bgColor;
+
+    if (lowerName.endsWith('.pdf')) {
+      iconColor = widget.ct.docIconPdf;
+      iconData = Icons.picture_as_pdf_rounded;
+      bgColor = widget.ct.docBgPdf;
+    } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      iconColor = widget.ct.docIconExcel;
+      iconData = Icons.grid_on_rounded;
+      bgColor = widget.ct.docBgExcel;
+    } else if (lowerName.endsWith('.docx') || lowerName.endsWith('.doc')) {
+      iconColor = widget.ct.docIconWord;
+      iconData = Icons.description_rounded;
+      bgColor = widget.ct.docBgWord;
+    } else if (lowerName.endsWith('.zip') || lowerName.endsWith('.rar')) {
+      iconColor = widget.ct.docIconPpt;
+      iconData = Icons.folder_zip_rounded;
+      bgColor = widget.ct.docBgPpt;
+    } else {
+      iconColor = widget.ct.activeTabColor;
+      iconData = Icons.article_rounded;
+      bgColor = widget.ct.activeTabColor.withOpacity(0.15);
+    }
+
+    final hasLocal = !kIsWeb &&
+        widget.message.localPath != null &&
+        io.File(widget.message.localPath!).existsSync();
+
     return Center(
       child: Container(
         margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 420),
         decoration: BoxDecoration(
-          color: widget.ct.white,
-          borderRadius: BorderRadius.circular(8),
+          color: widget.ct.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: widget.ct.divider.withOpacity(0.2)),
           boxShadow: [
             BoxShadow(
-              color: widget.ct.black.withOpacity(0.5),
-              blurRadius: 10,
+              color: widget.ct.black.withOpacity(0.4),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  header,
-                  style: TextStyle(color: widget.ct.black, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Page $pageNum',
-                  style: TextStyle(color: widget.ct.grey, fontSize: 12),
-                ),
-              ],
-            ),
-            Divider(color: widget.ct.black54, thickness: 1.5, height: 20),
-            Text(
-              metadata,
-              style: TextStyle(color: widget.ct.black54, fontSize: 12, height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            if (items.isNotEmpty) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Description', style: TextStyle(color: widget.ct.black54, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('Qty', style: TextStyle(color: widget.ct.black54, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('Amount', style: TextStyle(color: widget.ct.black54, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(16),
               ),
-              Divider(color: widget.ct.black38),
-              ...items,
+              child: Icon(iconData, color: iconColor, size: 44),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              fileName,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: widget.ct.text,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (fileSize.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                fileSize,
+                style: TextStyle(
+                  color: widget.ct.subText,
+                  fontSize: 13,
+                ),
+              ),
             ],
-            const Spacer(),
-            if (footer.isNotEmpty)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  footer,
-                  style: TextStyle(color: widget.ct.black, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: (hasLocal ? Colors.green : widget.ct.activeTabColor).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-            Divider(color: widget.ct.grey),
-            Center(
               child: Text(
-                'Confidential Document',
-                style: TextStyle(color: widget.ct.grey, fontSize: 9),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTableRow(String desc, String qty, String amt) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(desc, style: TextStyle(color: widget.ct.black54, fontSize: 11))),
-          Text(qty, style: TextStyle(color: widget.ct.black54, fontSize: 11)),
-          const SizedBox(width: 40),
-          Text(amt, style: TextStyle(color: widget.ct.black, fontWeight: FontWeight.w600, fontSize: 11)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMockExcelPage(String sheetName, List<List<String>> grid) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: widget.ct.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Sheet Tabs
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: widget.ct.docIconExcel, // Excel green
-              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.table_chart_outlined, color: widget.ct.white, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  sheetName,
-                  style: TextStyle(color: widget.ct.white, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Table(
-                  border: TableBorder.all(color: widget.ct.grey),
-                  defaultColumnWidth: const FixedColumnWidth(100),
-                  children: List.generate(grid.length, (rowIdx) {
-                    final row = grid[rowIdx];
-                    final isHeader = rowIdx == 0;
-                    return TableRow(
-                      decoration: BoxDecoration(
-                        color: isHeader ? widget.ct.grey : widget.ct.white,
-                      ),
-                      children: List.generate(row.length, (colIdx) {
-                        final val = row[colIdx];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          child: Text(
-                            val,
-                            style: TextStyle(
-                              color: widget.ct.black54,
-                              fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 11,
-                            ),
-                          ),
-                        );
-                      }),
-                    );
-                  }),
+                hasLocal ? 'Saved locally' : 'Cloud attachment',
+                style: TextStyle(
+                  color: hasLocal ? Colors.green : widget.ct.activeTabColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMockTextPage(String title, String content) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.ct.grey,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: widget.ct.white10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Document Type: ${title.split('.').last.toUpperCase()}',
-              style: TextStyle(color: widget.ct.activeTabColor, fontWeight: FontWeight.bold, fontSize: 12),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                label: const Text('Open Document', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.ct.activeTabColor,
+                  foregroundColor: widget.ct.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: _openDocument,
+              ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Raw Content URL:\n$content',
-              style: TextStyle(color: widget.ct.white70, fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-            Divider(color: widget.ct.white12, height: 24),
-            Text(
-              'Mock Metadata:',
-              style: TextStyle(color: widget.ct.white, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '- Document verified: Yes\n- Secure Signature: Valid\n- Document scanned and verified\n- Status: Ready',
-              style: TextStyle(color: widget.ct.white70, fontSize: 12, height: 1.6),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.download_rounded, size: 20),
+                label: const Text('Save to Downloads'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: widget.ct.text,
+                  side: BorderSide(color: widget.ct.divider),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => _downloadMedia(context),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _openDocument() async {
+    final text = widget.message.text;
+    final localPath = widget.message.localPath;
+
+    try {
+      if (localPath != null && !kIsWeb && io.File(localPath).existsSync()) {
+        final uri = Uri.file(localPath);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+          return;
+        }
+      }
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        final uri = Uri.parse(text);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (!kIsWeb && io.File(text).existsSync()) {
+        final uri = Uri.file(text);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+          return;
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot open document: file path or URL not accessible.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening document: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadMedia(BuildContext context) async {
+    final message = widget.message;
+    final text = message.text;
+    final fileName = message.fileName ??
+        (text.isNotEmpty && !text.startsWith('http')
+            ? text.split(RegExp(r'[/\\]')).last
+            : 'downloaded_attachment');
+
+    try {
+      Uint8List? bytes = message.byteData;
+      if (bytes == null || bytes.isEmpty) {
+        if (!kIsWeb && message.localPath != null && io.File(message.localPath!).existsSync()) {
+          bytes = await io.File(message.localPath!).readAsBytes();
+        } else if (text.startsWith('http://') || text.startsWith('https://')) {
+          final request = await io.HttpClient().getUrl(Uri.parse(text));
+          final response = await request.close();
+          final chunks = <Uint8List>[];
+          await for (final chunk in response) {
+            chunks.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+          }
+          final totalLen = chunks.fold<int>(0, (sum, c) => sum + c.length);
+          final fullBytes = Uint8List(totalLen);
+          var offset = 0;
+          for (final c in chunks) {
+            fullBytes.setRange(offset, offset + c.length, c);
+            offset += c.length;
+          }
+          bytes = fullBytes;
+        } else if (!kIsWeb && io.File(text).existsSync()) {
+          bytes = await io.File(text).readAsBytes();
+        }
+      }
+
+      if (bytes == null || bytes.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No data found to download.')),
+          );
+        }
+        return;
+      }
+
+      String saveDir = '';
+      if (!kIsWeb) {
+        if (io.Platform.isWindows) {
+          final userProfile = io.Platform.environment['USERPROFILE'] ?? 'C:\\';
+          saveDir = '$userProfile\\Downloads';
+        } else {
+          final home = io.Platform.environment['HOME'] ?? '';
+          saveDir = home.isNotEmpty ? '$home/Downloads' : '';
+        }
+      }
+
+      if (saveDir.isNotEmpty) {
+        final targetDir = io.Directory(saveDir);
+        if (!targetDir.existsSync()) {
+          targetDir.createSync(recursive: true);
+        }
+        final targetPath = '$saveDir${io.Platform.pathSeparator}$fileName';
+        final f = io.File(targetPath);
+        await f.writeAsBytes(bytes);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved to Downloads: $fileName')),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Downloaded ${bytes.length} bytes successfully.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e')),
+        );
+      }
+    }
   }
 }

@@ -11,25 +11,25 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Construct default dark and light themes (can use AcChatTheme(isDark))
-    final chatTheme = const AcChatTheme(false);
+    // Construct default dark and light themes (can use AcChatTheme(isDark: false))
+    final chatTheme = const AcChatTheme(isDark: false);
 
     final api = AcChatApi(
       theme: chatTheme,
       enableGroupsAndStatuses: true,
       getCurrentUser: () => mock.currentUserInstance,
       getUsers: () => mock.users.map((u) => AcChatUser.instanceFromJson(jsonData: u)).toList(),
-      getUserById: (userId) => mock.getUserById(userId),
+      getUserById: ({required userId}) => mock.getUserById(userId),
       getConversations: () => mock.chats.map((c) => AcChatConversation.instanceFromJson(jsonData: c)).toList(),
-      getConversationUsers: (conversationId) => mock.getConversationUsers(conversationId),
-      markAsRead: (conversationId) {
+      getConversationUsers: ({required conversationId}) => mock.getConversationUsers(conversationId),
+      markAsRead: ({required conversationId}) {
         final idx = mock.chats.indexWhere((c) => c['id'].toString() == conversationId);
         if (idx != -1) {
           mock.chats[idx] = {...mock.chats[idx], 'unread': 0};
         }
       },
-      insertConversation: (newConv, otherUserId) => mock.insertConversation(newConv, otherUserId),
-      getMessages: (conversationId) {
+      insertConversation: ({required newConv, required otherUserId}) => mock.insertConversation(newConv, otherUserId),
+      getMessages: ({required conversationId}) {
         final list = mock.messages
             .where((m) => m['chatId'].toString() == conversationId)
             .map((m) => AcChatMessage.instanceFromJson(jsonData: m))
@@ -37,8 +37,8 @@ class MyApp extends StatelessWidget {
         list.sort((a, b) => a.time.compareTo(b.time));
         return list;
       },
-      sendMessage: (newMsg) => mock.insertMessage(newMsg),
-      updateMessage: (messageId, data) => mock.updateMessage(messageId, data),
+      sendMessage: ({required message}) => mock.insertMessage(message),
+      updateMessage: ({required messageId, required data}) => mock.updateMessage(messageId, data),
     );
 
     return MaterialApp(

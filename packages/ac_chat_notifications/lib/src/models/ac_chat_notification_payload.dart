@@ -1,3 +1,5 @@
+import 'package:ac_chat/ac_chat.dart';
+
 /// Universal data payload representing a chat notification.
 ///
 /// Designed to be serialized across push notifications (FCM, OneSignal, APNs)
@@ -11,12 +13,14 @@ class AcChatNotificationPayload {
   final String? senderAvatar;
   final String body;
   final bool isGroup;
-  final String? groupName;
+  final String? conversationName;
+  String? get groupName => conversationName;
+
   final int? badgeCount;
   final Map<String, dynamic> customData;
   final DateTime timestamp;
 
-  const AcChatNotificationPayload({
+  AcChatNotificationPayload({
     required this.notificationId,
     required this.conversationId,
     required this.messageId,
@@ -25,11 +29,13 @@ class AcChatNotificationPayload {
     this.senderAvatar,
     required this.body,
     this.isGroup = false,
-    this.groupName,
+    String? conversationName,
+    String? groupName,
     this.badgeCount,
     this.customData = const {},
-    required this.timestamp,
-  });
+    required DateTime timestamp,
+  })  : conversationName = conversationName ?? groupName,
+        timestamp = timestamp.isUtc ? timestamp : timestamp.toUtc();
 
   Map<String, dynamic> toJson() {
     return {
@@ -41,23 +47,20 @@ class AcChatNotificationPayload {
       if (senderAvatar != null) 'sender_avatar': senderAvatar,
       'body': body,
       'is_group': isGroup,
-      if (groupName != null) 'group_name': groupName,
+      if (conversationName != null) ...{
+        'conversation_name': conversationName,
+        'group_name': conversationName,
+      },
       if (badgeCount != null) 'badge_count': badgeCount,
       'custom_data': customData,
       'timestamp': timestamp.millisecondsSinceEpoch,
+      'timestamp_iso': formatUtcIso(timestamp),
     };
   }
 
   factory AcChatNotificationPayload.fromJson({required Map<String, dynamic> json}) {
-    final rawTimestamp = json['timestamp'];
-    DateTime parsedTime;
-    if (rawTimestamp is int) {
-      parsedTime = DateTime.fromMillisecondsSinceEpoch(rawTimestamp);
-    } else if (rawTimestamp is String) {
-      parsedTime = DateTime.tryParse(rawTimestamp) ?? DateTime.now();
-    } else {
-      parsedTime = DateTime.now();
-    }
+    final rawTime = json['timestamp_iso'] ?? json['timestamp'];
+    final parsedTime = parseUtc(rawTime);
 
     return AcChatNotificationPayload(
       notificationId: (json['notification_id'] as String?) ?? '',
@@ -68,7 +71,7 @@ class AcChatNotificationPayload {
       senderAvatar: json['sender_avatar'] as String?,
       body: (json['body'] as String?) ?? '',
       isGroup: (json['is_group'] as bool?) ?? false,
-      groupName: json['group_name'] as String?,
+      conversationName: (json['conversation_name'] ?? json['group_name']) as String?,
       badgeCount: json['badge_count'] as int?,
       customData: (json['custom_data'] as Map<String, dynamic>?) ?? {},
       timestamp: parsedTime,

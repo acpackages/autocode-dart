@@ -6,7 +6,7 @@
 const String kAcChatDataDictionaryJson = r'''
 {
   "name": "ac_chat",
-  "version": 2,
+  "version": 3,
   "tables": {
     "users": {
       "tableName": "users",
@@ -47,6 +47,21 @@ const String kAcChatDataDictionaryJson = r'''
         "avatar": {
           "columnName": "avatar",
           "columnType": "STRING"
+        },
+        "bio": {
+          "columnName": "bio",
+          "columnType": "STRING"
+        },
+        "last_seen_utc": {
+          "columnName": "last_seen_utc",
+          "columnType": "INTEGER"
+        },
+        "is_online": {
+          "columnName": "is_online",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
         }
       }
     },
@@ -72,6 +87,22 @@ const String kAcChatDataDictionaryJson = r'''
         "group_name": {
           "columnName": "group_name",
           "columnType": "STRING"
+        },
+        "group_description": {
+          "columnName": "group_description",
+          "columnType": "STRING"
+        },
+        "group_avatar": {
+          "columnName": "group_avatar",
+          "columnType": "STRING"
+        },
+        "created_by": {
+          "columnName": "created_by",
+          "columnType": "STRING"
+        },
+        "created_at_utc": {
+          "columnName": "created_at_utc",
+          "columnType": "INTEGER"
         },
         "last_message": {
           "columnName": "last_message",
@@ -100,6 +131,48 @@ const String kAcChatDataDictionaryJson = r'''
           "columnName": "unread",
           "columnType": "INTEGER",
           "columnProperties": {
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "is_pinned": {
+          "columnName": "is_pinned",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "is_muted": {
+          "columnName": "is_muted",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        }
+      }
+    },
+    "user_conversation_prefs": {
+      "tableName": "user_conversation_prefs",
+      "tableColumns": {
+        "conversation_id": {
+          "columnName": "conversation_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
+          }
+        },
+        "user_id": {
+          "columnName": "user_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
+          }
+        },
+        "unread_count": {
+          "columnName": "unread_count",
+          "columnType": "INTEGER",
+          "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
           }
@@ -118,6 +191,70 @@ const String kAcChatDataDictionaryJson = r'''
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "mute_until_utc": {
+          "columnName": "mute_until_utc",
+          "columnType": "INTEGER"
+        },
+        "is_archived": {
+          "columnName": "is_archived",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "is_hidden": {
+          "columnName": "is_hidden",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "role": {
+          "columnName": "role",
+          "columnType": "STRING",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "member" }
+          }
+        },
+        "last_read_message_id": {
+          "columnName": "last_read_message_id",
+          "columnType": "STRING"
+        },
+        "last_read_time_utc": {
+          "columnName": "last_read_time_utc",
+          "columnType": "INTEGER"
+        }
+      },
+      "tableProperties": {
+        "CONSTRAINTS": {
+          "propertyName": "CONSTRAINTS",
+          "propertyValue": [
+            { "type": "COMPOSITE_UNIQUE_KEY", "columns": ["conversation_id", "user_id"] }
+          ]
+        }
+      }
+    },
+    "blocked_users": {
+      "tableName": "blocked_users",
+      "tableColumns": {
+        "user_id": {
+          "columnName": "user_id",
+          "columnType": "STRING",
+          "columnProperties": {
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+            "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
+          }
+        },
+        "blocked_at_utc": {
+          "columnName": "blocked_at_utc",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
         }
       }
@@ -286,6 +423,30 @@ const String kAcChatDataDictionaryJson = r'''
         "reactions_json": {
           "columnName": "reactions_json",
           "columnType": "TEXT"
+        },
+        "is_starred": {
+          "columnName": "is_starred",
+          "columnType": "INTEGER",
+          "columnProperties": {
+            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
+          }
+        },
+        "mentions_json": {
+          "columnName": "mentions_json",
+          "columnType": "TEXT"
+        },
+        "pinned_until_utc": {
+          "columnName": "pinned_until_utc",
+          "columnType": "INTEGER"
+        },
+        "scheduled_time_utc": {
+          "columnName": "scheduled_time_utc",
+          "columnType": "INTEGER"
+        },
+        "expires_at_utc": {
+          "columnName": "expires_at_utc",
+          "columnType": "INTEGER"
         }
       }
     },

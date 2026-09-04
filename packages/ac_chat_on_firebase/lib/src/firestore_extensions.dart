@@ -14,12 +14,20 @@ class FirestoreExtensions {
   static const String fEmail = 'email';
   static const String fPhone = 'phone';
   static const String fAvatar = 'avatar';
+  static const String fBio = 'bio';
+  static const String fLastSeen = 'last_seen';
+  static const String fIsOnline = 'is_online';
 
   // ─── Conversation field names ──────────────────────────────────────────────
 
   static const String fMemberIds = 'member_ids';
   static const String fIsGroup = 'is_group';
-  static const String fGroupName = 'group_name';
+  static const String fConversationName = 'conversation_name';
+  static const String fGroupName = 'group_name'; // backward compatibility alias
+  static const String fConversationAvatar = 'conversation_avatar';
+  static const String fConversationDescription = 'conversation_description';
+  static const String fCreatedBy = 'created_by';
+  static const String fCreatedAt = 'created_at';
   static const String fLastMessage = 'last_message';
   static const String fLastMessageType = 'last_message_type';
   static const String fLastTime = 'last_time';
@@ -46,6 +54,16 @@ class FirestoreExtensions {
   static const String fFileName = 'file_name';
   static const String fFileSize = 'file_size';
   static const String fReplyToId = 'reply_to_id';
+  static const String fDeliveredTime = 'delivered_time';
+  static const String fReadTime = 'read_time';
+  static const String fEditedTime = 'edited_time';
+  static const String fReactions = 'reactions';
+  static const String fMentions = 'mentions';
+  static const String fIsStarred = 'is_starred';
+  static const String fPinnedUntil = 'pinned_until';
+  static const String fScheduledTime = 'scheduled_time';
+  static const String fExpiresAt = 'expires_at';
+  static const String fIsDeleted = 'is_deleted';
 
   // ─── User Update field names ───────────────────────────────────────────────
 
@@ -59,11 +77,29 @@ class FirestoreExtensions {
 
   FirestoreExtensions._(); // prevent instantiation — static helpers only
 
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  static DateTime _parseUtc(dynamic raw, {DateTime? fallback}) {
+    if (raw == null) return fallback ?? DateTime.now().toUtc();
+    if (raw is Timestamp) return raw.toDate().toUtc();
+    if (raw is DateTime) return raw.toUtc();
+    if (raw is int) return DateTime.fromMillisecondsSinceEpoch(raw, isUtc: true);
+    if (raw is String) return parseUtc(raw);
+    return fallback ?? DateTime.now().toUtc();
+  }
+
+  static DateTime? _parseNullableUtc(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Timestamp) return raw.toDate().toUtc();
+    if (raw is DateTime) return raw.toUtc();
+    if (raw is int) return DateTime.fromMillisecondsSinceEpoch(raw, isUtc: true);
+    if (raw is String) return parseUtcOrNull(raw);
+    return null;
+  }
+
   // ─── AcChatUser ───────────────────────────────────────────────────────────
 
   /// Converts a Firestore document snapshot into an [AcChatUser].
-  ///
-  /// The document ID is used as the [AcChatUser.userId].
   static AcChatUser userFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
     final user = AcChatUser();
@@ -73,6 +109,9 @@ class FirestoreExtensions {
     user.email = (data[fEmail] as String?) ?? '';
     user.phone = data[fPhone] as String?;
     user.avatar = data[fAvatar] as String?;
+    user.bio = data[fBio] as String?;
+    user.isOnline = (data[fIsOnline] as bool?) ?? false;
+    user.lastSeenUtc = _parseNullableUtc(data[fLastSeen]);
     return user;
   }
 
@@ -88,6 +127,9 @@ class FirestoreExtensions {
     user.email = (data[fEmail] as String?) ?? '';
     user.phone = data[fPhone] as String?;
     user.avatar = data[fAvatar] as String?;
+    user.bio = data[fBio] as String?;
+    user.isOnline = (data[fIsOnline] as bool?) ?? false;
+    user.lastSeenUtc = _parseNullableUtc(data[fLastSeen]);
     return user;
   }
 
@@ -100,6 +142,9 @@ class FirestoreExtensions {
       fEmail: user.email,
       if (user.phone != null) fPhone: user.phone,
       if (user.avatar != null) fAvatar: user.avatar,
+      if (user.bio != null && user.bio!.isNotEmpty) fBio: user.bio,
+      if (user.lastSeenUtc != null) fLastSeen: Timestamp.fromDate(user.lastSeenUtc!),
+      fIsOnline: user.isOnline,
     };
   }
 
@@ -117,7 +162,11 @@ class FirestoreExtensions {
     final isGroup = data[fIsGroup] as bool? ?? false;
     conv.type = isGroup ? 'group' : 'direct';
 
-    conv.groupName = data[fGroupName] as String?;
+    conv.conversationName = (data[fConversationName] ?? data[fGroupName]) as String?;
+    conv.conversationAvatar = (data[fConversationAvatar] ?? data['avatar'] ?? data['group_avatar']) as String?;
+    conv.conversationDescription = (data[fConversationDescription] ?? data['description'] ?? data['group_description']) as String?;
+    conv.createdBy = (data[fCreatedBy] as String?) ?? '';
+    conv.createdAtUtc = _parseUtc(data[fCreatedAt] ?? data['created_at_utc']);
 
     final rawIds = data[fMemberIds];
     if (rawIds is List) {
@@ -126,13 +175,7 @@ class FirestoreExtensions {
 
     conv.lastMessage = (data[fLastMessage] as String?) ?? '';
     conv.lastMessageType = (data[fLastMessageType] as String?) ?? '';
-
-    final rawTime = data[fLastTime];
-    if (rawTime is Timestamp) {
-      conv.lastTime = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      conv.lastTime = rawTime;
-    }
+    conv.lastTimeUtc = _parseUtc(data[fLastTime] ?? data['last_time_utc']);
 
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;
@@ -142,9 +185,6 @@ class FirestoreExtensions {
   }
 
   /// Converts a Firestore [QueryDocumentSnapshot] into an [AcChatConversation].
-  ///
-  /// Handles the [fIsGroup] → [AcChatConversation.type] mapping explicitly.
-  /// The [unread] value must be supplied separately from the `members` subcollection.
   static AcChatConversation conversationFromQueryDoc(
     QueryDocumentSnapshot<Map<String, dynamic>> doc, {
     int unread = 0,
@@ -153,11 +193,14 @@ class FirestoreExtensions {
     final conv = AcChatConversation();
     conv.conversationId = doc.id;
 
-    // Explicit is_group → type mapping (do NOT pass is_group to fromJson)
     final isGroup = data[fIsGroup] as bool? ?? false;
     conv.type = isGroup ? 'group' : 'direct';
 
-    conv.groupName = data[fGroupName] as String?;
+    conv.conversationName = (data[fConversationName] ?? data[fGroupName]) as String?;
+    conv.conversationAvatar = (data[fConversationAvatar] ?? data['avatar'] ?? data['group_avatar']) as String?;
+    conv.conversationDescription = (data[fConversationDescription] ?? data['description'] ?? data['group_description']) as String?;
+    conv.createdBy = (data[fCreatedBy] as String?) ?? '';
+    conv.createdAtUtc = _parseUtc(data[fCreatedAt] ?? data['created_at_utc']);
 
     final rawIds = data[fMemberIds];
     if (rawIds is List) {
@@ -166,13 +209,7 @@ class FirestoreExtensions {
 
     conv.lastMessage = (data[fLastMessage] as String?) ?? '';
     conv.lastMessageType = (data[fLastMessageType] as String?) ?? '';
-
-    final rawTime = data[fLastTime];
-    if (rawTime is Timestamp) {
-      conv.lastTime = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      conv.lastTime = rawTime;
-    }
+    conv.lastTimeUtc = _parseUtc(data[fLastTime] ?? data['last_time_utc']);
 
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;
@@ -188,10 +225,15 @@ class FirestoreExtensions {
     return {
       fMemberIds: conv.memberIds,
       fIsGroup: conv.type == 'group',
-      fGroupName: conv.groupName,
+      fConversationName: conv.conversationName,
+      fGroupName: conv.groupName, // backward compat alias
+      fConversationAvatar: conv.conversationAvatar,
+      fConversationDescription: conv.conversationDescription,
+      fCreatedBy: conv.createdBy,
+      fCreatedAt: Timestamp.fromDate(conv.createdAtUtc),
       fLastMessage: conv.lastMessage,
       fLastMessageType: conv.lastMessageType,
-      fLastTime: Timestamp.fromDate(conv.lastTime),
+      fLastTime: Timestamp.fromDate(conv.lastTimeUtc),
       fIsPinned: conv.isPinned,
       fIsMuted: conv.isMuted,
     };
@@ -201,8 +243,6 @@ class FirestoreExtensions {
 
   /// Converts a Firestore [QueryDocumentSnapshot] (from the `members` subcollection)
   /// into an [AcChatConversationUser].
-  ///
-  /// The document ID is used as the [AcChatConversationUser.userId].
   static AcChatConversationUser conversationUserFromQueryDoc(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
     String conversationId,
@@ -227,9 +267,6 @@ class FirestoreExtensions {
   // ─── AcChatMessage ────────────────────────────────────────────────────────
 
   /// Converts a Firestore document snapshot into an [AcChatMessage].
-  ///
-  /// [replyToId] is resolved externally using a message index to avoid
-  /// recursive Firestore fetches.
   static AcChatMessage messageFromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc, {
     AcChatMessage? resolvedReplyTo,
@@ -241,14 +278,7 @@ class FirestoreExtensions {
     msg.senderId = (data[fSenderId] as String?) ?? '';
     msg.type = (data[fType] as String?) ?? 'text';
     msg.text = (data[fText] as String?) ?? '';
-
-    final rawTime = data[fTime];
-    if (rawTime is Timestamp) {
-      msg.time = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      msg.time = rawTime;
-    }
-
+    msg.timeUtc = _parseUtc(data[fTime] ?? data[fTimestamp]);
     msg.status = (data[fStatus] as String?) ?? 'sent';
     msg.mediaCaption = data[fMediaCaption] as String?;
 
@@ -262,20 +292,37 @@ class FirestoreExtensions {
     msg.fileName = data[fFileName] as String?;
     msg.fileSize = data[fFileSize] as String?;
 
+    msg.deliveredTimeUtc = _parseNullableUtc(data[fDeliveredTime]);
+    msg.readTimeUtc = _parseNullableUtc(data[fReadTime]);
+    msg.editedTimeUtc = _parseNullableUtc(data[fEditedTime]);
+    msg.pinnedUntilUtc = _parseNullableUtc(data[fPinnedUntil]);
+    msg.scheduledTimeUtc = _parseNullableUtc(data[fScheduledTime]);
+    msg.expiresAtUtc = _parseNullableUtc(data[fExpiresAt]);
+    msg.isStarred = (data[fIsStarred] as bool?) ?? false;
+    msg.isDeleted = (data[fIsDeleted] as bool?) ?? false;
+
+    final rawReactions = data[fReactions];
+    if (rawReactions is Map) {
+      msg.reactions = rawReactions.map((k, v) => MapEntry(
+            k.toString(),
+            (v as List).map((e) => e.toString()).toList(),
+          ));
+    }
+
+    final rawMentions = data[fMentions];
+    if (rawMentions is List) {
+      msg.mentions = rawMentions.map((e) => e.toString()).toList();
+    }
+
     // isDownloaded and localPath are device-local — not stored in Firestore.
     msg.isDownloaded = false;
     msg.localPath = null;
-
-    // replyTo is resolved from the in-memory message index by the caller.
     msg.replyTo = resolvedReplyTo;
 
     return msg;
   }
 
   /// Converts a Firestore [QueryDocumentSnapshot] into an [AcChatMessage].
-  ///
-  /// [replyToId] is resolved externally using a message index to avoid
-  /// recursive Firestore fetches.
   static AcChatMessage messageFromQueryDoc(
     QueryDocumentSnapshot<Map<String, dynamic>> doc, {
     AcChatMessage? resolvedReplyTo,
@@ -287,14 +334,7 @@ class FirestoreExtensions {
     msg.senderId = (data[fSenderId] as String?) ?? '';
     msg.type = (data[fType] as String?) ?? 'text';
     msg.text = (data[fText] as String?) ?? '';
-
-    final rawTime = data[fTime];
-    if (rawTime is Timestamp) {
-      msg.time = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      msg.time = rawTime;
-    }
-
+    msg.timeUtc = _parseUtc(data[fTime] ?? data[fTimestamp]);
     msg.status = (data[fStatus] as String?) ?? 'sent';
     msg.mediaCaption = data[fMediaCaption] as String?;
 
@@ -308,20 +348,36 @@ class FirestoreExtensions {
     msg.fileName = data[fFileName] as String?;
     msg.fileSize = data[fFileSize] as String?;
 
-    // isDownloaded and localPath are device-local — not stored in Firestore.
+    msg.deliveredTimeUtc = _parseNullableUtc(data[fDeliveredTime]);
+    msg.readTimeUtc = _parseNullableUtc(data[fReadTime]);
+    msg.editedTimeUtc = _parseNullableUtc(data[fEditedTime]);
+    msg.pinnedUntilUtc = _parseNullableUtc(data[fPinnedUntil]);
+    msg.scheduledTimeUtc = _parseNullableUtc(data[fScheduledTime]);
+    msg.expiresAtUtc = _parseNullableUtc(data[fExpiresAt]);
+    msg.isStarred = (data[fIsStarred] as bool?) ?? false;
+    msg.isDeleted = (data[fIsDeleted] as bool?) ?? false;
+
+    final rawReactions = data[fReactions];
+    if (rawReactions is Map) {
+      msg.reactions = rawReactions.map((k, v) => MapEntry(
+            k.toString(),
+            (v as List).map((e) => e.toString()).toList(),
+          ));
+    }
+
+    final rawMentions = data[fMentions];
+    if (rawMentions is List) {
+      msg.mentions = rawMentions.map((e) => e.toString()).toList();
+    }
+
     msg.isDownloaded = false;
     msg.localPath = null;
-
-    // replyTo is resolved from the in-memory message index by the caller.
     msg.replyTo = resolvedReplyTo;
 
     return msg;
   }
 
   /// Serializes an [AcChatMessage] to a Firestore-compatible map.
-  ///
-  /// Device-local fields ([AcChatMessage.isDownloaded] and [AcChatMessage.localPath])
-  /// are intentionally excluded.
   static Map<String, dynamic> messageToFirestore(AcChatMessage msg) {
     return {
       fMessageId: msg.messageId,
@@ -329,15 +385,25 @@ class FirestoreExtensions {
       fSenderId: msg.senderId,
       fType: msg.type,
       fText: msg.text,
-      fTime: Timestamp.fromDate(msg.time),
+      fTime: Timestamp.fromDate(msg.timeUtc),
       fStatus: msg.status,
-      fMediaCaption: msg.mediaCaption,
-      fAmount: msg.amount,
-      fPaymentNote: msg.paymentNote,
-      fDuration: msg.duration,
-      fFileName: msg.fileName,
-      fFileSize: msg.fileSize,
-      fReplyToId: msg.replyTo?.messageId,
+      if (msg.mediaCaption != null) fMediaCaption: msg.mediaCaption,
+      if (msg.amount != null) fAmount: msg.amount,
+      if (msg.paymentNote != null) fPaymentNote: msg.paymentNote,
+      if (msg.duration != null) fDuration: msg.duration,
+      if (msg.fileName != null) fFileName: msg.fileName,
+      if (msg.fileSize != null) fFileSize: msg.fileSize,
+      if (msg.replyTo?.messageId != null) fReplyToId: msg.replyTo!.messageId,
+      if (msg.deliveredTimeUtc != null) fDeliveredTime: Timestamp.fromDate(msg.deliveredTimeUtc!),
+      if (msg.readTimeUtc != null) fReadTime: Timestamp.fromDate(msg.readTimeUtc!),
+      if (msg.editedTimeUtc != null) fEditedTime: Timestamp.fromDate(msg.editedTimeUtc!),
+      if (msg.pinnedUntilUtc != null) fPinnedUntil: Timestamp.fromDate(msg.pinnedUntilUtc!),
+      if (msg.scheduledTimeUtc != null) fScheduledTime: Timestamp.fromDate(msg.scheduledTimeUtc!),
+      if (msg.expiresAtUtc != null) fExpiresAt: Timestamp.fromDate(msg.expiresAtUtc!),
+      if (msg.reactions.isNotEmpty) fReactions: msg.reactions,
+      if (msg.mentions.isNotEmpty) fMentions: msg.mentions,
+      if (msg.isStarred) fIsStarred: true,
+      if (msg.isDeleted) fIsDeleted: true,
     };
   }
 
@@ -348,9 +414,11 @@ class FirestoreExtensions {
   static Map<String, dynamic> messageToUpdatePayload(
     AcChatMessage msg, {
     List<String>? memberIds,
+    String? conversationName,
     String? groupName,
     bool isGroup = false,
   }) {
+    final effectiveName = conversationName ?? groupName;
     return {
       fUpdateId: msg.messageId,
       fUpdateType: AcChatUpdateType.message,
@@ -359,19 +427,28 @@ class FirestoreExtensions {
       fMessageId: msg.messageId,
       fSenderId: msg.senderId,
       fText: msg.text,
-      fTime: Timestamp.fromDate(msg.time),
-      fTimestamp: Timestamp.fromDate(msg.time),
+      fTime: Timestamp.fromDate(msg.timeUtc),
+      fTimestamp: Timestamp.fromDate(msg.timeUtc),
       fStatus: msg.status,
-      fMediaCaption: msg.mediaCaption,
-      fAmount: msg.amount,
-      fPaymentNote: msg.paymentNote,
-      fDuration: msg.duration,
-      fFileName: msg.fileName,
-      fFileSize: msg.fileSize,
-      fReplyToId: msg.replyTo?.messageId,
+      if (msg.mediaCaption != null) fMediaCaption: msg.mediaCaption,
+      if (msg.amount != null) fAmount: msg.amount,
+      if (msg.paymentNote != null) fPaymentNote: msg.paymentNote,
+      if (msg.duration != null) fDuration: msg.duration,
+      if (msg.fileName != null) fFileName: msg.fileName,
+      if (msg.fileSize != null) fFileSize: msg.fileSize,
+      if (msg.replyTo?.messageId != null) fReplyToId: msg.replyTo!.messageId,
       if (memberIds != null) fMemberIds: memberIds,
-      if (groupName != null) fGroupName: groupName,
+      if (effectiveName != null) ...{
+        fConversationName: effectiveName,
+        fGroupName: effectiveName,
+      },
       fIsGroup: isGroup,
+      if (msg.reactions.isNotEmpty) fReactions: msg.reactions,
+      if (msg.mentions.isNotEmpty) fMentions: msg.mentions,
+      if (msg.isStarred) fIsStarred: true,
+      if (msg.deliveredTimeUtc != null) fDeliveredTime: Timestamp.fromDate(msg.deliveredTimeUtc!),
+      if (msg.readTimeUtc != null) fReadTime: Timestamp.fromDate(msg.readTimeUtc!),
+      if (msg.editedTimeUtc != null) fEditedTime: Timestamp.fromDate(msg.editedTimeUtc!),
     };
   }
 
@@ -389,14 +466,7 @@ class FirestoreExtensions {
     final rawType = (data[fMessageType] as String?) ?? (data[fType] as String?) ?? 'text';
     msg.type = rawType == 'message' ? 'text' : rawType;
     msg.text = (data[fText] as String?) ?? '';
-
-    final rawTime = data[fTime] ?? data[fTimestamp];
-    if (rawTime is Timestamp) {
-      msg.time = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      msg.time = rawTime;
-    }
-
+    msg.timeUtc = _parseUtc(data[fTime] ?? data[fTimestamp]);
     msg.status = (data[fStatus] as String?) ?? 'sent';
     msg.mediaCaption = data[fMediaCaption] as String?;
 
@@ -409,6 +479,29 @@ class FirestoreExtensions {
     msg.duration = data[fDuration] as String?;
     msg.fileName = data[fFileName] as String?;
     msg.fileSize = data[fFileSize] as String?;
+
+    msg.deliveredTimeUtc = _parseNullableUtc(data[fDeliveredTime]);
+    msg.readTimeUtc = _parseNullableUtc(data[fReadTime]);
+    msg.editedTimeUtc = _parseNullableUtc(data[fEditedTime]);
+    msg.pinnedUntilUtc = _parseNullableUtc(data[fPinnedUntil]);
+    msg.scheduledTimeUtc = _parseNullableUtc(data[fScheduledTime]);
+    msg.expiresAtUtc = _parseNullableUtc(data[fExpiresAt]);
+    msg.isStarred = (data[fIsStarred] as bool?) ?? false;
+    msg.isDeleted = (data[fIsDeleted] as bool?) ?? false;
+
+    final rawReactions = data[fReactions];
+    if (rawReactions is Map) {
+      msg.reactions = rawReactions.map((k, v) => MapEntry(
+            k.toString(),
+            (v as List).map((e) => e.toString()).toList(),
+          ));
+    }
+
+    final rawMentions = data[fMentions];
+    if (rawMentions is List) {
+      msg.mentions = rawMentions.map((e) => e.toString()).toList();
+    }
+
     msg.isDownloaded = false;
     msg.localPath = null;
     msg.replyTo = resolvedReplyTo;
@@ -424,7 +517,12 @@ class FirestoreExtensions {
     conv.conversationId = (data[fConversationId] as String?) ?? '';
     final isGroup = data[fIsGroup] as bool? ?? false;
     conv.type = isGroup ? 'group' : 'direct';
-    conv.groupName = data[fGroupName] as String?;
+
+    conv.conversationName = (data[fConversationName] ?? data[fGroupName]) as String?;
+    conv.conversationAvatar = (data[fConversationAvatar] ?? data['avatar'] ?? data['group_avatar']) as String?;
+    conv.conversationDescription = (data[fConversationDescription] ?? data['description'] ?? data['group_description']) as String?;
+    conv.createdBy = (data[fCreatedBy] as String?) ?? '';
+    conv.createdAtUtc = _parseUtc(data[fCreatedAt] ?? data['created_at_utc'] ?? data[fTime] ?? data[fTimestamp] ?? data[fLastTime]);
 
     final rawIds = data[fMemberIds];
     if (rawIds is List) {
@@ -436,12 +534,7 @@ class FirestoreExtensions {
     final rawType = (data[fMessageType] as String?) ?? (data[fLastMessageType] as String?) ?? 'text';
     conv.lastMessageType = rawType == 'message' ? 'text' : rawType;
 
-    final rawTime = data[fTime] ?? data[fTimestamp] ?? data[fLastTime];
-    if (rawTime is Timestamp) {
-      conv.lastTime = rawTime.toDate();
-    } else if (rawTime is DateTime) {
-      conv.lastTime = rawTime;
-    }
+    conv.lastTimeUtc = _parseUtc(data[fTime] ?? data[fTimestamp] ?? data[fLastTime] ?? data['last_time_utc']);
 
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;

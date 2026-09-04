@@ -1,0 +1,20 @@
+name: ac_chat_on_cloudflare
+description: Cloudflare Worker R2 media uploader for ac_chat using AcHttp.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.6.2
+  flutter: ">=3.27.4"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_chat:
+    path: './../ac_chat'
+  autocode:
+    path: './../autocode'
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

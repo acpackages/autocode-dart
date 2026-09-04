@@ -11,6 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   uuid: ^4.0.0
+  ac_chat:
+    path: ../ac_chat
 
 dev_dependencies:
   flutter_test:
