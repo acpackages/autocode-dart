@@ -13,7 +13,6 @@ import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
 import 'ac_chat_data_dictionary.dart';
-import 'ac_chat_sqlite_config.dart';
 
 // ─── Column name constants ──────────────────────────────────────────────────
 
@@ -113,31 +112,22 @@ abstract class _T {
 ///
 /// Strictly uses [AcSqlDbTable] for all schema persistence and CRUD operations.
 /// Raw SQL statements are forbidden. Synchronous in-memory reads, background SQLite writes.
-class AcChatSqlite {
+class _AcChatSqlite {
   // ─── Constructor ───────────────────────────────────────────────────────
-
-  AcChatSqlite({
+  final AcChatSqliteApi api;
+  String dataDictionaryName = "ac_chat";
+  String dataDirectory = "chat";
+  String databasePath = "chat/chat.db";
+  _AcChatSqlite({
     required String currentUserId,
-    AcChatSyncChannel? channel,
-    AcChatSqliteConfig? config,
-    AcChatConnectivityProvider? connectivityProvider,
-    AcChatMediaUploader? mediaUploader,
-    AcChatCryptoProvider? cryptoProvider,
-  })  : _currentUserId = currentUserId,
-        _channel = channel,
-        _config = config ?? const AcChatSqliteConfig(),
-        _connectivityProvider = connectivityProvider,
-        _mediaUploader = mediaUploader,
-        _cryptoProvider = cryptoProvider;
+    required this.api,
+    this.databasePath = "chat.db",
+  })  : _currentUserId = currentUserId;
+
 
   // ─── Private fields ────────────────────────────────────────────────────
 
   final String _currentUserId;
-  AcChatSyncChannel? _channel;
-  final AcChatSqliteConfig _config;
-  final AcChatConnectivityProvider? _connectivityProvider;
-  final AcChatMediaUploader? _mediaUploader;
-  final AcChatCryptoProvider? _cryptoProvider;
   final _uuid = const Uuid();
 
   late AcSqliteDao _dao;
@@ -184,15 +174,13 @@ class AcChatSqlite {
 
   /// Callback fired when an incoming message from another user is received and saved.
   void Function({required AcChatMessage message})? onMessageReceived;
-
-  AcChatConfig get config => _config.chatConfig;
-  AcChatMediaUploader? get mediaUploader => _mediaUploader;
-  AcChatCryptoProvider? get cryptoProvider => _cryptoProvider;
-  String? get dataDirectory => _config.dataDirectory;
+  
+  AcChatMediaUploader? get mediaUploader => api.mediaUploader;
+  AcChatCryptoProvider? get cryptoProvider => api.cryptoProvider;
 
   /// Returns the subdirectory path for the specified media [type] inside [dataDirectory].
   String getMediaDirectoryForType(String type) {
-    final base = (_config.dataDirectory ?? 'media').replaceAll(RegExp(r'[/\\]+$'), '');
+    final base = (dataDirectory ?? 'media').replaceAll(RegExp(r'[/\\]+$'), '');
     final sub = switch (type.toLowerCase().trim()) {
       'image' || 'images' => 'images',
       'video' || 'videos' => 'videos',
@@ -240,7 +228,7 @@ class AcChatSqlite {
     }
 
     // Bind connectivity-aware outbox draining
-    final conn = _connectivityProvider;
+    final conn = api.connectivityProvider;
     if (conn != null) {
       _connectivitySub = conn.watchIsOnline().listen((isOnline) {
         if (isOnline) {
@@ -249,14 +237,17 @@ class AcChatSqlite {
       });
     }
 
-    // Start periodic background drain timer using config interval
-    if (config.enableOfflineOutbox) {
-      _outboxDrainTimer = Timer.periodic(config.outboxRetryInterval, (_) {
-        _drainOutbox();
-      });
+    // Start periodic background drain timer using api interval
+    if(api != null){
+      if (api.enableOfflineOutbox) {
+        _outboxDrainTimer = Timer.periodic(api.outboxRetryInterval, (_) {
+          _drainOutbox();
+        });
+      }
     }
 
-    final ch = _channel;
+
+    final ch = api.channel;
     if (ch != null) {
       try {
         await ch.startListening(
@@ -300,8 +291,8 @@ class AcChatSqlite {
   /// Attaches [channel] to this instance (post-initialization) and starts
   /// listening for remote mailbox updates asynchronously.
   void startSync({required AcChatSyncChannel channel}) {
-    if (identical(_channel, channel)) return;
-    _channel = channel;
+    if (identical(api.channel, channel)) return;
+    api.channel = channel;
     channel.startListening(
       currentUserId: _currentUserId,
       onMessageReceived: ({required message}) => _handleIncomingMessage(message),
@@ -322,7 +313,7 @@ class AcChatSqlite {
       _log('startSync error', e, st);
       return null;
     });
-    if (config.enableOfflineOutbox) {
+    if (api.enableOfflineOutbox) {
       _drainOutbox();
     }
   }
@@ -339,34 +330,6 @@ class AcChatSqlite {
     _userIndex[user.userId] = user;
     _notifyConversationsChanged();
     onDataChanged?.call();
-  }
-
-  // ─── Public API Builder ────────────────────────────────────────────────
-
-  AcChatApi buildApi({AcChatConfig? config,required AcChatTheme theme,
-  }) {
-
-    return _AcChatSqliteApi(
-      sqlite: this,
-      theme: theme,
-      config: config??AcChatConfig(),
-      // enableVoiceCall: enableVoiceCall ?? false,
-      // enableVideoCall: enableVideoCall ?? false,
-      // showNewConversationButton: showNewConversationButton ?? true,
-      // showConversationMenu: showConversationMenu ?? true,
-      // onNewContact: onNewContact,
-      // onNewGroup: onNewGroup,
-      // getContacts: getContacts,
-      // contactsSectionTitle: contactsSectionTitle,
-      // newContactLabel: newContactLabel,
-      // newContactSubtitle: newContactSubtitle,
-      // newGroupLabel: newGroupLabel,
-      // newGroupSubtitle: newGroupSubtitle,
-      // onSearchRemoteUsers: onSearchRemoteUsers,
-      // customMessageBuilder: customMessageBuilder,
-      // onMessageTap: onMessageTap,
-      // customInputBuilder: customInputBuilder,
-    );
   }
 
   // ─── Reactive Streams ──────────────────────────────────────────────────
@@ -406,14 +369,14 @@ class AcChatSqlite {
     required String conversationId,
     required bool isTyping,
   }) async {
-    if (!config.enableTypingIndicators) return;
+    if (!api.enableTypingIndicator) return;
     final memberList = _members[conversationId] ?? [];
     final recipientIds = memberList
         .map((m) => m.userId)
         .where((id) => id != _currentUserId && !_blockedUsers.contains(id))
         .toList();
 
-    _channel?.sendTypingIndicator(
+    api.channel?.sendTypingIndicator(
       conversationId: conversationId,
       isTyping: isTyping,
       recipientIds: recipientIds,
@@ -662,7 +625,7 @@ class AcChatSqlite {
 
     // 4. Save into Outbox (if offline outbox enabled)
     String? outboxId;
-    if (config.enableOfflineOutbox) {
+    if (api.enableOfflineOutbox) {
       outboxId = _uuid.v4();
       await _tblOutbox.saveRow(
         row: {
@@ -684,7 +647,7 @@ class AcChatSqlite {
     onDataChanged?.call();
 
     // 5. Attempt transmission
-    final ch = _channel;
+    final ch = api.channel;
     if (ch != null) {
       ch.sendMessage(
         message: message,
@@ -719,10 +682,10 @@ class AcChatSqlite {
   }
 
   Future<void> _drainOutbox() async {
-    if (_isDrainingOutbox || _channel == null || !config.enableOfflineOutbox) return;
+    if (_isDrainingOutbox || api.channel == null || !api.enableOfflineOutbox) return;
     _isDrainingOutbox = true;
 
-    final maxRetries = config.outboxMaxRetries;
+    final maxRetries = api.outboxMaxRetries;
 
     try {
       final outboxResult = await _tblOutbox.getRows(
@@ -751,7 +714,7 @@ class AcChatSqlite {
           } catch (_) {}
 
           try {
-            await _channel!.sendMessage(
+            await api.channel!.sendMessage(
               message: msg,
               recipientIds: recipientIds,
             );
@@ -863,7 +826,7 @@ class AcChatSqlite {
     _notifyMessagesChanged(conversationId: conversationId);
     _notifyConversationsChanged();
 
-    _channel?.markAsRead(
+    api.channel?.markAsRead(
       conversationId: conversationId,
       currentUserId: _currentUserId,
     ).catchError((Object e) {
@@ -920,7 +883,7 @@ class AcChatSqlite {
       userId: otherUserId,
     );
 
-    _channel?.createConversation(
+    api.channel?.createConversation(
       conversation: newConv,
       memberIds: [_currentUserId, otherUserId],
     ).catchError((Object e) {
@@ -975,7 +938,7 @@ class AcChatSqlite {
     _notifyConversationsChanged();
     onDataChanged?.call();
 
-    _channel?.createConversation(
+    api.channel?.createConversation(
       conversation: conv,
       memberIds: allMembers,
     ).catchError((Object e) {
@@ -1040,7 +1003,7 @@ class AcChatSqlite {
     _notifyConversationsChanged();
     onDataChanged?.call();
 
-    _channel?.addGroupMembers(
+    api.channel?.addGroupMembers(
       conversationId: conversationId,
       memberIds: userIds,
     ).catchError((Object e) {
@@ -1071,7 +1034,7 @@ class AcChatSqlite {
     _notifyConversationsChanged();
     onDataChanged?.call();
 
-    _channel?.removeGroupMember(
+    api.channel?.removeGroupMember(
       conversationId: conversationId,
       userId: userId,
     ).catchError((Object e) {
@@ -1137,12 +1100,12 @@ class AcChatSqlite {
   }
 
   Future<void> editMessage({required String messageId, required String newText}) async {
-    if (!config.enableMessageEditing) return;
+    if (!api.enableMessageEditing) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 
     if (msg.senderId != _currentUserId) return;
-    if (DateTime.now().toUtc().difference(msg.timeUtc) > config.editTimeWindow) return;
+    if (DateTime.now().toUtc().difference(msg.timeUtc) > api.editTimeWindow) return;
 
     msg.text = newText;
     msg.isEdited = true;
@@ -1166,7 +1129,7 @@ class AcChatSqlite {
         .where((id) => id != _currentUserId)
         .toList();
 
-    _channel?.updateMessage(
+    api.channel?.updateMessage(
       messageId: messageId,
       conversationId: msg.conversationId,
       data: {'text': newText, 'isEdited': true, 'editedTime': msg.editedTime!.millisecondsSinceEpoch},
@@ -1175,7 +1138,7 @@ class AcChatSqlite {
   }
 
   Future<void> deleteMessageForMe({required String messageId}) async {
-    if (!config.enableMessageDeletingForMe) return;
+    if (!api.enableMessageDeletingForMe) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 
@@ -1197,12 +1160,12 @@ class AcChatSqlite {
   }
 
   Future<void> deleteMessageForEveryone({required String messageId}) async {
-    if (!config.enableMessageDeletingForEveryone) return;
+    if (!api.enableMessageDeletingForEveryone) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 
     if (msg.senderId != _currentUserId) return;
-    if (DateTime.now().toUtc().difference(msg.timeUtc) > config.deleteForEveryoneWindow) return;
+    if (DateTime.now().toUtc().difference(msg.timeUtc) > api.deleteForEveryoneWindow) return;
 
     msg.isDeleted = true;
     msg.text = '';
@@ -1224,7 +1187,7 @@ class AcChatSqlite {
         .where((id) => id != _currentUserId)
         .toList();
 
-    _channel?.updateMessage(
+    api.channel?.updateMessage(
       messageId: messageId,
       conversationId: msg.conversationId,
       data: {'isDeleted': true, 'text': ''},
@@ -1233,7 +1196,7 @@ class AcChatSqlite {
   }
 
   Future<void> addReaction({required String messageId, required String emoji}) async {
-    if (!config.enableMessageReactions) return;
+    if (!api.enableMessageReactions) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 
@@ -1252,7 +1215,7 @@ class AcChatSqlite {
 
     final memberList = _members[msg.conversationId] ?? [];
     final recipientIds = memberList.map((m) => m.userId).where((id) => id != _currentUserId).toList();
-    _channel?.updateMessage(
+    api.channel?.updateMessage(
       messageId: messageId,
       conversationId: msg.conversationId,
       data: {'reactions': msg.reactions},
@@ -1261,7 +1224,7 @@ class AcChatSqlite {
   }
 
   Future<void> removeReaction({required String messageId, required String emoji}) async {
-    if (!config.enableMessageReactions) return;
+    if (!api.enableMessageReactions) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 
@@ -1280,7 +1243,7 @@ class AcChatSqlite {
 
     final memberList = _members[msg.conversationId] ?? [];
     final recipientIds = memberList.map((m) => m.userId).where((id) => id != _currentUserId).toList();
-    _channel?.updateMessage(
+    api.channel?.updateMessage(
       messageId: messageId,
       conversationId: msg.conversationId,
       data: {'reactions': msg.reactions},
@@ -1289,7 +1252,7 @@ class AcChatSqlite {
   }
 
   Future<void> setStarred({required String messageId, required bool isStarred}) async {
-    if (!config.enableStarredMessages) return;
+    if (!api.enableStarredMessages) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
     msg.isStarred = isStarred;
@@ -1299,7 +1262,7 @@ class AcChatSqlite {
   }
 
   Future<void> pinMessage({required String messageId, Duration? duration}) async {
-    if (!config.enablePinnedMessages) return;
+    if (!api.enablePinnedMessages) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
     msg.pinnedUntilUtc = duration != null ? DateTime.now().toUtc().add(duration) : DateTime.now().toUtc().add(const Duration(days: 30));
@@ -1309,7 +1272,7 @@ class AcChatSqlite {
   }
 
   Future<void> unpinMessage({required String messageId}) async {
-    if (!config.enablePinnedMessages) return;
+    if (!api.enablePinnedMessages) return;
     final msg = _messageIndex[messageId];
     if (msg == null) return;
     msg.pinnedUntilUtc = null;
@@ -1322,7 +1285,7 @@ class AcChatSqlite {
     required List<String> messageIds,
     required String targetConversationId,
   }) async {
-    if (!config.enableMessageForwarding) return;
+    if (!api.enableMessageForwarding) return;
     for (final id in messageIds) {
       final original = _messageIndex[id];
       if (original == null) continue;
@@ -1393,9 +1356,9 @@ class AcChatSqlite {
     _blockedUsers.clear();
     _prefs.clear();
 
-    if (!kIsWeb && _config.dataDirectory != null) {
+    if (!kIsWeb && dataDirectory != null) {
       try {
-        final dir = io.Directory(_config.dataDirectory!);
+        final dir = io.Directory(dataDirectory!);
         if (dir.existsSync()) {
           dir.deleteSync(recursive: true);
         }
@@ -1445,7 +1408,7 @@ class AcChatSqlite {
         .where((id) => id != _currentUserId)
         .toList();
 
-    _channel?.updateMessage(
+    api.channel?.updateMessage(
       messageId: messageId,
       conversationId: msg.conversationId,
       data: data,
@@ -1499,8 +1462,8 @@ class AcChatSqlite {
     await _ensureMessagesLoaded(conversationId: message.conversationId);
 
     // Save received media into directories by type if dataDirectory is configured
-    if (_config.dataDirectory != null &&
-        _config.dataDirectory!.isNotEmpty &&
+    if (dataDirectory != null &&
+        dataDirectory!.isNotEmpty &&
         message.type != 'text') {
       if (message.byteData != null && message.byteData!.isNotEmpty) {
         try {
@@ -1551,8 +1514,8 @@ class AcChatSqlite {
           fields: {_C.unread: conv.unread},
         );
       }
-      if (config.enableDeliveryReceipts) {
-        _channel?.sendDeliveryReceipt(
+      if (api.enableDeliveryReceipts) {
+        api.channel?.sendDeliveryReceipt(
           messageId: message.messageId,
           conversationId: message.conversationId,
           senderId: message.senderId,
@@ -1677,64 +1640,64 @@ class AcChatSqlite {
     // 1. Register data dictionary schema
     AcDataDictionary.registerDataDictionaryJsonString(
       jsonString: kAcChatDataDictionaryJson,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
     );
 
     // 2. Global settings
     AcSqlDatabase.databaseType = AcEnumSqlDatabaseType.sqlite;
     AcSqlDatabase.sqlConnection = AcSqlConnection(
-      database: _config.databasePath,
+      database: databasePath,
     );
 
     // 3. Build DAO and tables
     _dao = AcSqliteDao();
     await _dao.setSqlConnection(
-      sqlConnection: AcSqlConnection(database: _config.databasePath),
+      sqlConnection: AcSqlConnection(database: databasePath),
     );
 
     _tblUsers = AcSqlDbTable(
       tableName: _T.users,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblConversations = AcSqlDbTable(
       tableName: _T.conversations,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblMembers = AcSqlDbTable(
       tableName: _T.conversationMembers,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblUserPrefs = AcSqlDbTable(
       tableName: _T.userConversationPrefs,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblBlockedUsers = AcSqlDbTable(
       tableName: _T.blockedUsers,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblMessages = AcSqlDbTable(
       tableName: _T.messages,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblOutbox = AcSqlDbTable(
       tableName: _T.outboxMessages,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     _tblMessagesFts = AcSqlDbTable(
       tableName: _T.messagesFts,
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
 
     final schemaManager = AcSqlDbSchemaManager(
-      dataDictionaryName: _config.dataDictionaryName,
+      dataDictionaryName: dataDictionaryName,
       dao: _dao,
     );
     schemaManager.ignoreViews = true;
@@ -2380,13 +2343,9 @@ class AcChatSqlite {
 }
 
 /// Concrete strongly-typed [AcChatApi] delegating to an underlying [AcChatSqlite] instance.
-class _AcChatSqliteApi implements AcChatApi {
-  final AcChatSqlite sqlite;
-  @override
-  final AcChatTheme theme;
-  @override
-  final AcChatConfig config;
-
+class AcChatSqliteApi extends AcChatApi {
+  
+  late final _AcChatSqlite sqlite;
   @override
   final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
   @override
@@ -2412,15 +2371,9 @@ class _AcChatSqliteApi implements AcChatApi {
   @override
   final Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder;
 
-  final bool _enableVoiceCall;
-  final bool _enableVideoCall;
-  final bool _showNewConversationButton;
-  final bool _showConversationMenu;
-
-  _AcChatSqliteApi({
-    required this.sqlite,
-    required this.theme,
-    required this.config,
+  AcChatSqliteApi({
+    required String currentUserId,
+    AcChatSyncChannel? channel,
     bool enableVoiceCall = false,
     bool enableVideoCall = false,
     bool showNewConversationButton = true,
@@ -2437,39 +2390,14 @@ class _AcChatSqliteApi implements AcChatApi {
     this.customMessageBuilder,
     this.onMessageTap,
     this.customInputBuilder,
-  })  : _enableVoiceCall = enableVoiceCall,
-        _enableVideoCall = enableVideoCall,
-        _showNewConversationButton = showNewConversationButton,
-        _showConversationMenu = showConversationMenu;
-
-  @override
-  bool get enableGroups => config.enableGroupConversations;
-  @override
-  bool get enableStatus => config.enableStatus;
-  @override
-  bool get enableGroupsAndStatuses => config.enableGroupConversations;
-  @override
-  bool get enableTyping => config.enableTextMessaging;
-  @override
-  bool get enableTypingIndicator => config.enableTypingIndicators;
-  @override
-  bool get pinConversations => config.enableConversationPinning;
-  @override
-  bool get searchConversations => config.enableConversationSearch;
-  @override
-  bool get showOnlineStatus => config.enableOnlinePresence;
-  @override
-  int get maxGroupParticipants => config.maxGroupParticipants;
-  @override
-  bool get readOnly => !config.enableTextMessaging;
-  @override
-  bool get enableVideoCall => _enableVideoCall;
-  @override
-  bool get enableVoiceCall => _enableVoiceCall;
-  @override
-  bool get showNewConversationButton => _showNewConversationButton;
-  @override
-  bool get showConversationMenu => _showConversationMenu;
+    
+  }){
+    sqlite = _AcChatSqlite(
+      currentUserId: currentUserId,
+      api:this,
+      databasePath: "$dataDirectory/databases/chat.db", 
+    );
+  }
 
   @override
   AcChatUser getCurrentUser() => sqlite.getCurrentUser();
@@ -2501,7 +2429,7 @@ class _AcChatSqliteApi implements AcChatApi {
 
   @override
   Stream<bool>? watchUserOnlineStatus({required String userId}) =>
-      config.enableOnlinePresence ? sqlite.watchUserOnlineStatus(userId: userId) : null;
+      enableOnlinePresence ? sqlite.watchUserOnlineStatus(userId: userId) : null;
 
   @override
   List<AcChatConversation> getConversations() => sqlite.getConversations();
@@ -2525,8 +2453,11 @@ class _AcChatSqliteApi implements AcChatApi {
   AcChatConversation insertConversation({
     required AcChatConversation newConv,
     required String otherUserId,
-  }) =>
-      sqlite.insertConversation(newConv: newConv, otherUserId: otherUserId);
+  }) => sqlite.insertConversation(newConv: newConv, otherUserId: otherUserId);
+
+  initialize() async {
+    await sqlite.initialize();
+  }
 
   @override
   Future<void> pinConversation({required String conversationId, required bool isPinned}) =>
@@ -2652,7 +2583,7 @@ class _AcChatSqliteApi implements AcChatApi {
 
   @override
   Stream<Map<String, bool>>? watchTyping({required String conversationId}) =>
-      config.enableTypingIndicators ? sqlite.watchTyping(conversationId: conversationId) : null;
+      enableTypingIndicator ? sqlite.watchTyping(conversationId: conversationId) : null;
 
   @override
   Future<void> forwardMessages({
@@ -2699,9 +2630,6 @@ class _AcChatSqliteApi implements AcChatApi {
   AcChatCryptoProvider? get cryptoProvider => sqlite.cryptoProvider;
 
   @override
-  String? get dataDirectory => sqlite.dataDirectory;
-
-  @override
   Future<String?> downloadMedia({required AcChatMessage message}) =>
       sqlite.downloadMedia(message: message);
 
@@ -2711,4 +2639,9 @@ class _AcChatSqliteApi implements AcChatApi {
 
   @override
   Future<void> wipeAllData() => sqlite.wipeAllData();
+
+  @override
+  set theme(AcChatTheme value) {
+    // TODO: implement theme
+  }
 }

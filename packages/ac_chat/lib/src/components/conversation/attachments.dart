@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../ac_chat.dart';
 import '../../common/chat_colors.dart';
 import '../../core/ac_chat_config.dart';
 
@@ -6,29 +7,28 @@ class Attachments extends StatelessWidget {
   final AcChatTheme ct;
   final bool isDark;
   final void Function(String) onSelect;
-  final AcChatConfig? config;
+  final AcChatApi api;
 
   const Attachments({
     super.key,
     required this.ct,
     required this.isDark,
     required this.onSelect,
-    this.config,
+    required this.api,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cfg = config ?? const AcChatConfig();
     final List<_AttachItem> items = [];
 
-    if (cfg.enableDocumentAttachments) {
+    if (api.enableDocumentAttachments) {
       items.add(_AttachItem(
         icon: Icons.insert_drive_file_rounded,
         label: 'Document',
         color: ct.attachDocumentBg,
       ));
     }
-    if (cfg.enableImageAttachments || cfg.enableVideoAttachments) {
+    if (api.enableImageAttachments || api.enableVideoAttachments) {
       items.add(_AttachItem(
         icon: Icons.camera_alt_rounded,
         label: 'Camera',
@@ -40,7 +40,7 @@ class Attachments extends StatelessWidget {
         color: ct.attachGalleryBg,
       ));
     }
-    if (cfg.enableVoiceNotes) {
+    if (api.enableVoiceNotes) {
       items.add(_AttachItem(
         icon: Icons.headset_rounded,
         label: 'Audio',
@@ -113,7 +113,7 @@ class Attachments extends StatelessWidget {
                   )
                   .toList(),
             ),
-          if (cfg.enableSharedMediaGallery) ...[
+          if (api.enableSharedMediaGallery) ...[
             const SizedBox(height: 24),
             Align(
               alignment: Alignment.centerLeft,

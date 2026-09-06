@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
+import '../../../ac_chat.dart';
 import '../../common/chat_colors.dart';
 import '../../core/ac_chat_config.dart';
 import '../../models/ac_chat_user.dart';
@@ -22,7 +23,7 @@ class InputBar extends StatefulWidget {
   final VoidCallback onEmojiToggle;
   final bool enableTyping;
   final void Function(String)? onAttachOption;
-  final AcChatConfig? config;
+  final AcChatApi api;
   final List<AcChatUser> mentionCandidates;
   final ValueChanged<AcChatUser>? onMentionSelected;
 
@@ -30,6 +31,7 @@ class InputBar extends StatefulWidget {
     super.key,
     required this.controller,
     required this.ct,
+    required this.api,
     required this.isDark,
     required this.isRecording,
     required this.micAnim,
@@ -44,7 +46,6 @@ class InputBar extends StatefulWidget {
     required this.onEmojiToggle,
     this.enableTyping = true,
     this.onAttachOption,
-    this.config,
     this.mentionCandidates = const [],
     this.onMentionSelected,
   });
@@ -86,9 +87,7 @@ class _InputBarState extends State<InputBar> {
     final has = text.trim().isNotEmpty;
     if (has != _hasText) setState(() => _hasText = has);
 
-    // Mentions detection
-    final cfg = widget.config ?? const AcChatConfig();
-    if (cfg.enableMentions && text.contains('@')) {
+    if (widget.api.enableMentions && text.contains('@')) {
       final lastAt = text.lastIndexOf('@');
       final query = text.substring(lastAt + 1).toLowerCase();
       if (!query.contains(' ')) {
@@ -143,7 +142,6 @@ class _InputBarState extends State<InputBar> {
   @override
   Widget build(BuildContext context) {
     final ct = widget.ct;
-    final cfg = widget.config ?? const AcChatConfig();
 
     final filteredMentions = widget.mentionCandidates.where((u) {
       if (_mentionQuery.isEmpty) return true;
@@ -271,8 +269,8 @@ class _InputBarState extends State<InputBar> {
                 ),
               ] else ...[
                 // Attachment Button (only rendered if media attachments enabled)
-                if (cfg.enableMediaAttachments)
-                  _buildAttachButton(context, ct, cfg),
+                if (widget.api.enableMediaAttachments)
+                  _buildAttachButton(context, ct, widget.api),
 
                 // Emoji Picker Button
                 IconButton(
@@ -316,20 +314,20 @@ class _InputBarState extends State<InputBar> {
                   ),
                 ),
               ],
-              if(cfg.enableVoiceNotes)
+              if(widget.api.enableVoiceNotes)
               const SizedBox(width: 4),
-              if(cfg.enableVoiceNotes)
+              if(widget.api.enableVoiceNotes)
               // Send / Mic button
               GestureDetector(
                 onTap: () {
                   if (_hasText) {
                     widget.onSend();
-                  } else if (cfg.enableVoiceNotes) {
+                  } else if (widget.api.enableVoiceNotes) {
                     widget.onMicTap?.call();
                   }
                 },
-                onLongPressStart: (_hasText || !cfg.enableVoiceNotes) ? null : (_) => widget.onMicStart(),
-                onLongPressEnd: (_hasText || !cfg.enableVoiceNotes) ? null : (_) => widget.onMicStop(),
+                onLongPressStart: (_hasText || !widget.api.enableVoiceNotes) ? null : (_) => widget.onMicStart(),
+                onLongPressEnd: (_hasText || !widget.api.enableVoiceNotes) ? null : (_) => widget.onMicStop(),
                 child: AnimatedBuilder(
                   animation: widget.micAnim,
                   builder: (_, __) {
@@ -339,7 +337,7 @@ class _InputBarState extends State<InputBar> {
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: Icon(
-                          _hasText || !cfg.enableVoiceNotes
+                          _hasText || !widget.api.enableVoiceNotes
                               ? Icons.send_rounded
                               : (widget.isRecording ? Icons.stop_rounded : Icons.mic_rounded),
                           color: _hasText
@@ -359,7 +357,7 @@ class _InputBarState extends State<InputBar> {
     )]);
   }
 
-  Widget _buildAttachButton(BuildContext context, AcChatTheme ct, AcChatConfig cfg) {
+  Widget _buildAttachButton(BuildContext context, AcChatTheme ct, AcChatApi cfg) {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 768;
 

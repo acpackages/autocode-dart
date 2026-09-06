@@ -6,13 +6,13 @@ import 'package:autocode/autocode.dart';
 class AcChatCloudflareUploader implements AcChatMediaUploader {
   final String baseUrl;
   final String Function()? getJwtToken;
-  final AcChatConfig? config;
+  final AcChatApi? api;
   final AcHttp _http;
 
   AcChatCloudflareUploader({
     this.baseUrl = 'https://accountea-worker.softechcompany-com.workers.dev',
     this.getJwtToken,
-    this.config,
+    this.api,
     AcHttp? http,
   }) : _http = http ?? AcHttp();
 
@@ -25,9 +25,9 @@ class AcChatCloudflareUploader implements AcChatMediaUploader {
     String? mimeType,
     void Function({required double progress})? onProgress,
   }) async {
-    if (config != null && bytes.lengthInBytes > config!.maxAttachmentSizeBytes) {
+    if (api != null && bytes.lengthInBytes > api!.maxAttachmentSizeBytes) {
       throw ArgumentError(
-        'Attachment size (${bytes.lengthInBytes} bytes) exceeds configured limit (${config!.maxAttachmentSizeBytes} bytes)',
+        'Attachment size (${bytes.lengthInBytes} bytes) exceeds configured limit (${api!.maxAttachmentSizeBytes} bytes)',
       );
     }
 

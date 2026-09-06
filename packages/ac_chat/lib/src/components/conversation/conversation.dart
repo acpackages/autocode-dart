@@ -13,7 +13,7 @@ import 'input_bar.dart';
 import 'reply_bar.dart';
 import 'attachments.dart';
 import 'conversation_media_tabs.dart';
-import '../../chat_profile_screen.dart';
+import '../chat_profile_screen.dart';
 import 'audio_recording_bottom_sheet.dart';
 
 class StickyDateState {
@@ -79,10 +79,9 @@ class _ConversationState extends State<Conversation>
   Timer? _typingTimer;
 
   bool get _isGroup => widget.chat.type == "group";
-  AcChatConfig get _config => widget.api.config;
 
-  void _loadMessages() {
-    final all = widget.api.getMessages(conversationId: widget.chat.conversationId);
+  void _loadMessages() async {
+    final all = await widget.api.getMessages(conversationId: widget.chat.conversationId);
     _cachedMessages = all.where((m) {
       if (_searchQuery.isNotEmpty &&
           !m.text.toLowerCase().contains(_searchQuery.toLowerCase())) {
@@ -109,10 +108,10 @@ class _ConversationState extends State<Conversation>
     _computeFlatItems();
   }
 
-  void _computeFlatItems() {
+  void _computeFlatItems() async {
     final List<dynamic> flat = [];
     DateTime? lastDate;
-    final prefs = widget.api.getConversationPrefs(conversationId: widget.chat.conversationId);
+    final prefs = await widget.api.getConversationPrefs(conversationId: widget.chat.conversationId);
     final lastReadTime = prefs?.lastReadTimeUtc;
 
     var insertedUnreadSeparator = false;
@@ -125,11 +124,11 @@ class _ConversationState extends State<Conversation>
       }
 
       // Unread separator insertion
-      if (_config.enableUnreadMessagesSeparator &&
+      if (widget.api.enableUnreadMessagesSeparator &&
           !insertedUnreadSeparator &&
           lastReadTime != null &&
           msg.timeUtc.isAfter(lastReadTime) &&
-          msg.senderId != widget.api.getCurrentUser().userId) {
+          msg.senderId != (await widget.api.getCurrentUser()).userId) {
         flat.add(_UnreadSeparatorMarker());
         insertedUnreadSeparator = true;
       }
@@ -145,15 +144,16 @@ class _ConversationState extends State<Conversation>
     _loadMessages();
 
     if (widget.api.watchMessages != null) {
-      _messagesSub = widget.api
-          .watchMessages!(conversationId: widget.chat.conversationId)
-          ?.listen((msgs) {
-        if (mounted) {
-          setState(() {
-            _loadMessages();
-          });
-        }
+       widget.api.watchMessages(conversationId: widget.chat.conversationId).then((result){
+        _messagesSub = result?.listen((msgs) {
+          if (mounted) {
+            setState(() {
+              _loadMessages();
+            });
+          }
+        });
       });
+
     }
 
     _micAnim = AnimationController(
@@ -162,10 +162,10 @@ class _ConversationState extends State<Conversation>
     )..repeat(reverse: true);
 
     _scrollController.addListener(() {
-      if (_config.enableStickyDateHeaders) {
+      if (widget.api.enableStickyDateHeaders) {
         _updateStickyDate();
       }
-      if (_config.enableScrollToLatestFab) {
+      if (widget.api.enableScrollToLatestFab) {
         final atBottom = _scrollController.position.pixels <= 100;
         if (atBottom != !_showScrollFab) {
           setState(() => _showScrollFab = !atBottom);
@@ -181,7 +181,7 @@ class _ConversationState extends State<Conversation>
     if (hasText != _isComposing) {
       setState(() => _isComposing = hasText);
     }
-    if (_config.enableTypingIndicators) {
+    if (widget.api.enableTypingIndicator) {
       widget.api.sendTypingIndicator(
         conversationId: widget.chat.conversationId,
         isTyping: hasText,
@@ -290,7 +290,7 @@ class _ConversationState extends State<Conversation>
     }
   }
 
-  void _send() {
+  void _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
@@ -308,7 +308,7 @@ class _ConversationState extends State<Conversation>
 
     final newMsg = AcChatMessage()
       ..conversationId = widget.chat.conversationId
-      ..senderId = widget.api.getCurrentUser().userId
+      ..senderId = (await widget.api.getCurrentUser()).userId
       ..type = 'text'
       ..text = text
       ..timeUtc = DateTime.now().toUtc()
@@ -324,7 +324,7 @@ class _ConversationState extends State<Conversation>
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
-  void _sendAudio({required String filePath, required int durationSeconds}) {
+  void _sendAudio({required String filePath, required int durationSeconds}) async {
     if (durationSeconds < 1) return;
     final minutes = durationSeconds ~/ 60;
     final seconds = durationSeconds % 60;
@@ -332,7 +332,7 @@ class _ConversationState extends State<Conversation>
 
     final newMsg = AcChatMessage()
       ..conversationId = widget.chat.conversationId
-      ..senderId = widget.api.getCurrentUser().userId
+      ..senderId = (await widget.api.getCurrentUser()).userId
       ..type = 'voice_note'
       ..text = '🎤 Voice message'
       ..duration = durationStr
@@ -456,8 +456,8 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  void _showForwardDialog(List<String> messageIds) {
-    final convs = widget.api.getConversations();
+  void _showForwardDialog(List<String> messageIds) async {
+    final convs = await widget.api.getConversations();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -494,7 +494,7 @@ class _ConversationState extends State<Conversation>
   // ── Pinned Message Banner ─────────────────────────────────────────────────
 
   AcChatMessage? get _pinnedMessage {
-    if (!_config.enablePinnedMessages) return null;
+    if (!widget.api.enablePinnedMessages) return null;
     final now = DateTime.now().toUtc();
     try {
       return _cachedMessages.firstWhere(
@@ -549,20 +549,30 @@ class _ConversationState extends State<Conversation>
 
   @override
   Widget build(BuildContext context) {
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+
+  Future<Widget> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final msgs = _cachedMessages;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
+    AcChatUser currentUser = await widget.api.getCurrentUser();
     AcChatUser? user;
     if (!_isGroup) {
-      final members = widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
+      final members = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
       final otherMember = members.firstWhere(
-        (m) => m.userId != widget.api.getCurrentUser().userId,
+        (m) => m.userId != currentUser.userId,
         orElse: () => AcChatConversationUser(),
       );
       if (otherMember.userId.isNotEmpty) {
-        user = widget.api.getUserById(userId: otherMember.userId);
+        user = await widget.api.getUserById(userId: otherMember.userId);
       }
     }
 
@@ -572,8 +582,7 @@ class _ConversationState extends State<Conversation>
     final userId = _isGroup ? null : user?.userId;
     final color = avatarColor(_isGroup ? '${widget.chat.conversationId}-group' : (userId ?? ''));
 
-    final members = widget.api
-        .getConversationUsers(conversationId: widget.chat.conversationId)
+    final members = (await widget.api.getConversationUsers(conversationId: widget.chat.conversationId))
         .map((m) => widget.api.getUserById(userId: m.userId))
         .whereType<AcChatUser>()
         .toList();
@@ -604,17 +613,17 @@ class _ConversationState extends State<Conversation>
                   title: Text('${_selectedMessageIds.length} selected',
                       style: TextStyle(color: ct.white, fontSize: 18)),
                   actions: [
-                    if (_config.enableBatchCopy)
+                    if (widget.api.enableBatchCopy)
                       IconButton(
                         icon: Icon(Icons.copy_rounded, color: ct.white),
                         onPressed: _batchCopy,
                       ),
-                    if (_config.enableBatchForwarding)
+                    if (widget.api.enableBatchForwarding)
                       IconButton(
                         icon: Icon(Icons.forward_rounded, color: ct.white),
                         onPressed: _batchForward,
                       ),
-                    if (_config.enableBatchDeletion)
+                    if (widget.api.enableBatchDeletion)
                       IconButton(
                         icon: Icon(Icons.delete_outline_rounded, color: ct.white),
                         onPressed: _batchDelete,
@@ -683,14 +692,14 @@ class _ConversationState extends State<Conversation>
                                             color: ct.white,
                                             fontSize: 15,
                                             fontWeight: FontWeight.w600)),
-                                    _buildSubtitle(ct: ct, user: user),
+                                    await _buildSubtitle(ct: ct, user: user),
                                   ]),
                             ),
                           ]),
                         ),
                   actions: _showSearch
                       ? [
-                          if (_config.enableSearchFilters)
+                          if (widget.api.enableSearchFilters)
                             IconButton(
                               icon: Icon(Icons.filter_list_rounded, color: ct.white),
                               onPressed: () => _showSearchFilterSheet(context, ct, members),
@@ -711,7 +720,7 @@ class _ConversationState extends State<Conversation>
                           )
                         ]
                       : [
-                          if (_config.enableInChatSearch)
+                          if (widget.api.enableInChatSearch)
                             IconButton(
                               icon: Icon(Icons.search, color: ct.white),
                               onPressed: () => setState(() => _showSearch = true),
@@ -760,15 +769,15 @@ class _ConversationState extends State<Conversation>
                               },
                               itemBuilder: (_) => [
                                 _menuItem(_isGroup ? 'Group Info' : 'Contact Info', ct),
-                                if (_config.enableSharedMediaGallery)
+                                if (widget.api.enableSharedMediaGallery)
                                   _menuItem('Media, Links, and Docs', ct),
-                                if (_config.enableConversationMuting)
+                                if (widget.api.enableConversationMuting)
                                   _menuItem('Mute Notifications', ct),
-                                if (_config.enableChatExport)
+                                if (widget.api.enableChatExport)
                                   _menuItem('Export Chat', ct),
-                                if (!_isGroup && user != null && _config.enableUserBlocking)
+                                if (!_isGroup && user != null && widget.api.enableUserBlocking)
                                   _menuItem('Block User', ct),
-                                if (!_isGroup && user != null && _config.enableUserReporting)
+                                if (!_isGroup && user != null && widget.api.enableUserReporting)
                                   _menuItem('Report User', ct),
                               ],
                             ),
@@ -786,7 +795,7 @@ class _ConversationState extends State<Conversation>
                   children: [
                     msgs.isEmpty
                         ? Center(
-                            child: widget.api.config.isEndToEndEncrypted ?Container(
+                            child: widget.api.isEndToEndEncrypted ?Container(
                               margin: const EdgeInsets.symmetric(horizontal: 32),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
@@ -846,7 +855,7 @@ class _ConversationState extends State<Conversation>
                                       isDark: isDark,
                                       isSelected: _selectedMessageIds.contains(item.messageId),
                                       isSelectionMode: _isSelectionMode,
-                                      onSelect: _config.enableMultiSelect
+                                      onSelect: widget.api.enableMultiSelect
                                           ? () => _toggleSelection(item.messageId)
                                           : null,
                                       onReply: (m) => setState(() => _replyTo = m),
@@ -880,8 +889,8 @@ class _ConversationState extends State<Conversation>
                                         );
                                         setState(() => _loadMessages());
                                       },
-                                      onReaction: (m, emoji) {
-                                        final myId = widget.api.getCurrentUser().userId;
+                                      onReaction: (m, emoji) async {
+                                        final myId = currentUser.userId;
                                         final already = m.reactions[emoji]?.contains(myId) ?? false;
                                         if (already) {
                                           widget.api.removeReaction(messageId: m.messageId, emoji: emoji);
@@ -896,7 +905,7 @@ class _ConversationState extends State<Conversation>
                           ),
 
                     // Sticky Date Chip
-                    if (_config.enableStickyDateHeaders)
+                    if (widget.api.enableStickyDateHeaders)
                       ValueListenableBuilder<StickyDateState>(
                         valueListenable: _stickyDateNotifier,
                         builder: (context, state, child) {
@@ -917,7 +926,7 @@ class _ConversationState extends State<Conversation>
                       ),
 
                     // Scroll-to-bottom FAB
-                    if (_config.enableScrollToLatestFab && _showScrollFab)
+                    if (widget.api.enableScrollToLatestFab && _showScrollFab)
                       Positioned(
                         bottom: 12,
                         right: 12,
@@ -948,14 +957,20 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  Widget _buildSubtitle({required AcChatTheme ct, AcChatUser? user}) {
-    if (_config.enableTypingIndicators && widget.api.watchTyping != null) {
+  Future<Widget> _buildSubtitle({required AcChatTheme ct, AcChatUser? user}) async {
+    if (widget.api.enableTypingIndicator) {
+      var currentUser = await widget.api.getCurrentUser();
+      var typingStream = (await widget.api.watchTyping(conversationId: widget.chat.conversationId));
+      var onlineStream;
+      if(widget.api.enableOnlinePresence && user != null){
+        onlineStream =await widget.api.watchUserOnlineStatus(userId: user.userId);
+      }
+      String groupSubtitle = await _groupSubtitle();
       return StreamBuilder<Map<String, bool>>(
-        stream: widget.api.watchTyping!(conversationId: widget.chat.conversationId),
+        stream: typingStream,
         builder: (context, snapshot) {
           final typingMap = snapshot.data ?? {};
-          final someoneTyping = typingMap.entries
-              .any((e) => e.key != widget.api.getCurrentUser().userId && e.value);
+          final someoneTyping = typingMap.entries.any((e) => e.key != currentUser.userId && e.value);
 
           if (someoneTyping) {
             return Text(
@@ -971,18 +986,18 @@ class _ConversationState extends State<Conversation>
 
           if (_isGroup) {
             return Text(
-              _groupSubtitle(),
+              groupSubtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
             );
           }
 
-          if (_config.enableOnlinePresence &&
+          if (widget.api.enableOnlinePresence &&
               widget.api.watchUserOnlineStatus != null &&
               user != null) {
             return StreamBuilder<bool>(
-              stream: widget.api.watchUserOnlineStatus!(userId: user.userId),
+              stream: onlineStream,
               builder: (ctx, onlSnap) {
                 final isOnline = onlSnap.data ?? false;
                 return Text(
@@ -994,7 +1009,7 @@ class _ConversationState extends State<Conversation>
           }
 
           return Text(
-            _config.enableOnlinePresence ? 'Online' : '',
+            widget.api.enableOnlinePresence ? 'Online' : '',
             style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
           );
         },
@@ -1002,7 +1017,7 @@ class _ConversationState extends State<Conversation>
     }
 
     return Text(
-      _isGroup ? _groupSubtitle() : (_config.enableOnlinePresence ? 'Online' : ''),
+      _isGroup ? await _groupSubtitle() : (widget.api.enableOnlinePresence ? 'Online' : ''),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
@@ -1056,7 +1071,7 @@ class _ConversationState extends State<Conversation>
           isRecording: false,
           enableTyping: widget.enableTyping ?? widget.api.enableTyping,
           micAnim: _micAnim,
-          config: _config,
+          api: widget.api,
           mentionCandidates: members,
           onSend: _send,
           onAttach: () => _showAttachmentModal(context, ct, isDark),
@@ -1081,24 +1096,24 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  String _groupSubtitle() {
-    final members = widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
-    final names = members
-        .map((m) => widget.api.getUserById(userId: m.userId)?.name ?? 'Unknown')
-        .where((n) => n.isNotEmpty)
-        .join(', ');
-    return names.isNotEmpty ? names : 'tap here for group info';
+  Future<String> _groupSubtitle() async {
+    final members = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
+    final names = members.map((m) async => (await widget.api.getUserById(userId: m.userId))?.name ?? 'Unknown');
+        // .where((n) => n.isNotEmpty)
+        // .join(', ');
+    // return names.isNotEmpty ? names : 'tap here for group info';
+    return "";
   }
 
   void _showAttachmentModal(BuildContext context, AcChatTheme ct, bool isDark) {
-    if (!_config.enableMediaAttachments) return;
+    if (!widget.api.enableMediaAttachments) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Attachments(
         ct: ct,
         isDark: isDark,
-        config: _config,
+        api: widget.api,
         onSelect: (label) {
           Navigator.pop(context);
           _handleAttachmentSelected(label, ct);
@@ -1108,15 +1123,15 @@ class _ConversationState extends State<Conversation>
   }
 
   void _handleAttachmentSelected(String label, AcChatTheme ct) {
-    if (!_config.enableMediaAttachments) return;
-    if (label == 'Document' && _config.enableDocumentAttachments) {
+    if (!widget.api.enableMediaAttachments) return;
+    if (label == 'Document' && widget.api.enableDocumentAttachments) {
       _pickAndSendDocument();
-    } else if (label == 'Camera' && _config.enableImageAttachments) {
+    } else if (label == 'Camera' && widget.api.enableImageAttachments) {
       _pickAndSendImage(isCamera: true);
     } else if ((label == 'Gallery' || label.startsWith('Recent Media')) &&
-        (_config.enableImageAttachments || _config.enableVideoAttachments)) {
+        (widget.api.enableImageAttachments || widget.api.enableVideoAttachments)) {
       _pickAndSendImage(isCamera: false);
-    } else if (label == 'Audio' && _config.enableVoiceNotes) {
+    } else if (label == 'Audio' && widget.api.enableVoiceNotes) {
       _pickAndSendAudio();
     } else if (label == 'Location') {
       _showMockLocationSelector(context, ct);
@@ -1200,9 +1215,9 @@ class _ConversationState extends State<Conversation>
       return;
     }
 
-    if (bytes.length > _config.maxAttachmentSizeBytes) {
+    if (bytes.length > widget.api.maxAttachmentSizeBytes) {
       if (mounted) {
-        _toast(context, 'File exceeds maximum size limit (${_config.maxAttachmentSizeBytes ~/ (1024 * 1024)} MB)');
+        _toast(context, 'File exceeds maximum size limit (${widget.api.maxAttachmentSizeBytes ~/ (1024 * 1024)} MB)');
       }
       return;
     }
@@ -1213,7 +1228,7 @@ class _ConversationState extends State<Conversation>
     final newMsg = AcChatMessage()
       ..messageId = messageId
       ..conversationId = widget.chat.conversationId
-      ..senderId = widget.api.getCurrentUser().userId
+      ..senderId = (await widget.api.getCurrentUser()).userId
       ..type = type
       ..text = ''
       ..filePath = file.path
@@ -1333,11 +1348,11 @@ class _ConversationState extends State<Conversation>
             leading: Icon(Icons.my_location, color: ct.activeTabColor),
             title: Text('Share Current Location', style: TextStyle(color: ct.text)),
             subtitle: Text('Accurate to 10 meters', style: TextStyle(color: ct.subText, fontSize: 12)),
-            onTap: () {
+            onTap: () async {
               Navigator.pop(context);
               final newMsg = AcChatMessage()
                 ..conversationId = widget.chat.conversationId
-                ..senderId = widget.api.getCurrentUser().userId
+                ..senderId = (await widget.api.getCurrentUser()).userId
                 ..type = 'location'
                 ..text = '📍 Current Location\nLat: 37.7749, Lng: -122.4194'
                 ..isDownloaded = true
@@ -1354,8 +1369,8 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  void _showMockContactSelector(BuildContext context, AcChatTheme ct) {
-    final contacts = widget.api.getUsers();
+  void _showMockContactSelector(BuildContext context, AcChatTheme ct) async {
+    final contacts = await widget.api.getUsers();
     showModalBottomSheet(
       context: context,
       backgroundColor: ct.surface,
@@ -1379,11 +1394,11 @@ class _ConversationState extends State<Conversation>
             ),
             title: Text(c.name, style: TextStyle(color: ct.text)),
             subtitle: Text(contactInfo, style: TextStyle(color: ct.subText, fontSize: 12)),
-            onTap: () {
+            onTap: () async {
               Navigator.pop(context);
               final newMsg = AcChatMessage()
                 ..conversationId = widget.chat.conversationId
-                ..senderId = widget.api.getCurrentUser().userId
+                ..senderId = (await widget.api.getCurrentUser()).userId
                 ..type = 'contact'
                 ..text = '👤 ${c.name}\n$contactInfo'
                 ..isDownloaded = true
@@ -1602,7 +1617,7 @@ class _ConversationState extends State<Conversation>
   }
 
   void _showAudioRecordingBottomSheet(BuildContext context, AcChatTheme ct) {
-    if (!_config.enableVoiceNotes) return;
+    if (!widget.api.enableVoiceNotes) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

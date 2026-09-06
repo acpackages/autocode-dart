@@ -26,17 +26,26 @@ class ConversationListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    AcChatApi api = AcChatApiProvider.of(context);
     final isGroup = chat.type == 'group';
     AcChatUser? user = otherUser;
+    AcChatUser currentUser = await api.getCurrentUser();
     if (user == null && !isGroup) {
-      final members = api.getConversationUsers(conversationId: chat.conversationId);
+      final members = await api.getConversationUsers(conversationId: chat.conversationId);
       final otherMember = members.firstWhere(
-        (m) => m.userId != api.getCurrentUser().userId,
+        (m) => m.userId != currentUser.userId,
         orElse: () => AcChatConversationUser(),
       );
       if (otherMember.userId.isNotEmpty) {
-        user = api.getUserById(userId: otherMember.userId);
+        user = await api.getUserById(userId: otherMember.userId);
       }
     }
     final name = isGroup
@@ -55,13 +64,13 @@ class ConversationListItem extends StatelessWidget {
     // Retrieve last message for delivery tick status
     AcChatMessage? lastMessageObj;
     try {
-      final msgs = api.getMessages(conversationId: chat.conversationId);
+      final msgs = await api.getMessages(conversationId: chat.conversationId);
       if (msgs.isNotEmpty) {
         lastMessageObj = msgs.last;
       }
     } catch (_) {}
 
-    final isSentByMe = lastMessageObj != null && lastMessageObj.senderId == api.getCurrentUser().userId;
+    final isSentByMe = lastMessageObj != null && lastMessageObj.senderId == currentUser.userId;
 
     return InkWell(
       onTap: onTap,
@@ -93,7 +102,7 @@ class ConversationListItem extends StatelessWidget {
             // Online status indicator
             if (!isGroup && showOnlineStatus && user != null && api.watchUserOnlineStatus != null)
               StreamBuilder<bool>(
-                stream: api.watchUserOnlineStatus!(userId: user.userId),
+                stream: await api.watchUserOnlineStatus!(userId: user.userId),
                 builder: (context, snapshot) {
                   final isOnline = snapshot.data ?? false;
                   if (!isOnline) return const SizedBox.shrink();

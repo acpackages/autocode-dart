@@ -1,400 +1,293 @@
 import 'dart:async';
+import 'dart:core';
 import 'package:flutter/widgets.dart';
-import 'ac_chat_config.dart';
-import '../common/chat_colors.dart';
-import '../media/ac_chat_media_uploader.dart';
-import '../crypto/ac_chat_crypto_provider.dart';
-import '../models/ac_chat_user.dart';
-import '../models/ac_chat_conversation.dart';
-import '../models/ac_chat_conversation_user.dart';
-import '../models/ac_chat_message.dart';
+import '../../ac_chat.dart';
 
 /// The central strongly-typed API bridge for `ac_chat`.
 ///
 /// Implemented by storage/transport providers (e.g. `AcChatSqlite`, `AcChatFirebase`)
 /// to provide strongly-typed operations for all 12 chat domains.
-abstract class AcChatApi {
-  AcChatConfig get config;
-  AcChatTheme get theme;
+class AcChatApi {
+  // AcChatApi config;
+  AcChatTheme theme = AcChatTheme();
 
-  // ── User & Identity ───────────────────────────────────────────────────────
-  AcChatUser getCurrentUser();
-  List<AcChatUser> getUsers();
-  AcChatUser? getUserById({required String userId});
-  Future<void> saveUserProfile({required AcChatUser user});
-  Future<void> blockUser({required String userId});
-  Future<void> unblockUser({required String userId});
-  List<String> getBlockedUserIds();
-  bool isUserBlocked({required String userId});
-  Future<void> reportUser({required String userId, required String reason});
-  Stream<bool>? watchUserOnlineStatus({required String userId});
+  AcChatMediaUploader? mediaUploader;
+  AcChatCryptoProvider? cryptoProvider;
+  AcChatConnectivityProvider? connectivityProvider;
+  AcChatSyncChannel? channel;
+  AcChat? cl;
 
-  // ── Conversations ─────────────────────────────────────────────────────────
-  List<AcChatConversation> getConversations();
-  Stream<List<AcChatConversation>>? watchConversations();
-  AcChatConversationUser? getConversationPrefs({required String conversationId});
-  Future<void> updateConversationPrefs({required AcChatConversationUser prefs});
-  List<AcChatConversationUser> getConversationUsers({required String conversationId});
-  AcChatConversation insertConversation({
-    required AcChatConversation newConv,
-    required String otherUserId,
-  });
-  Future<void> pinConversation({required String conversationId, required bool isPinned});
-  Future<void> archiveConversation({required String conversationId, required bool isArchived});
-  Future<void> muteConversation({required String conversationId, Duration? muteDuration, bool? muted});
-  Future<void> deleteConversation({required String conversationId});
-  Future<void> hideConversation({required String conversationId, required bool isHidden});
+  String dataDirectory = 'chat_data';
 
-  // ── Groups ────────────────────────────────────────────────────────────────
-  Future<AcChatConversation> createGroupConversation({
-    required String groupName,
-    required List<String> memberUserIds,
-    String? groupAvatar,
-    String? groupDescription,
-  });
-  Future<void> addGroupMembers({required String conversationId, required List<String> userIds});
-  Future<void> removeGroupMember({required String conversationId, required String userId});
-  Future<void> updateGroupDetails({
-    required String conversationId,
-    String? groupName,
-    String? groupAvatar,
-    String? groupDescription,
-  });
-  Future<void> leaveGroup({required String conversationId});
-  Future<String> getGroupInviteLink({required String conversationId});
+  // User & Identity
+  bool enableOnlinePresence = true;
+  bool enableLastSeen = true;
+  bool enableUserProfileEditing = true;
+  bool enableUserBlocking = false;
 
-  // ── Messaging ─────────────────────────────────────────────────────────────
-  List<AcChatMessage> getMessages({required String conversationId});
-  Stream<List<AcChatMessage>>? watchMessages({required String conversationId});
-  void sendMessage({required AcChatMessage message});
-  void updateMessage({required String messageId, required Map<String, dynamic> data});
-  Future<void> editMessage({required String messageId, required String newText});
-  Future<void> deleteMessageForMe({required String messageId});
-  Future<void> deleteMessageForEveryone({required String messageId});
-  Future<void> addReaction({required String messageId, required String emoji});
-  Future<void> removeReaction({required String messageId, required String emoji});
-  Future<void> setStarred({required String messageId, required bool isStarred});
-  Future<void> pinMessage({required String messageId, required Duration? duration});
-  Future<void> unpinMessage({required String messageId});
-  void markAsRead({required String conversationId});
-  void sendTypingIndicator({required String conversationId, required bool isTyping});
-  Stream<Map<String, bool>>? watchTyping({required String conversationId});
-  Future<void> forwardMessages({
-    required List<String> messageIds,
-    required String targetConversationId,
-  });
-  Future<void> deleteMessagesBatch({
-    required List<String> messageIds,
-    required bool forEveryone,
-  });
+  // Conversations
+  bool enableCreateNewContact = false;
+  bool enableOneToOneConversations = true;
+  bool enableGroupConversations = true;
+  bool enableConversationPinning = true;
+  bool enableConversationArchiving = true;
+  bool enableConversationMuting = true;
+  bool enableConversationDeletion = true;
+  bool enableConversationHiding = true;
+  bool enableConversationBlocking = false;
+  bool enableConversationReporting = false;
 
-  // ── Search ────────────────────────────────────────────────────────────────
-  Future<List<AcChatMessage>> searchMessages({
-    required String query,
-    String? conversationId,
-    String? senderId,
-    DateTime? startDateUtc,
-    DateTime? endDateUtc,
-    bool? hasAttachment,
-  });
+  // Messaging
+  bool isEndToEndEncrypted = false;
+  bool enableTextMessaging = true;
+  bool enableDeliveryReceipts = true;
+  bool enableReadReceipts = true;
+  bool enableMessageReplying = true;
+  bool enableMessageForwarding = true;
+  bool enableMessageEditing = true;
+  bool enableMessageDeletingForMe = true;
+  bool enableMessageDeletingForEveryone = true;
+  bool enableMessageCopying = true;
+  bool enableMessageStarring = false;
+  bool enableStarredMessages = true;
+  bool enableMessageReactions = true;
 
-  // ── Media & Providers ─────────────────────────────────────────────────────
-  AcChatMediaUploader? get mediaUploader;
-  AcChatCryptoProvider? get cryptoProvider;
-  String? get dataDirectory;
-  Future<String?> downloadMedia({required AcChatMessage message});
+  // Attachments
+  bool enableMediaAttachments = true;
+  bool enableImageAttachments = true;
+  bool enableLocationAttachments = false;
+  bool enableLiveLocationAttachments = false;
+  bool enableContactAttachments = false;
+  bool enableVideoAttachments = true;
+  bool enableDocumentAttachments = true;
+  bool enableVoiceNotes = true;
+  bool enableMediaAutoDownload = true;
+  bool autoDownloadImages = true;
+  bool autoDownloadVideos = false;
+  bool autoDownloadDocuments = true;
+  bool autoDownloadAudio = true;
+  bool enableStatuses = false;
+  bool enableMediaViewer = true;
+  int maxAttachmentSizeBytes = 52428800; // 50 MB
 
-  // ── Export & Wipe ─────────────────────────────────────────────────────────
-  Future<String> exportChat({required String conversationId, required bool asJson});
-  Future<void> wipeAllData();
+  // Message interaction
+  bool enableMentions = true;
+  bool enableMultiSelect = true;
+  bool enableBatchForwarding = true;
+  bool enableBatchDeletion = true;
+  bool enableBatchCopy = true;
+  bool enableMessageSharing = true;
+  bool enableInChatSearch = true;
+
+  // Notifications
+  bool enablePushNotifications = true;
+  bool enableForegroundNotificationSuppression = true;
+  bool enableMentionNotifications = true;
+  bool enableBadgeCountSync = true;
+
+  // Offline / synchronization
+  bool enableOfflineCaching = true;
+  bool enableOfflineOutbox = true;
+  bool enableDeltaSync = true;
+  int outboxMaxRetries = 5;
+  Duration outboxRetryInterval = const Duration(seconds: 10);
+
+  // Search
+  bool enableConversationSearch = true;
+  bool enableMessageFullTextSearch = true;
+  bool enableSearchFilters = true;
+
+  // Groups
+  bool enableGroups = false;
+  bool enableGroupAdminRoles = true;
+  bool enableGroupMemberAddRemove = true;
+  bool enableGroupMemberPermissions = true;
+  bool enableGroupDetailsEditing = true;
+  bool enableGroupLeave = true;
+  bool enableGroupInviteLinks = true;
+  bool enableGroupSystemMessages = true;
+  int maxGroupParticipants = 256;
+
+  // Security / privacy
+  bool enableMessageOwnershipEnforcement = true;
+  bool enableBlockedUserRestrictions = true;
+  bool enableDataDeletionWipe = true;
+
+  // UI / UX
+  bool enableLazyLoadingPagination = true;
+  bool enableStickyDateHeaders = true;
+  bool enableUnreadMessagesSeparator = true;
+  bool enableTypingIndicator = true;
+  bool enableTyping = true;
+  bool enableScrollToLatestFab = true;
+  int messagesPageSize = 40;
+
+  // Advanced
+  bool enablePinnedMessages = true;
+  bool enableSharedMediaGallery = true;
+  bool enableChatExport = true;
+  bool enableDisappearingMessages = false;
+  bool enableMessageScheduling = false;
+  bool enableBroadcastMessages = false;
+  bool enableUserReporting = false;
+
+  // Policies
+  Duration editTimeWindow = const Duration(minutes: 15);
+  Duration deleteForEveryoneWindow = const Duration(hours: 24);
+
+  bool readOnly = false;
+  bool enableVideoCall = false;
+  bool enableVoiceCall = false;
+  bool showNewConversationButton = true;
+  bool showConversationMenu = false;
 
   // ── UI Customization & Builders ───────────────────────────────────────────
-  Widget? Function({required BuildContext context, required AcChatMessage message})? get customMessageBuilder;
-  void Function({required AcChatMessage message})? get onMessageTap;
-  FutureOr<AcChatUser?> Function({required BuildContext context})? get onNewContact;
-  FutureOr<void> Function({required BuildContext context})? get onNewGroup;
-  List<AcChatUser> Function()? get getContacts;
-  String? get contactsSectionTitle;
-  String? get newContactLabel;
-  String? get newContactSubtitle;
-  String? get newGroupLabel;
-  String? get newGroupSubtitle;
-  FutureOr<List<AcChatUser>> Function({required String query})? get onSearchRemoteUsers;
-  Widget? Function({required BuildContext context, required AcChatConversation conversation})? get customInputBuilder;
+  Widget? Function(
+      {required BuildContext context,
+      required AcChatMessage message})? customMessageBuilder;
+  void Function({required AcChatMessage message})? onMessageTap;
+  FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
+  FutureOr<void> Function({required BuildContext context})? onNewGroup;
+  List<AcChatUser> Function()? getContacts;
+  String? contactsSectionTitle;
+  String? newContactLabel;
+  String? newContactSubtitle;
+  String? newGroupLabel;
+  String? newGroupSubtitle;
+  FutureOr<List<AcChatUser>> Function({required String query})?
+      onSearchRemoteUsers;
+  Widget? Function(
+      {required BuildContext context,
+      required AcChatConversation conversation})? customInputBuilder;
 
-  // ── Convenience Feature Getters (forwarding to config) ────────────────────
-  bool get enableGroups => config.enableGroupConversations;
-  bool get enableStatus => config.enableStatus;
-  bool get enableGroupsAndStatuses => config.enableStatus;
-  bool get enableTyping => config.enableTextMessaging;
-  bool get enableTypingIndicator => config.enableTypingIndicators;
-  bool get pinConversations => config.enableConversationPinning;
-  bool get searchConversations => config.enableConversationSearch;
-  bool get showOnlineStatus => config.enableOnlinePresence;
-  int get maxGroupParticipants => config.maxGroupParticipants;
-  bool get readOnly => !config.enableTextMessaging;
-  bool get enableVideoCall => false;
-  bool get enableVoiceCall => false;
-  bool get showNewConversationButton => true;
-  bool get showConversationMenu => true;
-
-  /// Factory constructor for building a delegate-based [AcChatApi] instance.
-  factory AcChatApi({
-    AcChatConfig config,
-    required AcChatTheme theme,
-    required AcChatUser Function() getCurrentUser,
-    required List<AcChatUser> Function() getUsers,
-    required AcChatUser? Function({required String userId}) getUserById,
-    required List<AcChatConversation> Function() getConversations,
-    required List<AcChatConversationUser> Function({required String conversationId}) getConversationUsers,
-    required List<AcChatMessage> Function({required String conversationId}) getMessages,
-    required void Function({required String conversationId}) markAsRead,
-    required void Function({required AcChatMessage message}) sendMessage,
-    required AcChatConversation Function({
-      required AcChatConversation newConv,
-      required String otherUserId,
-    }) insertConversation,
-    Stream<List<AcChatConversation>> Function()? watchConversations,
-    Stream<List<AcChatMessage>> Function({required String conversationId})? watchMessages,
-    Stream<Map<String, bool>> Function({required String conversationId})? watchTyping,
-    Stream<bool> Function({required String userId})? watchUserOnlineStatus,
-    Future<AcChatConversation> Function({
-      required String groupName,
-      required List<String> memberUserIds,
-      String? groupAvatar,
-    })? createGroupConversation,
-    Future<void> Function({
-      required String conversationId,
-      required List<String> userIds,
-    })? addGroupMembers,
-    Future<void> Function({
-      required String conversationId,
-      required String userId,
-    })? removeGroupMember,
-    void Function({
-      required String conversationId,
-      required bool isTyping,
-    })? sendTypingIndicator,
-    Future<List<AcChatMessage>> Function({
-      required String query,
-      String? conversationId,
-    })? searchMessages,
-    void Function({
-      required String messageId,
-      required Map<String, dynamic> data,
-    })? updateMessage,
-    Future<void> Function({
-      required String messageId,
-      required String newText,
-    })? onEditMessage,
-    Future<void> Function({
-      required String messageId,
-      required bool forEveryone,
-    })? onDeleteMessage,
-    Future<void> Function({
-      required String messageId,
-      required String emoji,
-    })? onAddReaction,
-    AcChatMediaUploader? mediaUploader,
-    AcChatCryptoProvider? cryptoProvider,
-    String? dataDirectory,
-    Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder,
-    void Function({required AcChatMessage message})? onMessageTap,
-    FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact,
-    FutureOr<void> Function({required BuildContext context})? onNewGroup,
-    List<AcChatUser> Function()? getContacts,
-    String? contactsSectionTitle,
-    String? newContactLabel,
-    String? newContactSubtitle,
-    String? newGroupLabel,
-    String? newGroupSubtitle,
-    FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers,
-    Widget? Function({
-      required BuildContext context,
-      required AcChatConversation conversation,
-    })? customInputBuilder,
-    bool? enableVideoCall,
-    bool? enableVoiceCall,
-    bool? showNewConversationButton,
-    bool? searchConversations,
-    bool? pinConversations,
-    bool? showConversationMenu,
-    bool? showOnlineStatus,
-    bool? enableTypingIndicator,
-    bool? enableTyping,
-    bool? enableGroups,
-    bool? enableStatus,
-    bool? enableGroupsAndStatuses,
-    int? maxGroupParticipants,
-    bool? readOnly,
-  }) = _DelegatedAcChatApi;
-}
-
-class _DelegatedAcChatApi implements AcChatApi {
-  @override
-  final AcChatConfig config;
-
-  @override
-  final AcChatTheme theme;
-
-  final AcChatUser Function() _getCurrentUser;
-  final List<AcChatUser> Function() _getUsers;
-  final AcChatUser? Function({required String userId}) _getUserById;
-  final List<AcChatConversation> Function() _getConversations;
-  final List<AcChatConversationUser> Function({required String conversationId}) _getConversationUsers;
-  final List<AcChatMessage> Function({required String conversationId}) _getMessages;
-  final void Function({required String conversationId}) _markAsRead;
-  final void Function({required AcChatMessage message}) _sendMessage;
-  final AcChatConversation Function({
-    required AcChatConversation newConv,
-    required String otherUserId,
-  }) _insertConversation;
-
-  final Stream<List<AcChatConversation>> Function()? _watchConversations;
-  final Stream<List<AcChatMessage>> Function({required String conversationId})? _watchMessages;
-  final Stream<Map<String, bool>> Function({required String conversationId})? _watchTyping;
-  final Stream<bool> Function({required String userId})? _watchUserOnlineStatus;
-  final Future<AcChatConversation> Function({
-    required String groupName,
-    required List<String> memberUserIds,
-    String? groupAvatar,
-  })? _createGroupConversation;
-  final Future<void> Function({
-    required String conversationId,
-    required List<String> userIds,
-  })? _addGroupMembers;
-  final Future<void> Function({
-    required String conversationId,
-    required String userId,
-  })? _removeGroupMember;
-  final void Function({
-    required String conversationId,
-    required bool isTyping,
-  })? _sendTypingIndicator;
-  final Future<List<AcChatMessage>> Function({
-    required String query,
-    String? conversationId,
-  })? _searchMessages;
-  final void Function({
-    required String messageId,
-    required Map<String, dynamic> data,
-  })? _updateMessage;
-  final Future<void> Function({
-    required String messageId,
-    required String newText,
-  })? _onEditMessage;
-  final Future<void> Function({
-    required String messageId,
-    required bool forEveryone,
-  })? _onDeleteMessage;
-  final Future<void> Function({
-    required String messageId,
-    required String emoji,
-  })? _onAddReaction;
-
-  @override
-  final AcChatMediaUploader? mediaUploader;
-  @override
-  final AcChatCryptoProvider? cryptoProvider;
-  @override
-  final String? dataDirectory;
-  @override
-  final Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder;
-  @override
-  final void Function({required AcChatMessage message})? onMessageTap;
-  @override
-  final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
-  @override
-  final FutureOr<void> Function({required BuildContext context})? onNewGroup;
-  @override
-  final List<AcChatUser> Function()? getContacts;
-  @override
-  final String? contactsSectionTitle;
-  @override
-  final String? newContactLabel;
-  @override
-  final String? newContactSubtitle;
-  @override
-  final String? newGroupLabel;
-  @override
-  final String? newGroupSubtitle;
-  @override
-  final FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers;
-  @override
-  final Widget? Function({
-    required BuildContext context,
-    required AcChatConversation conversation,
-  })? customInputBuilder;
-
-  final Set<String> _blockedUsers = {};
-  final Map<String, AcChatConversationUser> _prefs = {};
-  final bool _enableTyping;
-  final bool _readOnly;
-  final bool _enableVideoCall;
-  final bool _enableVoiceCall;
-  final bool _showNewConversationButton;
-  final bool _showConversationMenu;
-  final bool _enableGroupsAndStatuses;
-
-  _DelegatedAcChatApi({
-    AcChatConfig? config,
-    required this.theme,
-    required AcChatUser Function() getCurrentUser,
-    required List<AcChatUser> Function() getUsers,
-    required AcChatUser? Function({required String userId}) getUserById,
-    required List<AcChatConversation> Function() getConversations,
-    required List<AcChatConversationUser> Function({required String conversationId}) getConversationUsers,
-    required List<AcChatMessage> Function({required String conversationId}) getMessages,
-    required void Function({required String conversationId}) markAsRead,
-    required void Function({required AcChatMessage message}) sendMessage,
-    required AcChatConversation Function({
-      required AcChatConversation newConv,
-      required String otherUserId,
-    }) insertConversation,
-    Stream<List<AcChatConversation>> Function()? watchConversations,
-    Stream<List<AcChatMessage>> Function({required String conversationId})? watchMessages,
-    Stream<Map<String, bool>> Function({required String conversationId})? watchTyping,
-    Stream<bool> Function({required String userId})? watchUserOnlineStatus,
-    Future<AcChatConversation> Function({
-      required String groupName,
-      required List<String> memberUserIds,
-      String? groupAvatar,
-    })? createGroupConversation,
-    Future<void> Function({
-      required String conversationId,
-      required List<String> userIds,
-    })? addGroupMembers,
-    Future<void> Function({
-      required String conversationId,
-      required String userId,
-    })? removeGroupMember,
-    void Function({
-      required String conversationId,
-      required bool isTyping,
-    })? sendTypingIndicator,
-    Future<List<AcChatMessage>> Function({
-      required String query,
-      String? conversationId,
-    })? searchMessages,
-    void Function({
-      required String messageId,
-      required Map<String, dynamic> data,
-    })? updateMessage,
-    Future<void> Function({
-      required String messageId,
-      required String newText,
-    })? onEditMessage,
-    Future<void> Function({
-      required String messageId,
-      required bool forEveryone,
-    })? onDeleteMessage,
-    Future<void> Function({
-      required String messageId,
-      required String emoji,
-    })? onAddReaction,
+  AcChatApi({
+    this.theme = const AcChatTheme(),
     this.mediaUploader,
     this.cryptoProvider,
-    this.dataDirectory,
+    this.connectivityProvider,
+    this.channel,
+    this.dataDirectory = "chat",
+
+    // User & Identity
+    this.enableOnlinePresence = true,
+    this.enableLastSeen = true,
+    this.enableUserProfileEditing = true,
+    this.enableUserBlocking = false,
+
+    // Conversations
+    this.enableCreateNewContact = false,
+    this.enableOneToOneConversations = true,
+    this.enableGroupConversations = true,
+    this.enableConversationPinning = true,
+    this.enableConversationArchiving = true,
+    this.enableConversationMuting = true,
+    this.enableConversationDeletion = true,
+    this.enableConversationHiding = true,
+    this.enableConversationBlocking = false,
+    this.enableConversationReporting = false,
+
+    // Messaging
+    this.isEndToEndEncrypted = false,
+    this.enableTextMessaging = true,
+    this.enableDeliveryReceipts = true,
+    this.enableReadReceipts = true,
+    this.enableMessageReplying = true,
+    this.enableMessageForwarding = true,
+    this.enableMessageEditing = true,
+    this.enableMessageDeletingForMe = true,
+    this.enableMessageDeletingForEveryone = true,
+    this.enableMessageCopying = true,
+    this.enableMessageStarring = false,
+    this.enableStarredMessages = true,
+    this.enableMessageReactions = true,
+
+    // Attachments
+    this.enableMediaAttachments = true,
+    this.enableImageAttachments = true,
+    this.enableLocationAttachments = false,
+    this.enableLiveLocationAttachments = false,
+    this.enableContactAttachments = false,
+    this.enableVideoAttachments = true,
+    this.enableDocumentAttachments = true,
+    this.enableVoiceNotes = true,
+    this.enableMediaAutoDownload = true,
+    this.autoDownloadImages = true,
+    this.autoDownloadVideos = false,
+    this.autoDownloadDocuments = true,
+    this.autoDownloadAudio = true,
+    this.enableStatuses = false,
+    this.enableMediaViewer = true,
+    this.maxAttachmentSizeBytes = 52428800,
+
+    // Message interaction
+    this.enableMentions = true,
+    this.enableMultiSelect = true,
+    this.enableBatchForwarding = true,
+    this.enableBatchDeletion = true,
+    this.enableBatchCopy = true,
+    this.enableMessageSharing = true,
+    this.enableInChatSearch = true,
+
+    // Notifications
+    this.enablePushNotifications = true,
+    this.enableForegroundNotificationSuppression = true,
+    this.enableMentionNotifications = true,
+    this.enableBadgeCountSync = true,
+
+    // Offline / synchronization
+    this.enableOfflineCaching = true,
+    this.enableOfflineOutbox = true,
+    this.enableDeltaSync = true,
+    this.outboxMaxRetries = 5,
+    this.outboxRetryInterval = const Duration(seconds: 10),
+
+    // Search
+    this.enableConversationSearch = true,
+    this.enableMessageFullTextSearch = true,
+    this.enableSearchFilters = true,
+
+    // Groups
+    this.enableGroups = false,
+    this.enableGroupAdminRoles = true,
+    this.enableGroupMemberAddRemove = true,
+    this.enableGroupMemberPermissions = true,
+    this.enableGroupDetailsEditing = true,
+    this.enableGroupLeave = true,
+    this.enableGroupInviteLinks = true,
+    this.enableGroupSystemMessages = true,
+    this.maxGroupParticipants = 50,
+
+    // Security / privacy
+    this.enableMessageOwnershipEnforcement = true,
+    this.enableBlockedUserRestrictions = true,
+    this.enableDataDeletionWipe = true,
+
+    // UI / UX
+    this.enableLazyLoadingPagination = true,
+    this.enableStickyDateHeaders = true,
+    this.enableUnreadMessagesSeparator = true,
+    this.enableTypingIndicator = true,
+    this.enableTyping = true,
+    this.enableScrollToLatestFab = true,
+    this.messagesPageSize = 50,
+
+    // Advanced
+    this.enablePinnedMessages = true,
+    this.enableSharedMediaGallery = true,
+    this.enableChatExport = true,
+    this.enableDisappearingMessages = false,
+    this.enableMessageScheduling = false,
+    this.enableBroadcastMessages = false,
+    this.enableUserReporting = false,
+
+    // Policies
+    this.editTimeWindow = const Duration(minutes: 15),
+    this.deleteForEveryoneWindow = const Duration(hours: 24),
+    this.readOnly = false,
+    this.enableVideoCall = false,
+    this.enableVoiceCall = false,
+    this.showNewConversationButton = true,
+    this.showConversationMenu = false,
     this.customMessageBuilder,
     this.onMessageTap,
     this.onNewContact,
@@ -407,394 +300,227 @@ class _DelegatedAcChatApi implements AcChatApi {
     this.newGroupSubtitle,
     this.onSearchRemoteUsers,
     this.customInputBuilder,
-    bool? enableVideoCall,
-    bool? enableVoiceCall,
-    bool? showNewConversationButton,
-    bool? searchConversations,
-    bool? pinConversations,
-    bool? showConversationMenu,
-    bool? showOnlineStatus,
-    bool? enableTypingIndicator,
-    bool? enableTyping,
-    bool? enableGroups,
-    bool? enableStatus,
-    bool? enableGroupsAndStatuses,
-    int? maxGroupParticipants,
-    bool? readOnly,
-  })  : _getCurrentUser = getCurrentUser,
-        _getUsers = getUsers,
-        _getUserById = getUserById,
-        _getConversations = getConversations,
-        _getConversationUsers = getConversationUsers,
-        _getMessages = getMessages,
-        _markAsRead = markAsRead,
-        _sendMessage = sendMessage,
-        _insertConversation = insertConversation,
-        _watchConversations = watchConversations,
-        _watchMessages = watchMessages,
-        _watchTyping = watchTyping,
-        _watchUserOnlineStatus = watchUserOnlineStatus,
-        _createGroupConversation = createGroupConversation,
-        _addGroupMembers = addGroupMembers,
-        _removeGroupMember = removeGroupMember,
-        _sendTypingIndicator = sendTypingIndicator,
-        _searchMessages = searchMessages,
-        _updateMessage = updateMessage,
-        _onEditMessage = onEditMessage,
-        _onDeleteMessage = onDeleteMessage,
-        _onAddReaction = onAddReaction,
-        _enableTyping = enableTyping ?? true,
-        _readOnly = readOnly ?? false,
-        _enableVideoCall = enableVideoCall ?? false,
-        _enableVoiceCall = enableVoiceCall ?? false,
-        _showNewConversationButton = showNewConversationButton ?? true,
-        _showConversationMenu = showConversationMenu ?? true,
-        _enableGroupsAndStatuses = enableGroupsAndStatuses ?? true,
-        config = config ??
-            AcChatConfig(
-              enableTypingIndicators: enableTypingIndicator ?? true,
-              enableTextMessaging: !(readOnly ?? false),
-              enableGroupConversations: enableGroups ?? true,
-              enableStatus: enableStatus ?? (enableGroupsAndStatuses ?? false),
-              maxGroupParticipants: maxGroupParticipants ?? 50,
-              enableConversationPinning: pinConversations ?? true,
-              enableConversationSearch: searchConversations ?? true,
-              enableOnlinePresence: showOnlineStatus ?? true,
-            );
 
-  @override
-  bool get enableGroups => config.enableGroupConversations;
-  @override
-  bool get enableStatus => config.enableStatus;
-  @override
-  bool get enableGroupsAndStatuses => _enableGroupsAndStatuses && config.enableStatus;
-  @override
-  bool get enableTyping => _enableTyping;
-  @override
-  bool get enableTypingIndicator => config.enableTypingIndicators;
-  @override
-  bool get pinConversations => config.enableConversationPinning;
-  @override
-  bool get searchConversations => config.enableConversationSearch;
-  @override
-  bool get showOnlineStatus => config.enableOnlinePresence;
-  @override
-  int get maxGroupParticipants => config.maxGroupParticipants;
-  @override
-  bool get readOnly => _readOnly;
-  @override
-  bool get enableVideoCall => _enableVideoCall;
-  @override
-  bool get enableVoiceCall => _enableVoiceCall;
-  @override
-  bool get showNewConversationButton => _showNewConversationButton;
-  @override
-  bool get showConversationMenu => _showConversationMenu;
-
-  @override
-  AcChatUser getCurrentUser() => _getCurrentUser();
-
-  @override
-  List<AcChatUser> getUsers() => _getUsers();
-
-  @override
-  AcChatUser? getUserById({required String userId}) => _getUserById(userId: userId);
-
-  @override
-  Future<void> saveUserProfile({required AcChatUser user}) async {}
-
-  @override
-  Future<void> blockUser({required String userId}) async {
-    _blockedUsers.add(userId);
+    this.getCurrentUser = _getCurrentUser,
+    this.getUsers = _getUsers,
+    this.getUserById = _getUserById,
+    this.saveUserProfile = _saveUserProfile,
+    this.blockUser = _blockUser,
+    this.unblockUser = _unblockUser,
+    this.getBlockedUserIds = _getBlockedUserIds,
+    this.isUserBlocked = _isUserBlocked,
+    this.reportUser = _reportUser,
+    this.watchUserOnlineStatus = _watchUserOnlineStatus,
+    // ── Conversations ─────────────────────────────────────────────────────────
+    this.getConversations = _getConversations,
+    this.watchConversations = _watchConversations,
+    this.getConversationPrefs = _getConversationPrefs,
+    this.updateConversationPrefs = _updateConversationPrefs,
+    this.getConversationUsers = _getConversationUsers,
+    this.insertConversation = _insertConversation,
+    this.pinConversation = _pinConversation,
+    this.archiveConversation = _archiveConversation,
+    this.muteConversation = _muteConversation,
+    this.deleteConversation = _deleteConversation,
+    this.hideConversation = _hideConversation,
+    // ── Groups ────────────────────────────────────────────────────────────────
+    this.createGroupConversation = _createGroupConversation,
+    this.addGroupMembers = _addGroupMembers,
+    this.removeGroupMember = _removeGroupMember,
+    this.updateGroupDetails = _updateGroupDetails,
+    this.leaveGroup = _leaveGroup,
+    this.getGroupInviteLink = _getGroupInviteLink,
+    // ── Messaging ─────────────────────────────────────────────────────────────
+    this.getMessages = _getMessages,
+    this.watchMessages = _watchMessages,
+    this.sendMessage = _sendMessage,
+    this.updateMessage = _updateMessage,
+    this.editMessage = _editMessage,
+    this.deleteMessageForMe = _deleteMessageForMe,
+    this.deleteMessageForEveryone = _deleteMessageForEveryone,
+    this.addReaction = _addReaction,
+    this.removeReaction = _removeReaction,
+    this.setStarred = _setStarred,
+    this.pinMessage = _pinMessage,
+    this.unpinMessage = _unpinMessage,
+    this.markAsRead = _markAsRead,
+    this.sendTypingIndicator = _sendTypingIndicator,
+    this.watchTyping = _watchTyping,
+    this.forwardMessages = _forwardMessages,
+    this.deleteMessagesBatch = _deleteMessagesBatch,
+    // ── Search ────────────────────────────────────────────────────────────────
+    this.searchMessages = _searchMessages,
+    this.downloadMedia = _downloadMedia,
+    this.exportChat = _exportChat,
+    this.wipeAllData = _wipeAllData,
+    // this.insertConversation = _insertConversation,
+    // this.watchConversations = _watchConversations,
+    // this.watchUserOnlineStatus = _watchUserOnlineStatus,
+    // this.createGroupConversation = _createGroupConversation,
+    // this.addGroupMembers = _addGroupMembers,
+    // this.removeGroupMember = _removeGroupMember,
+    // this.onEditMessage,
+    // this.onDeleteMessage,
+    // this.onAddReaction,
+    // this.searchConversations,
+    // this.pinConversations,
+    // this.showOnlineStatus,
+  }) {
   }
 
-  @override
-  Future<void> unblockUser({required String userId}) async {
-    _blockedUsers.remove(userId);
+
+
+  late Future<AcChatUser> Function() getCurrentUser;
+  late Future<List<AcChatUser>> Function() getUsers;
+  late Future<AcChatUser?> Function({required String userId}) getUserById;
+  late Future<void> Function({required AcChatUser user}) saveUserProfile;
+  late Future<void> Function({required String userId}) blockUser;
+  late Future<void> Function({required String userId}) unblockUser;
+  late Future<List<String>> Function() getBlockedUserIds;
+  late Future<bool> Function({required String userId}) isUserBlocked;
+  late Future<void> Function({required String userId, required String reason}) reportUser;
+  late Future<Stream<bool>?> Function({required String userId}) watchUserOnlineStatus;
+  // ── Conversations ─────────────────────────────────────────────────────────
+  late Future<List<AcChatConversation>> Function() getConversations;
+  late Future<Stream<List<AcChatConversation>>?> Function() watchConversations;
+  late Future<AcChatConversationUser?> Function({required String conversationId}) getConversationPrefs;
+  late Future<void> Function({required AcChatConversationUser prefs}) updateConversationPrefs;
+  late Future<List<AcChatConversationUser>> Function({required String conversationId}) getConversationUsers;
+  late Future<AcChatConversation> Function({required AcChatConversation newConversation,required String otherUserId}) insertConversation;
+  late Future<void> Function({required String conversationId, required bool isPinned}) pinConversation;
+  late Future<void> Function({required String conversationId, required bool isArchived}) archiveConversation;
+  late Future<void> Function({required String conversationId,Duration? muteDuration,bool? muted}) muteConversation;
+  late Future<void> Function({required String conversationId}) deleteConversation;
+  late Future<void> Function({required String conversationId, required bool isHidden}) hideConversation;
+  // ── Groups ────────────────────────────────────────────────────────────────
+  late Future<AcChatConversation> Function({required String groupName,required List<String> memberUserIds,String? groupAvatar,String? groupDescription}) createGroupConversation;
+  late Future<void> Function({required String conversationId, required List<String> userIds}) addGroupMembers;
+  late Future<void> Function({required String conversationId, required String userId}) removeGroupMember;
+  late Future<void> Function({required String conversationId,String? groupName,String? groupAvatar,String? groupDescription,}) updateGroupDetails;
+  late Future<void> Function({required String conversationId}) leaveGroup;
+  late Future<String> Function({required String conversationId}) getGroupInviteLink;
+  // ── Messaging ─────────────────────────────────────────────────────────────
+  late Future<List<AcChatMessage>> Function({required String conversationId}) getMessages;
+  late Future<Stream<List<AcChatMessage>>?> Function({required String conversationId}) watchMessages;
+  late Future<void> Function({required AcChatMessage message}) sendMessage;
+  late Future<void> Function({required String messageId, required Map<String, dynamic> data}) updateMessage;
+  late Future<void> Function({required String messageId, required String newText}) editMessage;
+  late Future<void> Function({required String messageId}) deleteMessageForMe;
+  late Future<void> Function({required String messageId}) deleteMessageForEveryone;
+  late Future<void> Function({required String messageId, required String emoji}) addReaction;
+  late Future<void> Function({required String messageId, required String emoji}) removeReaction;
+  late Future<void> Function({required String messageId, required bool isStarred}) setStarred;
+  late Future<void> Function({required String messageId, required Duration? duration}) pinMessage;
+  late Future<void> Function({required String messageId}) unpinMessage;
+  late Future<void> Function({required String conversationId}) markAsRead;
+  late Future<void> Function({required String conversationId, required bool isTyping}) sendTypingIndicator;
+  late Future<Stream<Map<String, bool>>?> Function({required String conversationId}) watchTyping;
+  late Future<void> Function({required List<String> messageIds,required String targetConversationId}) forwardMessages;
+  late Future<void> Function({required List<String> messageIds,required bool forEveryone}) deleteMessagesBatch;
+  // ── Search ────────────────────────────────────────────────────────────────
+  late Future<List<AcChatMessage>>  Function({required String query,String? conversationId, String? senderId, DateTime? startDateUtc, DateTime? endDateUtc,bool? hasAttachment, }) searchMessages;
+  late Future<String?> Function({required AcChatMessage message}) downloadMedia;
+  // ── Export & Wipe ─────────────────────────────────────────────────────────
+  late Future<String>  Function({required String conversationId, required bool asJson}) exportChat;
+  late Future<void> Function() wipeAllData;
+
+  static Future<AcChatUser> _getCurrentUser() async {
+    return AcChatUser();
   }
-
-  @override
-  List<String> getBlockedUserIds() => _blockedUsers.toList();
-
-  @override
-  bool isUserBlocked({required String userId}) => _blockedUsers.contains(userId);
-
-  @override
-  Future<void> reportUser({required String userId, required String reason}) async {}
-
-  @override
-  Stream<bool>? watchUserOnlineStatus({required String userId}) =>
-      config.enableOnlinePresence ? _watchUserOnlineStatus?.call(userId: userId) : null;
-
-  @override
-  List<AcChatConversation> getConversations() => _getConversations();
-
-  @override
-  Stream<List<AcChatConversation>>? watchConversations() => _watchConversations?.call();
-
-  @override
-  AcChatConversationUser? getConversationPrefs({required String conversationId}) =>
-      _prefs[conversationId];
-
-  @override
-  Future<void> updateConversationPrefs({required AcChatConversationUser prefs}) async {
-    _prefs[prefs.conversationId] = prefs;
+  static Future<List<AcChatUser>> _getUsers () async {
+    return [];
   }
-
-  @override
-  List<AcChatConversationUser> getConversationUsers({required String conversationId}) =>
-      _getConversationUsers(conversationId: conversationId);
-
-  @override
-  AcChatConversation insertConversation({
-    required AcChatConversation newConv,
-    required String otherUserId,
-  }) =>
-      _insertConversation(newConv: newConv, otherUserId: otherUserId);
-
-  @override
-  Future<void> pinConversation({required String conversationId, required bool isPinned}) async {
-    final p = _prefs.putIfAbsent(
-      conversationId,
-      () => AcChatConversationUser()
-        ..conversationId = conversationId
-        ..userId = getCurrentUser().userId,
-    );
-    p.isPinned = isPinned;
+  static Future<AcChatUser?> _getUserById({required String userId}) async {
+    return null;
   }
-
-  @override
-  Future<void> archiveConversation({required String conversationId, required bool isArchived}) async {
-    final p = _prefs.putIfAbsent(
-      conversationId,
-      () => AcChatConversationUser()
-        ..conversationId = conversationId
-        ..userId = getCurrentUser().userId,
-    );
-    p.isArchived = isArchived;
+  static Future<void> _saveUserProfile({required AcChatUser user}) async {}
+  static Future<void> _blockUser({required String userId}) async {}
+  static Future<void> _unblockUser({required String userId}) async {}
+  static Future<List<String>> _getBlockedUserIds() async {
+    return [];
   }
-
-  @override
-  Future<void> muteConversation({required String conversationId, Duration? muteDuration, bool? muted}) async {
-    final p = _prefs.putIfAbsent(
-      conversationId,
-      () => AcChatConversationUser()
-        ..conversationId = conversationId
-        ..userId = getCurrentUser().userId,
-    );
-    if (muted != null) {
-      p.isMuted = muted;
-      p.muteUntilUtc = muted ? DateTime.now().toUtc().add(const Duration(days: 3650)) : null;
-    } else {
-      p.isMuted = muteDuration != null;
-      p.muteUntilUtc = muteDuration != null ? DateTime.now().toUtc().add(muteDuration) : null;
-    }
+  static Future<bool> _isUserBlocked({required String userId}) async {
+    return false;
   }
-
-  @override
-  Future<void> deleteConversation({required String conversationId}) async {}
-
-  @override
-  Future<void> hideConversation({required String conversationId, required bool isHidden}) async {
-    final p = _prefs.putIfAbsent(
-      conversationId,
-      () => AcChatConversationUser()
-        ..conversationId = conversationId
-        ..userId = getCurrentUser().userId,
-    );
-    p.isHidden = isHidden;
+  static Future<void> _reportUser(
+      {required String userId, required String reason}) async {}
+  static Future<Stream<bool>?> _watchUserOnlineStatus({required String userId}) async {
+    return null;
   }
-
-  @override
-  Future<AcChatConversation> createGroupConversation({
+  // ── Conversations ─────────────────────────────────────────────────────────
+  static Future<List<AcChatConversation>> _getConversations() async {
+    return [];
+  }
+  static Future<Stream<List<AcChatConversation>>?> _watchConversations() async {
+    return null;
+  }
+  static Future<AcChatConversationUser?> _getConversationPrefs({required String conversationId}) async {
+    return null;
+  }
+  static Future<void> _updateConversationPrefs({required AcChatConversationUser prefs}) async {}
+  static Future<List<AcChatConversationUser>> _getConversationUsers({required String conversationId}) async {
+    return [];
+  }
+  static Future<AcChatConversation> _insertConversation({required AcChatConversation newConversation,required String otherUserId}) async {return newConversation;}
+  static Future<void> _pinConversation(
+      {required String conversationId, required bool isPinned}) async {}
+  static Future<void> _archiveConversation(
+      {required String conversationId, required bool isArchived}) async {}
+  static Future<void> _muteConversation(
+      {required String conversationId,
+        Duration? muteDuration,
+        bool? muted}) async {}
+  static Future<void> _deleteConversation({required String conversationId}) async {}
+  static Future<void> _hideConversation(
+      {required String conversationId, required bool isHidden}) async {}
+  // ── Groups ────────────────────────────────────────────────────────────────
+  static Future<AcChatConversation> _createGroupConversation({
     required String groupName,
     required List<String> memberUserIds,
     String? groupAvatar,
     String? groupDescription,
-  }) async {
-    if (_createGroupConversation != null) {
-      return await _createGroupConversation(
-        groupName: groupName,
-        memberUserIds: memberUserIds,
-        groupAvatar: groupAvatar,
-      );
-    }
-    return AcChatConversation()
-      ..type = 'group'
-      ..conversationName = groupName
-      ..memberIds = memberUserIds;
-  }
-
-  @override
-  Future<void> addGroupMembers({required String conversationId, required List<String> userIds}) async {
-    if (_addGroupMembers != null) {
-      await _addGroupMembers(conversationId: conversationId, userIds: userIds);
-    }
-  }
-
-  @override
-  Future<void> removeGroupMember({required String conversationId, required String userId}) async {
-    if (_removeGroupMember != null) {
-      await _removeGroupMember(conversationId: conversationId, userId: userId);
-    }
-  }
-
-  @override
-  Future<void> updateGroupDetails({
+  }) async {return AcChatConversation();}
+  static Future<void> _addGroupMembers(
+      {required String conversationId, required List<String> userIds}) async {}
+  static Future<void> _removeGroupMember(
+      {required String conversationId, required String userId}) async {}
+  static Future<void> _updateGroupDetails({
     required String conversationId,
     String? groupName,
     String? groupAvatar,
     String? groupDescription,
   }) async {}
-
-  @override
-  Future<void> leaveGroup({required String conversationId}) async {
-    await removeGroupMember(conversationId: conversationId, userId: getCurrentUser().userId);
+  static Future<void> _leaveGroup({required String conversationId}) async {}
+  static Future<String> _getGroupInviteLink({required String conversationId}) async {
+    return "";
   }
-
-  @override
-  Future<String> getGroupInviteLink({required String conversationId}) async =>
-      'https://chat.example.com/join/$conversationId';
-
-  @override
-  List<AcChatMessage> getMessages({required String conversationId}) =>
-      _getMessages(conversationId: conversationId);
-
-  @override
-  Stream<List<AcChatMessage>>? watchMessages({required String conversationId}) =>
-      _watchMessages?.call(conversationId: conversationId);
-
-  @override
-  void sendMessage({required AcChatMessage message}) {
-    if (!config.enableTextMessaging && message.type == 'text') return;
-    if (!config.enableMediaAttachments && message.type != 'text' && message.type != 'system') return;
-    _sendMessage(message: message);
-  }
-
-  @override
-  void updateMessage({required String messageId, required Map<String, dynamic> data}) {
-    _updateMessage?.call(messageId: messageId, data: data);
-  }
-
-  @override
-  Future<void> editMessage({required String messageId, required String newText}) async {
-    if (!config.enableMessageEditing) return;
-    if (_onEditMessage != null) {
-      await _onEditMessage(messageId: messageId, newText: newText);
-    } else {
-      _updateMessage?.call(messageId: messageId, data: {'text': newText, 'isEdited': true});
-    }
-  }
-
-  @override
-  Future<void> deleteMessageForMe({required String messageId}) async {
-    if (!config.enableMessageDeletingForMe) return;
-    if (_onDeleteMessage != null) {
-      await _onDeleteMessage(messageId: messageId, forEveryone: false);
-    }
-  }
-
-  @override
-  Future<void> deleteMessageForEveryone({required String messageId}) async {
-    if (!config.enableMessageDeletingForEveryone) return;
-    if (_onDeleteMessage != null) {
-      await _onDeleteMessage(messageId: messageId, forEveryone: true);
-    } else {
-      _updateMessage?.call(messageId: messageId, data: {'isDeleted': true, 'text': ''});
-    }
-  }
-
-  @override
-  Future<void> addReaction({required String messageId, required String emoji}) async {
-    if (!config.enableMessageReactions) return;
-    if (_onAddReaction != null) {
-      await _onAddReaction(messageId: messageId, emoji: emoji);
-    }
-  }
-
-  @override
-  Future<void> removeReaction({required String messageId, required String emoji}) async {
-    if (!config.enableMessageReactions) return;
-  }
-
-  @override
-  Future<void> setStarred({required String messageId, required bool isStarred}) async {
-    if (!config.enableStarredMessages) return;
-    _updateMessage?.call(messageId: messageId, data: {'isStarred': isStarred});
-  }
-
-  @override
-  Future<void> pinMessage({required String messageId, Duration? duration}) async {
-    if (!config.enablePinnedMessages) return;
-  }
-
-  @override
-  Future<void> unpinMessage({required String messageId}) async {
-    if (!config.enablePinnedMessages) return;
-  }
-
-  @override
-  void markAsRead({required String conversationId}) {
-    if (!config.enableReadReceipts) return;
-    _markAsRead(conversationId: conversationId);
-  }
-
-  @override
-  void sendTypingIndicator({required String conversationId, required bool isTyping}) {
-    if (!config.enableTypingIndicators) return;
-    _sendTypingIndicator?.call(conversationId: conversationId, isTyping: isTyping);
-  }
-
-  @override
-  Stream<Map<String, bool>>? watchTyping({required String conversationId}) =>
-      config.enableTypingIndicators ? _watchTyping?.call(conversationId: conversationId) : null;
-
-  @override
-  Future<void> forwardMessages({
-    required List<String> messageIds,
-    required String targetConversationId,
-  }) async {
-    if (!config.enableMessageForwarding) return;
-  }
-
-  @override
-  Future<void> deleteMessagesBatch({
-    required List<String> messageIds,
-    required bool forEveryone,
-  }) async {
-    for (final id in messageIds) {
-      if (forEveryone) {
-        await deleteMessageForEveryone(messageId: id);
-      } else {
-        await deleteMessageForMe(messageId: id);
-      }
-    }
-  }
-
-  @override
-  Future<List<AcChatMessage>> searchMessages({
-    required String query,
-    String? conversationId,
-    String? senderId,
-    DateTime? startDateUtc,
-    DateTime? endDateUtc,
-    bool? hasAttachment,
-  }) async {
-    if (!config.enableMessageFullTextSearch && !config.enableInChatSearch) {
-      return [];
-    }
-    if (_searchMessages != null) {
-      return await _searchMessages(query: query, conversationId: conversationId);
-    }
+  // ── Messaging ─────────────────────────────────────────────────────────────
+  static Future<List<AcChatMessage>> _getMessages({required String conversationId}) async {
     return [];
   }
-
-  @override
-  Future<String?> downloadMedia({required AcChatMessage message}) async => message.localPath;
-
-  @override
-  Future<String> exportChat({required String conversationId, required bool asJson}) async => '';
-
-  @override
-  Future<void> wipeAllData() async {}
+  static Future<Stream<List<AcChatMessage>>?> _watchMessages({required String conversationId}) async {
+    return null;
+  }
+  static Future<void> _sendMessage({required AcChatMessage message}) async {}
+  static Future<void> _updateMessage(
+      {required String messageId, required Map<String, dynamic> data}) async {}
+  static Future<void> _editMessage({required String messageId, required String newText}) async {}
+  static Future<void> _deleteMessageForMe({required String messageId}) async {}
+  static Future<void> _deleteMessageForEveryone({required String messageId}) async {}
+  static Future<void> _addReaction({required String messageId, required String emoji}) async {}
+  static Future<void> _markAsRead({required String conversationId}) async{}
+  static Future<void> _removeReaction({required String messageId, required String emoji}) async {}
+  static Future<void> _setStarred({required String messageId, required bool isStarred}) async {}
+  static Future<void> _pinMessage({required String messageId, required Duration? duration}) async {}
+  static Future<void> _unpinMessage({required String messageId}) async {}
+  static Future<void>  _sendTypingIndicator({required String conversationId, required bool isTyping}) async {}
+  static Future<Stream<Map<String, bool>>?> _watchTyping({required String conversationId}) async {return null;}
+  static Future<void> _forwardMessages({required List<String> messageIds,required String targetConversationId,}) async {}
+  static Future<void> _deleteMessagesBatch({required List<String> messageIds,required bool forEveryone,}) async {}
+  // ── Search ────────────────────────────────────────────────────────────────
+  static Future<List<AcChatMessage>> _searchMessages({required String query,String? conversationId,String? senderId,DateTime? startDateUtc,DateTime? endDateUtc,bool? hasAttachment,}) async {return [];}
+  static Future<String?> _downloadMedia({required AcChatMessage message}) async {return "";}
+  // ── Export & Wipe ─────────────────────────────────────────────────────────
+  static Future<String> _exportChat({required String conversationId, required bool asJson}) async {return "";}
+  static Future<void> _wipeAllData() async {}
 }

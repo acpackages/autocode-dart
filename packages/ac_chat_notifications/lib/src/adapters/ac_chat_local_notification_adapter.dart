@@ -6,7 +6,7 @@ import '../services/ac_chat_notification_service.dart';
 /// A delegate-based notification service that handles in-app notification routing,
 /// listener registration, and device tokens with strictly named parameters.
 class AcChatLocalNotificationAdapter implements AcChatNotificationService {
-  final AcChatConfig? config;
+  final AcChatApi? api;
   String? activeConversationId;
 
   final Future<void> Function({required AcChatNotificationPayload payload})? onDisplayNotification;
@@ -27,7 +27,7 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
   final Map<String, AcChatNotificationPayload> _activeNotifications = {};
 
   AcChatLocalNotificationAdapter({
-    this.config,
+    this.api,
     this.activeConversationId,
     this.onDisplayNotification,
     this.onCancelNotification,
@@ -81,7 +81,7 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
     required AcChatNotificationPayload payload,
   }) async {
     // Suppress notification if foreground conversation matches and suppression is enabled
-    final suppressForeground = config?.enableForegroundNotificationSuppression ?? true;
+    final suppressForeground = api?.enableForegroundNotificationSuppression ?? true;
     if (suppressForeground &&
         activeConversationId != null &&
         activeConversationId == payload.conversationId) {
@@ -122,7 +122,7 @@ class AcChatLocalNotificationAdapter implements AcChatNotificationService {
   Future<void> setBadgeCount({
     required int count,
   }) async {
-    if (config != null && !config!.enableBadgeCountSync) {
+    if (api != null && !api!.enableBadgeCountSync) {
       return;
     }
     if (onSetBadgeCount != null) {

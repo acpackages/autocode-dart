@@ -11,11 +11,19 @@ class ReplyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    AcChatApi api = AcChatApiProvider.of(context);
     final senderName =
-    message.senderId == api.getCurrentUser().userId
+    message.senderId == (await api.getCurrentUser()).userId
         ? 'You'
-        : api.getUserById(userId: message.senderId)?.name ??
+        : (await api.getUserById(userId: message.senderId))?.name ??
         'Unknown';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

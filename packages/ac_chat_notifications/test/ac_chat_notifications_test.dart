@@ -127,9 +127,7 @@ void main() {
       int displayed = 0;
       final adapter = AcChatLocalNotificationAdapter(
         activeConversationId: 'conv_active',
-        config: const AcChatConfig(
-          enableForegroundNotificationSuppression: true,
-        ),
+        api: AcChatApi(),
         onDisplayNotification: ({required payload}) async {
           displayed++;
         },
@@ -169,7 +167,7 @@ void main() {
     test('Badge count sync guard respects enableBadgeCountSync config flag', () async {
       int setBadge = 0;
       final disabledAdapter = AcChatLocalNotificationAdapter(
-        config: const AcChatConfig(enableBadgeCountSync: false),
+        api: AcChatApi(),
         onSetBadgeCount: ({required int count}) async {
           setBadge = count;
         },
@@ -179,7 +177,7 @@ void main() {
       expect(setBadge, equals(0));
 
       final enabledAdapter = AcChatLocalNotificationAdapter(
-        config: const AcChatConfig(enableBadgeCountSync: true),
+        api: AcChatApi(),
         onSetBadgeCount: ({required int count}) async {
           setBadge = count;
         },

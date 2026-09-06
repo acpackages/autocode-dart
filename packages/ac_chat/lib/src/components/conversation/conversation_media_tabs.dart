@@ -36,10 +36,10 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
     super.dispose();
   }
 
-  void _openViewer(BuildContext context, AcChatMessage msg) {
-    final effectiveApi = widget.api ?? AcChatApiProvider.of(context);
-    final sender = effectiveApi.getUserById(userId: msg.senderId);
-    final senderName = msg.senderId == effectiveApi.getCurrentUser().userId
+  void _openViewer(BuildContext context, AcChatMessage msg) async {
+    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
+    final sender = await effectiveApi.getUserById(userId: msg.senderId);
+    final senderName = msg.senderId == (await effectiveApi.getCurrentUser()).userId
         ? 'You'
         : (sender?.name ?? 'Unknown');
     Navigator.push(
@@ -56,12 +56,20 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
 
   @override
   Widget build(BuildContext context) {
-    final effectiveApi = widget.api ?? AcChatApiProvider.of(context);
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
     final ct = widget.ct;
     final isDark = ct.isDark;
 
     // Fetch and filter messages for media, docs, links
-    final allMessages = effectiveApi.getMessages(conversationId: widget.chat.conversationId);
+    final allMessages = await effectiveApi.getMessages(conversationId: widget.chat.conversationId);
 
     final mediaMsgs = allMessages
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')

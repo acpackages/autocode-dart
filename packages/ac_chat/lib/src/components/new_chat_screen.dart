@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'core/ac_chat.dart';
+import '../core/ac_chat.dart';
 
 class NewChatScreen extends StatefulWidget {
   final AcChatApi api;
@@ -58,8 +58,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
     try {
       final results = await widget.api.onSearchRemoteUsers!(query: q);
       if (mounted && _query == q) {
-        final myId = widget.api.getCurrentUser().userId;
-        final localIds = _localUsers.map((u) => u.userId).toSet();
+        final myId = (await widget.api.getCurrentUser()).userId;
+        final localIds = (await _localUsers()).map((u) => u.userId).toSet();
         setState(() {
           _remoteUsers = results
               .where((u) => !localIds.contains(u.userId) && u.userId != myId)
@@ -72,24 +72,24 @@ class _NewChatScreenState extends State<NewChatScreen> {
     }
   }
 
-  List<AcChatUser> get _localUsers {
-    final myId = widget.api.getCurrentUser().userId;
-    final users = widget.api.getContacts?.call() ?? widget.api.getUsers();
+  Future<List<AcChatUser>> _localUsers() async {
+    final myId = (await widget.api.getCurrentUser()).userId;
+    final users = await widget.api.getContacts?.call() ?? await widget.api.getUsers();
     return users.where((u) => u.userId.isNotEmpty && u.userId != myId).toList();
   }
 
-  List<AcChatUser> get _filteredLocal {
-    if (_query.isEmpty) return _localUsers;
+  Future<List<AcChatUser>> _filteredLocal() async {
+    if (_query.isEmpty) return await _localUsers();
     final q = _query.toLowerCase();
-    return _localUsers.where((u) {
+    return (await _localUsers()).where((u) {
       return u.name.toLowerCase().contains(q) ||
           u.username.toLowerCase().contains(q) ||
           u.email.toLowerCase().contains(q);
     }).toList();
   }
 
-  void _startChat(AcChatUser user) {
-    final existing = widget.api.getConversations().where(
+  void _startChat(AcChatUser user) async {
+    final existing = (await widget.api.getConversations()).where(
       (c) => c.type == 'direct' && c.memberIds.contains(user.userId),
     ).toList();
 
@@ -100,13 +100,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
       final newConv = AcChatConversation()
         ..type = 'direct'
         ..groupName = null
-        ..memberIds = [widget.api.getCurrentUser().userId, user.userId]
+        ..memberIds = [(await widget.api.getCurrentUser()).userId, user.userId]
         ..lastMessage = ''
         ..lastMessageType = 'text'
         ..isPinned = false
         ..isMuted = false;
-      conversation = widget.api.insertConversation(
-        newConv: newConv,
+      conversation = await widget.api.insertConversation(
+        newConversation: newConv,
         otherUserId: user.userId,
       );
     }
@@ -159,7 +159,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     );
 
     if (groupName != null && groupName.isNotEmpty && mounted) {
-      final allMembers = [widget.api.getCurrentUser().userId, ..._selectedMemberIds];
+      final allMembers = [(await widget.api.getCurrentUser()).userId, ..._selectedMemberIds];
       final groupConv = await widget.api.createGroupConversation(
         groupName: groupName,
         memberUserIds: allMembers,
@@ -185,9 +185,17 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
-    final localUsers = _filteredLocal;
-    final totalContacts = _localUsers.length;
+    final localUsers = await _filteredLocal();
+    final totalContacts = (await _localUsers()).length;
 
     return Scaffold(
       backgroundColor: ct.scaffold,
@@ -275,7 +283,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                if (!_isGroupCreationMode && _query.isEmpty && (widget.api.enableGroups || widget.api.config.enableCreateNewContact)) ...[
+                if (!_isGroupCreationMode && _query.isEmpty && (widget.api.enableGroups || widget.api.enableCreateNewContact)) ...[
                   if (widget.api.enableGroups)
                     _SpecialTile(
                       icon: Icons.group_add_rounded,
@@ -284,7 +292,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       ct: ct,
                       onTap: _startGroup,
                     ),
-                  if (widget.api.config.enableCreateNewContact)
+                  if (widget.api.enableCreateNewContact)
                   _SpecialTile(
                     icon: Icons.person_add_rounded,
                     label: widget.api.newContactLabel ?? 'New Contact',

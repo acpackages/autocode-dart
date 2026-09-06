@@ -7,8 +7,8 @@ import '../common/chat_colors.dart';
 import '../common/theme_provider.dart';
 import '../components/conversation/conversation.dart';
 import '../components/conversation_list_item.dart';
-import '../chat_profile_screen.dart';
-import '../new_chat_screen.dart';
+import '../components/chat_profile_screen.dart';
+import '../components/new_chat_screen.dart';
 
 export 'ac_chat_api.dart';
 export 'ac_chat_config.dart';
@@ -45,12 +45,14 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    final showGroupStatus = widget.api.enableGroupsAndStatuses;
+    final showGroupStatus = widget.api.enableGroups && widget.api.enableStatuses;
     _tabController = TabController(length: showGroupStatus ? 2 : 1, vsync: this);
-    final conversations = widget.api.getConversations().where((c) => widget.api.enableGroups || c.type != 'group').toList();
-    if (conversations.isNotEmpty) {
+    widget.api.getConversations().then((r){
+      final conversations = r.where((c) => widget.api.enableGroups || c.type != 'group').toList();
+        if (conversations.isNotEmpty) {
       _selectedChat = conversations.first;
     }
+    });
   }
 
   @override
@@ -59,19 +61,26 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  @override
   Widget build(BuildContext context) {
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
-    final showGroupStatus = widget.api.enableGroupsAndStatuses;
-
+    final showGroupStatus = widget.api.enableGroups && widget.api.enableStatuses;
+    var allCons = await widget.api.getConversations();
     return StreamBuilder<List<AcChatConversation>>(
-      stream: widget.api.watchConversations(),
-      initialData: widget.api.getConversations(),
+      stream: await widget.api.watchConversations(),
+      initialData: await widget.api.getConversations(),
       builder: (context, snapshot) {
-        final allConvs = snapshot.data ?? widget.api.getConversations();
+        final allConvs = snapshot.data ?? allCons;
         final conversations = allConvs.where((c) => widget.api.enableGroups || c.type != 'group').toList();
 
         final leftPane = Scaffold(
@@ -113,9 +122,9 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                       ct: ct,
                       isDark: isDark,
                       selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-                      showSearch: widget.api.searchConversations,
-                      pinningEnabled: widget.api.pinConversations,
-                      showOnlineStatus: widget.api.showOnlineStatus,
+                      showSearch: widget.api.enableConversationSearch,
+                      pinningEnabled: widget.api.enableConversationPinning,
+                      showOnlineStatus: widget.api.enableOnlinePresence,
                       onChatSelected: (chat) {
                         if (isLarge) {
                           setState(() {
@@ -143,9 +152,9 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                   ct: ct,
                   isDark: isDark,
                   selectedChatId: isLarge ? _selectedChat?.conversationId : null,
-                  showSearch: widget.api.searchConversations,
-                  pinningEnabled: widget.api.pinConversations,
-                  showOnlineStatus: widget.api.showOnlineStatus,
+                  showSearch: widget.api.enableConversationSearch,
+                  pinningEnabled: widget.api.enableConversationPinning,
+                  showOnlineStatus: widget.api.enableOnlinePresence,
                   onChatSelected: (chat) {
                     if (isLarge) {
                       setState(() {
@@ -336,40 +345,45 @@ class _ChatTabState extends State<_ChatTab> {
   final Map<String, AcChatUser> _userCache = {};
   final Map<String, List<AcChatConversationUser>> _memberCache = {};
 
-  List<AcChatConversation> get _filteredChats {
-    final api = AcChatApiProvider.of(context);
-    return widget.chats.where((c) {
-      if (!api.enableGroups && c.type == 'group') return false;
-      final isGroup = c.type == 'group';
-      AcChatUser? otherUser;
-      if (!isGroup) {
-        final members = _memberCache.putIfAbsent(
-          c.conversationId,
-          () => api.getConversationUsers(conversationId: c.conversationId),
-        );
-        final otherMember = members.firstWhere(
-          (m) => m.userId != api.getCurrentUser().userId,
-          orElse: () => AcChatConversationUser(),
-        );
-        if (otherMember.userId.isNotEmpty) {
-          otherUser = _userCache.putIfAbsent(
-            otherMember.userId,
-            () => api.getUserById(userId: otherMember.userId) ?? AcChatUser(),
+  Future<List<AcChatConversation>> _filteredChats() async {
+    AcChatApi api = AcChatApiProvider.of(context);
+    var currentUser = await api.getCurrentUser();
+    List<AcChatConversation> filteredChats = List.empty(growable: true);
+    for(var c in widget.chats){
+      if (!api.enableGroups && c.type == 'group'){}
+      else{
+        final isGroup = c.type == 'group';
+        AcChatUser? otherUser;
+        if (!isGroup) {
+          if(!_memberCache.containsKey(c.conversationId)){
+            _memberCache[c.conversationId] = await api.getConversationUsers(conversationId: c.conversationId);
+          }
+          final members = _memberCache[c.conversationId]!;
+          var otherMember = members.firstWhere(
+                (m) => m.userId != currentUser.userId,
+            orElse: () => AcChatConversationUser(),
           );
+          if(!_userCache.containsKey(otherMember.userId)){
+            _userCache[otherMember.userId] = (await api.getUserById(userId: otherMember.userId)) ?? AcChatUser();
+          }
+
+          otherUser = _userCache[otherMember.userId];
         }
+        final name = isGroup
+            ? (c.groupName ?? '')
+            : (otherUser?.name ?? '');
+        if (_query.isEmpty || name.toLowerCase().contains(_query.toLowerCase())){
+          filteredChats.add(c);
+        };
       }
-      final name = isGroup
-          ? (c.groupName ?? '')
-          : (otherUser?.name ?? '');
-      if (_query.isEmpty) return true;
-      return name.toLowerCase().contains(_query.toLowerCase());
-    }).toList()
-      ..sort((a, b) {
+    }
+    filteredChats.sort((a, b) {
         final pinA = a.isPinned ? 0 : 1;
         final pinB = b.isPinned ? 0 : 1;
         if (pinA != pinB) return pinA - pinB;
         return b.lastTime.compareTo(a.lastTime);
       });
+    return filteredChats;
   }
 
   @override
@@ -380,8 +394,18 @@ class _ChatTabState extends State<_ChatTab> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredChats;
-    final api = AcChatApiProvider.of(context);
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    final filtered = await _filteredChats();
+    final AcChatApi api = AcChatApiProvider.of(context);
+    var currentUser = await api.getCurrentUser();
     return Column(
       children: [
         if (widget.showSearch)
@@ -419,16 +443,16 @@ class _ChatTabState extends State<_ChatTab> {
                     ),
                   ),
                 ),
-                if(api.config.enableMessageStarring || api.config.enableGroupConversations)
+                if(api.enableMessageStarring || api.enableGroupConversations)
                   const SizedBox(width: 8),
-                if(api.config.enableMessageStarring || api.config.enableGroupConversations)
+                if(api.enableMessageStarring || api.enableGroupConversations)
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_vert,
                         color: widget.isDark ? widget.ct.white70 : widget.ct
                             .black54),
                     color: widget.ct.chatBubbleMenuBg,
                     onSelected: (v) {
-                      final api = AcChatApiProvider.of(context);
+                      AcChatApi api = AcChatApiProvider.of(context);
                       if (v == 'new_group') {
                         if (api.onNewGroup != null) {
                           api.onNewGroup!(context: context);
@@ -447,7 +471,7 @@ class _ChatTabState extends State<_ChatTab> {
                     itemBuilder: (_) {
 
                       return [
-                        if (api.config.enableGroupConversations)
+                        if (api.enableGroupConversations)
                           PopupMenuItem(
                             value: 'new_group',
                             child: Row(children: [
@@ -458,7 +482,7 @@ class _ChatTabState extends State<_ChatTab> {
                                   color: widget.ct.text, fontSize: 14)),
                             ]),
                           ),
-                        if (api.config.enableMessageStarring)
+                        if (api.enableMessageStarring)
                           PopupMenuItem(
                             value: 'starred',
                             child: Row(children: [
@@ -505,9 +529,9 @@ class _ChatTabState extends State<_ChatTab> {
                     if (chat.type != 'group') {
                       final members = _memberCache[chat.conversationId];
                       if (members != null && members.isNotEmpty) {
-                        final api = AcChatApiProvider.of(context);
+                        AcChatApi api = AcChatApiProvider.of(context);
                         final otherMember = members.firstWhere(
-                          (m) => m.userId != api.getCurrentUser().userId,
+                          (m) => m.userId != currentUser.userId,
                           orElse: () => AcChatConversationUser(),
                         );
                         if (otherMember.userId.isNotEmpty) {
@@ -524,7 +548,7 @@ class _ChatTabState extends State<_ChatTab> {
                       showOnlineStatus: widget.showOnlineStatus,
                       pinningEnabled: widget.pinningEnabled,
                       onTap: () async {
-                        final api = AcChatApiProvider.of(context);
+                        AcChatApi api = AcChatApiProvider.of(context);
                         api.markAsRead(conversationId: chat.conversationId);
                         widget.onChatSelected(chat);
                         widget.onRefresh();
@@ -544,8 +568,17 @@ class _StatusTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
-    final curUser = api.getCurrentUser();
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    AcChatApi api = AcChatApiProvider.of(context);
+    final curUser = await api.getCurrentUser();
     return ListView(
       children: [
         ListTile(

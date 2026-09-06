@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'core/ac_chat.dart';
-import 'common/chat_colors.dart';
-import 'common/theme_provider.dart';
-import 'components/conversation/conversation_media_tabs.dart';
+import '../core/ac_chat.dart';
+import 'conversation/conversation_media_tabs.dart';
 
 class ChatProfileScreen extends StatefulWidget {
   final AcChatConversation chat;
@@ -25,6 +23,14 @@ class ChatProfileScreen extends StatefulWidget {
 class _ChatProfileScreenState extends State<ChatProfileScreen> {
   @override
   Widget build(BuildContext context) {
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
     final api = widget.api;
     final chat = widget.chat;
     final ct = api.theme;
@@ -33,22 +39,23 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
     // Determine type and user info
     final isGroup = chat.type == 'group';
     AcChatUser? user;
+    var currentUser = (await api.getCurrentUser());
     if (!isGroup) {
-      final members = api.getConversationUsers(conversationId: chat.conversationId);
+      final members = await api.getConversationUsers(conversationId: chat.conversationId);
       final otherMember = members.firstWhere(
-        (m) => m.userId != api.getCurrentUser().userId,
+        (m) => m.userId != currentUser.userId,
         orElse: () => AcChatConversationUser(),
       );
       if (otherMember.userId.isNotEmpty) {
-        user = api.getUserById(userId: otherMember.userId);
+        user = await api.getUserById(userId: otherMember.userId);
       }
       if (user == null) {
         final otherId = chat.memberIds.firstWhere(
-          (id) => id != api.getCurrentUser().userId,
+          (id) => id != currentUser.userId,
           orElse: () => '',
         );
         if (otherId.isNotEmpty) {
-          user = api.getUserById(userId: otherId);
+          user = await api.getUserById(userId: otherId);
         }
       }
     }
@@ -57,7 +64,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         ? (chat.groupName ?? 'Group')
         : (user?.name ?? 'Unknown');
 
-    var membersList = api.getConversationUsers(conversationId: chat.conversationId);
+    var membersList = await api.getConversationUsers(conversationId: chat.conversationId);
     if (isGroup && membersList.isEmpty && chat.memberIds.isNotEmpty) {
       membersList = chat.memberIds
           .map((id) => AcChatConversationUser()
@@ -74,21 +81,23 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
 
     // Fetch participant's conversations (excluding this one)
     final participantChats = <AcChatConversation>[];
+    bool isBlocked = false;
     if (user != null) {
       final targetUserId = user.userId;
-      final otherChats = api.getConversations()
-          .where((c) => c.conversationId != chat.conversationId)
+      final otherChats = (await api.getConversations()).where((c) => c.conversationId != chat.conversationId)
           .toList();
 
       for (var c in otherChats) {
-        final members = api.getConversationUsers(conversationId: c.conversationId);
+        final members = await api.getConversationUsers(conversationId: c.conversationId);
         if (members.any((m) => m.userId == targetUserId)) {
           participantChats.add(c);
         }
       }
+
+      isBlocked = await api.isUserBlocked(userId: user.userId);
     }
 
-    final mediaMsgs = api.getMessages(conversationId: chat.conversationId)
+    final mediaMsgs = (await api.getMessages(conversationId: chat.conversationId))
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
         .toList();
 
@@ -520,7 +529,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         },
                       ),
                       // Edit Group (if isGroup)
-                      if (isGroup && (!api.config.enableGroupAdminRoles || chat.createdBy == api.getCurrentUser().userId)) ...[
+                      if (isGroup && (!api.enableGroupAdminRoles || chat.createdBy == currentUser.userId)) ...[
                         Divider(color: ct.divider, height: 1),
                         ListTile(
                           leading: Icon(Icons.edit_outlined, color: ct.subText),
@@ -590,7 +599,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         Builder(
                           builder: (context) {
                             final targetUid = user!.userId;
-                            final isBlocked = api.isUserBlocked(userId: targetUid);
+
                             return ListTile(
                               leading: Icon(isBlocked ? Icons.lock_open : Icons.block, color: ct.messageDestructive),
                               title: Text(isBlocked ? 'Unblock User' : 'Block User', style: TextStyle(color: ct.messageDestructive)),

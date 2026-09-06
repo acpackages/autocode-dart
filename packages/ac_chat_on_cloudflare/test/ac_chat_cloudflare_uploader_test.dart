@@ -104,7 +104,7 @@ void main() {
     test('uploadMedia rejects attachments exceeding maxAttachmentSizeBytes', () async {
       final limitedUploader = AcChatCloudflareUploader(
         http: mockHttp,
-        config: const AcChatConfig(
+        api: AcChatApi(
           maxAttachmentSizeBytes: 100,
         ),
       );

@@ -26,7 +26,7 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
 
   Future<void> _startDownload() async {
     if (_isDownloading) return;
-    final api = AcChatApiProvider.of(context);
+    AcChatApi api = AcChatApiProvider.of(context);
     setState(() {
       _isDownloading = true;
       _progress = 0.2;

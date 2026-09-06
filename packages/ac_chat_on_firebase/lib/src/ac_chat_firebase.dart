@@ -804,18 +804,7 @@ class AcChatFirebase implements AcChatSyncChannel {
     bool? enableGroups,
     int? maxGroupParticipants,
   }) {
-    final effectiveConfig = const AcChatConfig().copyWith(
-      enableTypingIndicators: enableTypingIndicator ?? true,
-      enableTextMessaging: enableTyping ?? (!(readOnly ?? false)),
-      enableGroupConversations: enableGroups ?? true,
-      maxGroupParticipants: maxGroupParticipants ?? 50,
-      enableConversationPinning: pinConversations ?? true,
-      enableConversationSearch: searchConversations ?? true,
-      enableOnlinePresence: showOnlineStatus ?? true,
-    );
-
     return AcChatApi(
-      config: effectiveConfig,
       theme: theme,
       getCurrentUser: _getCurrentUser,
       getUsers: _getUsers,

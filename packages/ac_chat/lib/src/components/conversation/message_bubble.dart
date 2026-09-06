@@ -60,9 +60,16 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
-    final config = api.config;
-    final myId = api.getCurrentUser().userId;
+    Widget result = SizedBox();
+    buildAsync(context).then((widget){
+      result = widget;
+    });
+    return result;
+  }
+
+  Future<Widget> buildAsync(BuildContext context) async {
+    AcChatApi api = AcChatApiProvider.of(context);
+    final myId = (await api.getCurrentUser()).userId;
     final isMe = message.senderId == myId;
     final type = message.type;
     final status = message.status;
@@ -95,7 +102,7 @@ class MessageBubble extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
                     child: Text(
-                      api.getUserById(userId: message.senderId)?.name ?? 'Unknown',
+                        (await api.getUserById(userId: message.senderId))?.name ?? 'Unknown',
                       style: TextStyle(
                         color: avatarColor(message.senderId),
                         fontSize: 12,
@@ -105,7 +112,7 @@ class MessageBubble extends StatelessWidget {
                   ),
 
                 // Reply preview
-                if (message.replyTo != null && config.enableMessageReplying)
+                if (message.replyTo != null && api.enableMessageReplying)
                   _ReplyPreview(replyTo: message.replyTo!, ct: ct),
 
                 // Message content (or deleted placeholder)
@@ -115,7 +122,7 @@ class MessageBubble extends StatelessWidget {
                   _buildContent(context, type, ct),
 
                 // Reactions Badge Row
-                if (config.enableMessageReactions && message.reactions.isNotEmpty && !message.isDeleted)
+                if (api.enableMessageReactions && message.reactions.isNotEmpty && !message.isDeleted)
                   _buildReactionsRow(context, api, myId, ct),
 
                 // Time + edited tag + starred icon + ticks
@@ -125,11 +132,11 @@ class MessageBubble extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (message.isStarred && config.enableStarredMessages) ...[
+                      if (message.isStarred && api.enableStarredMessages) ...[
                         Icon(Icons.star_rounded, size: 12, color: ct.profileStatusOrange),
                         const SizedBox(width: 2),
                       ],
-                      if (message.isEdited && config.enableMessageEditing) ...[
+                      if (message.isEdited && api.enableMessageEditing) ...[
                         Text(
                           'edited ',
                           style: TextStyle(
@@ -148,8 +155,8 @@ class MessageBubble extends StatelessWidget {
                       ),
                       if (isMe && !message.isDeleted) ...[
                         const SizedBox(width: 3),
-                        if (config.enableDeliveryReceipts || config.enableReadReceipts)
-                          _TickIcon(status: status, ct: ct, config: config),
+                        if (api.enableDeliveryReceipts || api.enableReadReceipts)
+                          _TickIcon(status: status, ct: ct, api: api),
                       ],
                     ],
                   ),
@@ -161,8 +168,8 @@ class MessageBubble extends StatelessWidget {
       ),
     );
 
-    final canReply = config.enableMessageReplying && onReply != null && !message.isDeleted;
-    final canForward = config.enableMessageForwarding && onForward != null && !message.isDeleted;
+    final canReply = api.enableMessageReplying && onReply != null && !message.isDeleted;
+    final canForward = api.enableMessageForwarding && onForward != null && !message.isDeleted;
 
     Widget quickActions = (canReply || canForward)
         ? Padding(
@@ -241,7 +248,7 @@ class MessageBubble extends StatelessWidget {
     }
 
     // Swipe-to-reply wrapper (only if replying is enabled)
-    if (config.enableMessageReplying && !message.isDeleted && onReply != null) {
+    if (api.enableMessageReplying && !message.isDeleted && onReply != null) {
       bubbleWidget = Dismissible(
         key: ValueKey('reply_${message.messageId}'),
         direction: DismissDirection.startToEnd,
@@ -262,7 +269,7 @@ class MessageBubble extends StatelessWidget {
       builder: (bubbleContext) {
         return GestureDetector(
           onLongPress: () {
-            if (config.enableMultiSelect && onSelect != null && isSelectionMode) {
+            if (api.enableMultiSelect && onSelect != null && isSelectionMode) {
               onSelect!();
             } else {
               _showBubbleMenu(bubbleContext, api);
@@ -274,7 +281,7 @@ class MessageBubble extends StatelessWidget {
               return;
             }
             if (api.onMessageTap != null) {
-              api.onMessageTap!(message);
+              // api.onMessageTap!(message);
               return;
             }
             final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio');
@@ -291,10 +298,10 @@ class MessageBubble extends StatelessWidget {
                 }
               }
             }
-            if (config.enableMediaViewer &&
+            if (api.enableMediaViewer &&
                 (type == 'image' || type == 'video' || type == 'document') &&
                 !message.isDeleted) {
-              final sender = api.getUserById(userId: message.senderId);
+              final sender = await api.getUserById(userId: message.senderId);
               final senderName = isMe ? 'You' : (sender?.name ?? 'Unknown');
               Navigator.push(
                 context,
@@ -440,23 +447,22 @@ class MessageBubble extends StatelessWidget {
   }
 
   void _showBubbleMenu(BuildContext context, AcChatApi api) async {
-    final config = api.config;
-    final myId = api.getCurrentUser().userId;
+    final myId = (await api.getCurrentUser()).userId;
     final isMe = message.senderId == myId;
     final now = DateTime.now().toUtc();
 
     // Check policies
-    final canEdit = config.enableMessageEditing &&
+    final canEdit = api.enableMessageEditing &&
         isMe &&
         !message.isDeleted &&
-        now.difference(message.timeUtc) <= config.editTimeWindow;
+        now.difference(message.timeUtc) <= api.editTimeWindow;
 
-    final canDeleteForEveryone = config.enableMessageDeletingForEveryone &&
+    final canDeleteForEveryone = api.enableMessageDeletingForEveryone &&
         isMe &&
         !message.isDeleted &&
-        now.difference(message.timeUtc) <= config.deleteForEveryoneWindow;
+        now.difference(message.timeUtc) <= api.deleteForEveryoneWindow;
 
-    final canDeleteForMe = config.enableMessageDeletingForMe;
+    final canDeleteForMe = api.enableMessageDeletingForMe;
     final isMedia = message.type == 'image' ||
         message.type == 'video' ||
         message.type == 'document' ||
@@ -483,31 +489,31 @@ class MessageBubble extends StatelessWidget {
         side: BorderSide(color: ct.divider.withOpacity(0.15)),
       ),
       items: <PopupMenuEntry<String>>[
-        if (config.enableMessageReactions && !message.isDeleted) ...[
+        if (api.enableMessageReactions && !message.isDeleted) ...[
           _EmojiReactionsPopupEntry(
             emojis: const ['👍', '❤️', '😂', '😮', '😢', '🙏'],
             ct: ct,
           ),
           const PopupMenuDivider(height: 1),
         ],
-        if (config.enableMessageReplying && !message.isDeleted)
+        if (api.enableMessageReplying && !message.isDeleted)
           _buildPopupMenuItem('reply', Icons.reply_rounded, 'Reply', ct.text),
         if (canEdit)
           _buildPopupMenuItem('edit', Icons.edit_rounded, 'Edit', ct.text),
-        if (config.enableMessageCopying && message.text.isNotEmpty && !message.isDeleted)
+        if (api.enableMessageCopying && message.text.isNotEmpty && !message.isDeleted)
           _buildPopupMenuItem('copy', Icons.copy_rounded, 'Copy', ct.text),
-        if (config.enableMessageForwarding && !message.isDeleted)
+        if (api.enableMessageForwarding && !message.isDeleted)
           _buildPopupMenuItem('forward', Icons.forward_rounded, 'Forward', ct.text),
         if (isMedia && !message.isDeleted)
           _buildPopupMenuItem('download', Icons.download_rounded, 'Download', ct.text),
-        if (config.enableStarredMessages && !message.isDeleted)
+        if (api.enableStarredMessages && !message.isDeleted)
           _buildPopupMenuItem(
             'star',
             message.isStarred ? Icons.star_rounded : Icons.star_border_rounded,
             message.isStarred ? 'Unstar' : 'Star',
             message.isStarred ? ct.profileStatusOrange : ct.text,
           ),
-        if (config.enablePinnedMessages && !message.isDeleted)
+        if (api.enablePinnedMessages && !message.isDeleted)
           _buildPopupMenuItem('pin', Icons.push_pin_outlined, 'Pin', ct.text),
         if (canDeleteForMe || canDeleteForEveryone) ...[
           const PopupMenuDivider(height: 1),
@@ -627,9 +633,9 @@ class MessageBubble extends StatelessWidget {
 class _TickIcon extends StatelessWidget {
   final String status;
   final AcChatTheme ct;
-  final AcChatConfig config;
+  final AcChatApi api;
 
-  const _TickIcon({required this.status, required this.ct, required this.config});
+  const _TickIcon({required this.status, required this.ct, required this.api});
 
   @override
   Widget build(BuildContext context) {
@@ -637,13 +643,13 @@ class _TickIcon extends StatelessWidget {
       case 'sending':
         return Icon(Icons.access_time_rounded, size: 13, color: ct.messageCheckIcon);
       case 'delivered':
-        if (!config.enableDeliveryReceipts) {
+        if (!api.enableDeliveryReceipts) {
           return Icon(Icons.check_rounded, size: 14, color: ct.messageCheckIcon);
         }
         return Icon(Icons.done_all_rounded, size: 14, color: ct.messageCheckIcon);
       case 'read':
-        if (!config.enableReadReceipts) {
-          if (config.enableDeliveryReceipts) {
+        if (!api.enableReadReceipts) {
+          if (api.enableDeliveryReceipts) {
             return Icon(Icons.done_all_rounded, size: 14, color: ct.messageCheckIcon);
           }
           return Icon(Icons.check_rounded, size: 14, color: ct.messageCheckIcon);
