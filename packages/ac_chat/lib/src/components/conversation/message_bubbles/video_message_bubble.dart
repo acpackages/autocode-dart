@@ -27,9 +27,10 @@ class VideoMessageBubble extends StatelessWidget {
     } else {
       // Choose a nice thumbnail matching the video URL or message content
       String thumbUrl = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400';
-      if (message.text.contains('BigBuckBunny')) {
+      final videoSource = message.fileUrl ?? message.filePath ?? message.localPath ?? message.text;
+      if (videoSource.contains('BigBuckBunny')) {
         thumbUrl = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400'; // bunny/forest-like
-      } else if (message.text.contains('ForBiggerBlazes')) {
+      } else if (videoSource.contains('ForBiggerBlazes')) {
         thumbUrl = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400'; // receipt/flame-like/finance
       }
 
@@ -109,7 +110,14 @@ class VideoMessageBubble extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        message.mediaCaption ?? 'Video clip',
+                        message.mediaCaption ??
+                            (message.text.isNotEmpty &&
+                                    !message.text.startsWith('http') &&
+                                    !message.text.startsWith('/') &&
+                                    !message.text.startsWith('file:') &&
+                                    !message.text.contains('\\')
+                                ? message.text
+                                : 'Video clip'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

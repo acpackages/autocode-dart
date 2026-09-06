@@ -275,7 +275,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                if (!_isGroupCreationMode && _query.isEmpty) ...[
+                if (!_isGroupCreationMode && _query.isEmpty && (widget.api.enableGroups || widget.api.config.enableCreateNewContact)) ...[
                   if (widget.api.enableGroups)
                     _SpecialTile(
                       icon: Icons.group_add_rounded,
@@ -284,6 +284,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       ct: ct,
                       onTap: _startGroup,
                     ),
+                  if (widget.api.config.enableCreateNewContact)
                   _SpecialTile(
                     icon: Icons.person_add_rounded,
                     label: widget.api.newContactLabel ?? 'New Contact',
@@ -527,7 +528,7 @@ class _ContactTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        user.username.isNotEmpty ? user.username : user.email,
+        user.userId.isNotEmpty ? user.userId : user.email,
         style: TextStyle(color: ct.subText, fontSize: 12),
         overflow: TextOverflow.ellipsis,
       ),

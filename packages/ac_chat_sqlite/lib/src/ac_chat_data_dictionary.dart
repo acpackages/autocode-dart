@@ -6,7 +6,7 @@
 const String kAcChatDataDictionaryJson = r'''
 {
   "name": "ac_chat",
-  "version": 3,
+  "version": 4,
   "tables": {
     "users": {
       "tableName": "users",
@@ -147,6 +147,10 @@ const String kAcChatDataDictionaryJson = r'''
           "columnProperties": {
             "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
           }
+        },
+        "disappearing_duration_seconds": {
+          "columnName": "disappearing_duration_seconds",
+          "columnType": "INTEGER"
         }
       }
     },
@@ -386,6 +390,14 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "local_path": {
           "columnName": "local_path",
+          "columnType": "STRING"
+        },
+        "file_path": {
+          "columnName": "file_path",
+          "columnType": "STRING"
+        },
+        "file_url": {
+          "columnName": "file_url",
           "columnType": "STRING"
         },
         "reply_to_id": {

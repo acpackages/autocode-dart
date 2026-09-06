@@ -100,8 +100,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           IconButton(
             icon: Icon(Icons.share_rounded, color: widget.ct.white),
             onPressed: () {
-              final text = widget.message.text;
-              Clipboard.setData(ClipboardData(text: text));
+              final linkOrPath = widget.message.fileUrl ?? widget.message.filePath ?? widget.message.localPath ?? widget.message.text;
+              Clipboard.setData(ClipboardData(text: linkOrPath));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('File link copied to clipboard'),
@@ -141,6 +141,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildViewerContent() {
     final type = widget.message.type;
+    final localPath = widget.message.filePath ?? widget.message.localPath;
+    final fileUrl = widget.message.fileUrl;
     final text = widget.message.text;
 
     if (type == 'image') {
@@ -153,34 +155,54 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
           ),
         );
-      } else {
-        if (text.startsWith('http://') || text.startsWith('https://')) {
-          imageWidget = Image.network(
-            text,
-            fit: BoxFit.contain,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return Center(
-                child: CircularProgressIndicator(color: widget.ct.white),
-              );
-            },
-            errorBuilder: (context, error, stackTrace) => Center(
-              child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
-            ),
-          );
-        } else if (!kIsWeb && text.isNotEmpty) {
-          imageWidget = Image.file(
-            io.File(text),
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) => Center(
-              child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
-            ),
-          );
-        } else {
-          imageWidget = Center(
+      } else if (!kIsWeb && localPath != null && localPath.isNotEmpty && io.File(localPath).existsSync()) {
+        imageWidget = Image.file(
+          io.File(localPath),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Center(
             child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
-          );
-        }
+          ),
+        );
+      } else if (fileUrl != null && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+        imageWidget = Image.network(
+          fileUrl,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(color: widget.ct.white),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
+          ),
+        );
+      } else if (text.startsWith('http://') || text.startsWith('https://')) {
+        imageWidget = Image.network(
+          text,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(color: widget.ct.white),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
+          ),
+        );
+      } else if (!kIsWeb && text.isNotEmpty && io.File(text).existsSync()) {
+        imageWidget = Image.file(
+          io.File(text),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
+          ),
+        );
+      } else {
+        imageWidget = Center(
+          child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
+        );
       }
 
       return Center(
@@ -563,8 +585,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   }
 
   Future<void> _openDocument() async {
+    final localPath = widget.message.filePath ?? widget.message.localPath;
+    final fileUrl = widget.message.fileUrl;
     final text = widget.message.text;
-    final localPath = widget.message.localPath;
 
     try {
       if (localPath != null && !kIsWeb && io.File(localPath).existsSync()) {
@@ -574,12 +597,15 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           return;
         }
       }
-      if (text.startsWith('http://') || text.startsWith('https://')) {
-        final uri = Uri.parse(text);
+      final urlToLaunch = (fileUrl != null && fileUrl.startsWith('http'))
+          ? fileUrl
+          : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null);
+      if (urlToLaunch != null) {
+        final uri = Uri.parse(urlToLaunch);
         await launchUrl(uri, mode: LaunchMode.externalApplication);
         return;
       }
-      if (!kIsWeb && io.File(text).existsSync()) {
+      if (!kIsWeb && text.isNotEmpty && io.File(text).existsSync()) {
         final uri = Uri.file(text);
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
@@ -602,19 +628,26 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Future<void> _downloadMedia(BuildContext context) async {
     final message = widget.message;
+    final localPath = message.filePath ?? message.localPath;
+    final fileUrl = message.fileUrl;
     final text = message.text;
+    final downloadUrl = (fileUrl != null && fileUrl.startsWith('http'))
+        ? fileUrl
+        : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null);
     final fileName = message.fileName ??
-        (text.isNotEmpty && !text.startsWith('http')
-            ? text.split(RegExp(r'[/\\]')).last
-            : 'downloaded_attachment');
+        (localPath != null && localPath.isNotEmpty
+            ? localPath.split(RegExp(r'[/\\]')).last
+            : (downloadUrl != null
+                ? downloadUrl.split('?').first.split('/').last
+                : 'downloaded_attachment'));
 
     try {
       Uint8List? bytes = message.byteData;
       if (bytes == null || bytes.isEmpty) {
-        if (!kIsWeb && message.localPath != null && io.File(message.localPath!).existsSync()) {
-          bytes = await io.File(message.localPath!).readAsBytes();
-        } else if (text.startsWith('http://') || text.startsWith('https://')) {
-          final request = await io.HttpClient().getUrl(Uri.parse(text));
+        if (!kIsWeb && localPath != null && io.File(localPath).existsSync()) {
+          bytes = await io.File(localPath).readAsBytes();
+        } else if (downloadUrl != null) {
+          final request = await io.HttpClient().getUrl(Uri.parse(downloadUrl));
           final response = await request.close();
           final chunks = <Uint8List>[];
           await for (final chunk in response) {

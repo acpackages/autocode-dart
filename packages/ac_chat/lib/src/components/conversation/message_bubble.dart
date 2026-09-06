@@ -1,13 +1,15 @@
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 
 import '../../core/ac_chat.dart';
 import '../../common/chat_colors.dart';
 import 'media_download_wrapper.dart';
 import 'media_viewer_screen.dart';
-import 'message_action_row.dart';
 import 'message_bubbles/image_message_bubble.dart';
 import 'message_bubbles/audio_message_bubble.dart';
 import 'message_bubbles/document_message_bubble.dart';
@@ -67,98 +69,154 @@ class MessageBubble extends StatelessWidget {
     final localTime = message.timeUtc.toLocal();
     final timeStr = DateFormat('hh:mm a').format(localTime);
 
+    Widget bubbleContent = Container(
+      margin: EdgeInsets.only(
+        left: isMe ? 4 : 4,
+        right: isMe ? 4 : 4,
+        top: isSenderChanged ? 8 : 1,
+        bottom: 2,
+      ),
+      child: CustomPaint(
+        painter: BubbleBackgroundPainter(
+          isMe: isMe,
+          showTail: showTail,
+          color: isMe ? ct.sentBubble : ct.recvBubble,
+          shadowColor: ct.black.withOpacity(0.12),
+        ),
+        child: Container(
+          padding: _bubblePadding(type),
+          child: IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Sender name in group conversations
+                if (isGroup && !isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      api.getUserById(userId: message.senderId)?.name ?? 'Unknown',
+                      style: TextStyle(
+                        color: avatarColor(message.senderId),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
+                // Reply preview
+                if (message.replyTo != null && config.enableMessageReplying)
+                  _ReplyPreview(replyTo: message.replyTo!, ct: ct),
+
+                // Message content (or deleted placeholder)
+                if (message.isDeleted)
+                  _buildDeletedContent(ct)
+                else
+                  _buildContent(context, type, ct),
+
+                // Reactions Badge Row
+                if (config.enableMessageReactions && message.reactions.isNotEmpty && !message.isDeleted)
+                  _buildReactionsRow(context, api, myId, ct),
+
+                // Time + edited tag + starred icon + ticks
+                const SizedBox(height: 3),
+                Align(
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.isStarred && config.enableStarredMessages) ...[
+                        Icon(Icons.star_rounded, size: 12, color: ct.profileStatusOrange),
+                        const SizedBox(width: 2),
+                      ],
+                      if (message.isEdited && config.enableMessageEditing) ...[
+                        Text(
+                          'edited ',
+                          style: TextStyle(
+                            color: ct.subText.withOpacity(0.8),
+                            fontSize: 9,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                      Text(
+                        timeStr,
+                        style: TextStyle(
+                          color: ct.subText.withOpacity(0.9),
+                          fontSize: 10,
+                        ),
+                      ),
+                      if (isMe && !message.isDeleted) ...[
+                        const SizedBox(width: 3),
+                        if (config.enableDeliveryReceipts || config.enableReadReceipts)
+                          _TickIcon(status: status, ct: ct, config: config),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final canReply = config.enableMessageReplying && onReply != null && !message.isDeleted;
+    final canForward = config.enableMessageForwarding && onForward != null && !message.isDeleted;
+
+    Widget quickActions = (canReply || canForward)
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canReply)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onReply?.call(message),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Icon(
+                        Icons.reply_rounded,
+                        size: 16,
+                        color: ct.subText.withOpacity(0.6),
+                      ),
+                    ),
+                  ),
+                if (canForward)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onForward?.call(message),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Icon(
+                        Icons.forward_rounded,
+                        size: 16,
+                        color: ct.subText.withOpacity(0.6),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          )
+        : const SizedBox.shrink();
+
+    Widget bubbleRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: isMe
+          ? [quickActions, bubbleContent]
+          : [bubbleContent, quickActions],
+    );
+
     Widget bubbleWidget = Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(
-          left: isMe ? 60 : 4,
-          right: isMe ? 4 : 60,
-          top: isSenderChanged ? 8 : 1,
-          bottom: 2,
+          left: isMe ? 40 : 4,
+          right: isMe ? 4 : 40,
         ),
-        child: CustomPaint(
-          painter: BubbleBackgroundPainter(
-            isMe: isMe,
-            showTail: showTail,
-            color: isMe ? ct.sentBubble : ct.recvBubble,
-            shadowColor: ct.black.withOpacity(0.12),
-          ),
-          child: Container(
-            padding: _bubblePadding(type),
-            child: IntrinsicWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Sender name in group conversations
-                  if (isGroup && !isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text(
-                        api.getUserById(userId: message.senderId)?.name ?? 'Unknown',
-                        style: TextStyle(
-                          color: avatarColor(message.senderId),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-
-                  // Reply preview
-                  if (message.replyTo != null && config.enableMessageReplying)
-                    _ReplyPreview(replyTo: message.replyTo!, ct: ct),
-
-                  // Message content (or deleted placeholder)
-                  if (message.isDeleted)
-                    _buildDeletedContent(ct)
-                  else
-                    _buildContent(context, type, ct),
-
-                  // Reactions Badge Row
-                  if (config.enableMessageReactions && message.reactions.isNotEmpty && !message.isDeleted)
-                    _buildReactionsRow(context, api, myId, ct),
-
-                  // Time + edited tag + starred icon + ticks
-                  const SizedBox(height: 3),
-                  Align(
-                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (message.isStarred && config.enableStarredMessages) ...[
-                          Icon(Icons.star_rounded, size: 12, color: ct.profileStatusOrange),
-                          const SizedBox(width: 2),
-                        ],
-                        if (message.isEdited && config.enableMessageEditing) ...[
-                          Text(
-                            'edited ',
-                            style: TextStyle(
-                              color: ct.subText.withOpacity(0.8),
-                              fontSize: 9,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                        Text(
-                          timeStr,
-                          style: TextStyle(
-                            color: ct.subText.withOpacity(0.9),
-                            fontSize: 10,
-                          ),
-                        ),
-                        if (isMe && !message.isDeleted) ...[
-                          const SizedBox(width: 3),
-                          if (config.enableDeliveryReceipts || config.enableReadReceipts)
-                            _TickIcon(status: status, ct: ct, config: config),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        child: bubbleRow,
       ),
     );
 
@@ -200,41 +258,59 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    return GestureDetector(
-      onLongPress: () {
-        if (config.enableMultiSelect && onSelect != null && isSelectionMode) {
-          onSelect!();
-        } else {
-          _showBubbleMenu(context, api);
-        }
+    return Builder(
+      builder: (bubbleContext) {
+        return GestureDetector(
+          onLongPress: () {
+            if (config.enableMultiSelect && onSelect != null && isSelectionMode) {
+              onSelect!();
+            } else {
+              _showBubbleMenu(bubbleContext, api);
+            }
+          },
+          onTap: () async {
+            if (isSelectionMode && onSelect != null) {
+              onSelect!();
+              return;
+            }
+            if (api.onMessageTap != null) {
+              api.onMessageTap!(message);
+              return;
+            }
+            final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio');
+            if (isMedia && !message.isDeleted) {
+              final local = message.filePath ?? message.localPath;
+              if (local != null && local.isNotEmpty && !kIsWeb) {
+                final f = io.File(local);
+                if (f.existsSync()) {
+                  final uri = Uri.file(local);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                    return;
+                  }
+                }
+              }
+            }
+            if (config.enableMediaViewer &&
+                (type == 'image' || type == 'video' || type == 'document') &&
+                !message.isDeleted) {
+              final sender = api.getUserById(userId: message.senderId);
+              final senderName = isMe ? 'You' : (sender?.name ?? 'Unknown');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MediaViewerScreen(
+                    message: message,
+                    ct: ct,
+                    senderName: senderName,
+                  ),
+                ),
+              );
+            }
+          },
+          child: bubbleWidget,
+        );
       },
-      onTap: () {
-        if (isSelectionMode && onSelect != null) {
-          onSelect!();
-          return;
-        }
-        if (api.onMessageTap != null) {
-          api.onMessageTap!(message);
-          return;
-        }
-        if (config.enableMediaViewer &&
-            (type == 'image' || type == 'video' || type == 'document') &&
-            !message.isDeleted) {
-          final sender = api.getUserById(userId: message.senderId);
-          final senderName = isMe ? 'You' : (sender?.name ?? 'Unknown');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MediaViewerScreen(
-                message: message,
-                ct: ct,
-                senderName: senderName,
-              ),
-            ),
-          );
-        }
-      },
-      child: bubbleWidget,
     );
   }
 
@@ -363,7 +439,7 @@ class MessageBubble extends StatelessWidget {
     return content;
   }
 
-  void _showBubbleMenu(BuildContext context, AcChatApi api) {
+  void _showBubbleMenu(BuildContext context, AcChatApi api) async {
     final config = api.config;
     final myId = api.getCurrentUser().userId;
     final isMe = message.senderId == myId;
@@ -381,139 +457,123 @@ class MessageBubble extends StatelessWidget {
         now.difference(message.timeUtc) <= config.deleteForEveryoneWindow;
 
     final canDeleteForMe = config.enableMessageDeletingForMe;
+    final isMedia = message.type == 'image' ||
+        message.type == 'video' ||
+        message.type == 'document' ||
+        message.type == 'audio';
 
-    showModalBottomSheet(
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (renderBox == null || overlay == null) return;
+
+    final target = Rect.fromPoints(
+      renderBox.localToGlobal(Offset.zero, ancestor: overlay),
+      renderBox.localToGlobal(renderBox.size.bottomRight(Offset.zero), ancestor: overlay),
+    );
+
+    final position = RelativeRect.fromRect(target, Offset.zero & overlay.size);
+
+    final selected = await showMenu<String>(
       context: context,
-      backgroundColor: ct.chatBubbleMenuBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      position: position,
+      color: ct.surface,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: ct.divider.withOpacity(0.15)),
       ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: ct.subText.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 12),
+      items: <PopupMenuEntry<String>>[
+        if (config.enableMessageReactions && !message.isDeleted) ...[
+          _EmojiReactionsPopupEntry(
+            emojis: const ['👍', '❤️', '😂', '😮', '😢', '🙏'],
+            ct: ct,
+          ),
+          const PopupMenuDivider(height: 1),
+        ],
+        if (config.enableMessageReplying && !message.isDeleted)
+          _buildPopupMenuItem('reply', Icons.reply_rounded, 'Reply', ct.text),
+        if (canEdit)
+          _buildPopupMenuItem('edit', Icons.edit_rounded, 'Edit', ct.text),
+        if (config.enableMessageCopying && message.text.isNotEmpty && !message.isDeleted)
+          _buildPopupMenuItem('copy', Icons.copy_rounded, 'Copy', ct.text),
+        if (config.enableMessageForwarding && !message.isDeleted)
+          _buildPopupMenuItem('forward', Icons.forward_rounded, 'Forward', ct.text),
+        if (isMedia && !message.isDeleted)
+          _buildPopupMenuItem('download', Icons.download_rounded, 'Download', ct.text),
+        if (config.enableStarredMessages && !message.isDeleted)
+          _buildPopupMenuItem(
+            'star',
+            message.isStarred ? Icons.star_rounded : Icons.star_border_rounded,
+            message.isStarred ? 'Unstar' : 'Star',
+            message.isStarred ? ct.profileStatusOrange : ct.text,
+          ),
+        if (config.enablePinnedMessages && !message.isDeleted)
+          _buildPopupMenuItem('pin', Icons.push_pin_outlined, 'Pin', ct.text),
+        if (canDeleteForMe || canDeleteForEveryone) ...[
+          const PopupMenuDivider(height: 1),
+          _buildPopupMenuItem('delete', Icons.delete_outline_rounded, 'Delete', ct.messageDestructive),
+        ],
+      ],
+    );
 
-            // Quick emoji reactions bar
-            if (config.enableMessageReactions && !message.isDeleted) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: ['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) {
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        Navigator.pop(context);
-                        if (onReaction != null) {
-                          onReaction!(message, emoji);
-                        } else {
-                          api.addReaction(messageId: message.messageId, emoji: emoji);
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Text(emoji, style: const TextStyle(fontSize: 24)),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              Divider(color: ct.divider, height: 16),
-            ],
+    if (selected == null || !context.mounted) return;
 
-            // Action row
-            MessageActionRow(
-              ct: ct,
-              isDark: isDark,
-              items: [
-                if (config.enableMessageReplying && !message.isDeleted)
-                  MessageAction(
-                    icon: Icons.reply_rounded,
-                    label: 'Reply',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onReply?.call(message);
-                    },
-                  ),
-                if (canEdit)
-                  MessageAction(
-                    icon: Icons.edit_rounded,
-                    label: 'Edit',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onEdit?.call(message);
-                    },
-                  ),
-                if (config.enableMessageCopying && message.text.isNotEmpty && !message.isDeleted)
-                  MessageAction(
-                    icon: Icons.copy_rounded,
-                    label: 'Copy',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Clipboard.setData(ClipboardData(text: message.text));
-                      onCopy?.call(message.text);
-                    },
-                  ),
-                if (config.enableMessageForwarding && !message.isDeleted)
-                  MessageAction(
-                    icon: Icons.forward_rounded,
-                    label: 'Forward',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onForward?.call(message);
-                    },
-                  ),
-                if (config.enableStarredMessages && !message.isDeleted)
-                  MessageAction(
-                    icon: message.isStarred ? Icons.star_rounded : Icons.star_border_rounded,
-                    label: message.isStarred ? 'Unstar' : 'Star',
-                    color: message.isStarred ? ct.profileStatusOrange : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      if (onStar != null) {
-                        onStar!(message);
-                      } else {
-                        api.setStarred(
-                          messageId: message.messageId,
-                          isStarred: !message.isStarred,
-                        );
-                      }
-                    },
-                  ),
-                if (config.enablePinnedMessages && !message.isDeleted)
-                  MessageAction(
-                    icon: Icons.push_pin_outlined,
-                    label: 'Pin',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onPin?.call(message);
-                    },
-                  ),
-                if (canDeleteForMe || canDeleteForEveryone)
-                  MessageAction(
-                    icon: Icons.delete_outline_rounded,
-                    label: 'Delete',
-                    color: ct.messageDestructive,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showDeleteDialog(context, api, canDeleteForEveryone, canDeleteForMe);
-                    },
-                  ),
-              ],
+    if (selected.startsWith('reaction:')) {
+      final emoji = selected.substring(9);
+      if (onReaction != null) {
+        onReaction!(message, emoji);
+      } else {
+        api.addReaction(messageId: message.messageId, emoji: emoji);
+      }
+    } else if (selected == 'reply') {
+      onReply?.call(message);
+    } else if (selected == 'edit') {
+      onEdit?.call(message);
+    } else if (selected == 'copy') {
+      Clipboard.setData(ClipboardData(text: message.text));
+      onCopy?.call(message.text);
+    } else if (selected == 'forward') {
+      onForward?.call(message);
+    } else if (selected == 'download') {
+      api.downloadMedia(message: message);
+    } else if (selected == 'star') {
+      if (onStar != null) {
+        onStar!(message);
+      } else {
+        api.setStarred(
+          messageId: message.messageId,
+          isStarred: !message.isStarred,
+        );
+      }
+    } else if (selected == 'pin') {
+      onPin?.call(message);
+    } else if (selected == 'delete') {
+      _showDeleteDialog(context, api, canDeleteForEveryone, canDeleteForMe);
+    }
+  }
+
+  PopupMenuItem<String> _buildPopupMenuItem(
+    String value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 38,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -776,4 +836,45 @@ class LeftTailPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant LeftTailPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.shadowColor != shadowColor;
+}
+
+class _EmojiReactionsPopupEntry extends PopupMenuEntry<String> {
+  final List<String> emojis;
+  final AcChatTheme ct;
+
+  const _EmojiReactionsPopupEntry({
+    required this.emojis,
+    required this.ct,
+  });
+
+  @override
+  double get height => 44;
+
+  @override
+  bool represents(String? value) => emojis.contains(value);
+
+  @override
+  State<_EmojiReactionsPopupEntry> createState() => _EmojiReactionsPopupEntryState();
+}
+
+class _EmojiReactionsPopupEntryState extends State<_EmojiReactionsPopupEntry> {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: widget.emojis.map((emoji) {
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => Navigator.pop(context, 'reaction:$emoji'),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 }

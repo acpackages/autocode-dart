@@ -236,10 +236,6 @@ void main() {
 
       final customApi = sqlite.buildApi(
         theme: const AcChatTheme(isDark: false),
-        enableTypingIndicator: false,
-        enableTyping: false,
-        enableGroups: false,
-        maxGroupParticipants: 25,
       );
       expect(customApi.enableTypingIndicator, isFalse);
       expect(customApi.enableTyping, isFalse);

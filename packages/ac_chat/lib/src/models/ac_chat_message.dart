@@ -46,7 +46,12 @@ class AcChatMessage {
   String? fileSize;
 
   bool isDownloaded = false;
-  String? localPath;
+  String? filePath;
+  String? fileUrl;
+
+  /// Backward-compatible alias for filePath
+  String? get localPath => filePath;
+  set localPath(String? v) => filePath = v;
 
   /// Optional expiration timestamp for disappearing messages (UTC).
   DateTime? expiresAtUtc;
@@ -235,8 +240,24 @@ class AcChatMessage {
     if (json.containsKey('duration')) duration = json['duration'] as String?;
     if (json.containsKey('fileName')) fileName = json['fileName'] as String?;
     if (json.containsKey('fileSize')) fileSize = json['fileSize'] as String?;
-    if (json.containsKey('localPath')) localPath = json['localPath'] as String?;
+    if (json.containsKey('filePath') || json.containsKey('localPath')) {
+      filePath = (json['filePath'] ?? json['localPath']) as String?;
+    }
+    if (json.containsKey('fileUrl')) fileUrl = json['fileUrl'] as String?;
     if (json.containsKey('isDownloaded')) isDownloaded = json['isDownloaded'] == true || json['isDownloaded'] == 1;
+
+    // Backward compatibility sanitization:
+    // If media message and text is a URL or file path, extract it into fileUrl/filePath
+    // so that text only contains genuine message/caption text.
+    if (type != 'text' && text.isNotEmpty) {
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        fileUrl ??= text;
+        text = mediaCaption ?? '';
+      } else if (text.startsWith('/') || text.contains(RegExp(r'^[a-zA-Z]:[/\\]'))) {
+        filePath ??= text;
+        text = mediaCaption ?? '';
+      }
+    }
 
     try {
       AcJsonUtils.setInstancePropertiesFromJsonData(
@@ -297,6 +318,12 @@ class AcChatMessage {
     if (duration != null) result['duration'] = duration;
     if (fileName != null) result['fileName'] = fileName;
     if (fileSize != null) result['fileSize'] = fileSize;
+    if (filePath != null) {
+      result['filePath'] = filePath;
+      result['localPath'] = filePath;
+    }
+    if (fileUrl != null) result['fileUrl'] = fileUrl;
+    if (isDownloaded) result['isDownloaded'] = true;
     if (replyTo != null) {
       result['replyTo'] = replyTo!.toJson();
     }

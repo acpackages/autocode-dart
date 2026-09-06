@@ -54,7 +54,7 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                     player.play(
                       messageId: messageId,
                       durationInSeconds: durationSeconds,
-                      filePathOrUrl: widget.message.localPath ?? widget.message.text,
+                      filePathOrUrl: widget.message.filePath ?? widget.message.localPath ?? widget.message.fileUrl ?? widget.message.text,
                     );
                   },
                   child: Container(

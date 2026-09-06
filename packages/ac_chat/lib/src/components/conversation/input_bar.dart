@@ -151,12 +151,18 @@ class _InputBarState extends State<InputBar> {
           u.username.toLowerCase().contains(_mentionQuery);
     }).toList();
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+    return Column(
+        children: [
+    Container(
+    decoration:BoxDecoration(color: ct.inputBarTopBorder) ,height: 3,
+    ),
+        Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       color: ct.scaffold,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+
           // Mentions autocomplete popup
           if (_showMentions && filteredMentions.isNotEmpty)
             Container(
@@ -290,34 +296,29 @@ class _InputBarState extends State<InputBar> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: widget.controller,
-                            focusNode: widget.focusNode,
-                            enabled: widget.enableTyping,
-                            style: TextStyle(color: ct.inputText, fontSize: 15),
-                            maxLines: 5,
-                            minLines: 1,
-                            decoration: InputDecoration(
-                              hintText: widget.enableTyping ? 'Message' : 'Typing is disabled',
-                              hintStyle: TextStyle(color: ct.inputHint, fontSize: 15),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 9),
-                            ),
-                            onSubmitted: (_) => widget.onSend(),
-                          ),
-                        ),
-                      ],
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      enabled: widget.enableTyping,
+                      style: TextStyle(fontSize: 15,),
+                      maxLines: 5,
+                      minLines: 1,
+                      decoration: InputDecoration(
+                        hintText: widget.enableTyping ? 'Message' : 'Typing is disabled',
+                        hintStyle: TextStyle(color: ct.inputHint, fontSize: 15),
+                        border: InputBorder.none,
+
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                      ),
+                      onSubmitted: (_) => widget.onSend(),
                     ),
                   ),
                 ),
               ],
+              if(cfg.enableVoiceNotes)
               const SizedBox(width: 4),
-
+              if(cfg.enableVoiceNotes)
               // Send / Mic button
               GestureDetector(
                 onTap: () {
@@ -355,7 +356,7 @@ class _InputBarState extends State<InputBar> {
           ),
         ],
       ),
-    );
+    )]);
   }
 
   Widget _buildAttachButton(BuildContext context, AcChatTheme ct, AcChatConfig cfg) {
@@ -374,13 +375,19 @@ class _InputBarState extends State<InputBar> {
       if (cfg.enableVoiceNotes) {
         items.add(_attachMenuItem(Icons.headset, ct.attachAudioBg, 'Audio', ct));
       }
-      items.add(_attachMenuItem(Icons.location_on, ct.attachLocationBg, 'Location', ct));
-      items.add(_attachMenuItem(Icons.person, ct.attachContactBg, 'Contact', ct));
+      if(cfg.enableLocationAttachments){
+        items.add(_attachMenuItem(Icons.location_on, ct.attachLocationBg, 'Location', ct));
+      }
+      if(cfg.enableContactAttachments){
+        items.add(_attachMenuItem(Icons.person, ct.attachContactBg, 'Contact', ct));
+      }
 
       return PopupMenuButton<String>(
         icon: Icon(Icons.add, color: ct.iconColor, size: 22),
         color: ct.surface,
-        offset: const Offset(0, -280),
+
+        offset: Offset(0, double.parse(items.length.toString()) * -46.67),
+        // position: PopupMenuPosition.over,
         onSelected: (label) {
           if (widget.onAttachOption != null) {
             widget.onAttachOption!(label);

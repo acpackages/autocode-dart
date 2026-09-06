@@ -87,6 +87,7 @@ class AcChatTheme {
   Color get scaffold    => themeData?.scaffoldBackgroundColor ?? (_isThemeDark ? _ChatColors.darkScaffold : _ChatColors.lightScaffold);
   Color get surface     => themeData?.colorScheme.surface ?? themeData?.cardColor ?? (_isThemeDark ? _ChatColors.darkSurface : _ChatColors.lightSurface);
   Color get inputBar    => themeData?.colorScheme.surfaceContainer ?? (_isThemeDark ? _ChatColors.darkInputBar : _ChatColors.lightInputBar);
+  Color get inputBarTopBorder    => themeData?.colorScheme.surfaceContainer ?? (_isThemeDark ? _ChatColors.darkInputBar : _ChatColors.lightInputBar);
   Color get sentBubble  => themeData?.colorScheme.primaryContainer ?? (_isThemeDark ? _ChatColors.darkSentBubble : _ChatColors.lightSentBubble);
   Color get recvBubble  => themeData?.colorScheme.surfaceContainerHighest ?? (_isThemeDark ? _ChatColors.darkRecvBubble : _ChatColors.lightRecvBubble);
   Color get text        => themeData?.colorScheme.onSurface ?? themeData?.textTheme.bodyLarge?.color ?? (_isThemeDark ? _ChatColors.darkText : _ChatColors.lightText);
@@ -97,6 +98,7 @@ class AcChatTheme {
   Color get wallpaper   => themeData?.scaffoldBackgroundColor ?? (_isThemeDark ? _ChatColors.darkWallpaper : _ChatColors.lightWallpaper);
   Color get iconColor   => themeData?.colorScheme.onSurfaceVariant ?? (_isThemeDark ? _ChatColors.darkSubText : _ChatColors.lightSubText);
   Color get inputText   => themeData?.colorScheme.onSurface ?? themeData?.textTheme.bodyLarge?.color ?? (_isThemeDark ? _ChatColors.darkText : _ChatColors.lightText);
+
   Color get inputHint   => themeData?.colorScheme.onSurfaceVariant.withOpacity(0.6) ?? (_isThemeDark ? _ChatColors.darkSubText : _ChatColors.lightSubText);
   Color get inputFill   => themeData?.colorScheme.surfaceContainerLowest ?? (_isThemeDark ? _ChatColors.darkInputFill : _ChatColors.lightInputFill);
 

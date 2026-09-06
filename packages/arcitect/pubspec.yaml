@@ -1,0 +1,11 @@
+name: arcitect
+description: A transparent dynamic RPC isolate proxy library for Dart.
+version: 0.0.1
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  meta: ^1.11.0
+
+dev_dependencies:
+  test: ^1.24.0

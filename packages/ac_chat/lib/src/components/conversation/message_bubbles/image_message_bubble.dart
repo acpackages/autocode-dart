@@ -12,6 +12,9 @@ class ImageMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget imageWidget;
 
+    final localFilePath = message.filePath ?? message.localPath;
+    final remoteUrl = message.fileUrl ?? (message.text.startsWith('http') ? message.text : null);
+
     if (message.byteData != null && message.byteData!.isNotEmpty) {
       imageWidget = Image.memory(
         message.byteData!,
@@ -19,36 +22,29 @@ class ImageMessageBubble extends StatelessWidget {
         errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
       );
     } else if (!kIsWeb &&
-        message.localPath != null &&
-        message.localPath!.isNotEmpty &&
-        io.File(message.localPath!).existsSync()) {
+        localFilePath != null &&
+        localFilePath.isNotEmpty &&
+        io.File(localFilePath).existsSync()) {
       imageWidget = Image.file(
-        io.File(message.localPath!),
+        io.File(localFilePath),
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
       );
+    } else if (remoteUrl != null && remoteUrl.isNotEmpty) {
+      imageWidget = Image.network(
+        remoteUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _buildLoader();
+        },
+      );
     } else {
-      final pathOrUrl = message.text;
-      if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-        imageWidget = Image.network(
-          pathOrUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _buildLoader();
-          },
-        );
-      } else if (!kIsWeb && pathOrUrl.isNotEmpty && io.File(pathOrUrl).existsSync()) {
-        imageWidget = Image.file(
-          io.File(pathOrUrl),
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
-        );
-      } else {
-        imageWidget = _buildErrorIcon();
-      }
+      imageWidget = _buildErrorIcon();
     }
+
+    final captionText = message.mediaCaption ?? (message.text.isNotEmpty && !message.text.startsWith('http') ? message.text : null);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
@@ -58,7 +54,7 @@ class ImageMessageBubble extends StatelessWidget {
         color: ct.subText.withOpacity(0.15),
         child: Stack(children: [
           Positioned.fill(child: imageWidget),
-          if (message.mediaCaption != null)
+          if (captionText != null && captionText.isNotEmpty)
             Positioned(
               bottom: 0,
               left: 0,
@@ -67,7 +63,7 @@ class ImageMessageBubble extends StatelessWidget {
                 color: ct.black.withOpacity(0.5),
                 padding: const EdgeInsets.all(6),
                 child: Text(
-                  message.mediaCaption!,
+                  captionText,
                   style: TextStyle(color: ct.white, fontSize: 12),
                 ),
               ),

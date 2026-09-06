@@ -151,5 +151,47 @@ void main() {
       expect(restoredConv.lastMessage, equals('Direct update payload'));
       expect(restoredConv.lastMessageType, equals('text'));
     });
+
+    test('filePath and fileUrl serialization and deserialization in message', () {
+      final msg = AcChatMessage()
+        ..messageId = 'msg_media_1'
+        ..conversationId = 'conv_media'
+        ..senderId = 'alice@example.com'
+        ..type = 'image'
+        ..text = 'Beautiful sunset'
+        ..filePath = '/local/path/to/image.png'
+        ..fileUrl = 'https://r2.cloudflare.com/image.png';
+
+      final firestoreMap = FirestoreExtensions.messageToFirestore(msg);
+      expect(firestoreMap[FirestoreExtensions.fFilePath], equals('/local/path/to/image.png'));
+      expect(firestoreMap[FirestoreExtensions.fFileUrl], equals('https://r2.cloudflare.com/image.png'));
+      expect(firestoreMap[FirestoreExtensions.fText], equals('Beautiful sunset'));
+
+      final updatePayload = FirestoreExtensions.messageToUpdatePayload(msg);
+      expect(updatePayload[FirestoreExtensions.fFilePath], equals('/local/path/to/image.png'));
+      expect(updatePayload[FirestoreExtensions.fFileUrl], equals('https://r2.cloudflare.com/image.png'));
+
+      final fromUpdate = FirestoreExtensions.messageFromUpdateData(updatePayload);
+      expect(fromUpdate.filePath, equals('/local/path/to/image.png'));
+      expect(fromUpdate.fileUrl, equals('https://r2.cloudflare.com/image.png'));
+      expect(fromUpdate.text, equals('Beautiful sunset'));
+    });
+
+    test('disappearingDurationSeconds serialization and deserialization in conversation', () {
+      final conv = AcChatConversation()
+        ..conversationId = 'conv_disappear'
+        ..type = 'direct'
+        ..disappearingDurationSeconds = 86400;
+
+      final map = FirestoreExtensions.conversationToFirestore(conv);
+      expect(map[FirestoreExtensions.fDisappearingDurationSeconds], equals(86400));
+
+      final updateData = {
+        FirestoreExtensions.fConversationId: 'conv_disappear',
+        FirestoreExtensions.fDisappearingDurationSeconds: 86400,
+      };
+      final fromUpdate = FirestoreExtensions.conversationFromUpdateData(updateData);
+      expect(fromUpdate.disappearingDurationSeconds, equals(86400));
+    });
   });
 }

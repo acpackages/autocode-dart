@@ -381,6 +381,7 @@ class _ChatTabState extends State<_ChatTab> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredChats;
+    final api = AcChatApiProvider.of(context);
     return Column(
       children: [
         if (widget.showSearch)
@@ -418,49 +419,59 @@ class _ChatTabState extends State<_ChatTab> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, color: widget.isDark ? widget.ct.white70 : widget.ct.black54),
-                  color: widget.ct.chatBubbleMenuBg,
-                  onSelected: (v) {
-                    final api = AcChatApiProvider.of(context);
-                    if (v == 'new_group') {
-                      if (api.onNewGroup != null) {
-                        api.onNewGroup!(context: context);
-                      } else {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => NewChatScreen(api: api)),
+                if(api.config.enableMessageStarring || api.config.enableGroupConversations)
+                  const SizedBox(width: 8),
+                if(api.config.enableMessageStarring || api.config.enableGroupConversations)
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert,
+                        color: widget.isDark ? widget.ct.white70 : widget.ct
+                            .black54),
+                    color: widget.ct.chatBubbleMenuBg,
+                    onSelected: (v) {
+                      final api = AcChatApiProvider.of(context);
+                      if (v == 'new_group') {
+                        if (api.onNewGroup != null) {
+                          api.onNewGroup!(context: context);
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) =>
+                                NewChatScreen(api: api)),
+                          );
+                        }
+                      } else if (v == 'starred') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Starred Messages')),
                         );
                       }
-                    } else if (v == 'starred') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Starred Messages')),
-                      );
-                    }
-                  },
-                  itemBuilder: (_) {
-                    final api = AcChatApiProvider.of(context);
-                    return [
-                      if (api.enableGroupsAndStatuses)
-                        PopupMenuItem(
-                          value: 'new_group',
-                          child: Row(children: [
-                            Icon(Icons.group_add, size: 18, color: widget.ct.subText),
-                            const SizedBox(width: 10),
-                            Text('New Group', style: TextStyle(color: widget.ct.text, fontSize: 14)),
-                          ]),
-                        ),
-                      PopupMenuItem(
-                        value: 'starred',
-                        child: Row(children: [
-                          Icon(Icons.star_outline, size: 18, color: widget.ct.subText),
-                          const SizedBox(width: 10),
-                          Text('Starred Messages', style: TextStyle(color: widget.ct.text, fontSize: 14)),
-                        ]),
-                      ),
-                    ];
-                  },
-                ),
+                    },
+                    itemBuilder: (_) {
+
+                      return [
+                        if (api.config.enableGroupConversations)
+                          PopupMenuItem(
+                            value: 'new_group',
+                            child: Row(children: [
+                              Icon(Icons.group_add, size: 18,
+                                  color: widget.ct.subText),
+                              const SizedBox(width: 10),
+                              Text('New Group', style: TextStyle(
+                                  color: widget.ct.text, fontSize: 14)),
+                            ]),
+                          ),
+                        if (api.config.enableMessageStarring)
+                          PopupMenuItem(
+                            value: 'starred',
+                            child: Row(children: [
+                              Icon(Icons.star_outline, size: 18,
+                                  color: widget.ct.subText),
+                              const SizedBox(width: 10),
+                              Text('Starred Messages', style: TextStyle(
+                                  color: widget.ct.text, fontSize: 14)),
+                            ]),
+                          ),
+                      ];
+                    },
+                  ),
               ],
             ),
           ),

@@ -312,6 +312,7 @@ class _ConversationState extends State<Conversation>
       ..type = 'text'
       ..text = text
       ..timeUtc = DateTime.now().toUtc()
+      ..expiresAtUtc = _calculateExpiration()
       ..replyTo = _replyTo;
 
     widget.api.sendMessage(message: newMsg);
@@ -335,9 +336,11 @@ class _ConversationState extends State<Conversation>
       ..type = 'voice_note'
       ..text = '🎤 Voice message'
       ..duration = durationStr
+      ..filePath = filePath
       ..localPath = filePath
       ..isDownloaded = true
       ..timeUtc = DateTime.now().toUtc()
+      ..expiresAtUtc = _calculateExpiration()
       ..replyTo = _replyTo;
 
     widget.api.sendMessage(message: newMsg);
@@ -346,6 +349,14 @@ class _ConversationState extends State<Conversation>
       _loadMessages();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  DateTime? _calculateExpiration() {
+    final dur = widget.chat.disappearingDurationSeconds;
+    if (dur != null && dur > 0) {
+      return DateTime.now().toUtc().add(Duration(seconds: dur));
+    }
+    return null;
   }
 
   void _openProfile() {
@@ -541,7 +552,8 @@ class _ConversationState extends State<Conversation>
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final msgs = _cachedMessages;
-
+    final width = MediaQuery.sizeOf(context).width;
+    final isLarge = width >= 768;
     AcChatUser? user;
     if (!_isGroup) {
       final members = widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
@@ -774,7 +786,7 @@ class _ConversationState extends State<Conversation>
                   children: [
                     msgs.isEmpty
                         ? Center(
-                            child: Container(
+                            child: widget.api.config.isEndToEndEncrypted ?Container(
                               margin: const EdgeInsets.symmetric(horizontal: 32),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
@@ -788,13 +800,13 @@ class _ConversationState extends State<Conversation>
                                 style: TextStyle(
                                     color: ct.dateChipText, fontSize: 12),
                               ),
-                            ),
+                            ):SizedBox(),
                           )
                         : ListView.builder(
                             controller: _scrollController,
                             reverse: true,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 8),
+                            padding:  EdgeInsets.symmetric(
+                                horizontal: isLarge?50:8, vertical: 8),
                             itemCount: _flatItems.length,
                             itemBuilder: (context, index) {
                               final item = _flatItems[index];
@@ -1203,15 +1215,19 @@ class _ConversationState extends State<Conversation>
       ..conversationId = widget.chat.conversationId
       ..senderId = widget.api.getCurrentUser().userId
       ..type = type
-      ..text = (file.path != null && file.path!.isNotEmpty) ? file.path! : fileName
+      ..text = ''
+      ..filePath = file.path
+      ..localPath = file.path
       ..fileName = fileName
       ..fileSize = fileSize
       ..byteData = bytes
-      ..localPath = file.path
       ..isDownloaded = true
       ..timeUtc = DateTime.now().toUtc()
+      ..expiresAtUtc = _calculateExpiration()
+      ..replyTo = _replyTo
       ..status = 'sending';
 
+    _replyTo = null;
     widget.api.sendMessage(message: newMsg);
     if (mounted) {
       setState(() {
@@ -1232,7 +1248,7 @@ class _ConversationState extends State<Conversation>
           mimeType: mimeType,
         );
 
-        newMsg.text = publicUrl;
+        newMsg.fileUrl = publicUrl;
         newMsg.status = 'sent';
         if (mounted) {
           setState(() {
@@ -1325,7 +1341,8 @@ class _ConversationState extends State<Conversation>
                 ..type = 'location'
                 ..text = '📍 Current Location\nLat: 37.7749, Lng: -122.4194'
                 ..isDownloaded = true
-                ..timeUtc = DateTime.now().toUtc();
+                ..timeUtc = DateTime.now().toUtc()
+                ..expiresAtUtc = _calculateExpiration();
               widget.api.sendMessage(message: newMsg);
               setState(() => _loadMessages());
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -1370,7 +1387,8 @@ class _ConversationState extends State<Conversation>
                 ..type = 'contact'
                 ..text = '👤 ${c.name}\n$contactInfo'
                 ..isDownloaded = true
-                ..timeUtc = DateTime.now().toUtc();
+                ..timeUtc = DateTime.now().toUtc()
+                ..expiresAtUtc = _calculateExpiration();
               widget.api.sendMessage(message: newMsg);
               setState(() => _loadMessages());
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());

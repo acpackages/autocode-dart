@@ -33,6 +33,7 @@ class FirestoreExtensions {
   static const String fLastTime = 'last_time';
   static const String fIsPinned = 'is_pinned';
   static const String fIsMuted = 'is_muted';
+  static const String fDisappearingDurationSeconds = 'disappearing_duration_seconds';
 
   // ─── Member/ConversationUser field names ───────────────────────────────────
 
@@ -64,6 +65,8 @@ class FirestoreExtensions {
   static const String fScheduledTime = 'scheduled_time';
   static const String fExpiresAt = 'expires_at';
   static const String fIsDeleted = 'is_deleted';
+  static const String fFilePath = 'file_path';
+  static const String fFileUrl = 'file_url';
 
   // ─── User Update field names ───────────────────────────────────────────────
 
@@ -180,6 +183,8 @@ class FirestoreExtensions {
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;
     conv.unread = unread;
+    conv.disappearingDurationSeconds =
+        (data[fDisappearingDurationSeconds] as int?) ?? (data['disappearing_duration'] as int?);
 
     return conv;
   }
@@ -214,6 +219,8 @@ class FirestoreExtensions {
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;
     conv.unread = unread;
+    conv.disappearingDurationSeconds =
+        (data[fDisappearingDurationSeconds] as int?) ?? (data['disappearing_duration'] as int?);
 
     return conv;
   }
@@ -236,6 +243,8 @@ class FirestoreExtensions {
       fLastTime: Timestamp.fromDate(conv.lastTimeUtc),
       fIsPinned: conv.isPinned,
       fIsMuted: conv.isMuted,
+      if (conv.disappearingDurationSeconds != null)
+        fDisappearingDurationSeconds: conv.disappearingDurationSeconds,
     };
   }
 
@@ -316,7 +325,9 @@ class FirestoreExtensions {
 
     // isDownloaded and localPath are device-local — not stored in Firestore.
     msg.isDownloaded = false;
-    msg.localPath = null;
+    msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
+    msg.localPath = msg.filePath;
     msg.replyTo = resolvedReplyTo;
 
     return msg;
@@ -371,7 +382,9 @@ class FirestoreExtensions {
     }
 
     msg.isDownloaded = false;
-    msg.localPath = null;
+    msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
+    msg.localPath = msg.filePath;
     msg.replyTo = resolvedReplyTo;
 
     return msg;
@@ -400,6 +413,8 @@ class FirestoreExtensions {
       if (msg.pinnedUntilUtc != null) fPinnedUntil: Timestamp.fromDate(msg.pinnedUntilUtc!),
       if (msg.scheduledTimeUtc != null) fScheduledTime: Timestamp.fromDate(msg.scheduledTimeUtc!),
       if (msg.expiresAtUtc != null) fExpiresAt: Timestamp.fromDate(msg.expiresAtUtc!),
+      if (msg.filePath != null) fFilePath: msg.filePath,
+      if (msg.fileUrl != null) fFileUrl: msg.fileUrl,
       if (msg.reactions.isNotEmpty) fReactions: msg.reactions,
       if (msg.mentions.isNotEmpty) fMentions: msg.mentions,
       if (msg.isStarred) fIsStarred: true,
@@ -443,6 +458,8 @@ class FirestoreExtensions {
         fGroupName: effectiveName,
       },
       fIsGroup: isGroup,
+      if (msg.filePath != null) fFilePath: msg.filePath,
+      if (msg.fileUrl != null) fFileUrl: msg.fileUrl,
       if (msg.reactions.isNotEmpty) fReactions: msg.reactions,
       if (msg.mentions.isNotEmpty) fMentions: msg.mentions,
       if (msg.isStarred) fIsStarred: true,
@@ -503,7 +520,9 @@ class FirestoreExtensions {
     }
 
     msg.isDownloaded = false;
-    msg.localPath = null;
+    msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
+    msg.localPath = msg.filePath;
     msg.replyTo = resolvedReplyTo;
 
     return msg;
@@ -539,6 +558,8 @@ class FirestoreExtensions {
     conv.isPinned = data[fIsPinned] as bool? ?? false;
     conv.isMuted = data[fIsMuted] as bool? ?? false;
     conv.unread = (data[fUnread] as int?) ?? 0;
+    conv.disappearingDurationSeconds =
+        (data[fDisappearingDurationSeconds] as int?) ?? (data['disappearing_duration'] as int?);
 
     return conv;
   }

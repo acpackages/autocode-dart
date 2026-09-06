@@ -124,7 +124,8 @@ abstract class AcChatApi {
 
   // ── Convenience Feature Getters (forwarding to config) ────────────────────
   bool get enableGroups => config.enableGroupConversations;
-  bool get enableGroupsAndStatuses => config.enableGroupConversations;
+  bool get enableStatus => config.enableStatus;
+  bool get enableGroupsAndStatuses => config.enableStatus;
   bool get enableTyping => config.enableTextMessaging;
   bool get enableTypingIndicator => config.enableTypingIndicators;
   bool get pinConversations => config.enableConversationPinning;
@@ -222,6 +223,7 @@ abstract class AcChatApi {
     bool? enableTypingIndicator,
     bool? enableTyping,
     bool? enableGroups,
+    bool? enableStatus,
     bool? enableGroupsAndStatuses,
     int? maxGroupParticipants,
     bool? readOnly,
@@ -332,6 +334,7 @@ class _DelegatedAcChatApi implements AcChatApi {
   final bool _enableVoiceCall;
   final bool _showNewConversationButton;
   final bool _showConversationMenu;
+  final bool _enableGroupsAndStatuses;
 
   _DelegatedAcChatApi({
     AcChatConfig? config,
@@ -414,6 +417,7 @@ class _DelegatedAcChatApi implements AcChatApi {
     bool? enableTypingIndicator,
     bool? enableTyping,
     bool? enableGroups,
+    bool? enableStatus,
     bool? enableGroupsAndStatuses,
     int? maxGroupParticipants,
     bool? readOnly,
@@ -445,11 +449,13 @@ class _DelegatedAcChatApi implements AcChatApi {
         _enableVoiceCall = enableVoiceCall ?? false,
         _showNewConversationButton = showNewConversationButton ?? true,
         _showConversationMenu = showConversationMenu ?? true,
+        _enableGroupsAndStatuses = enableGroupsAndStatuses ?? true,
         config = config ??
             AcChatConfig(
               enableTypingIndicators: enableTypingIndicator ?? true,
               enableTextMessaging: !(readOnly ?? false),
-              enableGroupConversations: (enableGroups ?? true) && (enableGroupsAndStatuses ?? true),
+              enableGroupConversations: enableGroups ?? true,
+              enableStatus: enableStatus ?? (enableGroupsAndStatuses ?? false),
               maxGroupParticipants: maxGroupParticipants ?? 50,
               enableConversationPinning: pinConversations ?? true,
               enableConversationSearch: searchConversations ?? true,
@@ -459,7 +465,9 @@ class _DelegatedAcChatApi implements AcChatApi {
   @override
   bool get enableGroups => config.enableGroupConversations;
   @override
-  bool get enableGroupsAndStatuses => config.enableGroupConversations;
+  bool get enableStatus => config.enableStatus;
+  @override
+  bool get enableGroupsAndStatuses => _enableGroupsAndStatuses && config.enableStatus;
   @override
   bool get enableTyping => _enableTyping;
   @override

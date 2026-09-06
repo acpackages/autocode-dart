@@ -21,7 +21,10 @@ class AcChatConfig {
 
   // ── Conversations ─────────────────────────────────────────────────────────
   final bool enableOneToOneConversations;
+  final bool enableCreateNewContact;
   final bool enableGroupConversations;
+  final bool enableConversationBlocking;
+  final bool enableConversationReporting;
   final bool enableConversationPinning;
   final bool enableConversationArchiving;
   final bool enableConversationMuting;
@@ -29,6 +32,7 @@ class AcChatConfig {
   final bool enableConversationHiding;
 
   // ── Messaging ─────────────────────────────────────────────────────────────
+  final bool isEndToEndEncrypted;
   final bool enableTextMessaging;
   final bool enableDeliveryReceipts;
   final bool enableReadReceipts;
@@ -46,8 +50,16 @@ class AcChatConfig {
   final bool enableImageAttachments;
   final bool enableVideoAttachments;
   final bool enableDocumentAttachments;
+  final bool enableLocationAttachments;
+  final bool enableLiveLocationAttachments;
+  final bool enableContactAttachments;
   final bool enableVoiceNotes;
   final bool enableMediaAutoDownload;
+  final bool autoDownloadImages;
+  final bool autoDownloadVideos;
+  final bool autoDownloadDocuments;
+  final bool autoDownloadAudio;
+  final bool enableStatus;
   final bool enableMediaViewer;
   final int maxAttachmentSizeBytes;
 
@@ -58,6 +70,7 @@ class AcChatConfig {
   final bool enableBatchDeletion;
   final bool enableBatchCopy;
   final bool enableMessageSharing;
+  final bool enableMessageStarring;
   final bool enableInChatSearch;
 
   // ── Notifications ─────────────────────────────────────────────────────────
@@ -121,9 +134,10 @@ class AcChatConfig {
     this.enableOnlinePresence = true,
     this.enableLastSeen = true,
     this.enableUserProfileEditing = true,
-    this.enableUserBlocking = true,
+    this.enableUserBlocking = false,
 
     // Conversations
+    this.enableCreateNewContact = false,
     this.enableOneToOneConversations = true,
     this.enableGroupConversations = true,
     this.enableConversationPinning = true,
@@ -131,8 +145,11 @@ class AcChatConfig {
     this.enableConversationMuting = true,
     this.enableConversationDeletion = true,
     this.enableConversationHiding = true,
+    this.enableConversationBlocking = false,
+    this.enableConversationReporting = false,
 
     // Messaging
+    this.isEndToEndEncrypted = false,
     this.enableTextMessaging = true,
     this.enableDeliveryReceipts = true,
     this.enableReadReceipts = true,
@@ -142,16 +159,25 @@ class AcChatConfig {
     this.enableMessageDeletingForMe = true,
     this.enableMessageDeletingForEveryone = true,
     this.enableMessageCopying = true,
+    this.enableMessageStarring = false,
     this.enableStarredMessages = true,
     this.enableMessageReactions = true,
 
     // Attachments
     this.enableMediaAttachments = true,
     this.enableImageAttachments = true,
+    this.enableLocationAttachments = false,
+    this.enableLiveLocationAttachments = false,
+    this.enableContactAttachments = false,
     this.enableVideoAttachments = true,
     this.enableDocumentAttachments = true,
     this.enableVoiceNotes = true,
     this.enableMediaAutoDownload = true,
+    this.autoDownloadImages = true,
+    this.autoDownloadVideos = false,
+    this.autoDownloadDocuments = true,
+    this.autoDownloadAudio = true,
+    this.enableStatus = false,
     this.enableMediaViewer = true,
     this.maxAttachmentSizeBytes = 52428800, // 50 MB
 
@@ -212,7 +238,7 @@ class AcChatConfig {
     this.enableDisappearingMessages = false,
     this.enableMessageScheduling = false,
     this.enableBroadcastMessages = false,
-    this.enableUserReporting = true,
+    this.enableUserReporting = false,
 
     // Policies
     this.editTimeWindow = const Duration(minutes: 15),
@@ -251,6 +277,11 @@ class AcChatConfig {
       enableDocumentAttachments: false,
       enableVoiceNotes: false,
       enableMediaAutoDownload: false,
+      autoDownloadImages: false,
+      autoDownloadVideos: false,
+      autoDownloadDocuments: false,
+      autoDownloadAudio: false,
+      enableStatus: false,
       enableMediaViewer: false,
       enableMentions: false,
       enableMultiSelect: false,
@@ -324,6 +355,11 @@ class AcChatConfig {
     bool? enableDocumentAttachments,
     bool? enableVoiceNotes,
     bool? enableMediaAutoDownload,
+    bool? autoDownloadImages,
+    bool? autoDownloadVideos,
+    bool? autoDownloadDocuments,
+    bool? autoDownloadAudio,
+    bool? enableStatus,
     bool? enableMediaViewer,
     int? maxAttachmentSizeBytes,
     bool? enableMentions,
@@ -402,6 +438,11 @@ class AcChatConfig {
       enableDocumentAttachments: enableDocumentAttachments ?? this.enableDocumentAttachments,
       enableVoiceNotes: enableVoiceNotes ?? this.enableVoiceNotes,
       enableMediaAutoDownload: enableMediaAutoDownload ?? this.enableMediaAutoDownload,
+      autoDownloadImages: autoDownloadImages ?? this.autoDownloadImages,
+      autoDownloadVideos: autoDownloadVideos ?? this.autoDownloadVideos,
+      autoDownloadDocuments: autoDownloadDocuments ?? this.autoDownloadDocuments,
+      autoDownloadAudio: autoDownloadAudio ?? this.autoDownloadAudio,
+      enableStatus: enableStatus ?? this.enableStatus,
       enableMediaViewer: enableMediaViewer ?? this.enableMediaViewer,
       maxAttachmentSizeBytes: maxAttachmentSizeBytes ?? this.maxAttachmentSizeBytes,
       enableMentions: enableMentions ?? this.enableMentions,
@@ -450,5 +491,16 @@ class AcChatConfig {
       editTimeWindow: editTimeWindow ?? this.editTimeWindow,
       deleteForEveryoneWindow: deleteForEveryoneWindow ?? this.deleteForEveryoneWindow,
     );
+  }
+
+  /// Determines whether media of the specified [type] should be downloaded automatically.
+  bool shouldAutoDownload(String type) {
+    if (!enableMediaAutoDownload) return false;
+    final t = type.toLowerCase().trim();
+    if (t == 'image' || t == 'images') return autoDownloadImages;
+    if (t == 'video' || t == 'videos') return autoDownloadVideos;
+    if (t == 'document' || t == 'documents' || t == 'doc' || t == 'file' || t == 'files') return autoDownloadDocuments;
+    if (t == 'audio' || t == 'voice_note' || t == 'voice') return autoDownloadAudio;
+    return false;
   }
 }

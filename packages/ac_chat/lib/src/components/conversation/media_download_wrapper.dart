@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../core/ac_chat.dart';
 
@@ -21,79 +23,49 @@ class MediaDownloadWrapper extends StatefulWidget {
 class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
   bool _isDownloading = false;
   double _progress = 0.0;
-  Timer? _timer;
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _startDownload() {
+  Future<void> _startDownload() async {
     if (_isDownloading) return;
     final api = AcChatApiProvider.of(context);
     setState(() {
       _isDownloading = true;
-      _progress = 0.0;
+      _progress = 0.2;
     });
 
-    _timer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
+    try {
+      final savedPath = await api.downloadMedia(message: widget.message);
+      if (savedPath != null && mounted) {
+        widget.message.isDownloaded = true;
+        widget.message.filePath = savedPath;
+        widget.message.localPath = savedPath;
+        try {
+          api.updateMessage(
+            messageId: widget.message.messageId,
+            data: {
+              'isDownloaded': true,
+              'filePath': savedPath,
+              'localPath': savedPath,
+            },
+          );
+        } catch (_) {}
       }
-      setState(() {
-        _progress += 0.1;
-        if (_progress >= 1.0) {
-          _progress = 1.0;
+    } catch (e) {
+      debugPrint('[MediaDownloadWrapper] download failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
           _isDownloading = false;
-          widget.message.isDownloaded = true;
-          widget.message.localPath = widget.message.text;
-          try {
-            if (api is AcChatApi) {
-              api.updateMessage(
-                messageId: widget.message.messageId,
-                data: {
-                  'isDownloaded': true,
-                  'localPath': widget.message.text,
-                },
-              );
-            } else {
-              try {
-                api.updateMessage(
-                  messageId: widget.message.messageId,
-                  data: {
-                    'isDownloaded': true,
-                    'localPath': widget.message.text,
-                  },
-                );
-              } catch (_) {
-                try {
-                  api.updateMessage?.call(
-                    messageId: widget.message.messageId,
-                    data: {
-                      'isDownloaded': true,
-                      'localPath': widget.message.text,
-                    },
-                  );
-                } catch (_) {
-                  api.updateMessage?.call(widget.message.messageId, {
-                    'isDownloaded': true,
-                    'localPath': widget.message.text,
-                  });
-                }
-              }
-            }
-          } catch (_) {}
-          timer.cancel();
-        }
-      });
-    });
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.message.isDownloaded) {
+    final path = widget.message.filePath ?? widget.message.localPath;
+    final bool fileExists = !kIsWeb && path != null && path.isNotEmpty && io.File(path).existsSync();
+
+    if (widget.message.isDownloaded && fileExists) {
       return widget.child;
     }
 

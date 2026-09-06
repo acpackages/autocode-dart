@@ -41,6 +41,9 @@ class AcChatConversation {
   /// Participant user IDs.
   List<String> memberIds = [];
 
+  /// Disappearing message duration in seconds for this conversation (e.g. 86400 for 24h, null/0 for off).
+  int? disappearingDurationSeconds;
+
   // ── Backward-compatible Aliases ───────────────────────────────────────────
 
   String? get groupName => conversationName;
@@ -167,6 +170,17 @@ class AcChatConversation {
       isArchived = json['isArchived'] == true || json['isArchived'] == 1;
       json.remove('isArchived');
     }
+    if (json.containsKey('disappearingDurationSeconds')) {
+      disappearingDurationSeconds = json['disappearingDurationSeconds'] is int
+          ? json['disappearingDurationSeconds'] as int
+          : int.tryParse(json['disappearingDurationSeconds'].toString());
+      json.remove('disappearingDurationSeconds');
+    } else if (json.containsKey('disappearing_duration_seconds')) {
+      disappearingDurationSeconds = json['disappearing_duration_seconds'] is int
+          ? json['disappearing_duration_seconds'] as int
+          : int.tryParse(json['disappearing_duration_seconds'].toString());
+      json.remove('disappearing_duration_seconds');
+    }
 
     try {
       AcJsonUtils.setInstancePropertiesFromJsonData(
@@ -201,6 +215,10 @@ class AcChatConversation {
     }
     if (createdBy != null) {
       result['createdBy'] = createdBy;
+    }
+    if (disappearingDurationSeconds != null) {
+      result['disappearingDurationSeconds'] = disappearingDurationSeconds;
+      result['disappearing_duration_seconds'] = disappearingDurationSeconds;
     }
     return result;
   }

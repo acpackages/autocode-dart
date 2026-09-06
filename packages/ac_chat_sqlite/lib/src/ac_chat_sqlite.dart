@@ -43,6 +43,7 @@ abstract class _C {
   static const unread = 'unread';
   static const isPinned = 'is_pinned';
   static const isMuted = 'is_muted';
+  static const disappearingDurationSeconds = 'disappearing_duration_seconds';
 
   // user_conversation_prefs
   static const unreadCount = 'unread_count';
@@ -73,6 +74,8 @@ abstract class _C {
   static const fileSize = 'file_size';
   static const isDownloaded = 'is_downloaded';
   static const localPath = 'local_path';
+  static const filePath = 'file_path';
+  static const fileUrl = 'file_url';
   static const replyToId = 'reply_to_id';
   static const deliveredTime = 'delivered_time';
   static const readTime = 'read_time';
@@ -340,63 +343,29 @@ class AcChatSqlite {
 
   // ─── Public API Builder ────────────────────────────────────────────────
 
-  AcChatApi buildApi({
-    required AcChatTheme theme,
-    FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact,
-    FutureOr<void> Function({required BuildContext context})? onNewGroup,
-    List<AcChatUser> Function()? getContacts,
-    String? contactsSectionTitle,
-    String? newContactLabel,
-    String? newContactSubtitle,
-    String? newGroupLabel,
-    String? newGroupSubtitle,
-    FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers,
-    Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder,
-    void Function({required AcChatMessage message})? onMessageTap,
-    Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder,
-    bool? enableVideoCall,
-    bool? enableVoiceCall,
-    bool? showNewConversationButton,
-    bool? searchConversations,
-    bool? pinConversations,
-    bool? showConversationMenu,
-    bool? showOnlineStatus,
-    bool? readOnly,
-    bool? enableTypingIndicator,
-    bool? enableTyping,
-    bool? enableGroups,
-    int? maxGroupParticipants,
+  AcChatApi buildApi({AcChatConfig? config,required AcChatTheme theme,
   }) {
-    final effectiveConfig = _config.chatConfig.copyWith(
-      enableTypingIndicators: enableTypingIndicator ?? _config.chatConfig.enableTypingIndicators,
-      enableTextMessaging: enableTyping ?? (!(readOnly ?? false) && _config.chatConfig.enableTextMessaging),
-      enableGroupConversations: enableGroups ?? _config.chatConfig.enableGroupConversations,
-      maxGroupParticipants: maxGroupParticipants ?? 50,
-      enableConversationPinning: pinConversations ?? _config.chatConfig.enableConversationPinning,
-      enableConversationSearch: searchConversations ?? _config.chatConfig.enableConversationSearch,
-      enableOnlinePresence: showOnlineStatus ?? _config.chatConfig.enableOnlinePresence,
-    );
 
     return _AcChatSqliteApi(
       sqlite: this,
       theme: theme,
-      config: effectiveConfig,
-      enableVoiceCall: enableVoiceCall ?? false,
-      enableVideoCall: enableVideoCall ?? false,
-      showNewConversationButton: showNewConversationButton ?? true,
-      showConversationMenu: showConversationMenu ?? true,
-      onNewContact: onNewContact,
-      onNewGroup: onNewGroup,
-      getContacts: getContacts,
-      contactsSectionTitle: contactsSectionTitle,
-      newContactLabel: newContactLabel,
-      newContactSubtitle: newContactSubtitle,
-      newGroupLabel: newGroupLabel,
-      newGroupSubtitle: newGroupSubtitle,
-      onSearchRemoteUsers: onSearchRemoteUsers,
-      customMessageBuilder: customMessageBuilder,
-      onMessageTap: onMessageTap,
-      customInputBuilder: customInputBuilder,
+      config: config??AcChatConfig(),
+      // enableVoiceCall: enableVoiceCall ?? false,
+      // enableVideoCall: enableVideoCall ?? false,
+      // showNewConversationButton: showNewConversationButton ?? true,
+      // showConversationMenu: showConversationMenu ?? true,
+      // onNewContact: onNewContact,
+      // onNewGroup: onNewGroup,
+      // getContacts: getContacts,
+      // contactsSectionTitle: contactsSectionTitle,
+      // newContactLabel: newContactLabel,
+      // newContactSubtitle: newContactSubtitle,
+      // newGroupLabel: newGroupLabel,
+      // newGroupSubtitle: newGroupSubtitle,
+      // onSearchRemoteUsers: onSearchRemoteUsers,
+      // customMessageBuilder: customMessageBuilder,
+      // onMessageTap: onMessageTap,
+      // customInputBuilder: customInputBuilder,
     );
   }
 
@@ -845,6 +814,53 @@ class AcChatSqlite {
       fields: {_C.unread: 0},
     ).catchError((Object e) => null);
 
+    final nowUtc = DateTime.now().toUtc();
+    final nowMs = nowUtc.millisecondsSinceEpoch;
+
+    // 1. Update in-memory messages and collect rows to save
+    final msgs = _messages[conversationId];
+    final rowsToSave = <Map<String, dynamic>>[];
+    if (msgs != null) {
+      for (final m in msgs) {
+        if (m.senderId != _currentUserId && m.status != 'read') {
+          m.status = 'read';
+          m.readTime = nowUtc;
+          rowsToSave.add(_messageToRow(m));
+        }
+      }
+    }
+
+    // 2. Persist in SQLite
+    if (rowsToSave.isNotEmpty) {
+      _tblMessages.saveRows(
+        rows: rowsToSave,
+        executeBeforeEvent: false,
+        executeAfterEvent: false,
+      ).catchError((Object e) => AcSqlDaoResult());
+    } else {
+      // If messages weren't cached in memory yet, update via query
+      _tblMessages.getRows(
+        condition: '${_C.conversationId} = :cid AND ${_C.senderId} != :uid AND ${_C.status} != :read',
+        parameters: {':cid': conversationId, ':uid': _currentUserId, ':read': 'read'},
+      ).then((res) {
+        if (res.isSuccess() && res.rows.isNotEmpty) {
+          final rows = <Map<String, dynamic>>[];
+          for (final r in res.rows) {
+            final rowMap = Map<String, dynamic>.from(r);
+            rowMap[_C.status] = 'read';
+            rowMap[_C.readTime] = nowMs;
+            rows.add(rowMap);
+          }
+          _tblMessages.saveRows(
+            rows: rows,
+            executeBeforeEvent: false,
+            executeAfterEvent: false,
+          ).ignore();
+        }
+      }).catchError((Object e) {});
+    }
+
+    _notifyMessagesChanged(conversationId: conversationId);
     _notifyConversationsChanged();
 
     _channel?.markAsRead(
@@ -1731,6 +1747,7 @@ class AcChatSqlite {
         'AcChatSqlite: schema init failed — ${initResult.message}',
       );
     }
+
   }
 
   Future<void> _loadInitialData() async {
@@ -1824,6 +1841,7 @@ class AcChatSqlite {
     }
 
     _sortConversations();
+    await cleanExpiredMessages();
   }
 
   void _sortConversations() {
@@ -1837,6 +1855,7 @@ class AcChatSqlite {
 
   Future<void> _ensureMessagesLoaded({required String conversationId}) async {
     if (_messages[conversationId] != null) return;
+    await cleanExpiredMessages();
 
     try {
       final result = await _tblMessages.getRows(
@@ -2045,7 +2064,8 @@ class AcChatSqlite {
       ..lastTime = DateTime.fromMillisecondsSinceEpoch(row[_C.lastTime] as int, isUtc: true)
       ..unread = (row[_C.unread] as int?) ?? 0
       ..isPinned = ((row[_C.isPinned] as int?) ?? 0) == 1
-      ..isMuted = ((row[_C.isMuted] as int?) ?? 0) == 1;
+      ..isMuted = ((row[_C.isMuted] as int?) ?? 0) == 1
+      ..disappearingDurationSeconds = row[_C.disappearingDurationSeconds] as int?;
   }
 
   static Map<String, Object?> _conversationToRow(AcChatConversation conv) {
@@ -2063,6 +2083,7 @@ class AcChatSqlite {
       _C.unread: conv.unread,
       _C.isPinned: conv.isPinned ? 1 : 0,
       _C.isMuted: conv.isMuted ? 1 : 0,
+      _C.disappearingDurationSeconds: conv.disappearingDurationSeconds,
     };
   }
 
@@ -2139,7 +2160,9 @@ class AcChatSqlite {
       ..fileName = row[_C.fileName] as String?
       ..fileSize = row[_C.fileSize] as String?
       ..isDownloaded = ((row[_C.isDownloaded] as int?) ?? 0) == 1
-      ..localPath = row[_C.localPath] as String?
+      ..filePath = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?)
+      ..fileUrl = row[_C.fileUrl] as String?
+      ..localPath = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?)
       ..deliveredTime = row[_C.deliveredTime] != null
           ? DateTime.fromMillisecondsSinceEpoch(row[_C.deliveredTime] as int, isUtc: true)
           : null
@@ -2182,7 +2205,9 @@ class AcChatSqlite {
       _C.fileName: msg.fileName,
       _C.fileSize: msg.fileSize,
       _C.isDownloaded: msg.isDownloaded ? 1 : 0,
-      _C.localPath: msg.localPath,
+      _C.filePath: msg.filePath ?? msg.localPath,
+      _C.fileUrl: msg.fileUrl,
+      _C.localPath: msg.filePath ?? msg.localPath,
       _C.replyToId: msg.replyTo?.messageId,
       _C.deliveredTime: msg.deliveredTime?.millisecondsSinceEpoch,
       _C.readTime: msg.readTime?.millisecondsSinceEpoch,
@@ -2219,6 +2244,129 @@ class AcChatSqlite {
       default:
         return 'bin';
     }
+  }
+
+  /// Cleans up any expired disappearing messages from SQLite, in-memory state, and disk media files.
+  Future<void> cleanExpiredMessages() async {
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    try {
+      final expiredResult = await _tblMessages.getRows(
+        condition: '${_C.expiresAtUtc} IS NOT NULL AND ${_C.expiresAtUtc} <= :now',
+        parameters: {':now': nowMs},
+      );
+
+      if (expiredResult.isSuccess() && expiredResult.rows.isNotEmpty) {
+        final expiredIds = <String>[];
+        for (final row in expiredResult.rows) {
+          final id = row[_C.messageId] as String?;
+          if (id != null) expiredIds.add(id);
+
+          final local = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?);
+          if (local != null && local.isNotEmpty && !kIsWeb) {
+            try {
+              final f = io.File(local);
+              if (f.existsSync()) {
+                f.deleteSync();
+              }
+            } catch (_) {}
+          }
+        }
+
+        await _tblMessages.deleteRows(
+          condition: '${_C.expiresAtUtc} IS NOT NULL AND ${_C.expiresAtUtc} <= :now',
+          parameters: {':now': nowMs},
+        );
+
+        final affectedConvs = <String>{};
+        for (final id in expiredIds) {
+          final msg = _messageIndex.remove(id);
+          if (msg != null) {
+            affectedConvs.add(msg.conversationId);
+            _messages[msg.conversationId]?.removeWhere((m) => m.messageId == id);
+          }
+        }
+
+        for (final convId in affectedConvs) {
+          _notifyMessagesChanged(conversationId: convId);
+        }
+      }
+    } catch (e, st) {
+      _log('cleanExpiredMessages error', e, st);
+    }
+  }
+
+  /// Downloads media file from [message.fileUrl] (or remote text url) and saves locally,
+  /// updating the message record in SQLite and in-memory caches.
+  Future<String?> downloadMedia({required AcChatMessage message}) async {
+    final existingLocal = message.filePath ?? message.localPath;
+    if (existingLocal != null && existingLocal.isNotEmpty && !kIsWeb) {
+      final f = io.File(existingLocal);
+      if (f.existsSync()) {
+        return existingLocal;
+      }
+    }
+
+    final url = (message.fileUrl != null && message.fileUrl!.startsWith('http'))
+        ? message.fileUrl!
+        : ((message.text.startsWith('http://') || message.text.startsWith('https://')) ? message.text : null);
+
+    Uint8List? bytes = message.byteData;
+    if (bytes == null || bytes.isEmpty) {
+      if (url != null && !kIsWeb) {
+        try {
+          final request = await io.HttpClient().getUrl(Uri.parse(url));
+          final response = await request.close();
+          if (response.statusCode == 200) {
+            final chunks = <Uint8List>[];
+            await for (final chunk in response) {
+              chunks.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+            }
+            final totalLen = chunks.fold<int>(0, (sum, c) => sum + c.length);
+            final fullBytes = Uint8List(totalLen);
+            var offset = 0;
+            for (final c in chunks) {
+              fullBytes.setRange(offset, offset + c.length, c);
+              offset += c.length;
+            }
+            bytes = fullBytes;
+          }
+        } catch (e, st) {
+          _log('downloadMedia download error', e, st);
+        }
+      }
+    }
+
+    if (bytes == null || bytes.isEmpty) return null;
+
+    final fileName = message.fileName ??
+        (url != null
+            ? url.split('?').first.split('/').last
+            : 'media_${message.messageId}.${_defaultExtensionForType(message.type)}');
+
+    final savedPath = await saveMediaFile(
+      type: message.type,
+      fileName: fileName,
+      bytes: bytes,
+      messageId: message.messageId,
+    );
+
+    if (savedPath != null) {
+      message.filePath = savedPath;
+      message.localPath = savedPath;
+      message.isDownloaded = true;
+      await _updateMessageFields(
+        messageId: message.messageId,
+        fields: {
+          _C.filePath: savedPath,
+          _C.localPath: savedPath,
+          _C.isDownloaded: 1,
+        },
+      );
+      _notifyMessagesChanged(conversationId: message.conversationId);
+      onDataChanged?.call();
+    }
+
+    return savedPath;
   }
 
   void _log(String message, Object error, StackTrace stackTrace) {
@@ -2296,6 +2444,8 @@ class _AcChatSqliteApi implements AcChatApi {
 
   @override
   bool get enableGroups => config.enableGroupConversations;
+  @override
+  bool get enableStatus => config.enableStatus;
   @override
   bool get enableGroupsAndStatuses => config.enableGroupConversations;
   @override
@@ -2552,7 +2702,8 @@ class _AcChatSqliteApi implements AcChatApi {
   String? get dataDirectory => sqlite.dataDirectory;
 
   @override
-  Future<String?> downloadMedia({required AcChatMessage message}) async => message.localPath;
+  Future<String?> downloadMedia({required AcChatMessage message}) =>
+      sqlite.downloadMedia(message: message);
 
   @override
   Future<String> exportChat({required String conversationId, required bool asJson}) =>
