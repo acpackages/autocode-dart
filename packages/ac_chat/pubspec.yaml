@@ -14,6 +14,8 @@ dependencies:
     path: './../autocode'
   ac_extensions:
     path: './../ac_extensions'
+  ac_flutter:
+    path: './../ac_flutter'
   ac_mirrors:
     path: './../ac_mirrors'
 

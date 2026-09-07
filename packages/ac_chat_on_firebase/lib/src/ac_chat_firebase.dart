@@ -818,8 +818,8 @@ class AcChatFirebase implements AcChatSyncChannel {
           _sendMessageStandalone(message),
       markAsRead: ({required String conversationId}) =>
           _markAsReadStandalone(conversationId),
-      insertConversation: ({required AcChatConversation newConv, required String otherUserId}) =>
-          _insertConversation(newConv, otherUserId),
+      insertConversation: ({required AcChatConversation newConversation, required String otherUserId}) async =>
+          _insertConversation(newConversation, otherUserId),
       updateMessage: ({required String messageId, required Map<String, dynamic> data}) =>
           _updateMessageStandalone(messageId, data),
       onNewContact: onNewContact,
@@ -837,10 +837,10 @@ class AcChatFirebase implements AcChatSyncChannel {
       enableVideoCall: enableVideoCall ?? true,
       enableVoiceCall: enableVoiceCall ?? true,
       showNewConversationButton: showNewConversationButton ?? true,
-      searchConversations: searchConversations ?? true,
-      pinConversations: pinConversations ?? true,
+      // searchConversations: searchConversations ?? true,
+      // pinConversations: pinConversations ?? true,
       showConversationMenu: showConversationMenu ?? true,
-      showOnlineStatus: showOnlineStatus ?? true,
+      // showOnlineStatus: showOnlineStatus ?? true,
       readOnly: readOnly ?? false,
       enableTypingIndicator: enableTypingIndicator ?? true,
       enableTyping: enableTyping ?? true,
@@ -849,36 +849,36 @@ class AcChatFirebase implements AcChatSyncChannel {
     );
   }
 
-  AcChatUser _getCurrentUser() {
+  Future<AcChatUser> _getCurrentUser() async {
     return _userIndex[_currentUserId] ??
         (AcChatUser()
           ..userId = _currentUserId
           ..name = 'Me');
   }
 
-  List<AcChatUser> _getUsers() => List.unmodifiable(_users);
+  Future<List<AcChatUser>> _getUsers() async => List.unmodifiable(_users);
 
-  AcChatUser? _getUserById(String userId) => _userIndex[userId];
+  Future<AcChatUser?> _getUserById(String userId) async => _userIndex[userId];
 
-  List<AcChatConversation> _getConversations() => List.unmodifiable(_conversations);
+  Future<List<AcChatConversation>> _getConversations() async => List.unmodifiable(_conversations);
 
-  List<AcChatConversationUser> _getConversationUsers(String conversationId) =>
+  Future<List<AcChatConversationUser>> _getConversationUsers(String conversationId) async =>
       List.unmodifiable(_members[conversationId] ?? []);
 
-  List<AcChatMessage> _getMessages(String conversationId) =>
+  Future<List<AcChatMessage>> _getMessages(String conversationId) async =>
       List.unmodifiable(_messages[conversationId] ?? []);
 
-  void _markAsReadStandalone(String conversationId) {
+  Future<void> _markAsReadStandalone(String conversationId) async {
     _conversationIndex[conversationId]?.unread = 0;
     final idx = _conversations.indexWhere((c) => c.conversationId == conversationId);
     if (idx >= 0) _conversations[idx].unread = 0;
     _notifyDataChanged();
   }
 
-  AcChatConversation _insertConversation(
+  Future<AcChatConversation> _insertConversation(
     AcChatConversation newConv,
     String otherUserId,
-  ) {
+  ) async {
     if (newConv.conversationId.isEmpty) {
       newConv.conversationId = _uuid.v4();
     }
@@ -906,7 +906,7 @@ class AcChatFirebase implements AcChatSyncChannel {
     return newConv;
   }
 
-  void _sendMessageStandalone(AcChatMessage msg) {
+  Future<void> _sendMessageStandalone(AcChatMessage msg) async {
     if (msg.messageId.isEmpty) {
       msg.messageId = _uuid.v4();
     }
@@ -928,7 +928,7 @@ class AcChatFirebase implements AcChatSyncChannel {
     });
   }
 
-  void _updateMessageStandalone(String messageId, Map<String, dynamic> data) {
+  Future<void> _updateMessageStandalone(String messageId, Map<String, dynamic> data) async {
     final msg = _messageIndex[messageId];
     if (msg == null) return;
 

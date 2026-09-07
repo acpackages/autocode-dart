@@ -112,13 +112,13 @@ abstract class _T {
 ///
 /// Strictly uses [AcSqlDbTable] for all schema persistence and CRUD operations.
 /// Raw SQL statements are forbidden. Synchronous in-memory reads, background SQLite writes.
-class _AcChatSqlite {
+class AcChatSqlite {
   // ─── Constructor ───────────────────────────────────────────────────────
-  final AcChatSqliteApi api;
+  final AcChatApi api;
   String dataDictionaryName = "ac_chat";
   String dataDirectory = "chat";
   String databasePath = "chat/chat.db";
-  _AcChatSqlite({
+  AcChatSqlite({
     required String currentUserId,
     required this.api,
     this.databasePath = "chat.db",
@@ -226,6 +226,7 @@ class _AcChatSqlite {
       _log('initialize error', e, st);
       rethrow;
     }
+    _setHandlers();
 
     // Bind connectivity-aware outbox draining
     final conn = api.connectivityProvider;
@@ -2340,308 +2341,184 @@ class _AcChatSqlite {
       stackTrace: stackTrace,
     );
   }
+
+  _setHandlers() {
+    api.getCurrentUser  = () async => getCurrentUser();
+    api.getUsers = () async => getUsers();
+    api.getUserById = ({required String userId}) async => getUserById(userId: userId);
+    api.saveUserProfile = ({required AcChatUser user}) async => saveUserProfile(user: user);
+    api.isUserBlocked = ({required String userId}) async => isUserBlocked(userId: userId);
+    api.getBlockedUserIds = () async => getBlockedUserIds();
+    api.blockUser = ({required String userId}) async => blockUser(userId: userId);
+    api.unblockUser = ({required String userId}) async => unblockUser(userId: userId);
+    api.reportUser = ({required String userId, required String reason}) async => reportUser(userId: userId, reason: reason);
+    api.watchUserOnlineStatus = ({required String userId}) async => watchUserOnlineStatus(userId: userId);
+    api.getConversations = () async => getConversations();
+    api.watchConversations = () async => watchConversations();
+    api.getConversationPrefs = ({required String conversationId}) async => getConversationPrefs(conversationId: conversationId);
+    api.updateConversationPrefs = ({required AcChatConversationUser prefs}) async => updateConversationPrefs(prefs: prefs);
+    api.getConversationUsers = ({required String conversationId}) async => getConversationUsers(conversationId: conversationId);
+    api.insertConversation = ({required AcChatConversation newConversation,required String otherUserId}) async => insertConversation(newConv: newConversation, otherUserId: otherUserId);
+    api.pinConversation = ({required String conversationId, required bool isPinned}) => pinConversation(conversationId: conversationId, isPinned: isPinned);
+    api.archiveConversation = ({required String conversationId, required bool isArchived}) => archiveConversation(conversationId: conversationId, isArchived: isArchived);
+    api.muteConversation = ({required String conversationId, Duration? muteDuration, bool? muted}) => muteConversation(conversationId: conversationId, muteDuration: muteDuration, muted: muted);
+    api.deleteConversation = ({required String conversationId}) => deleteConversation(conversationId: conversationId);
+    api.hideConversation = ({required String conversationId, required bool isHidden}) => hideConversation(conversationId: conversationId, isHidden: isHidden);
+    api.createGroupConversation = ({required String groupName,required List<String> memberUserIds,String? groupAvatar,String? groupDescription}) => createGroupConversation(groupName: groupName,memberUserIds: memberUserIds,groupAvatar: groupAvatar,groupDescription: groupDescription,);
+    api.addGroupMembers = ({required String conversationId, required List<String> userIds}) async => addGroupMembers(conversationId: conversationId, userIds: userIds);
+    api.removeGroupMember = ({required String conversationId, required String userId}) async => removeGroupMember(conversationId: conversationId, userId: userId);
+    api.updateGroupDetails = ({required String conversationId,String? groupName,String? groupAvatar,String? groupDescription})  async => updateGroupDetails(conversationId: conversationId,groupName: groupName,groupAvatar: groupAvatar,groupDescription: groupDescription);
+
+    api.leaveGroup = ({required String conversationId})  async =>
+        leaveGroup(conversationId: conversationId);
+
+    api.getGroupInviteLink = ({required String conversationId}) async =>
+        getGroupInviteLink(conversationId: conversationId);
+
+    api.getMessages = ({required String conversationId})  async =>
+        getMessages(conversationId: conversationId);
+
+    api.watchMessages = ({required String conversationId}) async =>
+        watchMessages(conversationId: conversationId);
+
+    api.sendMessage = ({required AcChatMessage message}) async =>
+        sendMessage(message: message);
+
+    api.updateMessage = ({
+      required String messageId,
+      required Map<String, dynamic> data,
+    }) async => updateMessage(messageId: messageId, data: data);
+
+    api.editMessage = ({required String messageId, required String newText}) async =>
+        editMessage(messageId: messageId, newText: newText);
+
+    api.deleteMessageForMe = ({required String messageId}) async =>
+        deleteMessageForMe(messageId: messageId);
+
+    api.deleteMessageForEveryone = ({required String messageId}) async =>
+        deleteMessageForEveryone(messageId: messageId);
+
+    api.addReaction = ({required String messageId, required String emoji}) async =>
+        addReaction(messageId: messageId, emoji: emoji);
+
+    api.removeReaction = ({required String messageId, required String emoji}) async =>
+        removeReaction(messageId: messageId, emoji: emoji);
+
+    api.setStarred = ({required String messageId, required bool isStarred}) async =>
+        setStarred(messageId: messageId, isStarred: isStarred);
+
+    api.pinMessage = ({required String messageId, Duration? duration}) async =>
+        pinMessage(messageId: messageId, duration: duration);
+
+    api.unpinMessage = ({required String messageId}) async =>
+        unpinMessage(messageId: messageId);
+
+    api.markAsRead = ({required String conversationId}) async =>
+        markAsRead(conversationId: conversationId);
+
+    api.sendTypingIndicator= ({required String conversationId, required bool isTyping}) async =>
+        sendTypingIndicator(conversationId: conversationId, isTyping: isTyping);
+
+    api.watchTyping = ({required String conversationId}) async =>watchTyping(conversationId: conversationId);
+
+    api.forwardMessages = ({
+      required List<String> messageIds,
+      required String targetConversationId,
+    }) async =>
+        forwardMessages(
+          messageIds: messageIds,
+          targetConversationId: targetConversationId,
+        );
+
+    api.deleteMessagesBatch = ({
+      required List<String> messageIds,
+      required bool forEveryone,
+    }) async =>
+        deleteMessagesBatch(
+          messageIds: messageIds,
+          forEveryone: forEveryone,
+        );
+
+    api.searchMessages = ({
+      required String query,
+      String? conversationId,
+      String? senderId,
+      DateTime? startDateUtc,
+      DateTime? endDateUtc,
+      bool? hasAttachment,
+    }) async =>
+        searchMessages(
+          query: query,
+          conversationId: conversationId,
+          senderId: senderId,
+          startDateUtc: startDateUtc,
+          endDateUtc: endDateUtc,
+          hasAttachment: hasAttachment,
+        );
+
+    api.downloadMedia = ({required AcChatMessage message}) async => downloadMedia(message: message);
+    api.exportChat = ({required String conversationId, required bool asJson}) async => exportChat(conversationId: conversationId, asJson: asJson);
+    api.wipeAllData = () async => wipeAllData();
+
+  }
 }
 
 /// Concrete strongly-typed [AcChatApi] delegating to an underlying [AcChatSqlite] instance.
-class AcChatSqliteApi extends AcChatApi {
-  
-  late final _AcChatSqlite sqlite;
-  @override
-  final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
-  @override
-  final FutureOr<void> Function({required BuildContext context})? onNewGroup;
-  @override
-  final List<AcChatUser> Function()? getContacts;
-  @override
-  final String? contactsSectionTitle;
-  @override
-  final String? newContactLabel;
-  @override
-  final String? newContactSubtitle;
-  @override
-  final String? newGroupLabel;
-  @override
-  final String? newGroupSubtitle;
-  @override
-  final FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers;
-  @override
-  final Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder;
-  @override
-  final void Function({required AcChatMessage message})? onMessageTap;
-  @override
-  final Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder;
-
-  AcChatSqliteApi({
-    required String currentUserId,
-    AcChatSyncChannel? channel,
-    bool enableVoiceCall = false,
-    bool enableVideoCall = false,
-    bool showNewConversationButton = true,
-    bool showConversationMenu = true,
-    this.onNewContact,
-    this.onNewGroup,
-    this.getContacts,
-    this.contactsSectionTitle,
-    this.newContactLabel,
-    this.newContactSubtitle,
-    this.newGroupLabel,
-    this.newGroupSubtitle,
-    this.onSearchRemoteUsers,
-    this.customMessageBuilder,
-    this.onMessageTap,
-    this.customInputBuilder,
-    
-  }){
-    sqlite = _AcChatSqlite(
-      currentUserId: currentUserId,
-      api:this,
-      databasePath: "$dataDirectory/databases/chat.db", 
-    );
-  }
-
-  @override
-  AcChatUser getCurrentUser() => sqlite.getCurrentUser();
-
-  @override
-  List<AcChatUser> getUsers() => sqlite.getUsers();
-
-  @override
-  AcChatUser? getUserById({required String userId}) => sqlite.getUserById(userId: userId);
-
-  @override
-  Future<void> saveUserProfile({required AcChatUser user}) => sqlite.saveUserProfile(user: user);
-
-  @override
-  bool isUserBlocked({required String userId}) => sqlite.isUserBlocked(userId: userId);
-
-  @override
-  List<String> getBlockedUserIds() => sqlite.getBlockedUserIds();
-
-  @override
-  Future<void> blockUser({required String userId}) => sqlite.blockUser(userId: userId);
-
-  @override
-  Future<void> unblockUser({required String userId}) => sqlite.unblockUser(userId: userId);
-
-  @override
-  Future<void> reportUser({required String userId, required String reason}) =>
-      sqlite.reportUser(userId: userId, reason: reason);
-
-  @override
-  Stream<bool>? watchUserOnlineStatus({required String userId}) =>
-      enableOnlinePresence ? sqlite.watchUserOnlineStatus(userId: userId) : null;
-
-  @override
-  List<AcChatConversation> getConversations() => sqlite.getConversations();
-
-  @override
-  Stream<List<AcChatConversation>>? watchConversations() => sqlite.watchConversations();
-
-  @override
-  AcChatConversationUser? getConversationPrefs({required String conversationId}) =>
-      sqlite.getConversationPrefs(conversationId: conversationId);
-
-  @override
-  Future<void> updateConversationPrefs({required AcChatConversationUser prefs}) =>
-      sqlite.updateConversationPrefs(prefs: prefs);
-
-  @override
-  List<AcChatConversationUser> getConversationUsers({required String conversationId}) =>
-      sqlite.getConversationUsers(conversationId: conversationId);
-
-  @override
-  AcChatConversation insertConversation({
-    required AcChatConversation newConv,
-    required String otherUserId,
-  }) => sqlite.insertConversation(newConv: newConv, otherUserId: otherUserId);
-
-  initialize() async {
-    await sqlite.initialize();
-  }
-
-  @override
-  Future<void> pinConversation({required String conversationId, required bool isPinned}) =>
-      sqlite.pinConversation(conversationId: conversationId, isPinned: isPinned);
-
-  @override
-  Future<void> archiveConversation({required String conversationId, required bool isArchived}) =>
-      sqlite.archiveConversation(conversationId: conversationId, isArchived: isArchived);
-
-  @override
-  Future<void> muteConversation({required String conversationId, Duration? muteDuration, bool? muted}) =>
-      sqlite.muteConversation(conversationId: conversationId, muteDuration: muteDuration, muted: muted);
-
-  @override
-  Future<void> deleteConversation({required String conversationId}) =>
-      sqlite.deleteConversation(conversationId: conversationId);
-
-  @override
-  Future<void> hideConversation({required String conversationId, required bool isHidden}) =>
-      sqlite.hideConversation(conversationId: conversationId, isHidden: isHidden);
-
-  @override
-  Future<AcChatConversation> createGroupConversation({
-    required String groupName,
-    required List<String> memberUserIds,
-    String? groupAvatar,
-    String? groupDescription,
-  }) =>
-      sqlite.createGroupConversation(
-        groupName: groupName,
-        memberUserIds: memberUserIds,
-        groupAvatar: groupAvatar,
-        groupDescription: groupDescription,
-      );
-
-  @override
-  Future<void> addGroupMembers({required String conversationId, required List<String> userIds}) =>
-      sqlite.addGroupMembers(conversationId: conversationId, userIds: userIds);
-
-  @override
-  Future<void> removeGroupMember({required String conversationId, required String userId}) =>
-      sqlite.removeGroupMember(conversationId: conversationId, userId: userId);
-
-  @override
-  Future<void> updateGroupDetails({
-    required String conversationId,
-    String? groupName,
-    String? groupAvatar,
-    String? groupDescription,
-  }) =>
-      sqlite.updateGroupDetails(
-        conversationId: conversationId,
-        groupName: groupName,
-        groupAvatar: groupAvatar,
-        groupDescription: groupDescription,
-      );
-
-  @override
-  Future<void> leaveGroup({required String conversationId}) =>
-      sqlite.leaveGroup(conversationId: conversationId);
-
-  @override
-  Future<String> getGroupInviteLink({required String conversationId}) =>
-      sqlite.getGroupInviteLink(conversationId: conversationId);
-
-  @override
-  List<AcChatMessage> getMessages({required String conversationId}) =>
-      sqlite.getMessages(conversationId: conversationId);
-
-  @override
-  Stream<List<AcChatMessage>>? watchMessages({required String conversationId}) =>
-      sqlite.watchMessages(conversationId: conversationId);
-
-  @override
-  void sendMessage({required AcChatMessage message}) =>
-      sqlite.sendMessage(message: message);
-
-  @override
-  void updateMessage({
-    required String messageId,
-    required Map<String, dynamic> data,
-  }) => sqlite.updateMessage(messageId: messageId, data: data);
-
-  @override
-  Future<void> editMessage({required String messageId, required String newText}) =>
-      sqlite.editMessage(messageId: messageId, newText: newText);
-
-  @override
-  Future<void> deleteMessageForMe({required String messageId}) =>
-      sqlite.deleteMessageForMe(messageId: messageId);
-
-  @override
-  Future<void> deleteMessageForEveryone({required String messageId}) =>
-      sqlite.deleteMessageForEveryone(messageId: messageId);
-
-  @override
-  Future<void> addReaction({required String messageId, required String emoji}) =>
-      sqlite.addReaction(messageId: messageId, emoji: emoji);
-
-  @override
-  Future<void> removeReaction({required String messageId, required String emoji}) =>
-      sqlite.removeReaction(messageId: messageId, emoji: emoji);
-
-  @override
-  Future<void> setStarred({required String messageId, required bool isStarred}) =>
-      sqlite.setStarred(messageId: messageId, isStarred: isStarred);
-
-  @override
-  Future<void> pinMessage({required String messageId, Duration? duration}) =>
-      sqlite.pinMessage(messageId: messageId, duration: duration);
-
-  @override
-  Future<void> unpinMessage({required String messageId}) =>
-      sqlite.unpinMessage(messageId: messageId);
-
-  @override
-  void markAsRead({required String conversationId}) =>
-      sqlite.markAsRead(conversationId: conversationId);
-
-  @override
-  void sendTypingIndicator({required String conversationId, required bool isTyping}) =>
-      sqlite.sendTypingIndicator(conversationId: conversationId, isTyping: isTyping);
-
-  @override
-  Stream<Map<String, bool>>? watchTyping({required String conversationId}) =>
-      enableTypingIndicator ? sqlite.watchTyping(conversationId: conversationId) : null;
-
-  @override
-  Future<void> forwardMessages({
-    required List<String> messageIds,
-    required String targetConversationId,
-  }) =>
-      sqlite.forwardMessages(
-        messageIds: messageIds,
-        targetConversationId: targetConversationId,
-      );
-
-  @override
-  Future<void> deleteMessagesBatch({
-    required List<String> messageIds,
-    required bool forEveryone,
-  }) =>
-      sqlite.deleteMessagesBatch(
-        messageIds: messageIds,
-        forEveryone: forEveryone,
-      );
-
-  @override
-  Future<List<AcChatMessage>> searchMessages({
-    required String query,
-    String? conversationId,
-    String? senderId,
-    DateTime? startDateUtc,
-    DateTime? endDateUtc,
-    bool? hasAttachment,
-  }) =>
-      sqlite.searchMessages(
-        query: query,
-        conversationId: conversationId,
-        senderId: senderId,
-        startDateUtc: startDateUtc,
-        endDateUtc: endDateUtc,
-        hasAttachment: hasAttachment,
-      );
-
-  @override
-  AcChatMediaUploader? get mediaUploader => sqlite.mediaUploader;
-
-  @override
-  AcChatCryptoProvider? get cryptoProvider => sqlite.cryptoProvider;
-
-  @override
-  Future<String?> downloadMedia({required AcChatMessage message}) =>
-      sqlite.downloadMedia(message: message);
-
-  @override
-  Future<String> exportChat({required String conversationId, required bool asJson}) =>
-      sqlite.exportChat(conversationId: conversationId, asJson: asJson);
-
-  @override
-  Future<void> wipeAllData() => sqlite.wipeAllData();
-
-  @override
-  set theme(AcChatTheme value) {
-    // TODO: implement theme
-  }
-}
+// class AcChatSqliteApi extends AcChatApi {
+//
+//   late final AcChatSqlite sqlite;
+//   @override
+//   final FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact;
+//   @override
+//   final FutureOr<void> Function({required BuildContext context})? onNewGroup;
+//   @override
+//   final List<AcChatUser> Function()? getContacts;
+//   @override
+//   final String? contactsSectionTitle;
+//   @override
+//   final String? newContactLabel;
+//   @override
+//   final String? newContactSubtitle;
+//   @override
+//   final String? newGroupLabel;
+//   @override
+//   final String? newGroupSubtitle;
+//   @override
+//   final FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers;
+//   @override
+//   final Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder;
+//   @override
+//   final void Function({required AcChatMessage message})? onMessageTap;
+//   @override
+//   final Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder;
+//
+//   AcChatSqliteApi({
+//     required String currentUserId,
+//     AcChatSyncChannel? channel,
+//     bool enableVoiceCall = false,
+//     bool enableVideoCall = false,
+//     bool showNewConversationButton = true,
+//     bool showConversationMenu = true,
+//     this.onNewContact,
+//     this.onNewGroup,
+//     this.getContacts,
+//     this.contactsSectionTitle,
+//     this.newContactLabel,
+//     this.newContactSubtitle,
+//     this.newGroupLabel,
+//     this.newGroupSubtitle,
+//     this.onSearchRemoteUsers,
+//     this.customMessageBuilder,
+//     this.onMessageTap,
+//     this.customInputBuilder,
+//
+//   }){
+//     sqlite = AcChatSqlite(
+//       currentUserId: currentUserId,
+//       api:this,
+//       databasePath: "$dataDirectory/databases/chat.db",
+//     );
+//   }
+//
+//
+// }

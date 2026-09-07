@@ -6,26 +6,24 @@ class ReplyBar extends StatelessWidget {
   final AcChatTheme ct;
   final VoidCallback onCancel;
 
-  const ReplyBar(
+  ReplyBar(
       {required this.message, required this.ct, required this.onCancel});
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     AcChatApi api = AcChatApiProvider.of(context);
     final senderName =
     message.senderId == (await api.getCurrentUser()).userId
         ? 'You'
         : (await api.getUserById(userId: message.senderId))?.name ??
         'Unknown';
-    return Container(
+    _displayWidget = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: ct.inputBar,
       child: Row(children: [

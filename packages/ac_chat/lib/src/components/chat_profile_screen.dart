@@ -21,16 +21,14 @@ class ChatProfileScreen extends StatefulWidget {
 }
 
 class _ChatProfileScreenState extends State<ChatProfileScreen> {
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     final api = widget.api;
     final chat = widget.chat;
     final ct = api.theme;
@@ -101,7 +99,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
         .toList();
 
-    return AcChatApiProvider(
+    _displayWidget = AcChatApiProvider(
       api: api,
       child: Scaffold(
         backgroundColor: ct.scaffold,

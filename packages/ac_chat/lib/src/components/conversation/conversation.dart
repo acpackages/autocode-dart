@@ -547,17 +547,14 @@ class _ConversationState extends State<Conversation>
     );
   }
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final msgs = _cachedMessages;
@@ -587,7 +584,7 @@ class _ConversationState extends State<Conversation>
         .whereType<AcChatUser>()
         .toList();
 
-    return AcChatApiProvider(
+    _displayWidget = AcChatApiProvider(
       api: widget.api,
       child: PopScope(
         canPop: !_showEmojiPicker && !_isSelectionMode,

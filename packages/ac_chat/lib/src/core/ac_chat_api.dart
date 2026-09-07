@@ -28,7 +28,6 @@ class AcChatApi {
   // Conversations
   bool enableCreateNewContact = false;
   bool enableOneToOneConversations = true;
-  bool enableGroupConversations = true;
   bool enableConversationPinning = true;
   bool enableConversationArchiving = true;
   bool enableConversationMuting = true;
@@ -177,7 +176,6 @@ class AcChatApi {
     // Conversations
     this.enableCreateNewContact = false,
     this.enableOneToOneConversations = true,
-    this.enableGroupConversations = true,
     this.enableConversationPinning = true,
     this.enableConversationArchiving = true,
     this.enableConversationMuting = true,

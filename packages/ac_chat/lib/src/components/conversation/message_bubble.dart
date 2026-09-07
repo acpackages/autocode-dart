@@ -37,7 +37,7 @@ class MessageBubble extends StatelessWidget {
   final bool isSenderChanged;
   final bool showTail;
 
-  const MessageBubble({
+  MessageBubble({
     super.key,
     required this.message,
     required this.ct,
@@ -58,16 +58,14 @@ class MessageBubble extends StatelessWidget {
     this.showTail = true,
   });
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     AcChatApi api = AcChatApiProvider.of(context);
     final myId = (await api.getCurrentUser()).userId;
     final isMe = message.senderId == myId;
@@ -229,7 +227,7 @@ class MessageBubble extends StatelessWidget {
 
     // Multi-select wrapper
     if (isSelectionMode) {
-      return InkWell(
+      _displayWidget = InkWell(
         onTap: onSelect,
         child: Container(
           color: isSelected ? ct.activeTabColor.withOpacity(0.15) : Colors.transparent,
@@ -245,6 +243,7 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       );
+      return;
     }
 
     // Swipe-to-reply wrapper (only if replying is enabled)
@@ -265,7 +264,7 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    return Builder(
+    _displayWidget = Builder(
       builder: (bubbleContext) {
         return GestureDetector(
           onLongPress: () {

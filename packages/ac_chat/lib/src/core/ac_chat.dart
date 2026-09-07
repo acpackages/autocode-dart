@@ -61,22 +61,21 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+  Widget _displayWidget = SizedBox();
+  @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
     final showGroupStatus = widget.api.enableGroups && widget.api.enableStatuses;
     var allCons = await widget.api.getConversations();
-    return StreamBuilder<List<AcChatConversation>>(
+    _displayWidget = StreamBuilder<List<AcChatConversation>>(
       stream: await widget.api.watchConversations(),
       initialData: await widget.api.getConversations(),
       builder: (context, snapshot) {
@@ -383,6 +382,7 @@ class _ChatTabState extends State<_ChatTab> {
         if (pinA != pinB) return pinA - pinB;
         return b.lastTime.compareTo(a.lastTime);
       });
+    print("Chats Count : ${filteredChats.length}");
     return filteredChats;
   }
 
@@ -392,21 +392,18 @@ class _ChatTabState extends State<_ChatTab> {
     super.dispose();
   }
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     final filtered = await _filteredChats();
     final AcChatApi api = AcChatApiProvider.of(context);
     var currentUser = await api.getCurrentUser();
-    return Column(
+    _displayWidget = Column(
       children: [
         if (widget.showSearch)
           Padding(
@@ -443,9 +440,9 @@ class _ChatTabState extends State<_ChatTab> {
                     ),
                   ),
                 ),
-                if(api.enableMessageStarring || api.enableGroupConversations)
+                if(api.enableMessageStarring || api.enableGroups)
                   const SizedBox(width: 8),
-                if(api.enableMessageStarring || api.enableGroupConversations)
+                if(api.enableMessageStarring || api.enableGroups)
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_vert,
                         color: widget.isDark ? widget.ct.white70 : widget.ct
@@ -471,7 +468,7 @@ class _ChatTabState extends State<_ChatTab> {
                     itemBuilder: (_) {
 
                       return [
-                        if (api.enableGroupConversations)
+                        if (api.enableGroups)
                           PopupMenuItem(
                             value: 'new_group',
                             child: Row(children: [
@@ -524,6 +521,7 @@ class _ChatTabState extends State<_ChatTab> {
                   ),
                   itemBuilder: (context, index) {
                     final chat = filtered[index];
+                    print(chat.conversationId);
                     final isSelected = widget.selectedChatId == chat.conversationId;
                     AcChatUser? otherUser;
                     if (chat.type != 'group') {
@@ -564,22 +562,19 @@ class _ChatTabState extends State<_ChatTab> {
 
 class _StatusTab extends StatelessWidget {
   final AcChatTheme ct;
-  const _StatusTab({required this.ct});
+  _StatusTab({required this.ct});
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     AcChatApi api = AcChatApiProvider.of(context);
     final curUser = await api.getCurrentUser();
-    return ListView(
+    _displayWidget = ListView(
       children: [
         ListTile(
           leading: Stack(

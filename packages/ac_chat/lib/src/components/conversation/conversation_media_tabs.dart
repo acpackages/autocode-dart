@@ -54,16 +54,14 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
     );
   }
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
     final ct = widget.ct;
     final isDark = ct.isDark;
@@ -88,7 +86,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
         : widget.chat.conversationId;
     final themeColor = avatarColor(avatarId);
 
-    return Column(
+    _displayWidget = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

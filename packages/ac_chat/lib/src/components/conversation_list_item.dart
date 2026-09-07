@@ -2,7 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/ac_chat.dart';
 
+// class ConversationListItem extends StatefulWidget {
+//   final AcChatConversation chat;
+//   final AcChatTheme ct;
+//   final bool isDark;
+//   final bool isSelected;
+//   final VoidCallback onTap;
+//   final AcChatUser? otherUser;
+//   final bool showOnlineStatus;
+//   final bool pinningEnabled;
+//
+//   ConversationListItem({
+//     super.key,
+//     required this.chat,
+//     required this.ct,
+//     required this.isDark,
+//     required this.isSelected,
+//     required this.onTap,
+//     this.otherUser,
+//     this.showOnlineStatus = true,
+//     this.pinningEnabled = true,
+//   });
+//
+//   @override
+//   State<ConversationListItem> createState() => _ConversationListItem();
+// }
+
 class ConversationListItem extends StatelessWidget {
+  // AcChatConversation get chat => widget.chat;
+  // AcChatTheme get  ct => widget.ct;
+  // bool get  isDark => widget.isDark;
+  // bool get  isSelected => widget.isSelected;
+  // VoidCallback get  onTap => widget.onTap;
+  // AcChatUser? get  otherUser => widget.otherUser;
+  // bool get  showOnlineStatus => widget.showOnlineStatus;
+  // bool get  pinningEnabled => widget.pinningEnabled;
   final AcChatConversation chat;
   final AcChatTheme ct;
   final bool isDark;
@@ -12,7 +46,7 @@ class ConversationListItem extends StatelessWidget {
   final bool showOnlineStatus;
   final bool pinningEnabled;
 
-  const ConversationListItem({
+  ConversationListItem({
     super.key,
     required this.chat,
     required this.ct,
@@ -24,16 +58,15 @@ class ConversationListItem extends StatelessWidget {
     this.pinningEnabled = true,
   });
 
+
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     AcChatApi api = AcChatApiProvider.of(context);
     final isGroup = chat.type == 'group';
     AcChatUser? user = otherUser;
@@ -51,6 +84,7 @@ class ConversationListItem extends StatelessWidget {
     final name = isGroup
         ? (chat.groupName ?? 'Group')
         : (user?.name ?? 'Unknown');
+    print(name);
     final initials = _initials(name: name);
     final dynamic userId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? '');
     final color = avatarColor(userId);
@@ -72,7 +106,7 @@ class ConversationListItem extends StatelessWidget {
 
     final isSentByMe = lastMessageObj != null && lastMessageObj.senderId == currentUser.userId;
 
-    return InkWell(
+    _displayWidget =  InkWell(
       onTap: onTap,
       onLongPress: () => _showContextMenu(context: context, api: api),
       child: Container(

@@ -183,21 +183,19 @@ class _NewChatScreenState extends State<NewChatScreen> {
     }
   }
 
+  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    Widget result = SizedBox();
-    buildAsync(context).then((widget){
-      result = widget;
-    });
-    return result;
+    buildAsync(context);
+    return _displayWidget;
   }
 
-  Future<Widget> buildAsync(BuildContext context) async {
+  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final localUsers = await _filteredLocal();
     final totalContacts = (await _localUsers()).length;
 
-    return Scaffold(
+    _displayWidget = Scaffold(
       backgroundColor: ct.scaffold,
       appBar: AppBar(
         backgroundColor: ct.appBar,
