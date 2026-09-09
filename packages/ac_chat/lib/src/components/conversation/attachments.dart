@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../ac_chat.dart';
-import '../../common/chat_colors.dart';
-import '../../core/ac_chat_config.dart';
 
 class Attachments extends StatelessWidget {
   final AcChatTheme ct;

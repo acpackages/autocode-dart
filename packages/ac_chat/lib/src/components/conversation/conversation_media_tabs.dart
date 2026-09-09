@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/ac_chat.dart';
-import '../../common/chat_colors.dart';
 import 'media_viewer_screen.dart';
 
 class ConversationMediaTabs extends StatefulWidget {
@@ -15,6 +14,74 @@ class ConversationMediaTabs extends StatefulWidget {
     required this.ct,
     this.api,
   });
+
+  static Future<T?> showModal<T>({
+    required BuildContext context,
+    required AcChatConversation chat,
+    required AcChatTheme ct,
+    AcChatApi? api,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ct.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (ctx, scrollController) => Column(
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: ct.subText.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Media, Links and Docs',
+                    style: TextStyle(
+                      color: ct.text,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: ct.subText),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: ct.divider),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: ConversationMediaTabs(
+                  chat: chat,
+                  ct: ct,
+                  api: api,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   State<ConversationMediaTabs> createState() => _ConversationMediaTabsState();
@@ -54,39 +121,34 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
     );
   }
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
     AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
     final ct = widget.ct;
-    final isDark = ct.isDark;
 
-    // Fetch and filter messages for media, docs, links
-    final allMessages = await effectiveApi.getMessages(conversationId: widget.chat.conversationId);
+    return FutureBuilder<List<AcChatMessage>>(
+      future: effectiveApi.getMessages(conversationId: widget.chat.conversationId),
+      builder: (context, snapshot) {
+        final allMessages = snapshot.data ?? [];
 
-    final mediaMsgs = allMessages
-        .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
-        .toList();
-    final docMsgs = allMessages.where((m) => m.type == 'document').toList();
+        final mediaMsgs = allMessages
+            .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
+            .toList();
+        final docMsgs = allMessages.where((m) => m.type == 'document').toList();
 
-    final urlRegex = RegExp(
-        r'(https?:\/\/[^\s]+|(www\.[^\s]+))',
-        caseSensitive: false);
-    final linkMsgs = allMessages
-        .where((m) => m.type == 'text' && urlRegex.hasMatch(m.text))
-        .toList();
+        final urlRegex = RegExp(
+            r'(https?:\/\/[^\s]+|(www\.[^\s]+))',
+            caseSensitive: false);
+        final linkMsgs = allMessages
+            .where((m) => m.type == 'text' && urlRegex.hasMatch(m.text))
+            .toList();
 
-    final dynamic avatarId = widget.chat.type == 'group'
-        ? '${widget.chat.conversationId}-group'
-        : widget.chat.conversationId;
-    final themeColor = avatarColor(avatarId);
+        final dynamic avatarId = widget.chat.type == 'group'
+            ? '${widget.chat.conversationId}-group'
+            : widget.chat.conversationId;
+        final themeColor = avatarColor(avatarId);
 
-    _displayWidget = Column(
+        return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -128,7 +190,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
-                            color: themeColor.withOpacity(0.15),
+                            color: themeColor.withValues(alpha: 0.15),
                             child: Image.network(
                               msg.text,
                               fit: BoxFit.cover,
@@ -170,7 +232,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
-                            color: ct.profileStatusBlue.withOpacity(0.15),
+                            color: ct.profileStatusBlue.withValues(alpha: 0.15),
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
@@ -227,7 +289,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: docColor.withOpacity(0.1),
+                          color: docColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Icon(docIcon, color: docColor),
@@ -264,7 +326,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: ct.profileStatusBlue.withOpacity(0.1),
+                          color: ct.profileStatusBlue.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Icon(Icons.link, color: ct.profileStatusBlue),
@@ -301,6 +363,8 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
         ),
       ],
     );
+      },
+    );
   }
 
   Widget _buildEmptyState(AcChatTheme ct, String message) {
@@ -310,7 +374,7 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
         child: Column(
           children: [
             Icon(Icons.info_outline,
-                color: ct.subText.withOpacity(0.5), size: 36),
+                color: ct.subText.withValues(alpha: 0.5), size: 36),
             const SizedBox(height: 8),
             Text(
               message,

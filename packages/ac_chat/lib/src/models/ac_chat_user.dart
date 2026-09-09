@@ -9,6 +9,8 @@ class AcChatUser {
   String username = '';
   String email = '';
   String? phone;
+  String? get phoneNumber => phone;
+  set phoneNumber(String? v) => phone = v;
   String? avatar;
   String? bio;
   DateTime? lastSeenUtc;
@@ -48,9 +50,10 @@ class AcChatUser {
       json.remove('email');
     }
 
-    if (json.containsKey('phone')) {
-      phone = json['phone']?.toString();
+    if (json.containsKey('phone') || json.containsKey('phoneNumber')) {
+      phone = (json['phone'] ?? json['phoneNumber'])?.toString();
       json.remove('phone');
+      json.remove('phoneNumber');
     }
 
     if (json.containsKey('avatar')) {

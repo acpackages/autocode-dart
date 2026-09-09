@@ -31,8 +31,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   bool _isMuted = false;
 
   // Document state
-  int _currentPage = 1;
-  final int _totalPages = 3;
   final PageController _pageController = PageController();
 
   @override
@@ -100,7 +98,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           IconButton(
             icon: Icon(Icons.share_rounded, color: widget.ct.white),
             onPressed: () {
-              final linkOrPath = widget.message.fileUrl ?? widget.message.filePath ?? widget.message.localPath ?? widget.message.text;
+              final linkOrPath = widget.message.filePath ?? widget.message.fileUrl ?? widget.message.localPath ?? widget.message.text;
               Clipboard.setData(ClipboardData(text: linkOrPath));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -141,8 +139,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildViewerContent() {
     final type = widget.message.type;
-    final localPath = widget.message.filePath ?? widget.message.localPath;
-    final fileUrl = widget.message.fileUrl;
+    final localPath = widget.message.localPath;
+    final remoteUrl = (widget.message.filePath != null && widget.message.filePath!.startsWith('http'))
+        ? widget.message.filePath
+        : (widget.message.fileUrl ?? (widget.message.text.startsWith('http') ? widget.message.text : null));
     final text = widget.message.text;
 
     if (type == 'image') {
@@ -163,9 +163,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             child: Icon(Icons.broken_image_rounded, size: 64, color: widget.ct.white30),
           ),
         );
-      } else if (fileUrl != null && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      } else if (remoteUrl != null && (remoteUrl.startsWith('http://') || remoteUrl.startsWith('https://'))) {
         imageWidget = Image.network(
-          fileUrl,
+          remoteUrl,
           fit: BoxFit.contain,
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
@@ -585,7 +585,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   }
 
   Future<void> _openDocument() async {
-    final localPath = widget.message.filePath ?? widget.message.localPath;
+    final localPath = widget.message.localPath;
     final fileUrl = widget.message.fileUrl;
     final text = widget.message.text;
 
@@ -597,9 +597,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           return;
         }
       }
-      final urlToLaunch = (fileUrl != null && fileUrl.startsWith('http'))
-          ? fileUrl
-          : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null);
+      final urlToLaunch = (widget.message.filePath != null && widget.message.filePath!.startsWith('http'))
+          ? widget.message.filePath
+          : ((fileUrl != null && fileUrl.startsWith('http'))
+              ? fileUrl
+              : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null));
       if (urlToLaunch != null) {
         final uri = Uri.parse(urlToLaunch);
         await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -628,12 +630,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Future<void> _downloadMedia(BuildContext context) async {
     final message = widget.message;
-    final localPath = message.filePath ?? message.localPath;
+    final localPath = message.localPath;
     final fileUrl = message.fileUrl;
     final text = message.text;
-    final downloadUrl = (fileUrl != null && fileUrl.startsWith('http'))
-        ? fileUrl
-        : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null);
+    final downloadUrl = (message.filePath != null && message.filePath!.startsWith('http'))
+        ? message.filePath
+        : ((fileUrl != null && fileUrl.startsWith('http'))
+            ? fileUrl
+            : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null));
     final fileName = message.fileName ??
         (localPath != null && localPath.isNotEmpty
             ? localPath.split(RegExp(r'[/\\]')).last

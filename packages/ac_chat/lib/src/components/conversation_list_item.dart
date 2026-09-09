@@ -2,41 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/ac_chat.dart';
 
-// class ConversationListItem extends StatefulWidget {
-//   final AcChatConversation chat;
-//   final AcChatTheme ct;
-//   final bool isDark;
-//   final bool isSelected;
-//   final VoidCallback onTap;
-//   final AcChatUser? otherUser;
-//   final bool showOnlineStatus;
-//   final bool pinningEnabled;
-//
-//   ConversationListItem({
-//     super.key,
-//     required this.chat,
-//     required this.ct,
-//     required this.isDark,
-//     required this.isSelected,
-//     required this.onTap,
-//     this.otherUser,
-//     this.showOnlineStatus = true,
-//     this.pinningEnabled = true,
-//   });
-//
-//   @override
-//   State<ConversationListItem> createState() => _ConversationListItem();
-// }
-
-class ConversationListItem extends StatelessWidget {
-  // AcChatConversation get chat => widget.chat;
-  // AcChatTheme get  ct => widget.ct;
-  // bool get  isDark => widget.isDark;
-  // bool get  isSelected => widget.isSelected;
-  // VoidCallback get  onTap => widget.onTap;
-  // AcChatUser? get  otherUser => widget.otherUser;
-  // bool get  showOnlineStatus => widget.showOnlineStatus;
-  // bool get  pinningEnabled => widget.pinningEnabled;
+class ConversationListItem extends StatefulWidget {
   final AcChatConversation chat;
   final AcChatTheme ct;
   final bool isDark;
@@ -46,7 +12,7 @@ class ConversationListItem extends StatelessWidget {
   final bool showOnlineStatus;
   final bool pinningEnabled;
 
-  ConversationListItem({
+  const ConversationListItem({
     super.key,
     required this.chat,
     required this.ct,
@@ -58,44 +24,87 @@ class ConversationListItem extends StatelessWidget {
     this.pinningEnabled = true,
   });
 
-
-  Widget _displayWidget = SizedBox();
   @override
-  Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
+  State<ConversationListItem> createState() => _ConversationListItemState();
+}
+
+class _ConversationListItemState extends State<ConversationListItem> {
+  AcChatUser? _user;
+  AcChatUser? _currentUser;
+  AcChatMessage? _lastMessageObj;
+
+  AcChatConversation get chat => widget.chat;
+  AcChatTheme get ct => widget.ct;
+  bool get isDark => widget.isDark;
+  bool get isSelected => widget.isSelected;
+  VoidCallback get onTap => widget.onTap;
+  AcChatUser? get otherUser => widget.otherUser;
+  bool get showOnlineStatus => widget.showOnlineStatus;
+  bool get pinningEnabled => widget.pinningEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.otherUser;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadItemData();
+    });
   }
 
-  Future<void> buildAsync(BuildContext context) async {
-    AcChatApi api = AcChatApiProvider.of(context);
+  @override
+  void didUpdateWidget(covariant ConversationListItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.otherUser != null && widget.otherUser != oldWidget.otherUser) {
+      _user = widget.otherUser;
+    }
+    if (widget.chat.conversationId != oldWidget.chat.conversationId ||
+        widget.chat.otherUserId != oldWidget.chat.otherUserId) {
+      _loadItemData();
+    }
+  }
+
+  Future<void> _loadItemData() async {
+    final api = AcChatApiProvider.of(context);
+    final currentUser = await api.getCurrentUser();
+    AcChatUser? user = _user ?? widget.otherUser;
     final isGroup = chat.type == 'group';
-    AcChatUser? user = otherUser;
-    AcChatUser currentUser = await api.getCurrentUser();
-    if (user == null && !isGroup) {
-      final members = await api.getConversationUsers(conversationId: chat.conversationId);
-      final otherMember = members.firstWhere(
-        (m) => m.userId != currentUser.userId,
-        orElse: () => AcChatConversationUser(),
-      );
-      if (otherMember.userId.isNotEmpty) {
-        user = await api.getUserById(userId: otherMember.userId);
+    if ((user == null || user.name.trim().isEmpty) && !isGroup) {
+      try {
+        final members = await api.getConversationUsers(conversationId: chat.conversationId);
+        final otherMember = members.firstWhere(
+          (m) => m.userId.isNotEmpty && m.userId != currentUser.userId,
+          orElse: () => AcChatConversationUser(),
+        );
+        if (otherMember.userId.isNotEmpty) {
+          final u = await api.getUserById(userId: otherMember.userId);
+          if (u != null && u.name.trim().isNotEmpty) user = u;
+        }
+      } catch (_) {}
+
+      if (user == null || user.name.trim().isEmpty) {
+        final otherId = chat.memberIds.firstWhere(
+          (id) => id.isNotEmpty && id != currentUser.userId,
+          orElse: () => '',
+        );
+        if (otherId.isNotEmpty) {
+          try {
+            final u = await api.getUserById(userId: otherId);
+            if (u != null && u.name.trim().isNotEmpty) user = u;
+          } catch (_) {}
+        }
+      }
+
+      if (user == null || user.name.trim().isEmpty) {
+        final directUserId = chat.otherUserId;
+        if (directUserId != null && directUserId.isNotEmpty && directUserId != currentUser.userId) {
+          try {
+            final u = await api.getUserById(userId: directUserId);
+            if (u != null && u.name.trim().isNotEmpty) user = u;
+          } catch (_) {}
+        }
       }
     }
-    final name = isGroup
-        ? (chat.groupName ?? 'Group')
-        : (user?.name ?? 'Unknown');
-    print(name);
-    final initials = _initials(name: name);
-    final dynamic userId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? '');
-    final color = avatarColor(userId);
-    final lastTime = chat.lastTime;
-    final unread = chat.unread;
-    final isPinned = pinningEnabled && chat.isPinned;
-    final isMuted = chat.isMuted;
-    final lastMsg = chat.lastMessage;
-    final isToday = _isToday(dt: lastTime);
 
-    // Retrieve last message for delivery tick status
     AcChatMessage? lastMessageObj;
     try {
       final msgs = await api.getMessages(conversationId: chat.conversationId);
@@ -104,9 +113,48 @@ class ConversationListItem extends StatelessWidget {
       }
     } catch (_) {}
 
-    final isSentByMe = lastMessageObj != null && lastMessageObj.senderId == currentUser.userId;
+    if (mounted) {
+      setState(() {
+        _currentUser = currentUser;
+        if (user != null && user.name.trim().isNotEmpty) {
+          _user = user;
+        }
+        _lastMessageObj = lastMessageObj;
+      });
+    }
+  }
 
-    _displayWidget =  InkWell(
+  @override
+  Widget build(BuildContext context) {
+    final api = AcChatApiProvider.of(context);
+    final user = _user ?? otherUser;
+    final currentUser = _currentUser;
+    final lastMessageObj = _lastMessageObj;
+    final isGroup = chat.type == 'group';
+    final name = isGroup
+        ? (chat.groupName != null && chat.groupName!.trim().isNotEmpty
+            ? chat.groupName!
+            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
+                ? chat.conversationName!
+                : 'Group'))
+        : (user != null && user.name.trim().isNotEmpty
+            ? user.name
+            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
+                ? chat.conversationName!
+                : 'Unknown'));
+    final initials = _initials(name: name);
+    final dynamic userId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? chat.otherUserId ?? '');
+    final color = avatarColor(userId);
+    final lastTime = chat.lastTime;
+    final unread = chat.unread;
+    final isPinned = pinningEnabled && chat.isPinned;
+    final isMuted = chat.isMuted;
+    final lastMsg = chat.lastMessage;
+    final isToday = _isToday(dt: lastTime);
+
+    final isSentByMe = lastMessageObj != null && currentUser != null && lastMessageObj.senderId == currentUser.userId;
+
+    return InkWell(
       onTap: onTap,
       onLongPress: () => _showContextMenu(context: context, api: api),
       child: Container(
@@ -115,133 +163,146 @@ class ConversationListItem extends StatelessWidget {
             : (isPinned
                 ? ct.pinnedConversationBackgroundColor
                 : ct.scaffold),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Avatar
-          Stack(clipBehavior: Clip.none, children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: color,
-              child: isGroup
-                  ? Icon(Icons.group, color: ct.white, size: 24)
-                  : Text(
-                      initials,
-                      style: TextStyle(
-                        color: ct.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-            // Online status indicator
-            if (!isGroup && showOnlineStatus && user != null && api.watchUserOnlineStatus != null)
-              StreamBuilder<bool>(
-                stream: await api.watchUserOnlineStatus!(userId: user.userId),
-                builder: (context, snapshot) {
-                  final isOnline = snapshot.data ?? false;
-                  if (!isOnline) return const SizedBox.shrink();
-                  return Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 13,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: ct.activeTabColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: ct.scaffold, width: 2),
-                      ),
-                    ),
-                  );
-                },
-              ),
-          ]),
-          const SizedBox(width: 12),
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  if (isPinned) ...[
-                    Icon(Icons.push_pin_rounded, size: 12, color: ct.subText),
-                    const SizedBox(width: 3),
-                  ],
-                  Expanded(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: ct.text,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    isToday
-                        ? DateFormat('hh:mm a').format(lastTime)
-                        : _formatDate(dt: lastTime),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: unread > 0 ? ct.activeTabColor : ct.subText,
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 3),
-                Row(children: [
-                  // Tick for last message from me
-                  if (isSentByMe)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: _buildTickIcon(status: lastMessageObj.status),
-                    ),
-                  Expanded(
-                    child: Text(
-                      lastMsg,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: unread > 0 && !isSelected
-                            ? ct.text
-                            : ct.subText,
-                        fontWeight: unread > 0 && !isSelected
-                            ? FontWeight.w500
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  if (isMuted) ...[
-                    const SizedBox(width: 4),
-                    Icon(Icons.volume_off_rounded, size: 16, color: ct.subText),
-                  ],
-                  if (unread > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: ct.unreadBadgeBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        unread > 99 ? '99+' : '$unread',
-                        style: TextStyle(
-                          color: ct.unreadBadgeText,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Avatar
+              Stack(clipBehavior: Clip.none, children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: color,
+                  child: isGroup
+                      ? Icon(Icons.group, color: ct.white, size: 24)
+                      : Text(
+                          initials,
+                          style: TextStyle(
+                            color: ct.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                ),
+                // Online status indicator
+                if (!isGroup && showOnlineStatus && user != null)
+                  FutureBuilder<Stream<bool>?>(
+                    future: api.watchUserOnlineStatus(userId: user.userId),
+                    builder: (context, streamSnap) {
+                      final stream = streamSnap.data;
+                      if (stream == null) return const SizedBox.shrink();
+                      return StreamBuilder<bool>(
+                        stream: stream,
+                        builder: (context, snapshot) {
+                          final isOnline = snapshot.data ?? false;
+                          if (!isOnline) return const SizedBox.shrink();
+                          return Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 13,
+                              height: 13,
+                              decoration: BoxDecoration(
+                                color: ct.activeTabColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: ct.scaffold, width: 2),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+              ]),
+              const SizedBox(width: 12),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: ct.text,
+                              fontSize: 16,
+                              fontWeight: isPinned ? FontWeight.w700 : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          isToday
+                              ? DateFormat('hh:mm a').format(lastTime.toLocal())
+                              : DateFormat('dd/MM/yy').format(lastTime.toLocal()),
+                          style: TextStyle(
+                            color: unread > 0 ? ct.activeTabColor : ct.subText,
+                            fontSize: 12,
+                            fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              if (isSentByMe) ...[
+                                _buildTickIcon(status: lastMessageObj.status),
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  lastMsg,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: unread > 0 ? ct.text : ct.subText,
+                                    fontSize: 14,
+                                    fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isMuted) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.volume_off_rounded, size: 16, color: ct.subText),
+                        ],
+                        if (isPinned) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.push_pin_rounded, size: 16, color: ct.subText),
+                        ],
+                        if (unread > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: ct.activeTabColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              unread > 99 ? '99+' : unread.toString(),
+                              style: TextStyle(
+                                color: ct.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
-                ]),
-              ],
-            ),
+                ),
+              ),
+            ]),
           ),
-        ]),
-      ),
-    );
+        );
   }
 
   Widget _buildTickIcon({required String status}) {
@@ -273,7 +334,7 @@ class ConversationListItem extends StatelessWidget {
           width: 36,
           height: 4,
           decoration: BoxDecoration(
-            color: ct.subText.withOpacity(0.4),
+            color: ct.subText.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -349,13 +410,6 @@ class ConversationListItem extends StatelessWidget {
   bool _isToday({required DateTime dt}) {
     final now = DateTime.now();
     return dt.year == now.year && dt.month == now.month && dt.day == now.day;
-  }
-
-  String _formatDate({required DateTime dt}) {
-    final now = DateTime.now();
-    final diff = now.difference(dt).inDays;
-    if (diff < 7) return DateFormat('EEE').format(dt);
-    return DateFormat('dd/MM/yy').format(dt);
   }
 }
 

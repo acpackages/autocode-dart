@@ -1,3 +1,5 @@
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../core/ac_chat.dart';
 
@@ -54,7 +56,12 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                     player.play(
                       messageId: messageId,
                       durationInSeconds: durationSeconds,
-                      filePathOrUrl: widget.message.filePath ?? widget.message.localPath ?? widget.message.fileUrl ?? widget.message.text,
+                      filePathOrUrl: (!kIsWeb &&
+                              widget.message.localPath != null &&
+                              widget.message.localPath!.isNotEmpty &&
+                              io.File(widget.message.localPath!).existsSync())
+                          ? widget.message.localPath!
+                          : (widget.message.filePath ?? widget.message.fileUrl ?? widget.message.text),
                     );
                   },
                   child: Container(

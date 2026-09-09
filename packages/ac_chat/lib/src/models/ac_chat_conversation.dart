@@ -44,6 +44,15 @@ class AcChatConversation {
   /// Disappearing message duration in seconds for this conversation (e.g. 86400 for 24h, null/0 for off).
   int? disappearingDurationSeconds;
 
+  /// For direct conversations, the other participant's user ID if known.
+  String? otherUserId;
+
+  String? get userId => otherUserId;
+  set userId(String? v) => otherUserId = v;
+
+  String? get targetUserId => otherUserId;
+  set targetUserId(String? v) => otherUserId = v;
+
   // ── Backward-compatible Aliases ───────────────────────────────────────────
 
   String? get groupName => conversationName;
@@ -182,6 +191,17 @@ class AcChatConversation {
       json.remove('disappearing_duration_seconds');
     }
 
+    if (json.containsKey('otherUserId') || json.containsKey('userId') || json.containsKey('targetUserId') || json.containsKey('participantId')) {
+      otherUserId = (json['otherUserId'] ?? json['userId'] ?? json['targetUserId'] ?? json['participantId'])?.toString();
+      json.remove('otherUserId');
+      json.remove('userId');
+      json.remove('targetUserId');
+      json.remove('participantId');
+    }
+    if (otherUserId != null && otherUserId!.isNotEmpty && !memberIds.contains(otherUserId!)) {
+      memberIds.add(otherUserId!);
+    }
+
     try {
       AcJsonUtils.setInstancePropertiesFromJsonData(
         instance: this,
@@ -201,6 +221,10 @@ class AcChatConversation {
       'createdAtUtc': formatUtcIso(createdAtUtc),
       'memberIds': memberIds,
     };
+    if (otherUserId != null && otherUserId!.isNotEmpty) {
+      result['otherUserId'] = otherUserId;
+      result['userId'] = otherUserId;
+    }
     if (conversationName != null) {
       result['conversationName'] = conversationName;
       // Backward-compatible mirror for transports expecting groupName

@@ -233,6 +233,35 @@ class AcChatFirebase implements AcChatSyncChannel {
     }
   }
 
+  Future<AcChatConversation> createGroupConversation({
+    required String groupName,
+    required List<String> memberUserIds,
+    String? groupAvatar,
+    String? groupDescription,
+  }) async {
+    final allMembers = Set<String>.from(memberUserIds);
+    if (_currentUserId.isNotEmpty) allMembers.add(_currentUserId);
+
+    final conv = AcChatConversation()
+      ..conversationId = _uuid.v4()
+      ..type = 'group'
+      ..conversationName = groupName
+      ..conversationAvatar = groupAvatar
+      ..conversationDescription = groupDescription
+      ..createdBy = _currentUserId
+      ..createdAtUtc = DateTime.now().toUtc()
+      ..lastMessage = 'Group created'
+      ..lastMessageType = 'system'
+      ..lastTimeUtc = DateTime.now().toUtc()
+      ..memberIds = allMembers.toList();
+
+    await createConversation(
+      conversation: conv,
+      memberIds: allMembers.toList(),
+    );
+    return conv;
+  }
+
   @override
   Future<void> markAsRead({
     required String conversationId,
@@ -818,8 +847,20 @@ class AcChatFirebase implements AcChatSyncChannel {
           _sendMessageStandalone(message),
       markAsRead: ({required String conversationId}) =>
           _markAsReadStandalone(conversationId),
-      insertConversation: ({required AcChatConversation newConversation, required String otherUserId}) async =>
-          _insertConversation(newConversation, otherUserId),
+      insertConversation: ({AcChatConversation? newConversation, required String otherUserId}) async =>
+          _insertConversation(( newConversation)!, otherUserId),
+      createGroupConversation: ({
+        required String groupName,
+        required List<String> memberUserIds,
+        String? groupAvatar,
+        String? groupDescription,
+      }) =>
+          createGroupConversation(
+        groupName: groupName,
+        memberUserIds: memberUserIds,
+        groupAvatar: groupAvatar,
+        groupDescription: groupDescription,
+      ),
       updateMessage: ({required String messageId, required Map<String, dynamic> data}) =>
           _updateMessageStandalone(messageId, data),
       onNewContact: onNewContact,

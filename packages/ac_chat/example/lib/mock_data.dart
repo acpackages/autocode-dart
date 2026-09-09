@@ -150,8 +150,6 @@ List<Map<String, dynamic>> budgets = [
 ];
 
 // ----- Chats -----
-int _nextChatId = 101;
-
 List<Map<String, dynamic>> chats = _generateMockChats();
 
 List<Map<String, dynamic>> _generateMockChats() {
@@ -226,8 +224,6 @@ List<Map<String, dynamic>> _generateMockChats() {
 }
 
 // ----- Messages -----
-int _nextMessageId = 1106;
-
 List<Map<String, dynamic>> messages = _generateMockMessages();
 
 List<Map<String, dynamic>> _generateMockMessages() {
@@ -497,7 +493,13 @@ List<AcChatConversationUser> getConversationUsers(String conversationId) {
   final convMap = chats.firstWhere((c) => c['id'].toString() == conversationId, orElse: () => {});
   if (convMap.isEmpty) return [];
   List<AcChatConversationUser> list = [];
-  if (convMap['isGroup'] == true) {
+  if (convMap['memberIds'] is List && (convMap['memberIds'] as List).isNotEmpty) {
+    for (var mId in (convMap['memberIds'] as List)) {
+      list.add(AcChatConversationUser()
+        ..conversationId = conversationId
+        ..userId = mId.toString());
+    }
+  } else if (convMap['isGroup'] == true) {
     for (var mId in (convMap['memberIds'] as List? ?? [])) {
       list.add(AcChatConversationUser()
         ..conversationId = conversationId
@@ -506,7 +508,7 @@ List<AcChatConversationUser> getConversationUsers(String conversationId) {
   } else {
     list.add(AcChatConversationUser()
       ..conversationId = conversationId
-      ..userId = '1');
+      ..userId = (currentUser['id'] ?? 'user-1').toString());
     if (convMap['userId'] != null) {
       list.add(AcChatConversationUser()
         ..conversationId = conversationId

@@ -24,6 +24,8 @@ class AcThreadChannel {
     }
     if (receivePort != null) {
       receivePort!.listen((rawData) async {
+        print("Received at receive port");
+        print(rawData);
         if (rawData is! Map) return;
         final rawJson = Map<String, dynamic>.from(rawData);
         if (rawJson.containsKey("__is_channel_handshake__") && rawJson.containsKey("send_port")) {
@@ -121,8 +123,10 @@ class AcThreadChannel {
 
   void _send(Map<String, dynamic> data) {
     if (sendPort != null) {
+      print("Sent to send port");
       sendPort!.send(data);
     } else {
+      print("Added to outgoing queue");
       _outgoingQueue.add(data);
     }
   }

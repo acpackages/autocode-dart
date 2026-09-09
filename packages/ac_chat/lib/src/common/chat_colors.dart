@@ -8,7 +8,6 @@ import 'app_colors.dart';
 class _ChatColors {
   // ── Dark mode (near-black) ──
   static Color darkAppBar       = ChatAppColors.darkSurface;     // #111113
-  static Color darkPrimaryColor = ChatAppColors.primary;     // #111113
   static Color darkScaffold     = ChatAppColors.darkSurface;         // #0C0C0F
   static Color darkSurface      = ChatAppColors.darkSurface;    // #161618
   static Color darkInputBar     = ChatAppColors.darkSurface;    // #161618

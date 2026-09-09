@@ -12,6 +12,7 @@ class AcChatApi {
   AcChatTheme theme = AcChatTheme();
 
   AcChatMediaUploader? mediaUploader;
+  String Function()? getAuthToken;
   AcChatCryptoProvider? cryptoProvider;
   AcChatConnectivityProvider? connectivityProvider;
   AcChatSyncChannel? channel;
@@ -384,7 +385,7 @@ class AcChatApi {
   late Future<AcChatConversationUser?> Function({required String conversationId}) getConversationPrefs;
   late Future<void> Function({required AcChatConversationUser prefs}) updateConversationPrefs;
   late Future<List<AcChatConversationUser>> Function({required String conversationId}) getConversationUsers;
-  late Future<AcChatConversation> Function({required AcChatConversation newConversation,required String otherUserId}) insertConversation;
+  late FutureOr<AcChatConversation> Function({AcChatConversation? newConversation, required String otherUserId}) insertConversation;
   late Future<void> Function({required String conversationId, required bool isPinned}) pinConversation;
   late Future<void> Function({required String conversationId, required bool isArchived}) archiveConversation;
   late Future<void> Function({required String conversationId,Duration? muteDuration,bool? muted}) muteConversation;
@@ -459,7 +460,9 @@ class AcChatApi {
   static Future<List<AcChatConversationUser>> _getConversationUsers({required String conversationId}) async {
     return [];
   }
-  static Future<AcChatConversation> _insertConversation({required AcChatConversation newConversation,required String otherUserId}) async {return newConversation;}
+  static Future<AcChatConversation> _insertConversation({AcChatConversation? newConversation, required String otherUserId}) async {
+    return newConversation ?? AcChatConversation();
+  }
   static Future<void> _pinConversation(
       {required String conversationId, required bool isPinned}) async {}
   static Future<void> _archiveConversation(
@@ -477,7 +480,14 @@ class AcChatApi {
     required List<String> memberUserIds,
     String? groupAvatar,
     String? groupDescription,
-  }) async {return AcChatConversation();}
+  }) async {
+    return AcChatConversation()
+      ..type = 'group'
+      ..conversationName = groupName
+      ..conversationAvatar = groupAvatar
+      ..conversationDescription = groupDescription
+      ..memberIds = memberUserIds;
+  }
   static Future<void> _addGroupMembers(
       {required String conversationId, required List<String> userIds}) async {}
   static Future<void> _removeGroupMember(

@@ -6,58 +6,64 @@ class ReplyBar extends StatelessWidget {
   final AcChatTheme ct;
   final VoidCallback onCancel;
 
-  ReplyBar(
-      {required this.message, required this.ct, required this.onCancel});
+  const ReplyBar({
+    super.key,
+    required this.message,
+    required this.ct,
+    required this.onCancel,
+  });
 
-  Widget _displayWidget = SizedBox();
-  @override
-  Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
+  Future<String> _getSenderName(AcChatApi api) async {
+    final current = await api.getCurrentUser();
+    if (message.senderId == current.userId) return 'You';
+    final sender = await api.getUserById(userId: message.senderId);
+    return sender?.name ?? 'Unknown';
   }
 
-  Future<void> buildAsync(BuildContext context) async {
-    AcChatApi api = AcChatApiProvider.of(context);
-    final senderName =
-    message.senderId == (await api.getCurrentUser()).userId
-        ? 'You'
-        : (await api.getUserById(userId: message.senderId))?.name ??
-        'Unknown';
-    _displayWidget = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: ct.inputBar,
-      child: Row(children: [
-        Container(
-          width: 3,
-          height: 40,
-          decoration: BoxDecoration(
-            color: ct.unreadBadgeBg,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(senderName,
-                    style: TextStyle(
-                        color: ct.unreadBadgeBg,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
-                Text(
-                  message.text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: ct.subText, fontSize: 12),
-                ),
-              ]),
-        ),
-        IconButton(
-          icon: Icon(Icons.close_rounded, color: ct.subText, size: 18),
-          onPressed: onCancel,
-        ),
-      ]),
+  @override
+  Widget build(BuildContext context) {
+    final api = AcChatApiProvider.of(context);
+    return FutureBuilder<String>(
+      future: _getSenderName(api),
+      builder: (context, snapshot) {
+        final senderName = snapshot.data ?? '...';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: ct.inputBar,
+          child: Row(children: [
+            Container(
+              width: 3,
+              height: 40,
+              decoration: BoxDecoration(
+                color: ct.unreadBadgeBg,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(senderName,
+                        style: TextStyle(
+                            color: ct.unreadBadgeBg,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                    Text(
+                      message.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: ct.subText, fontSize: 12),
+                    ),
+                  ]),
+            ),
+            IconButton(
+              icon: Icon(Icons.close_rounded, color: ct.subText, size: 18),
+              onPressed: onCancel,
+            ),
+          ]),
+        );
+      },
     );
   }
 }

@@ -2,9 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import '../../../ac_chat.dart';
-import '../../common/chat_colors.dart';
-import '../../core/ac_chat_config.dart';
-import '../../models/ac_chat_user.dart';
 
 class InputBar extends StatefulWidget {
   final TextEditingController controller;

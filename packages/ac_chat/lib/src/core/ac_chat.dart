@@ -61,47 +61,49 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
     final showGroupStatus = widget.api.enableGroups && widget.api.enableStatuses;
-    var allCons = await widget.api.getConversations();
-    _displayWidget = StreamBuilder<List<AcChatConversation>>(
-      stream: await widget.api.watchConversations(),
-      initialData: await widget.api.getConversations(),
-      builder: (context, snapshot) {
-        final allConvs = snapshot.data ?? allCons;
-        final conversations = allConvs.where((c) => widget.api.enableGroups || c.type != 'group').toList();
 
-        final leftPane = Scaffold(
-          backgroundColor: ct.scaffold,
-          appBar: showGroupStatus
-              ? AppBar(
-                  backgroundColor: ct.appBar,
-                  elevation: 0,
-                  toolbarHeight: 0,
-                  automaticallyImplyLeading: false,
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(50),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: false,
-                        indicatorColor: isDark ? ct.activeTabColor : ct.white,
-                        indicatorWeight: 3,
-                        dividerColor: ct.divider,
-                        labelColor: ct.chatTabLabelColor,
-                        unselectedLabelColor: isDark ? ct.tabUnselected : ct.white.withOpacity(0.7),
+    return AcChatApiProvider(
+      api: widget.api,
+      child: FutureBuilder<Stream<List<AcChatConversation>>?>(
+        future: widget.api.watchConversations(),
+        builder: (context, streamSnap) {
+          return FutureBuilder<List<AcChatConversation>>(
+            future: widget.api.getConversations(),
+            builder: (context, initialSnap) {
+              return StreamBuilder<List<AcChatConversation>>(
+                stream: streamSnap.data,
+                initialData: initialSnap.data,
+                builder: (context, snapshot) {
+                  final allConvs = snapshot.data ?? initialSnap.data ?? [];
+                  final conversations = allConvs.where((c) => widget.api.enableGroups || c.type != 'group').toList();
+
+                  final leftPane = Scaffold(
+                    backgroundColor: ct.scaffold,
+                    appBar: showGroupStatus
+                        ? AppBar(
+                            backgroundColor: ct.appBar,
+                            elevation: 0,
+                            toolbarHeight: 0,
+                            automaticallyImplyLeading: false,
+                            bottom: PreferredSize(
+                              preferredSize: const Size.fromHeight(50),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TabBar(
+                                  controller: _tabController,
+                                  isScrollable: false,
+                                  indicatorColor: isDark ? ct.activeTabColor : ct.white,
+                                  indicatorWeight: 3,
+                                  dividerColor: ct.divider,
+                                  labelColor: ct.chatTabLabelColor,
+                                  unselectedLabelColor: isDark ? ct.tabUnselected : ct.white.withValues(alpha: 0.7),
                         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         tabs: const [
                           Tab(text: 'CHATS'),
@@ -206,10 +208,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
         );
 
         if (!isLarge) {
-          return AcChatApiProvider(
-            api: widget.api,
-            child: leftPane,
-          );
+          return leftPane;
         }
 
         final rightPane = Expanded(
@@ -223,7 +222,7 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                         Icon(
                           Icons.chat_bubble_outline_rounded,
                           size: 80,
-                          color: ct.subText.withOpacity(0.2),
+                          color: ct.subText.withValues(alpha: 0.2),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -246,67 +245,69 @@ class _AcChatState extends State<AcChat> with SingleTickerProviderStateMixin {
                 ),
         );
 
-        return AcChatApiProvider(
-          api: widget.api,
-          child: Scaffold(
-            backgroundColor: ct.scaffold,
-            body: Row(
-              children: [
-                SizedBox(
-                  width: _listWidth,
-                  child: leftPane,
-                ),
-                MouseRegion(
-                  cursor: SystemMouseCursors.resizeColumn,
-                  onEnter: (_) => setState(() => _hoveringListDivider = true),
-                  onExit: (_) => setState(() => _hoveringListDivider = false),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        _listWidth = (_listWidth + details.delta.dx).clamp(280.0, 500.0);
-                      });
-                    },
-                    child: Container(
-                      width: 6,
-                      color: _hoveringListDivider ? ct.activeTabColor : ct.divider,
+                  return Scaffold(
+                    backgroundColor: ct.scaffold,
+                    body: Row(
+                      children: [
+                        SizedBox(
+                          width: _listWidth,
+                          child: leftPane,
+                        ),
+                        MouseRegion(
+                          cursor: SystemMouseCursors.resizeColumn,
+                          onEnter: (_) => setState(() => _hoveringListDivider = true),
+                          onExit: (_) => setState(() => _hoveringListDivider = false),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragUpdate: (details) {
+                              setState(() {
+                                _listWidth = (_listWidth + details.delta.dx).clamp(280.0, 500.0);
+                              });
+                            },
+                            child: Container(
+                              width: 6,
+                              color: _hoveringListDivider ? ct.activeTabColor : ct.divider,
+                            ),
+                          ),
+                        ),
+                        rightPane,
+                        if (_showProfile && _selectedChat != null) ...[
+                          MouseRegion(
+                            cursor: SystemMouseCursors.resizeColumn,
+                            onEnter: (_) => setState(() => _hoveringProfileDivider = true),
+                            onExit: (_) => setState(() => _hoveringProfileDivider = false),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragUpdate: (details) {
+                                setState(() {
+                                  _profileWidth = (_profileWidth - details.delta.dx).clamp(280.0, 500.0);
+                                });
+                              },
+                              child: Container(
+                                width: 6,
+                                color: _hoveringProfileDivider ? ct.activeTabColor : ct.divider,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: _profileWidth,
+                            child: ChatProfileScreen(
+                              chat: _selectedChat!,
+                              isEmbedded: true,
+                              onClose: () => setState(() => _showProfile = false),
+                              api: widget.api,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
-                ),
-                rightPane,
-                if (_showProfile && _selectedChat != null) ...[
-                  MouseRegion(
-                    cursor: SystemMouseCursors.resizeColumn,
-                    onEnter: (_) => setState(() => _hoveringProfileDivider = true),
-                    onExit: (_) => setState(() => _hoveringProfileDivider = false),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onHorizontalDragUpdate: (details) {
-                        setState(() {
-                          _profileWidth = (_profileWidth - details.delta.dx).clamp(280.0, 500.0);
-                        });
-                      },
-                      child: Container(
-                        width: 6,
-                        color: _hoveringProfileDivider ? ct.activeTabColor : ct.divider,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _profileWidth,
-                    child: ChatProfileScreen(
-                      chat: _selectedChat!,
-                      isEmbedded: true,
-                      onClose: () => setState(() => _showProfile = false),
-                      api: widget.api,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -343,10 +344,12 @@ class _ChatTabState extends State<_ChatTab> {
   final _searchCtrl = TextEditingController();
   final Map<String, AcChatUser> _userCache = {};
   final Map<String, List<AcChatConversationUser>> _memberCache = {};
+  AcChatUser? _currentUser;
 
   Future<List<AcChatConversation>> _filteredChats() async {
     AcChatApi api = AcChatApiProvider.of(context);
-    var currentUser = await api.getCurrentUser();
+    _currentUser = await api.getCurrentUser();
+    final currentUser = _currentUser!;
     List<AcChatConversation> filteredChats = List.empty(growable: true);
     for(var c in widget.chats){
       if (!api.enableGroups && c.type == 'group'){}
@@ -359,18 +362,36 @@ class _ChatTabState extends State<_ChatTab> {
           }
           final members = _memberCache[c.conversationId]!;
           var otherMember = members.firstWhere(
-                (m) => m.userId != currentUser.userId,
+            (m) => m.userId.isNotEmpty && m.userId != currentUser.userId,
             orElse: () => AcChatConversationUser(),
           );
-          if(!_userCache.containsKey(otherMember.userId)){
-            _userCache[otherMember.userId] = (await api.getUserById(userId: otherMember.userId)) ?? AcChatUser();
+          String otherUserId = otherMember.userId;
+          if (otherUserId.isEmpty) {
+            otherUserId = c.memberIds.firstWhere(
+              (id) => id.isNotEmpty && id != currentUser.userId,
+              orElse: () => '',
+            );
           }
-
-          otherUser = _userCache[otherMember.userId];
+          if (otherUserId.isEmpty && c.otherUserId != null && c.otherUserId!.isNotEmpty && c.otherUserId != currentUser.userId) {
+            otherUserId = c.otherUserId!;
+          }
+          if (otherUserId.isNotEmpty) {
+            if(!_userCache.containsKey(otherUserId)){
+              final loaded = await api.getUserById(userId: otherUserId);
+              if (loaded != null) {
+                _userCache[otherUserId] = loaded;
+              }
+            }
+            otherUser = _userCache[otherUserId];
+          }
         }
         final name = isGroup
-            ? (c.groupName ?? '')
-            : (otherUser?.name ?? '');
+            ? (c.groupName != null && c.groupName!.trim().isNotEmpty ? c.groupName! : 'Group')
+            : (otherUser != null && otherUser.name.trim().isNotEmpty
+                ? otherUser.name
+                : (c.conversationName != null && c.conversationName!.trim().isNotEmpty
+                    ? c.conversationName!
+                    : ''));
         if (_query.isEmpty || name.toLowerCase().contains(_query.toLowerCase())){
           filteredChats.add(c);
         };
@@ -382,7 +403,6 @@ class _ChatTabState extends State<_ChatTab> {
         if (pinA != pinB) return pinA - pinB;
         return b.lastTime.compareTo(a.lastTime);
       });
-    print("Chats Count : ${filteredChats.length}");
     return filteredChats;
   }
 
@@ -392,18 +412,14 @@ class _ChatTabState extends State<_ChatTab> {
     super.dispose();
   }
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
-    final filtered = await _filteredChats();
     final AcChatApi api = AcChatApiProvider.of(context);
-    var currentUser = await api.getCurrentUser();
-    _displayWidget = Column(
+    return FutureBuilder<List<AcChatConversation>>(
+      future: _filteredChats(),
+      builder: (context, snapshot) {
+        final filtered = snapshot.data ?? widget.chats;
+        return Column(
       children: [
         if (widget.showSearch)
           Padding(
@@ -503,7 +519,7 @@ class _ChatTabState extends State<_ChatTab> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.chat_bubble_outline_rounded,
-                          size: 64, color: widget.ct.subText.withOpacity(0.4)),
+                          size: 64, color: widget.ct.subText.withValues(alpha: 0.4)),
                       const SizedBox(height: 12),
                       Text(
                         _query.isEmpty ? 'No conversations yet' : 'No results found',
@@ -521,20 +537,29 @@ class _ChatTabState extends State<_ChatTab> {
                   ),
                   itemBuilder: (context, index) {
                     final chat = filtered[index];
-                    print(chat.conversationId);
                     final isSelected = widget.selectedChatId == chat.conversationId;
                     AcChatUser? otherUser;
                     if (chat.type != 'group') {
                       final members = _memberCache[chat.conversationId];
+                      String otherUserId = '';
                       if (members != null && members.isNotEmpty) {
-                        AcChatApi api = AcChatApiProvider.of(context);
                         final otherMember = members.firstWhere(
-                          (m) => m.userId != currentUser.userId,
+                          (m) => m.userId.isNotEmpty && m.userId != (_currentUser?.userId ?? ''),
                           orElse: () => AcChatConversationUser(),
                         );
-                        if (otherMember.userId.isNotEmpty) {
-                          otherUser = _userCache[otherMember.userId];
-                        }
+                        otherUserId = otherMember.userId;
+                      }
+                      if (otherUserId.isEmpty) {
+                        otherUserId = chat.memberIds.firstWhere(
+                          (id) => id.isNotEmpty && id != (_currentUser?.userId ?? ''),
+                          orElse: () => '',
+                        );
+                      }
+                      if (otherUserId.isEmpty && chat.otherUserId != null && chat.otherUserId!.isNotEmpty && chat.otherUserId != (_currentUser?.userId ?? '')) {
+                        otherUserId = chat.otherUserId!;
+                      }
+                      if (otherUserId.isNotEmpty) {
+                        otherUser = _userCache[otherUserId];
                       }
                     }
                     return ConversationListItem(
@@ -546,7 +571,6 @@ class _ChatTabState extends State<_ChatTab> {
                       showOnlineStatus: widget.showOnlineStatus,
                       pinningEnabled: widget.pinningEnabled,
                       onTap: () async {
-                        AcChatApi api = AcChatApiProvider.of(context);
                         api.markAsRead(conversationId: chat.conversationId);
                         widget.onChatSelected(chat);
                         widget.onRefresh();
@@ -557,87 +581,88 @@ class _ChatTabState extends State<_ChatTab> {
         ),
       ],
     );
+      },
+    );
   }
 }
 
 class _StatusTab extends StatelessWidget {
   final AcChatTheme ct;
-  _StatusTab({required this.ct});
+  const _StatusTab({required this.ct});
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
-    AcChatApi api = AcChatApiProvider.of(context);
-    final curUser = await api.getCurrentUser();
-    _displayWidget = ListView(
-      children: [
-        ListTile(
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: ct.activeTabColor,
-                child: Text(
-                  curUser.name.isNotEmpty ? curUser.name[0].toUpperCase() : '?',
-                  style: TextStyle(color: ct.white, fontSize: 18),
+    final AcChatApi api = AcChatApiProvider.of(context);
+    return FutureBuilder<AcChatUser>(
+      future: api.getCurrentUser(),
+      builder: (context, snapshot) {
+        final curUser = snapshot.data ?? AcChatUser();
+        return ListView(
+          children: [
+            ListTile(
+              leading: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: ct.activeTabColor,
+                    child: Text(
+                      curUser.name.isNotEmpty ? curUser.name[0].toUpperCase() : '?',
+                      style: TextStyle(color: ct.white, fontSize: 18),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: ct.activeTabColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: ct.scaffold, width: 2),
+                      ),
+                      child: Icon(Icons.add, size: 14, color: ct.white),
+                    ),
+                  )
+                ],
+              ),
+              title: Text(
+                'My status',
+                style: TextStyle(color: ct.text, fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                'Tap to add status update',
+                style: TextStyle(color: ct.subText, fontSize: 13),
+              ),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Status update — coming soon')),
+                );
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Text(
+                'RECENT UPDATES',
+                style: TextStyle(
+                  color: ct.subText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: ct.activeTabColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: ct.scaffold, width: 2),
-                  ),
-                  child: Icon(Icons.add, size: 14, color: ct.white),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Text(
+                  'No recent status updates',
+                  style: TextStyle(color: ct.subText, fontSize: 14),
                 ),
-              )
-            ],
-          ),
-          title: Text(
-            'My status',
-            style: TextStyle(color: ct.text, fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(
-            'Tap to add status update',
-            style: TextStyle(color: ct.subText, fontSize: 13),
-          ),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Status update — coming soon')),
-            );
-          },
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Text(
-            'RECENT UPDATES',
-            style: TextStyle(
-              color: ct.subText,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        ),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Text(
-              'No recent status updates',
-              style: TextStyle(color: ct.subText, fontSize: 14),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

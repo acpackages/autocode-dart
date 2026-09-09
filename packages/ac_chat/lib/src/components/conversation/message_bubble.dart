@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:ac_extensions/ac_extensions.dart';
-
 import '../../core/ac_chat.dart';
 import '../../common/chat_colors.dart';
 import 'media_download_wrapper.dart';
@@ -33,11 +31,12 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onSelect;
   final bool isSelected;
   final bool isSelectionMode;
+  final String? currentUserId;
 
   final bool isSenderChanged;
   final bool showTail;
 
-  MessageBubble({
+  const MessageBubble({
     super.key,
     required this.message,
     required this.ct,
@@ -54,20 +53,27 @@ class MessageBubble extends StatelessWidget {
     this.onSelect,
     this.isSelected = false,
     this.isSelectionMode = false,
+    this.currentUserId,
     this.isSenderChanged = false,
     this.showTail = true,
   });
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
+    final api = AcChatApiProvider.of(context);
+    if (currentUserId != null && currentUserId!.isNotEmpty) {
+      return _buildBubbleContent(context, api, currentUserId!);
+    }
+    return FutureBuilder<AcChatUser>(
+      future: api.getCurrentUser(),
+      builder: (context, snapshot) {
+        final myId = snapshot.data?.userId ?? '';
+        return _buildBubbleContent(context, api, myId);
+      },
+    );
   }
 
-  Future<void> buildAsync(BuildContext context) async {
-    AcChatApi api = AcChatApiProvider.of(context);
-    final myId = (await api.getCurrentUser()).userId;
+  Widget _buildBubbleContent(BuildContext context, AcChatApi api, String myId) {
     final isMe = message.senderId == myId;
     final type = message.type;
     final status = message.status;
@@ -86,7 +92,7 @@ class MessageBubble extends StatelessWidget {
           isMe: isMe,
           showTail: showTail,
           color: isMe ? ct.sentBubble : ct.recvBubble,
-          shadowColor: ct.black.withOpacity(0.12),
+          shadowColor: ct.black.withValues(alpha: 0.12),
         ),
         child: Container(
           padding: _bubblePadding(type),
@@ -99,13 +105,19 @@ class MessageBubble extends StatelessWidget {
                 if (isGroup && !isMe)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
-                    child: Text(
-                        (await api.getUserById(userId: message.senderId))?.name ?? 'Unknown',
-                      style: TextStyle(
-                        color: avatarColor(message.senderId),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: FutureBuilder<AcChatUser?>(
+                      future: api.getUserById(userId: message.senderId),
+                      builder: (context, userSnap) {
+                        final senderName = userSnap.data?.name ?? 'Unknown';
+                        return Text(
+                          senderName,
+                          style: TextStyle(
+                            color: avatarColor(message.senderId),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        );
+                      },
                     ),
                   ),
 
@@ -138,7 +150,7 @@ class MessageBubble extends StatelessWidget {
                         Text(
                           'edited ',
                           style: TextStyle(
-                            color: ct.subText.withOpacity(0.8),
+                            color: ct.subText.withValues(alpha: 0.8),
                             fontSize: 9,
                             fontStyle: FontStyle.italic,
                           ),
@@ -147,7 +159,7 @@ class MessageBubble extends StatelessWidget {
                       Text(
                         timeStr,
                         style: TextStyle(
-                          color: ct.subText.withOpacity(0.9),
+                          color: ct.subText.withValues(alpha: 0.9),
                           fontSize: 10,
                         ),
                       ),
@@ -184,7 +196,7 @@ class MessageBubble extends StatelessWidget {
                       child: Icon(
                         Icons.reply_rounded,
                         size: 16,
-                        color: ct.subText.withOpacity(0.6),
+                        color: ct.subText.withValues(alpha: 0.6),
                       ),
                     ),
                   ),
@@ -197,7 +209,7 @@ class MessageBubble extends StatelessWidget {
                       child: Icon(
                         Icons.forward_rounded,
                         size: 16,
-                        color: ct.subText.withOpacity(0.6),
+                        color: ct.subText.withValues(alpha: 0.6),
                       ),
                     ),
                   ),
@@ -227,10 +239,10 @@ class MessageBubble extends StatelessWidget {
 
     // Multi-select wrapper
     if (isSelectionMode) {
-      _displayWidget = InkWell(
+      return InkWell(
         onTap: onSelect,
         child: Container(
-          color: isSelected ? ct.activeTabColor.withOpacity(0.15) : Colors.transparent,
+          color: isSelected ? ct.activeTabColor.withValues(alpha: 0.15) : Colors.transparent,
           child: Row(
             children: [
               Checkbox(
@@ -243,7 +255,6 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       );
-      return;
     }
 
     // Swipe-to-reply wrapper (only if replying is enabled)
@@ -264,7 +275,7 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    _displayWidget = Builder(
+    return Builder(
       builder: (bubbleContext) {
         return GestureDetector(
           onLongPress: () {
@@ -285,7 +296,7 @@ class MessageBubble extends StatelessWidget {
             }
             final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio');
             if (isMedia && !message.isDeleted) {
-              final local = message.filePath ?? message.localPath;
+              final local = message.localPath;
               if (local != null && local.isNotEmpty && !kIsWeb) {
                 final f = io.File(local);
                 if (f.existsSync()) {

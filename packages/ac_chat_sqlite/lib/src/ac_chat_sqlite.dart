@@ -117,12 +117,42 @@ class AcChatSqlite {
   final AcChatApi api;
   String dataDictionaryName = "ac_chat";
   String dataDirectory = "chat";
-  String databasePath = "chat/chat.db";
+  String databasePath = "chat.db";
+
   AcChatSqlite({
     required String currentUserId,
-    required this.api,
+    AcChatApi? api,
+    AcChatSyncChannel? channel,
     this.databasePath = "chat.db",
-  })  : _currentUserId = currentUserId;
+    String? dataDirectory,
+  })  : _currentUserId = currentUserId,
+        api = api ?? AcChatApi() {
+    if (channel != null) {
+      this.api.channel = channel;
+    }
+    if (dataDirectory != null) {
+      this.dataDirectory = dataDirectory;
+    }
+    _setHandlers();
+  }
+
+  AcChatApi buildApi({
+    AcChatTheme theme = const AcChatTheme(),
+    bool enableTypingIndicator = true,
+    bool enableTyping = true,
+    bool enableGroups = true,
+    int maxGroupParticipants = 50,
+  }) {
+    api.theme = theme;
+    api.enableTypingIndicator = enableTypingIndicator;
+    api.enableTyping = enableTyping;
+    api.enableGroups = enableGroups;
+    api.maxGroupParticipants = maxGroupParticipants;
+    _setHandlers();
+    return api;
+  }
+
+  Future<void> init() => initialize();
 
 
   // ─── Private fields ────────────────────────────────────────────────────
@@ -180,7 +210,7 @@ class AcChatSqlite {
 
   /// Returns the subdirectory path for the specified media [type] inside [dataDirectory].
   String getMediaDirectoryForType(String type) {
-    final base = (dataDirectory ?? 'media').replaceAll(RegExp(r'[/\\]+$'), '');
+    final base = dataDirectory.replaceAll(RegExp(r'[/\\]+$'), '');
     final sub = switch (type.toLowerCase().trim()) {
       'image' || 'images' => 'images',
       'video' || 'videos' => 'videos',
@@ -239,12 +269,10 @@ class AcChatSqlite {
     }
 
     // Start periodic background drain timer using api interval
-    if(api != null){
-      if (api.enableOfflineOutbox) {
-        _outboxDrainTimer = Timer.periodic(api.outboxRetryInterval, (_) {
-          _drainOutbox();
-        });
-      }
+    if (api.enableOfflineOutbox) {
+      _outboxDrainTimer = Timer.periodic(api.outboxRetryInterval, (_) {
+        _drainOutbox();
+      });
     }
 
 
@@ -1357,9 +1385,9 @@ class AcChatSqlite {
     _blockedUsers.clear();
     _prefs.clear();
 
-    if (!kIsWeb && dataDirectory != null) {
+    if (!kIsWeb && dataDirectory.isNotEmpty) {
       try {
-        final dir = io.Directory(dataDirectory!);
+        final dir = io.Directory(dataDirectory);
         if (dir.existsSync()) {
           dir.deleteSync(recursive: true);
         }
@@ -1462,9 +1490,16 @@ class AcChatSqlite {
 
     await _ensureMessagesLoaded(conversationId: message.conversationId);
 
+    final existingLoaded = _messageIndex[message.messageId];
+    if (existingLoaded != null) {
+      if (existingLoaded.localPath != null && message.localPath == null) {
+        message.localPath = existingLoaded.localPath;
+        message.isDownloaded = existingLoaded.isDownloaded;
+      }
+    }
+
     // Save received media into directories by type if dataDirectory is configured
-    if (dataDirectory != null &&
-        dataDirectory!.isNotEmpty &&
+    if (dataDirectory.isNotEmpty &&
         message.type != 'text') {
       if (message.byteData != null && message.byteData!.isNotEmpty) {
         try {
@@ -2124,9 +2159,9 @@ class AcChatSqlite {
       ..fileName = row[_C.fileName] as String?
       ..fileSize = row[_C.fileSize] as String?
       ..isDownloaded = ((row[_C.isDownloaded] as int?) ?? 0) == 1
-      ..filePath = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?)
-      ..fileUrl = row[_C.fileUrl] as String?
-      ..localPath = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?)
+      ..filePath = (row[_C.filePath] as String?) ?? (row[_C.fileUrl] as String?)
+      ..fileUrl = (row[_C.fileUrl] as String?) ?? (row[_C.filePath] as String?)
+      ..localPath = row[_C.localPath] as String?
       ..deliveredTime = row[_C.deliveredTime] != null
           ? DateTime.fromMillisecondsSinceEpoch(row[_C.deliveredTime] as int, isUtc: true)
           : null
@@ -2169,9 +2204,9 @@ class AcChatSqlite {
       _C.fileName: msg.fileName,
       _C.fileSize: msg.fileSize,
       _C.isDownloaded: msg.isDownloaded ? 1 : 0,
-      _C.filePath: msg.filePath ?? msg.localPath,
-      _C.fileUrl: msg.fileUrl,
-      _C.localPath: msg.filePath ?? msg.localPath,
+      _C.filePath: msg.filePath,
+      _C.fileUrl: msg.fileUrl ?? msg.filePath,
+      _C.localPath: msg.localPath,
       _C.replyToId: msg.replyTo?.messageId,
       _C.deliveredTime: msg.deliveredTime?.millisecondsSinceEpoch,
       _C.readTime: msg.readTime?.millisecondsSinceEpoch,
@@ -2225,7 +2260,7 @@ class AcChatSqlite {
           final id = row[_C.messageId] as String?;
           if (id != null) expiredIds.add(id);
 
-          final local = (row[_C.filePath] as String?) ?? (row[_C.localPath] as String?);
+          final local = row[_C.localPath] as String?;
           if (local != null && local.isNotEmpty && !kIsWeb) {
             try {
               final f = io.File(local);
@@ -2262,7 +2297,7 @@ class AcChatSqlite {
   /// Downloads media file from [message.fileUrl] (or remote text url) and saves locally,
   /// updating the message record in SQLite and in-memory caches.
   Future<String?> downloadMedia({required AcChatMessage message}) async {
-    final existingLocal = message.filePath ?? message.localPath;
+    final existingLocal = message.localPath;
     if (existingLocal != null && existingLocal.isNotEmpty && !kIsWeb) {
       final f = io.File(existingLocal);
       if (f.existsSync()) {
@@ -2270,17 +2305,30 @@ class AcChatSqlite {
       }
     }
 
-    final url = (message.fileUrl != null && message.fileUrl!.startsWith('http'))
-        ? message.fileUrl!
-        : ((message.text.startsWith('http://') || message.text.startsWith('https://')) ? message.text : null);
+    final url = (message.filePath != null && message.filePath!.startsWith('http'))
+        ? message.filePath!
+        : ((message.fileUrl != null && message.fileUrl!.startsWith('http'))
+            ? message.fileUrl!
+            : ((message.text.startsWith('http://') || message.text.startsWith('https://')) ? message.text : null));
 
     Uint8List? bytes = message.byteData;
     if (bytes == null || bytes.isEmpty) {
       if (url != null && !kIsWeb) {
         try {
           final request = await io.HttpClient().getUrl(Uri.parse(url));
+          final token = api.getAuthToken?.call() ??
+              (() {
+                try {
+                  return (api.mediaUploader as dynamic)?.getJwtToken?.call() as String?;
+                } catch (_) {
+                  return null;
+                }
+              })();
+          if (token != null && token.isNotEmpty) {
+            request.headers.set('Authorization', 'Bearer $token');
+          }
           final response = await request.close();
-          if (response.statusCode == 200) {
+          if (response.statusCode >= 200 && response.statusCode < 300) {
             final chunks = <Uint8List>[];
             await for (final chunk in response) {
               chunks.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
@@ -2315,13 +2363,11 @@ class AcChatSqlite {
     );
 
     if (savedPath != null) {
-      message.filePath = savedPath;
       message.localPath = savedPath;
       message.isDownloaded = true;
       await _updateMessageFields(
         messageId: message.messageId,
         fields: {
-          _C.filePath: savedPath,
           _C.localPath: savedPath,
           _C.isDownloaded: 1,
         },
@@ -2357,8 +2403,8 @@ class AcChatSqlite {
     api.watchConversations = () async => watchConversations();
     api.getConversationPrefs = ({required String conversationId}) async => getConversationPrefs(conversationId: conversationId);
     api.updateConversationPrefs = ({required AcChatConversationUser prefs}) async => updateConversationPrefs(prefs: prefs);
-    api.getConversationUsers = ({required String conversationId}) async => getConversationUsers(conversationId: conversationId);
-    api.insertConversation = ({required AcChatConversation newConversation,required String otherUserId}) async => insertConversation(newConv: newConversation, otherUserId: otherUserId);
+    api.insertConversation = ({AcChatConversation? newConversation,required String otherUserId}) async =>
+        insertConversation(newConv: newConversation!, otherUserId: otherUserId);
     api.pinConversation = ({required String conversationId, required bool isPinned}) => pinConversation(conversationId: conversationId, isPinned: isPinned);
     api.archiveConversation = ({required String conversationId, required bool isArchived}) => archiveConversation(conversationId: conversationId, isArchived: isArchived);
     api.muteConversation = ({required String conversationId, Duration? muteDuration, bool? muted}) => muteConversation(conversationId: conversationId, muteDuration: muteDuration, muted: muted);

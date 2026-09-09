@@ -167,7 +167,7 @@ void main() {
     test('Badge count sync guard respects enableBadgeCountSync config flag', () async {
       int setBadge = 0;
       final disabledAdapter = AcChatLocalNotificationAdapter(
-        api: AcChatApi(),
+        api: AcChatApi(enableBadgeCountSync: false),
         onSetBadgeCount: ({required int count}) async {
           setBadge = count;
         },

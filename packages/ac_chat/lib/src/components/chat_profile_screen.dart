@@ -21,46 +21,53 @@ class ChatProfileScreen extends StatefulWidget {
 }
 
 class _ChatProfileScreenState extends State<ChatProfileScreen> {
-  Widget _displayWidget = SizedBox();
+  bool _isLoading = true;
+  AcChatUser? _currentUser;
+  AcChatUser? _user;
+  List<AcChatConversationUser> _membersList = [];
+  bool _isBlocked = false;
+  List<AcChatMessage> _mediaMsgs = [];
+
   @override
-  Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
+  void initState() {
+    super.initState();
+    _loadProfileData();
   }
 
-  Future<void> buildAsync(BuildContext context) async {
+  Future<void> _loadProfileData() async {
     final api = widget.api;
     final chat = widget.chat;
-    final ct = api.theme;
-    final isDark = ct.isDark;
-
-    // Determine type and user info
     final isGroup = chat.type == 'group';
     AcChatUser? user;
-    var currentUser = (await api.getCurrentUser());
+    final currentUser = await api.getCurrentUser();
     if (!isGroup) {
       final members = await api.getConversationUsers(conversationId: chat.conversationId);
       final otherMember = members.firstWhere(
-        (m) => m.userId != currentUser.userId,
+        (m) => m.userId.isNotEmpty && m.userId != currentUser.userId,
         orElse: () => AcChatConversationUser(),
       );
       if (otherMember.userId.isNotEmpty) {
-        user = await api.getUserById(userId: otherMember.userId);
+        final u = await api.getUserById(userId: otherMember.userId);
+        if (u != null && u.name.trim().isNotEmpty) user = u;
       }
-      if (user == null) {
+      if (user == null || user.name.trim().isEmpty) {
         final otherId = chat.memberIds.firstWhere(
-          (id) => id != currentUser.userId,
+          (id) => id.isNotEmpty && id != currentUser.userId,
           orElse: () => '',
         );
         if (otherId.isNotEmpty) {
-          user = await api.getUserById(userId: otherId);
+          final u = await api.getUserById(userId: otherId);
+          if (u != null && u.name.trim().isNotEmpty) user = u;
+        }
+      }
+      if (user == null || user.name.trim().isEmpty) {
+        final directUserId = chat.otherUserId;
+        if (directUserId != null && directUserId.isNotEmpty && directUserId != currentUser.userId) {
+          final u = await api.getUserById(userId: directUserId);
+          if (u != null && u.name.trim().isNotEmpty) user = u;
         }
       }
     }
-
-    final name = isGroup
-        ? (chat.groupName ?? 'Group')
-        : (user?.name ?? 'Unknown');
 
     var membersList = await api.getConversationUsers(conversationId: chat.conversationId);
     if (isGroup && membersList.isEmpty && chat.memberIds.isNotEmpty) {
@@ -70,19 +77,13 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             ..userId = id)
           .toList();
     }
-    final subtitleText = isGroup
-        ? 'Group • ${membersList.length} members'
-        : 'Direct Message • ${user?.email ?? "No email"}';
 
-    final dynamic avatarId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? '');
-    final themeColor = avatarColor(avatarId);
-
-    // Fetch participant's conversations (excluding this one)
     final participantChats = <AcChatConversation>[];
     bool isBlocked = false;
     if (user != null) {
       final targetUserId = user.userId;
-      final otherChats = (await api.getConversations()).where((c) => c.conversationId != chat.conversationId)
+      final otherChats = (await api.getConversations())
+          .where((c) => c.conversationId != chat.conversationId)
           .toList();
 
       for (var c in otherChats) {
@@ -99,7 +100,64 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
         .toList();
 
-    _displayWidget = AcChatApiProvider(
+    if (mounted) {
+      setState(() {
+        _currentUser = currentUser;
+        _user = user;
+        _membersList = membersList;
+        _isBlocked = isBlocked;
+        _mediaMsgs = mediaMsgs;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final api = widget.api;
+    final chat = widget.chat;
+    final ct = api.theme;
+    final isDark = ct.isDark;
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: ct.scaffold,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final currentUser = _currentUser;
+    final isGroup = chat.type == 'group';
+    final user = _user;
+    final membersList = _membersList;
+    final isBlocked = _isBlocked;
+    final mediaMsgs = _mediaMsgs;
+
+    final name = isGroup
+        ? (chat.groupName != null && chat.groupName!.trim().isNotEmpty
+            ? chat.groupName!
+            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
+                ? chat.conversationName!
+                : 'Group'))
+        : (user != null && user.name.trim().isNotEmpty
+            ? user.name
+            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
+                ? chat.conversationName!
+                : 'Unknown'));
+
+    final userEmail = user?.email.trim();
+    final userPhone = user?.phone?.trim();
+    final userContact = (userEmail != null && userEmail.isNotEmpty)
+        ? userEmail
+        : ((userPhone != null && userPhone.isNotEmpty) ? userPhone : 'No email');
+    final subtitleText = isGroup
+        ? 'Group • ${membersList.length} members'
+        : 'Direct Message • $userContact';
+
+    final dynamic avatarId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? chat.otherUserId ?? '');
+    final themeColor = avatarColor(avatarId);
+
+    return AcChatApiProvider(
       api: api,
       child: Scaffold(
         backgroundColor: ct.scaffold,
@@ -125,7 +183,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                 background: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [themeColor, themeColor.withOpacity(0.8)],
+                      colors: [themeColor, themeColor.withValues(alpha: 0.8)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -138,7 +196,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         tag: widget.isEmbedded ? 'avatar-profile-${chat.conversationId}' : 'avatar-${chat.conversationId}',
                         child: CircleAvatar(
                           radius: 54,
-                          backgroundColor: ct.white.withOpacity(0.2),
+                          backgroundColor: ct.white.withValues(alpha: 0.2),
                           child: CircleAvatar(
                             radius: 50,
                             backgroundColor: ct.surface,
@@ -164,7 +222,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                       Text(
                         subtitleText,
                         style: TextStyle(
-                          color: ct.white.withOpacity(0.85),
+                          color: ct.white.withValues(alpha: 0.85),
                           fontSize: 14,
                         ),
                       ),
@@ -191,15 +249,11 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                       // Media, Links, Docs Section Header
                       InkWell(
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ConversationMediaTabs(
-                                chat: chat,
-                                ct: ct,
-                                api: api,
-                              ),
-                            ),
+                          ConversationMediaTabs.showModal(
+                            context: context,
+                            chat: chat,
+                            ct: ct,
+                            api: api,
                           );
                         },
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -255,7 +309,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                                   width: 80,
                                   height: 80,
                                   decoration: BoxDecoration(
-                                    color: themeColor.withOpacity(0.15),
+                                    color: themeColor.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   alignment: Alignment.center,
@@ -266,7 +320,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                                   width: 80,
                                   height: 80,
                                   decoration: BoxDecoration(
-                                    color: ct.profileStatusOrange.withOpacity(0.1),
+                                    color: ct.profileStatusOrange.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Column(
@@ -477,7 +531,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         secondary: Icon(chat.isMuted ? Icons.volume_off : Icons.volume_up_outlined, color: ct.subText),
                         title: Text('Mute Notifications', style: TextStyle(color: ct.text)),
                         value: chat.isMuted,
-                        activeColor: ct.activeTabColor,
+                        activeThumbColor: ct.activeTabColor,
                         onChanged: (val) async {
                           await api.muteConversation(conversationId: chat.conversationId, muted: val);
                           setState(() {
@@ -527,7 +581,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         },
                       ),
                       // Edit Group (if isGroup)
-                      if (isGroup && (!api.enableGroupAdminRoles || chat.createdBy == currentUser.userId)) ...[
+                      if (isGroup && (!api.enableGroupAdminRoles || chat.createdBy == currentUser?.userId)) ...[
                         Divider(color: ct.divider, height: 1),
                         ListTile(
                           leading: Icon(Icons.edit_outlined, color: ct.subText),
@@ -596,7 +650,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         Divider(color: ct.divider, height: 1),
                         Builder(
                           builder: (context) {
-                            final targetUid = user!.userId;
+                            final targetUid = user.userId;
 
                             return ListTile(
                               leading: Icon(isBlocked ? Icons.lock_open : Icons.block, color: ct.messageDestructive),
@@ -617,7 +671,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                           leading: Icon(Icons.report_outlined, color: ct.messageDestructive),
                           title: Text('Report User', style: TextStyle(color: ct.messageDestructive)),
                           onTap: () async {
-                            final targetUid = user!.userId;
+                            final targetUid = user.userId;
                             final reasonCtrl = TextEditingController();
                             final confirmed = await showDialog<bool>(
                               context: context,

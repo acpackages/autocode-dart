@@ -175,6 +175,8 @@ void main() {
       expect(fromUpdate.filePath, equals('/local/path/to/image.png'));
       expect(fromUpdate.fileUrl, equals('https://r2.cloudflare.com/image.png'));
       expect(fromUpdate.text, equals('Beautiful sunset'));
+      expect(fromUpdate.localPath, isNull);
+      expect(fromUpdate.isDownloaded, isFalse);
     });
 
     test('disappearingDurationSeconds serialization and deserialization in conversation', () {

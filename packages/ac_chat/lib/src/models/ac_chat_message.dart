@@ -47,11 +47,12 @@ class AcChatMessage {
 
   bool isDownloaded = false;
   String? filePath;
+  String? localPath;
   String? fileUrl;
 
-  /// Backward-compatible alias for filePath
-  String? get localPath => filePath;
-  set localPath(String? v) => filePath = v;
+  /// Backward-compatible alias for localPath
+  String? get localFilePath => localPath;
+  set localFilePath(String? v) => localPath = v;
 
   /// Optional expiration timestamp for disappearing messages (UTC).
   DateTime? expiresAtUtc;
@@ -240,21 +241,26 @@ class AcChatMessage {
     if (json.containsKey('duration')) duration = json['duration'] as String?;
     if (json.containsKey('fileName')) fileName = json['fileName'] as String?;
     if (json.containsKey('fileSize')) fileSize = json['fileSize'] as String?;
-    if (json.containsKey('filePath') || json.containsKey('localPath')) {
-      filePath = (json['filePath'] ?? json['localPath']) as String?;
-    }
+    if (json.containsKey('filePath')) filePath = json['filePath'] as String?;
+    if (json.containsKey('file_path')) filePath = (filePath ?? json['file_path']) as String?;
+    if (json.containsKey('localPath')) localPath = json['localPath'] as String?;
+    if (json.containsKey('local_path')) localPath = (localPath ?? json['local_path']) as String?;
+    if (json.containsKey('localFilePath')) localPath = (localPath ?? json['localFilePath']) as String?;
+    if (json.containsKey('local_file_path')) localPath = (localPath ?? json['local_file_path']) as String?;
     if (json.containsKey('fileUrl')) fileUrl = json['fileUrl'] as String?;
+    if (json.containsKey('file_url')) fileUrl = (fileUrl ?? json['file_url']) as String?;
     if (json.containsKey('isDownloaded')) isDownloaded = json['isDownloaded'] == true || json['isDownloaded'] == 1;
 
     // Backward compatibility sanitization:
-    // If media message and text is a URL or file path, extract it into fileUrl/filePath
+    // If media message and text is a URL or file path, extract it into fileUrl/filePath or localPath
     // so that text only contains genuine message/caption text.
     if (type != 'text' && text.isNotEmpty) {
       if (text.startsWith('http://') || text.startsWith('https://')) {
+        filePath ??= text;
         fileUrl ??= text;
         text = mediaCaption ?? '';
       } else if (text.startsWith('/') || text.contains(RegExp(r'^[a-zA-Z]:[/\\]'))) {
-        filePath ??= text;
+        localPath ??= text;
         text = mediaCaption ?? '';
       }
     }
@@ -320,7 +326,10 @@ class AcChatMessage {
     if (fileSize != null) result['fileSize'] = fileSize;
     if (filePath != null) {
       result['filePath'] = filePath;
-      result['localPath'] = filePath;
+    }
+    if (localPath != null) {
+      result['localPath'] = localPath;
+      result['localFilePath'] = localPath;
     }
     if (fileUrl != null) result['fileUrl'] = fileUrl;
     if (isDownloaded) result['isDownloaded'] = true;

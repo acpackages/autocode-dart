@@ -27,7 +27,7 @@ class VideoMessageBubble extends StatelessWidget {
     } else {
       // Choose a nice thumbnail matching the video URL or message content
       String thumbUrl = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400';
-      final videoSource = message.fileUrl ?? message.filePath ?? message.localPath ?? message.text;
+      final videoSource = message.localPath ?? message.filePath ?? message.fileUrl ?? message.text;
       if (videoSource.contains('BigBuckBunny')) {
         thumbUrl = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400'; // bunny/forest-like
       } else if (videoSource.contains('ForBiggerBlazes')) {

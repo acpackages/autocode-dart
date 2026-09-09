@@ -324,10 +324,11 @@ class FirestoreExtensions {
     }
 
     // isDownloaded and localPath are device-local — not stored in Firestore.
+    // For receiver, localPath is null by default until downloaded.
     msg.isDownloaded = false;
     msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
-    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
-    msg.localPath = msg.filePath;
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?) ?? msg.filePath;
+    msg.localPath = null;
     msg.replyTo = resolvedReplyTo;
 
     return msg;
@@ -383,8 +384,8 @@ class FirestoreExtensions {
 
     msg.isDownloaded = false;
     msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
-    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
-    msg.localPath = msg.filePath;
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?) ?? msg.filePath;
+    msg.localPath = null;
     msg.replyTo = resolvedReplyTo;
 
     return msg;
@@ -521,8 +522,8 @@ class FirestoreExtensions {
 
     msg.isDownloaded = false;
     msg.filePath = (data[fFilePath] as String?) ?? (data['filePath'] as String?);
-    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?);
-    msg.localPath = msg.filePath;
+    msg.fileUrl = (data[fFileUrl] as String?) ?? (data['fileUrl'] as String?) ?? msg.filePath;
+    msg.localPath = null;
     msg.replyTo = resolvedReplyTo;
 
     return msg;

@@ -36,14 +36,12 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
       final savedPath = await api.downloadMedia(message: widget.message);
       if (savedPath != null && mounted) {
         widget.message.isDownloaded = true;
-        widget.message.filePath = savedPath;
         widget.message.localPath = savedPath;
         try {
           api.updateMessage(
             messageId: widget.message.messageId,
             data: {
               'isDownloaded': true,
-              'filePath': savedPath,
               'localPath': savedPath,
             },
           );
@@ -62,7 +60,7 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    final path = widget.message.filePath ?? widget.message.localPath;
+    final path = widget.message.localPath;
     final bool fileExists = !kIsWeb && path != null && path.isNotEmpty && io.File(path).existsSync();
 
     if (widget.message.isDownloaded && fileExists) {

@@ -12,8 +12,10 @@ class ImageMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget imageWidget;
 
-    final localFilePath = message.filePath ?? message.localPath;
-    final remoteUrl = message.fileUrl ?? (message.text.startsWith('http') ? message.text : null);
+    final localFilePath = message.localPath;
+    final remoteUrl = (message.filePath != null && message.filePath!.startsWith('http'))
+        ? message.filePath
+        : (message.fileUrl ?? (message.text.startsWith('http') ? message.text : null));
 
     if (message.byteData != null && message.byteData!.isNotEmpty) {
       imageWidget = Image.memory(

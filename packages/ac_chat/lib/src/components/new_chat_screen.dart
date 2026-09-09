@@ -183,21 +183,19 @@ class _NewChatScreenState extends State<NewChatScreen> {
     }
   }
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
-    final localUsers = await _filteredLocal();
-    final totalContacts = (await _localUsers()).length;
 
-    _displayWidget = Scaffold(
-      backgroundColor: ct.scaffold,
-      appBar: AppBar(
+    return FutureBuilder<List<AcChatUser>>(
+      future: _filteredLocal(),
+      builder: (context, snapshot) {
+        final localUsers = snapshot.data ?? [];
+        final totalContacts = localUsers.length;
+
+        return Scaffold(
+          backgroundColor: ct.scaffold,
+          appBar: AppBar(
         backgroundColor: ct.appBar,
         elevation: 0,
         leading: IconButton(
@@ -225,7 +223,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
               _isGroupCreationMode
                   ? '${_selectedMemberIds.length} / ${widget.api.maxGroupParticipants}'
                   : '$totalContacts contacts',
-              style: TextStyle(color: ct.white.withOpacity(0.7), fontSize: 12),
+              style: TextStyle(color: ct.white.withValues(alpha: 0.7), fontSize: 12),
             ),
           ],
         ),
@@ -236,7 +234,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
               child: Text(
                 'Next',
                 style: TextStyle(
-                  color: _selectedMemberIds.isNotEmpty ? ct.activeTabColor : ct.white.withOpacity(0.4),
+                  color: _selectedMemberIds.isNotEmpty ? ct.activeTabColor : ct.white.withValues(alpha: 0.4),
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
@@ -410,6 +408,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
         ],
       ),
     );
+      },
+    );
   }
 }
 
@@ -519,7 +519,7 @@ class _ContactTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: ct.unreadBadgeBg.withOpacity(0.12),
+                color: ct.unreadBadgeBg.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

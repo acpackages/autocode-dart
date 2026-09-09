@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/ac_chat.dart';
-import '../../common/chat_colors.dart';
 import 'message_bubble.dart';
 import 'input_bar.dart';
 import 'reply_bar.dart';
@@ -59,6 +58,10 @@ class _ConversationState extends State<Conversation>
   AcChatMessage? _editingMessage;
   late AnimationController _micAnim;
 
+  AcChatUser? _currentUser;
+  AcChatUser? _otherUser;
+  List<AcChatUser> _members = [];
+
   // Multi-select state
   bool _isSelectionMode = false;
   final Set<String> _selectedMessageIds = {};
@@ -79,6 +82,46 @@ class _ConversationState extends State<Conversation>
   Timer? _typingTimer;
 
   bool get _isGroup => widget.chat.type == "group";
+
+  Future<void> _loadInitialData() async {
+    final curUser = await widget.api.getCurrentUser();
+    AcChatUser? other;
+    List<AcChatUser> members = [];
+    final convUsers = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
+    if (!_isGroup) {
+      final otherMember = convUsers.firstWhere(
+        (m) => m.userId.isNotEmpty && m.userId != curUser.userId,
+        orElse: () => AcChatConversationUser(),
+      );
+      if (otherMember.userId.isNotEmpty) {
+        other = await widget.api.getUserById(userId: otherMember.userId);
+      }
+      if (other == null || other.name.trim().isEmpty) {
+        final otherId = widget.chat.memberIds.firstWhere(
+          (id) => id.isNotEmpty && id != curUser.userId,
+          orElse: () => '',
+        );
+        if (otherId.isNotEmpty) {
+          other = await widget.api.getUserById(userId: otherId);
+        }
+      }
+    }
+    var memberUserIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
+    if (memberUserIds.isEmpty && widget.chat.memberIds.isNotEmpty) {
+      memberUserIds = widget.chat.memberIds;
+    }
+    final futures = memberUserIds.map((id) => widget.api.getUserById(userId: id));
+    final resolved = await Future.wait(futures);
+    members = resolved.whereType<AcChatUser>().toList();
+
+    if (mounted) {
+      setState(() {
+        _currentUser = curUser;
+        _otherUser = other;
+        _members = members;
+      });
+    }
+  }
 
   void _loadMessages() async {
     final all = await widget.api.getMessages(conversationId: widget.chat.conversationId);
@@ -141,20 +184,18 @@ class _ConversationState extends State<Conversation>
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
     _loadMessages();
 
-    if (widget.api.watchMessages != null) {
-       widget.api.watchMessages(conversationId: widget.chat.conversationId).then((result){
-        _messagesSub = result?.listen((msgs) {
-          if (mounted) {
-            setState(() {
-              _loadMessages();
-            });
-          }
-        });
+    widget.api.watchMessages(conversationId: widget.chat.conversationId).then((result){
+      _messagesSub = result?.listen((msgs) {
+        if (mounted) {
+          setState(() {
+            _loadMessages();
+          });
+        }
       });
-
-    }
+    });
 
     _micAnim = AnimationController(
       vsync: this,
@@ -329,16 +370,41 @@ class _ConversationState extends State<Conversation>
     final minutes = durationSeconds ~/ 60;
     final seconds = durationSeconds % 60;
     final durationStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
+    final messageId = Autocode.uuid();
+
+    String? publicUrl;
+    final uploader = widget.api.mediaUploader;
+    if (uploader != null && !kIsWeb) {
+      try {
+        final f = io.File(filePath);
+        if (f.existsSync()) {
+          final audioBytes = await f.readAsBytes();
+          final fileName = filePath.split(RegExp(r'[/\\]')).last;
+          publicUrl = await uploader.uploadMedia(
+            conversationId: widget.chat.conversationId,
+            messageId: messageId,
+            fileName: fileName,
+            bytes: audioBytes,
+            mimeType: 'audio/m4a',
+          );
+        }
+      } catch (e) {
+        debugPrint('[Conversation] _sendAudio upload failed: $e');
+      }
+    }
 
     final newMsg = AcChatMessage()
+      ..messageId = messageId
       ..conversationId = widget.chat.conversationId
       ..senderId = (await widget.api.getCurrentUser()).userId
       ..type = 'voice_note'
       ..text = '🎤 Voice message'
       ..duration = durationStr
-      ..filePath = filePath
+      ..filePath = publicUrl ?? filePath
+      ..fileUrl = publicUrl
       ..localPath = filePath
       ..isDownloaded = true
+      ..status = 'sent'
       ..timeUtc = DateTime.now().toUtc()
       ..expiresAtUtc = _calculateExpiration()
       ..replyTo = _replyTo;
@@ -511,7 +577,7 @@ class _ConversationState extends State<Conversation>
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: ct.appBar.withOpacity(0.95),
+      color: ct.appBar.withValues(alpha: 0.95),
       child: Row(
         children: [
           Icon(Icons.push_pin_rounded, color: ct.activeTabColor, size: 18),
@@ -547,44 +613,30 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  Widget _displayWidget = SizedBox();
   @override
   Widget build(BuildContext context) {
-    buildAsync(context);
-    return _displayWidget;
-  }
-
-  Future<void> buildAsync(BuildContext context) async {
     final ct = widget.api.theme;
     final isDark = ct.isDark;
     final msgs = _cachedMessages;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
-    AcChatUser currentUser = await widget.api.getCurrentUser();
-    AcChatUser? user;
-    if (!_isGroup) {
-      final members = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
-      final otherMember = members.firstWhere(
-        (m) => m.userId != currentUser.userId,
-        orElse: () => AcChatConversationUser(),
-      );
-      if (otherMember.userId.isNotEmpty) {
-        user = await widget.api.getUserById(userId: otherMember.userId);
-      }
-    }
+    final currentUser = _currentUser;
+    final user = _otherUser;
+    final members = _members;
 
     final name = _isGroup
-        ? (widget.chat.conversationName ?? 'Group')
-        : (user?.name ?? 'Unknown');
+        ? (widget.chat.conversationName != null && widget.chat.conversationName!.trim().isNotEmpty
+            ? widget.chat.conversationName!
+            : 'Group')
+        : (user != null && user.name.trim().isNotEmpty
+            ? user.name
+            : (widget.chat.conversationName != null && widget.chat.conversationName!.trim().isNotEmpty
+                ? widget.chat.conversationName!
+                : 'Chat'));
     final userId = _isGroup ? null : user?.userId;
     final color = avatarColor(_isGroup ? '${widget.chat.conversationId}-group' : (userId ?? ''));
 
-    final members = (await widget.api.getConversationUsers(conversationId: widget.chat.conversationId))
-        .map((m) => widget.api.getUserById(userId: m.userId))
-        .whereType<AcChatUser>()
-        .toList();
-
-    _displayWidget = AcChatApiProvider(
+    return AcChatApiProvider(
       api: widget.api,
       child: PopScope(
         canPop: !_showEmojiPicker && !_isSelectionMode,
@@ -650,7 +702,7 @@ class _ConversationState extends State<Conversation>
                           style: TextStyle(color: ct.white, fontSize: 16),
                           decoration: InputDecoration(
                             hintText: 'Search messages…',
-                            hintStyle: TextStyle(color: ct.white.withOpacity(0.6)),
+                            hintStyle: TextStyle(color: ct.white.withValues(alpha: 0.6)),
                             border: InputBorder.none,
                           ),
                           onChanged: (val) {
@@ -689,7 +741,7 @@ class _ConversationState extends State<Conversation>
                                             color: ct.white,
                                             fontSize: 15,
                                             fontWeight: FontWeight.w600)),
-                                    await _buildSubtitle(ct: ct, user: user),
+                                    _buildSubtitle(ct: ct, user: user),
                                   ]),
                             ),
                           ]),
@@ -740,15 +792,11 @@ class _ConversationState extends State<Conversation>
                                 if (v == (_isGroup ? 'Group Info' : 'Contact Info')) {
                                   _openProfile();
                                 } else if (v == 'Media, Links, and Docs') {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ConversationMediaTabs(
-                                        chat: widget.chat,
-                                        ct: ct,
-                                        api: widget.api,
-                                      ),
-                                    ),
+                                  ConversationMediaTabs.showModal(
+                                    context: context,
+                                    chat: widget.chat,
+                                    ct: ct,
+                                    api: widget.api,
                                   );
                                 } else if (v == 'Mute Notifications') {
                                   _showMuteDialog(context, ct);
@@ -823,7 +871,7 @@ class _ConversationState extends State<Conversation>
                                     margin: const EdgeInsets.symmetric(vertical: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: ct.unreadBadgeBg.withOpacity(0.15),
+                                      color: ct.unreadBadgeBg.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
@@ -848,6 +896,7 @@ class _ConversationState extends State<Conversation>
                                       key: ValueKey((item as AcChatMessage).messageId),
                                       message: item,
                                       isGroup: _isGroup,
+                                      currentUserId: currentUser?.userId,
                                       ct: ct,
                                       isDark: isDark,
                                       isSelected: _selectedMessageIds.contains(item.messageId),
@@ -887,7 +936,7 @@ class _ConversationState extends State<Conversation>
                                         setState(() => _loadMessages());
                                       },
                                       onReaction: (m, emoji) async {
-                                        final myId = currentUser.userId;
+                                        final myId = currentUser?.userId ?? (await widget.api.getCurrentUser()).userId;
                                         final already = m.reactions[emoji]?.contains(myId) ?? false;
                                         if (already) {
                                           widget.api.removeReaction(messageId: m.messageId, emoji: emoji);
@@ -954,70 +1003,77 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  Future<Widget> _buildSubtitle({required AcChatTheme ct, AcChatUser? user}) async {
-    if (widget.api.enableTypingIndicator) {
-      var currentUser = await widget.api.getCurrentUser();
-      var typingStream = (await widget.api.watchTyping(conversationId: widget.chat.conversationId));
-      var onlineStream;
-      if(widget.api.enableOnlinePresence && user != null){
-        onlineStream =await widget.api.watchUserOnlineStatus(userId: user.userId);
-      }
-      String groupSubtitle = await _groupSubtitle();
-      return StreamBuilder<Map<String, bool>>(
-        stream: typingStream,
+  Widget _buildSubtitle({required AcChatTheme ct, AcChatUser? user}) {
+    if (_isGroup) {
+      return FutureBuilder<String>(
+        future: _groupSubtitle(),
         builder: (context, snapshot) {
-          final typingMap = snapshot.data ?? {};
-          final someoneTyping = typingMap.entries.any((e) => e.key != currentUser.userId && e.value);
-
-          if (someoneTyping) {
-            return Text(
-              'typing…',
-              style: TextStyle(
-                color: ct.activeTabColor,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.w600,
-              ),
-            );
-          }
-
-          if (_isGroup) {
-            return Text(
-              groupSubtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
-            );
-          }
-
-          if (widget.api.enableOnlinePresence &&
-              widget.api.watchUserOnlineStatus != null &&
-              user != null) {
-            return StreamBuilder<bool>(
-              stream: onlineStream,
-              builder: (ctx, onlSnap) {
-                final isOnline = onlSnap.data ?? false;
-                return Text(
-                  isOnline ? 'Online' : 'Offline',
-                  style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
-                );
-              },
-            );
-          }
-
+          final groupSubtitle = snapshot.data ?? '';
           return Text(
-            widget.api.enableOnlinePresence ? 'Online' : '',
-            style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+            groupSubtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: ct.white.withValues(alpha: 0.8), fontSize: 12),
+          );
+        },
+      );
+    }
+
+    if (widget.api.enableTypingIndicator) {
+      return FutureBuilder<Stream<Map<String, bool>>?>(
+        future: widget.api.watchTyping(conversationId: widget.chat.conversationId),
+        builder: (context, streamSnap) {
+          return StreamBuilder<Map<String, bool>>(
+            stream: streamSnap.data,
+            builder: (context, snapshot) {
+              final typingMap = snapshot.data ?? {};
+              final curUserId = _currentUser?.userId ?? '';
+              final someoneTyping = typingMap.entries.any((e) => e.key != curUserId && e.value);
+
+              if (someoneTyping) {
+                return Text(
+                  'typing…',
+                  style: TextStyle(
+                    color: ct.activeTabColor,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }
+
+              return _buildOnlinePresence(ct: ct, user: user);
+            },
+          );
+        },
+      );
+    }
+
+    return _buildOnlinePresence(ct: ct, user: user);
+  }
+
+  Widget _buildOnlinePresence({required AcChatTheme ct, AcChatUser? user}) {
+    if (widget.api.enableOnlinePresence && user != null) {
+      return FutureBuilder<Stream<bool>?>(
+        future: widget.api.watchUserOnlineStatus(userId: user.userId),
+        builder: (context, streamSnap) {
+          return StreamBuilder<bool>(
+            stream: streamSnap.data,
+            builder: (ctx, onlSnap) {
+              final isOnline = onlSnap.data ?? false;
+              return Text(
+                isOnline ? 'Online' : 'Offline',
+                style: TextStyle(color: ct.white.withValues(alpha: 0.8), fontSize: 12),
+              );
+            },
           );
         },
       );
     }
 
     return Text(
-      _isGroup ? await _groupSubtitle() : (widget.api.enableOnlinePresence ? 'Online' : ''),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: ct.white.withOpacity(0.8), fontSize: 12),
+      widget.api.enableOnlinePresence ? 'Online' : '',
+      style: TextStyle(color: ct.white.withValues(alpha: 0.8), fontSize: 12),
     );
   }
 
@@ -1094,12 +1150,15 @@ class _ConversationState extends State<Conversation>
   }
 
   Future<String> _groupSubtitle() async {
-    final members = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
-    final names = members.map((m) async => (await widget.api.getUserById(userId: m.userId))?.name ?? 'Unknown');
-        // .where((n) => n.isNotEmpty)
-        // .join(', ');
-    // return names.isNotEmpty ? names : 'tap here for group info';
-    return "";
+    final convUsers = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
+    var memberUserIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
+    if (memberUserIds.isEmpty && widget.chat.memberIds.isNotEmpty) {
+      memberUserIds = widget.chat.memberIds;
+    }
+    final nameFutures = memberUserIds.map((id) async => (await widget.api.getUserById(userId: id))?.name ?? '');
+    final namesList = await Future.wait(nameFutures);
+    final validNames = namesList.where((n) => n.trim().isNotEmpty).join(', ');
+    return validNames.isNotEmpty ? validNames : 'tap here for group info';
   }
 
   void _showAttachmentModal(BuildContext context, AcChatTheme ct, bool isDark) {
@@ -1222,13 +1281,35 @@ class _ConversationState extends State<Conversation>
     final fileSize = _formatFileSize(bytes.length);
     final messageId = Autocode.uuid();
 
+    String? publicUrl;
+    final uploader = widget.api.mediaUploader;
+    if (uploader != null) {
+      try {
+        final mimeType = _inferMimeType(fileName);
+        publicUrl = await uploader.uploadMedia(
+          conversationId: widget.chat.conversationId,
+          messageId: messageId,
+          fileName: fileName,
+          bytes: bytes,
+          mimeType: mimeType,
+        );
+      } catch (e) {
+        debugPrint('[Conversation] uploadMedia failed: $e');
+        if (mounted) {
+          _toast(context, 'Failed to upload media');
+        }
+        return;
+      }
+    }
+
     final newMsg = AcChatMessage()
       ..messageId = messageId
       ..conversationId = widget.chat.conversationId
       ..senderId = (await widget.api.getCurrentUser()).userId
       ..type = type
       ..text = ''
-      ..filePath = file.path
+      ..filePath = publicUrl ?? file.path
+      ..fileUrl = publicUrl
       ..localPath = file.path
       ..fileName = fileName
       ..fileSize = fileSize
@@ -1237,7 +1318,7 @@ class _ConversationState extends State<Conversation>
       ..timeUtc = DateTime.now().toUtc()
       ..expiresAtUtc = _calculateExpiration()
       ..replyTo = _replyTo
-      ..status = 'sending';
+      ..status = 'sent';
 
     _replyTo = null;
     widget.api.sendMessage(message: newMsg);
@@ -1246,36 +1327,6 @@ class _ConversationState extends State<Conversation>
         _loadMessages();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-    }
-
-    final uploader = widget.api.mediaUploader;
-    if (uploader != null) {
-      try {
-        final mimeType = _inferMimeType(fileName);
-        final publicUrl = await uploader.uploadMedia(
-          conversationId: widget.chat.conversationId,
-          messageId: messageId,
-          fileName: fileName,
-          bytes: bytes,
-          mimeType: mimeType,
-        );
-
-        newMsg.fileUrl = publicUrl;
-        newMsg.status = 'sent';
-        if (mounted) {
-          setState(() {
-            _loadMessages();
-          });
-        }
-      } catch (e) {
-        debugPrint('[Conversation] uploadMedia failed: $e');
-        newMsg.status = 'failed';
-        if (mounted) {
-          setState(() {
-            _loadMessages();
-          });
-        }
-      }
     }
   }
 
@@ -1514,7 +1565,7 @@ class _ConversationState extends State<Conversation>
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _filterSenderId,
+                  initialValue: _filterSenderId,
                   dropdownColor: ct.surface,
                   decoration: InputDecoration(
                     labelText: 'Sender',
@@ -1542,7 +1593,7 @@ class _ConversationState extends State<Conversation>
                 SwitchListTile(
                   title: Text('Attachments Only', style: TextStyle(color: ct.text)),
                   value: _filterHasAttachment ?? false,
-                  activeColor: ct.activeTabColor,
+                  activeTrackColor: ct.activeTabColor,
                   onChanged: (val) {
                     setModalState(() => _filterHasAttachment = val ? true : null);
                     setState(() {
