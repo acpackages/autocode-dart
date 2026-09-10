@@ -11,3 +11,4 @@ environment.json
 /packages/ac_sync/logs
 **/build/**
 **/logs/**
+/.idea

@@ -1,4 +1,4 @@
-name: ac_webview_on_web
+name: ac_web_on_webview
 description: A bridge between AcWeb and WebView JavaScript channels, allowing web applications inside a WebView to handle requests via JavaScript channels.
 version: 1.0.0
 
