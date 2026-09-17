@@ -1,4 +1,3 @@
-import 'package:ac_documentation/ac_documentation.dart';
 
 /* AcDoc({
   "type": "method",

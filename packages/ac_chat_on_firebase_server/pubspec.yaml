@@ -1,0 +1,22 @@
+name: ac_chat_on_firebase_server
+description: >
+  Server-side Firebase adapter for ac_chat. Implements AcChatSyncChannel using
+  Firestore REST API (no Flutter dependency). Suitable for Dart servers such as
+  accountea-pro-cloud where the flutter/cloud_firestore SDK is unavailable.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  ac_chat_core:
+    path: '../ac_chat_core'
+  googleapis: ^13.0.0
+  googleapis_auth: ^1.6.0
+  http: ^1.0.0
+  uuid: ^4.0.0
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^5.0.0

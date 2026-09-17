@@ -1,8 +1,6 @@
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_mirrors/ac_mirrors.dart';
 
-import '../../autocode.dart';
-
 /* AcDoc({
   "description": "Enumeration representing logical operators used in conditional expressions.",
   "author": "Sanket Patel",

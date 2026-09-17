@@ -1,4 +1,3 @@
-import 'package:ac_web_on_jaguar/ac_web_on_jaguar.dart';
 import 'package:test/test.dart';
 
 void main() {

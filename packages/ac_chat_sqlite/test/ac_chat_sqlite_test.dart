@@ -1,444 +1,367 @@
-import 'dart:io' as io;
-import 'dart:typed_data';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:ac_chat/ac_chat.dart';
+import 'package:test/test.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:ac_chat_sqlite/ac_chat_sqlite.dart';
 
-class MockSyncChannel implements AcChatSyncChannel {
-  final List<AcChatMessage> sentMessages = [];
-  final List<AcChatConversation> createdConversations = [];
-  final List<String> readConversations = [];
+void main() {
+  group('AcChatSqlite Direct DB Operations (cacheRows = false)', () {
+    late AcChatSqlite chat;
 
-  @override
-  Future<void> sendMessage({
-    required AcChatMessage message,
-    required List<String> recipientIds,
-    Map<String, dynamic>? notificationPayload,
-  }) async {
-    sentMessages.add(message);
-  }
-
-  @override
-  Future<void> createConversation({
-    required AcChatConversation conversation,
-    required List<String> memberIds,
-    Map<String, dynamic>? notificationPayload,
-  }) async {
-    createdConversations.add(conversation);
-  }
-
-  @override
-  Future<void> markAsRead({
-    required String conversationId,
-    required String currentUserId,
-    List<String>? messageIds,
-  }) async {
-    readConversations.add(conversationId);
-  }
-
-  final List<Map<String, String>> deliveryReceipts = [];
-  void Function({required AcChatMessage message})? onMessageReceivedCallback;
-  void Function({required String messageId, required String conversationId, required String status})? onMessageStatusUpdatedCallback;
-
-  @override
-  Future<void> sendDeliveryReceipt({
-    required String messageId,
-    required String conversationId,
-    required String senderId,
-  }) async {
-    deliveryReceipts.add({
-      'messageId': messageId,
-      'conversationId': conversationId,
-      'senderId': senderId,
+    setUp(() async {
+      chat = AcChatSqlite(
+        cacheRows: false,
+        databasePath: ':memory:',
+      );
+      await chat.initialize();
     });
-  }
+
+    tearDown(() async {
+      await chat.dispose();
+    });
+
+    test('User CRUD and blocking', () async {
+      final user = AcChatUser()
+        ..userId = 'bob'
+        ..name = 'Bob Smith';
+      await chat.saveUser(user: user);
+
+      final retrieved = await chat.getUserById(userId: 'bob');
+      expect(retrieved, isNotNull);
+      expect(retrieved!.name, equals('Bob Smith'));
+
+      final allUsers = await chat.getUsers();
+      expect(allUsers.any((u) => u.userId == 'bob'), isTrue);
+
+      // Block user
+      expect(await chat.isUserBlocked(userId: 'bob'), isFalse);
+      await chat.blockUser(userId: 'bob');
+      expect(await chat.isUserBlocked(userId: 'bob'), isTrue);
+      expect(await chat.getBlockedUserIds(), contains('bob'));
+
+      // Unblock user
+      await chat.unblockUser(userId: 'bob');
+      expect(await chat.isUserBlocked(userId: 'bob'), isFalse);
+    });
+
+    test('insertConversation with multiple userIds', () async {
+      final conv = AcChatConversation()
+        ..type = 'group'
+        ..conversationName = 'Project Team';
+
+      final created = await chat.insertConversation(
+        conversation: conv,
+        userIds: ['alice', 'bob', 'charlie'],
+      );
+
+      expect(created.conversationId, isNotEmpty);
+      expect(created.userIds, containsAll(['alice', 'bob', 'charlie']));
+
+      // Verify getConversations
+      final convs = await chat.getConversations();
+      expect(convs.length, equals(1));
+      expect(convs.first.conversationName, equals('Project Team'));
+
+      final byId = await chat.getConversationById(conversationId: created.conversationId);
+      expect(byId, isNotNull);
+      expect(byId!.conversationId, equals(created.conversationId));
+
+      // Verify getConversationUsers
+      final users = await chat.getConversationUsers(conversationId: created.conversationId);
+      expect(users.map((u) => u.userId), containsAll(['alice', 'bob', 'charlie']));
+
+      // Add user
+      await chat.addConversationUsers(
+        conversationId: created.conversationId,
+        userIds: ['david'],
+      );
+      final updatedUsers = await chat.getConversationUsers(conversationId: created.conversationId);
+      expect(updatedUsers.map((u) => u.userId), contains('david'));
+
+      // Remove user
+      await chat.removeConversationUsers(
+        conversationId: created.conversationId,
+        userId: 'david',
+      );
+      final remainingUsers = await chat.getConversationUsers(conversationId: created.conversationId);
+      expect(remainingUsers.map((u) => u.userId), isNot(contains('david')));
+    });
+
+    test('Conversation preferences', () async {
+      final conv = AcChatConversation()
+        ..type = 'direct';
+      final created = await chat.insertConversation(
+        conversation: conv,
+        userIds: ['alice', 'bob'],
+      );
+
+      await chat.pinConversation(conversationId: created.conversationId, isPinned: true);
+      var pref = await chat.getConversationPref(conversationId: created.conversationId);
+      expect(pref, isNotNull);
+      expect(pref!.isPinned, isTrue);
+
+      await chat.archiveConversation(conversationId: created.conversationId, isArchived: true);
+      pref = await chat.getConversationPref(conversationId: created.conversationId);
+      expect(pref!.isArchived, isTrue);
+    });
+
+    test('Message operations and search', () async {
+      final conv = AcChatConversation()..type = 'direct';
+      final created = await chat.insertConversation(
+        conversation: conv,
+        userIds: ['alice', 'bob'],
+      );
+
+      final msg1 = AcChatMessage()
+        ..conversationId = created.conversationId
+        ..senderId = 'alice'
+        ..text = 'Hello Bob!'
+        ..time = DateTime.now().toUtc();
+      await chat.sendMessage(message: msg1);
+
+      final msg2 = AcChatMessage()
+        ..conversationId = created.conversationId
+        ..senderId = 'bob'
+        ..text = 'Hi Alice, how are you?'
+        ..time = DateTime.now().toUtc().add(const Duration(seconds: 1));
+      await chat.sendMessage(message: msg2);
+
+      // getMessages
+      final messages = await chat.getMessages(conversationId: created.conversationId);
+      expect(messages.length, equals(2));
+      expect(messages.first.text, equals('Hello Bob!'));
+
+      // searchMessages
+      final searchResults = await chat.searchMessages(
+        query: 'Alice',
+        conversationId: created.conversationId,
+      );
+      expect(searchResults.length, equals(1));
+      expect(searchResults.first.text, contains('Hi Alice'));
+
+      // Reactions
+      chat.api.enableMessageReactions = true;
+      await chat.addReaction(messageId: msg1.messageId, emoji: '👍');
+      var updatedMsg = await chat.getMessageById(messageId: msg1.messageId);
+      expect(updatedMsg!.reactions['👍'], contains('alice'));
+
+      await chat.removeReaction(messageId: msg1.messageId, emoji: '👍');
+      updatedMsg = await chat.getMessageById(messageId: msg1.messageId);
+      expect(updatedMsg!.reactions['👍'], isNull);
+
+      // Edit message
+      await chat.editMessage(messageId: msg1.messageId, newText: 'Hello Robert!');
+      updatedMsg = await chat.getMessageById(messageId: msg1.messageId);
+      expect(updatedMsg!.text, equals('Hello Robert!'));
+      expect(updatedMsg.isEdited, isTrue);
+
+      // Read receipt
+      await chat.notifyConversationRead(conversationId: created.conversationId);
+      updatedMsg = await chat.getMessageById(messageId: msg2.messageId);
+      expect(updatedMsg!.status, equals('read'));
+
+      // Delete message for me
+      await chat.deleteMessageForMe(messageId: msg1.messageId);
+      final afterDelete = await chat.getMessageById(messageId: msg1.messageId);
+      expect(afterDelete, isNull);
+    });
+
+    test('wipeAllData cleans all tables', () async {
+      final user = AcChatUser()..userId = 'bob'..name = 'Bob';
+      await chat.saveUser(user: user);
+
+      final conv = AcChatConversation()..type = 'direct';
+      await chat.insertConversation(conversation: conv, userIds: ['alice', 'bob']);
+
+      await chat.wipeAllData();
+
+      expect(await chat.getUsers(), isEmpty);
+      expect(await chat.getConversations(), isEmpty);
+    });
+  });
+
+  group('AcChatSqlite Dynamic Caching (cacheRows = true)', () {
+    late AcChatSqlite chat;
+
+    setUp(() async {
+      chat = AcChatSqlite(
+        cacheRows: true,
+        databasePath: ':memory:',
+      );
+      await chat.initialize();
+    });
+
+    tearDown(() async {
+      await chat.dispose();
+    });
+
+    test('Dynamic cache returns cached rows and handles updates', () async {
+      final user = AcChatUser()
+        ..userId = 'charlie'
+        ..name = 'Charlie Brown';
+      await chat.saveUser(user: user);
+
+      // Retrieval from cache
+      final retrieved = await chat.getUserById(userId: 'charlie');
+      expect(retrieved, isNotNull);
+      expect(retrieved!.name, equals('Charlie Brown'));
+
+      // Create conversation with cache active
+      final conv = AcChatConversation()
+        ..type = 'direct';
+      final created = await chat.insertConversation(
+        conversation: conv,
+        userIds: ['alice', 'charlie'],
+      );
+
+      final convs = await chat.getConversations();
+      expect(convs.any((c) => c.conversationId == created.conversationId), isTrue);
+
+      // Send message with cache active
+      final msg = AcChatMessage()
+        ..conversationId = created.conversationId
+        ..senderId = 'alice'
+        ..text = 'Cached message test'
+        ..time = DateTime.now().toUtc();
+      await chat.sendMessage(message: msg);
+
+      final msgs = await chat.getMessages(conversationId: created.conversationId);
+      expect(msgs.length, equals(1));
+      expect(msgs.first.text, equals('Cached message test'));
+    });
+  });
+
+  group('AcChatSqliteChannelSync Integration', () {
+    late AcChatSqlite chat;
+    late MockChatSyncChannel channel;
+
+    setUp(() async {
+      channel = MockChatSyncChannel();
+      chat = AcChatSqlite(
+        cacheRows: false,
+        channel: channel,
+        databasePath: ':memory:',
+      );
+      await chat.initialize();
+    });
+
+    tearDown(() async {
+      await chat.dispose();
+    });
+
+    test('Incoming message from channel is saved and triggers streams', () async {
+      final incoming = AcChatMessage()
+        ..messageId = 'msg_remote_1'
+        ..conversationId = 'conv_sync_1'
+        ..senderId = 'bob'
+        ..text = 'Hello from remote'
+        ..time = DateTime.now().toUtc();
+
+      channel.onMessageReceived?.call(message: incoming);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final msg = await chat.getMessageById(messageId: 'msg_remote_1');
+      expect(msg, isNotNull);
+      expect(msg!.text, equals('Hello from remote'));
+    });
+
+    test('onMessageFlushed marks message as sent', () async {
+      final msg = AcChatMessage()
+        ..messageId = 'msg_to_flush'
+        ..conversationId = 'conv_sync_2'
+        ..senderId = 'alice'
+        ..text = 'Flushed message'
+        ..status = 'sending'
+        ..time = DateTime.now().toUtc();
+      await chat.upsertMessage(message: msg);
+
+      await channel.onMessageFlushed!(
+        messageId: 'msg_to_flush',
+        conversationId: 'conv_sync_2',
+      );
+
+      final flushed = await chat.getMessageById(messageId: 'msg_to_flush');
+      expect(flushed!.status, equals('sent'));
+    });
+  });
+}
+
+class MockChatSyncChannel implements AcChatSyncChannel {
+  void Function({required AcChatMessage message})? onMessageReceived;
+  void Function({required String conversationId, required String receiverId, required List<String> messageIds})? onConversationRead;
+  void Function({required String conversationId, required List<String> userIds})? onConversationUsersRemoved;
+  void Function({required AcChatConversation conversation})? onConversationUpdate;
+  void Function({required AcChatConversationUser conversationUser})? onConversationUserUpdate;
+  void Function({required List<String> messageIds, required String conversationId, required String receiverId})? onMessagesDelivered;
+  void Function({required List<String> messageIds, required String conversationId, required String receiverId})? onMessagesRead;
+  void Function({required Map<String, dynamic> updateData, required String messageId, required String conversationId})? onMessageUpdate;
+  void Function({required AcChatConversation conversation, required List<String> userIds})? onNewConversation;
+  void Function({required String conversationId, required List<String> userIds})? onNewConversationUsers;
+  void Function({required String conversationId, required String userId, required bool isTyping})? onUserTyping;
 
   @override
-  Future<void> sendReadReceipt({
-    required String conversationId,
-    required String senderId,
-    required List<String> messageIds,
-  }) async {}
-
-  @override
-  Future<void> sendTypingIndicator({
-    required String conversationId,
-    required List<String> recipientIds,
-    required bool isTyping,
-  }) async {}
-
-  @override
-  Future<void> updateMessage({
-    required String messageId,
-    required String conversationId,
-    required Map<String, dynamic> data,
-    required List<String> recipientIds,
-  }) async {}
-
-  @override
-  Future<void> acknowledgeUpdate({required String updateId}) async {}
-
-  @override
-  Future<void> addGroupMembers({
-    required String conversationId,
-    required List<String> memberIds,
-  }) async {}
-
-  @override
-  Future<void> removeGroupMember({
-    required String conversationId,
-    required String userId,
-  }) async {}
+  Future<void> Function({required String conversationId, required String messageId})? onMessageFlushed;
 
   @override
   Future<void> startListening({
     required String currentUserId,
+    required void Function({required String conversationId, required List<String> userIds}) onConversationUsersRemoved,
+    required void Function({required String conversationId, required String receiverId, required List<String> messageIds}) onConversationRead,
+    required void Function({required AcChatConversation conversation}) onConversationUpdate,
+    required void Function({required AcChatConversationUser conversationUser}) onConversationUserUpdate,
+    required void Function({required List<String> messageIds, required String conversationId, required String receiverId}) onMessagesDelivered,
+    required void Function({required List<String> messageIds, required String conversationId, required String receiverId}) onMessagesRead,
     required void Function({required AcChatMessage message}) onMessageReceived,
-    required void Function({
-      required AcChatConversation conversation,
-      required List<AcChatConversationUser> members,
-    }) onConversationChanged,
-    required void Function({required List<AcChatUser> users}) onUsersLoaded,
-    void Function({
-      required String messageId,
-      required String conversationId,
-      required String status,
-    })? onMessageStatusUpdated,
-    void Function({
-      required String conversationId,
-      required String userId,
-      required bool isTyping,
-    })? onTypingChanged,
-    void Function({
-      required String userId,
-      required bool isOnline,
-    })? onUserPresenceChanged,
+    required void Function({required Map<String, dynamic> updateData, required String messageId, required String conversationId}) onMessageUpdate,
+    required void Function({required AcChatConversation conversation, required List<String> userIds}) onNewConversation,
+    required void Function({required String conversationId, required List<String> userIds}) onNewConversationUsers,
+    void Function({required String conversationId, required String userId, required bool isTyping})? onUserTyping,
   }) async {
-    onMessageReceivedCallback = onMessageReceived;
-    onMessageStatusUpdatedCallback = onMessageStatusUpdated;
+    this.onMessageReceived = onMessageReceived;
+    this.onConversationRead = onConversationRead;
+    this.onConversationUsersRemoved = onConversationUsersRemoved;
+    this.onConversationUpdate = onConversationUpdate;
+    this.onConversationUserUpdate = onConversationUserUpdate;
+    this.onMessagesDelivered = onMessagesDelivered;
+    this.onMessagesRead = onMessagesRead;
+    this.onMessageUpdate = onMessageUpdate;
+    this.onNewConversation = onNewConversation;
+    this.onNewConversationUsers = onNewConversationUsers;
+    this.onUserTyping = onUserTyping;
   }
 
   @override
   Future<void> stopListening() async {}
+
+  @override
+  Future<bool> sendMessage({required AcChatMessage message, required List<String> recipientIds, Map<String, dynamic>? notificationPayload}) async => true;
+
+  @override
+  Future<void> createConversation({required AcChatConversation conversation, required List<String> userIds, Map<String, dynamic>? notificationPayload}) async {}
+
+  @override
+  Future<void> updateConversation({required AcChatConversation conversation}) async {}
+
+  @override
+  Future<void> updateConversationUser({required AcChatConversationUser conversationUser}) async {}
+
+  @override
+  Future<void> notifyConversationRead({required String conversationId,  List<String>? messageIds}) async {}
+
+  @override
+  Future<void> notifyMessagesDelivered({required List<String> messageIds, required String conversationId, required String senderId}) async {}
+
+  @override
+  Future<void> notifyMessagesRead({required List<String> messageIds, required String conversationId, required String senderId}) async {}
+
+  @override
+  Future<void> updateMessage({required String messageId, required String conversationId, required Map<String, dynamic> data, required List<String> recipientIds}) async {}
+
+  @override
+  Future<void> sendTypingIndicator({required String conversationId, required List<String> recipientIds, required bool isTyping}) async {}
+
+  @override
+  Future<void> addConversationUsers({required String conversationId, required List<String> userIds}) async {}
+
+  @override
+  Future<void> removeConversationUsers({required String conversationId, required List<String> userIds}) async {}
 }
 
-void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
-  group('AcChatSqlite In-Memory & Channel Tests', () {
-    test('instantiates with strictly named parameters and builds API', () async {
-      final mockChannel = MockSyncChannel();
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        channel: mockChannel,
-        databasePath: ':memory:',
-      );
-
-      final api = sqlite.buildApi(
-        theme: const AcChatTheme(isDark: false),
-      );
-
-      expect((await api.getCurrentUser()).userId, equals('user_alice'));
-      expect(await api.getConversations(), isEmpty);
-      expect(await api.getUsers(), isEmpty);
-    });
-
-    test('direct conversation insertion updates in-memory cache and channel', () async {
-      final mockChannel = MockSyncChannel();
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        channel: mockChannel,
-        databasePath: ':memory:',
-      );
-
-      final newConv = AcChatConversation()
-        ..conversationId = 'conv_123'
-        ..type = 'direct';
-
-      final inserted = await sqlite.buildApi(theme: const AcChatTheme(isDark: false)).insertConversation(
-        newConversation: newConv,
-        otherUserId: 'user_bob',
-      );
-
-      expect(inserted.conversationId, equals('conv_123'));
-      expect(inserted.memberIds, containsAll(['user_alice', 'user_bob']));
-
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      expect(mockChannel.createdConversations.length, equals(1));
-      expect(mockChannel.createdConversations.first.conversationId, equals('conv_123'));
-    });
-
-    test('saveUser updates in-memory cache and getUserById', () async {
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        databasePath: ':memory:',
-      );
-
-      final user = AcChatUser()
-        ..userId = 'user_charlie'
-        ..name = 'Charlie'
-        ..username = 'charlie';
-
-      await sqlite.saveUser(user: user);
-
-      final api = sqlite.buildApi();
-      final fetched = await api.getUserById(userId: 'user_charlie');
-      expect(fetched, isNotNull);
-      expect(fetched!.name, equals('Charlie'));
-    });
-
-    test('startSync attaches channel and enables message reception', () async {
-      final mockChannel = MockSyncChannel();
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        databasePath: ':memory:',
-      );
-
-      sqlite.startSync(channel: mockChannel);
-
-      AcChatMessage? received;
-      sqlite.onMessageReceived = ({required message}) {
-        received = message;
-      };
-
-      // Ensure mockChannel received startListening
-      expect(sqlite, isNotNull);
-      expect(received, isNull);
-    });
-
-    test('buildApi forwards typing and group configuration parameters', () {
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        databasePath: ':memory:',
-      );
-
-      final defaultApi = sqlite.buildApi(theme: const AcChatTheme(isDark: false));
-      expect(defaultApi.enableTypingIndicator, isTrue);
-      expect(defaultApi.enableTyping, isTrue);
-      expect(defaultApi.enableGroups, isTrue);
-      expect(defaultApi.maxGroupParticipants, equals(50));
-
-      final customApi = sqlite.buildApi(
-        theme: const AcChatTheme(isDark: false),
-        enableTypingIndicator: false,
-        enableTyping: false,
-        enableGroups: false,
-        maxGroupParticipants: 25,
-      );
-      expect(customApi.enableTypingIndicator, isFalse);
-      expect(customApi.enableTyping, isFalse);
-      expect(customApi.enableGroups, isFalse);
-      expect(customApi.maxGroupParticipants, equals(25));
-    });
-
-    test('_handleIncomingMessage sends delivery receipt for other users', () async {
-      final mockChannel = MockSyncChannel();
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        databasePath: ':memory:',
-      );
-
-      sqlite.startSync(channel: mockChannel);
-      expect(mockChannel.onMessageReceivedCallback, isNotNull);
-
-      final incomingMsg = AcChatMessage()
-        ..messageId = 'm_incoming_1'
-        ..conversationId = 'c_1'
-        ..senderId = 'user_bob'
-        ..text = 'Hi Alice'
-        ..time = DateTime.now();
-
-      mockChannel.onMessageReceivedCallback!(message: incomingMsg);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      expect(mockChannel.deliveryReceipts, hasLength(1));
-      expect(mockChannel.deliveryReceipts.first['messageId'], equals('m_incoming_1'));
-      expect(mockChannel.deliveryReceipts.first['conversationId'], equals('c_1'));
-      expect(mockChannel.deliveryReceipts.first['senderId'], equals('user_bob'));
-    });
-
-    test('onMessageStatusUpdated updates status and delivered/read timestamps', () async {
-      final mockChannel = MockSyncChannel();
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_alice',
-        databasePath: ':memory:',
-      );
-
-      var dataChangedNotified = false;
-      sqlite.onDataChanged = () => dataChangedNotified = true;
-      sqlite.startSync(channel: mockChannel);
-
-      // Alice sends a message
-      final api = sqlite.buildApi(theme: const AcChatTheme(isDark: false));
-      final msg = AcChatMessage()
-        ..messageId = 'm_alice_1'
-        ..conversationId = 'c_1'
-        ..senderId = 'user_alice'
-        ..text = 'Hello Bob'
-        ..status = 'sent'
-        ..time = DateTime.now();
-
-      await api.sendMessage(message: msg);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      expect(mockChannel.onMessageStatusUpdatedCallback, isNotNull);
-
-      // Receive delivered status update
-      dataChangedNotified = false;
-      mockChannel.onMessageStatusUpdatedCallback!(
-        messageId: 'm_alice_1',
-        conversationId: 'c_1',
-        status: 'delivered',
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      final msgsAfterDelivered = await api.getMessages(conversationId: 'c_1');
-      expect(msgsAfterDelivered, isNotEmpty);
-      expect(msgsAfterDelivered.first.status, equals('delivered'));
-      expect(msgsAfterDelivered.first.deliveredTime, isNotNull);
-      expect(dataChangedNotified, isTrue);
-
-      // Receive read status update
-      dataChangedNotified = false;
-      mockChannel.onMessageStatusUpdatedCallback!(
-        messageId: 'm_alice_1',
-        conversationId: 'c_1',
-        status: 'read',
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      final msgsAfterRead = await api.getMessages(conversationId: 'c_1');
-      expect(msgsAfterRead.first.status, equals('read'));
-      expect(msgsAfterRead.first.readTime, isNotNull);
-      expect(dataChangedNotified, isTrue);
-    });
-
-    test('saves received media into directories categorized by type', () async {
-      final tempDir = await io.Directory.systemTemp.createTemp('ac_chat_media_test_');
-      addTearDown(() => tempDir.deleteSync(recursive: true));
-
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_bob',
-        databasePath: ':memory:',
-        dataDirectory: tempDir.path,
-      );
-
-      expect(sqlite.dataDirectory, equals(tempDir.path));
-
-      // 1. Test helper paths by type
-      expect(sqlite.getMediaDirectoryForType('image'), equals('${tempDir.path}/images'));
-      expect(sqlite.getMediaDirectoryForType('video'), equals('${tempDir.path}/videos'));
-      expect(sqlite.getMediaDirectoryForType('audio'), equals('${tempDir.path}/audio'));
-      expect(sqlite.getMediaDirectoryForType('document'), equals('${tempDir.path}/documents'));
-
-      // 2. Test saveMediaFile
-      final testBytes = Uint8List.fromList([1, 2, 3, 4, 5]);
-      final savedPath = await sqlite.saveMediaFile(
-        type: 'image',
-        fileName: 'profile.jpg',
-        bytes: testBytes,
-      );
-
-      expect(savedPath, isNotNull);
-      expect(io.File(savedPath!).existsSync(), isTrue);
-      expect(await io.File(savedPath).readAsBytes(), equals(testBytes));
-      expect(savedPath, contains('images'));
-    });
-
-    test('AcChatApi.updateMessage updates message fields including isDownloaded and localPath', () async {
-      final sqlite = AcChatSqlite(
-        currentUserId: 'user_bob',
-        databasePath: ':memory:',
-      );
-      final api = sqlite.buildApi(theme: const AcChatTheme());
-
-      final conv = AcChatConversation()
-        ..conversationId = 'c_update_test'
-        ..type = 'individual'
-        ..memberIds = ['user_bob', 'user_alice'];
-      await api.insertConversation(newConversation: conv, otherUserId: 'user_alice');
-
-      final msg = AcChatMessage()
-        ..messageId = 'msg_media_1'
-        ..conversationId = 'c_update_test'
-        ..senderId = 'user_alice'
-        ..text = 'https://example.com/image.jpg'
-        ..type = 'image'
-        ..time = DateTime.now()
-        ..status = 'sent'
-        ..isDownloaded = false;
-      await api.sendMessage(message: msg);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      // Verify initial state
-      final initialMsgs = await api.getMessages(conversationId: 'c_update_test');
-      expect(initialMsgs.first.isDownloaded, isFalse);
-      expect(initialMsgs.first.localPath, isNull);
-
-      // Call api.updateMessage (the exact call made on download completion)
-      await api.updateMessage(
-        messageId: 'msg_media_1',
-        data: {
-          'isDownloaded': true,
-          'localPath': '/local/path/to/image.jpg',
-        },
-      );
-
-      final updatedMsgs = await api.getMessages(conversationId: 'c_update_test');
-      expect(updatedMsgs.first.isDownloaded, isTrue);
-      expect(updatedMsgs.first.localPath, equals('/local/path/to/image.jpg'));
-    });
-
-    test('Cloudflare filePath is preserved when localPath is updated upon download', () async {
-      final sqlite = AcChatSqlite(
-        currentUserId: 'me',
-        api: AcChatApi(),
-        databasePath: ':memory:',
-      );
-      await sqlite.initialize();
-      final api = sqlite.buildApi();
-
-      final conv = AcChatConversation()
-        ..conversationId = 'c_cf_test'
-        ..type = 'direct'
-        ..memberIds = ['me', 'other'];
-      await api.insertConversation(newConversation: conv, otherUserId: 'other');
-
-      const cfUrl = 'https://media.accountea.com/user/chat/conversations/c_cf_test/msg_cf_1/photo.jpg';
-
-      // Simulates incoming message on receiver side (filePath = cfUrl, localPath = null, isDownloaded = false)
-      final msg = AcChatMessage()
-        ..messageId = 'msg_cf_1'
-        ..conversationId = 'c_cf_test'
-        ..senderId = 'other'
-        ..type = 'image'
-        ..filePath = cfUrl
-        ..fileUrl = cfUrl
-        ..localPath = null
-        ..isDownloaded = false;
-      await api.sendMessage(message: msg);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      final msgsBefore = await api.getMessages(conversationId: 'c_cf_test');
-      expect(msgsBefore.first.filePath, equals(cfUrl));
-      expect(msgsBefore.first.localPath, isNull);
-      expect(msgsBefore.first.isDownloaded, isFalse);
-
-      // Receiver downloads file
-      const localDownloadedPath = '/storage/emulated/0/chat/media/images/photo.jpg';
-      await api.updateMessage(
-        messageId: 'msg_cf_1',
-        data: {
-          'isDownloaded': true,
-          'localPath': localDownloadedPath,
-        },
-      );
-
-      final msgsAfter = await api.getMessages(conversationId: 'c_cf_test');
-      expect(msgsAfter.first.filePath, equals(cfUrl)); // filePath unchanged!
-      expect(msgsAfter.first.localPath, equals(localDownloadedPath));
-      expect(msgsAfter.first.isDownloaded, isTrue);
-    });
-  });
-}

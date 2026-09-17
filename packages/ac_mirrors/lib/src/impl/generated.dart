@@ -51,7 +51,7 @@ AcClassMirror<T> acReflectClass<T>(Type type) {
 }
 
 AcInstanceMirror<T> acReflect<T extends Object>(T instance) {
-  final classMirror = acReflectClass<T>(instance.runtimeType as Type);
+  final classMirror = acReflectClass<T>(instance.runtimeType);
   return AcInstanceMirrorImpl<T>(instance, classMirror);
 }
 

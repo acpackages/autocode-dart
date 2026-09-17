@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../../ac_chat.dart';
 
 class DocumentMessageBubble extends StatelessWidget {
   final AcChatMessage message;

@@ -1,4 +1,4 @@
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 
 // ============================================================
 // mock_data.dart — All in-memory data for the Accountea prototype
@@ -161,7 +161,7 @@ List<Map<String, dynamic>> _generateMockChats() {
     'userId': 'user-2', // Priya Kapoor (DM)
     'isGroup': false,
     'groupName': null,
-    'memberIds': ['user-1', 'user-2'],
+    'userIds': ['user-1', 'user-2'],
     'lastMessage': 'Sure! I\'ll transfer it today.',
     'lastMessageType': 'text',
     'lastTime': DateTime.now().subtract(const Duration(minutes: 15)),
@@ -175,7 +175,7 @@ List<Map<String, dynamic>> _generateMockChats() {
     'userId': null, // group
     'isGroup': true,
     'groupName': 'Office Expense Split 🏢',
-    'memberIds': ['user-1', 'user-2', 'user-3', 'user-4'],
+    'userIds': ['user-1', 'user-2', 'user-3', 'user-4'],
     'lastMessage': 'Rahul: I\'ll pay the cab fare.',
     'lastMessageType': 'text',
     'lastTime': DateTime.now().subtract(const Duration(hours: 1)),
@@ -192,7 +192,7 @@ List<Map<String, dynamic>> _generateMockChats() {
       'userId': 'user-$userId',
       'isGroup': false,
       'groupName': null,
-      'memberIds': ['user-1', 'user-$userId'],
+      'userIds': ['user-1', 'user-$userId'],
       'lastMessage': 'Hello, let\'s catch up later.',
       'lastMessageType': 'text',
       'lastTime': DateTime.now().subtract(Duration(hours: i * 2)),
@@ -210,7 +210,7 @@ List<Map<String, dynamic>> _generateMockChats() {
       'userId': null,
       'isGroup': true,
       'groupName': 'Group Project Expenses $groupNum 💰',
-      'memberIds': ['user-1', 'user-2', 'user-3', 'user-4'],
+      'userIds': ['user-1', 'user-2', 'user-3', 'user-4'],
       'lastMessage': 'Shared bill split update.',
       'lastMessageType': 'text',
       'lastTime': DateTime.now().subtract(Duration(hours: i * 3)),
@@ -493,14 +493,14 @@ List<AcChatConversationUser> getConversationUsers(String conversationId) {
   final convMap = chats.firstWhere((c) => c['id'].toString() == conversationId, orElse: () => {});
   if (convMap.isEmpty) return [];
   List<AcChatConversationUser> list = [];
-  if (convMap['memberIds'] is List && (convMap['memberIds'] as List).isNotEmpty) {
-    for (var mId in (convMap['memberIds'] as List)) {
+  if (convMap['userIds'] is List && (convMap['userIds'] as List).isNotEmpty) {
+    for (var mId in (convMap['userIds'] as List)) {
       list.add(AcChatConversationUser()
         ..conversationId = conversationId
         ..userId = mId.toString());
     }
   } else if (convMap['isGroup'] == true) {
-    for (var mId in (convMap['memberIds'] as List? ?? [])) {
+    for (var mId in (convMap['userIds'] as List? ?? [])) {
       list.add(AcChatConversationUser()
         ..conversationId = conversationId
         ..userId = mId.toString());

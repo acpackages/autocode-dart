@@ -1,18 +1,11 @@
+/// Flutter chat UI toolkit — re-exports ac_chat_core for full backward compatibility.
+///
+/// Any existing `import 'package:ac_chat/ac_chat.dart'` continues to resolve
+/// all model types (AcChatMessage, AcChatUser, AcChatConversation, etc.)
+/// through the ac_chat_core re-export below.
+library ac_chat;
+
+// Flutter UI: AcChat widget, AcChatTheme, ThemeProvider, AcChatApiProvider, AcChatAudioPlayer
+export 'src/components/ac_chat.dart';
 export 'src/common/chat_colors.dart';
 export 'src/common/theme_provider.dart';
-export 'src/common/utc_utils.dart';
-
-export 'src/core/ac_chat.dart';
-export 'src/core/ac_chat_config.dart';
-export 'src/core/ac_chat_api.dart';
-export 'src/core/ac_chat_audio_player.dart';
-
-export 'src/models/ac_chat_conversation.dart';
-export 'src/models/ac_chat_conversation_user.dart';
-export 'src/models/ac_chat_message.dart';
-export 'src/models/ac_chat_user.dart';
-
-export 'src/sync/ac_chat_sync_channel.dart';
-export 'src/media/ac_chat_media_uploader.dart';
-export 'src/crypto/ac_chat_crypto_provider.dart';
-export 'src/connectivity/ac_chat_connectivity_provider.dart';

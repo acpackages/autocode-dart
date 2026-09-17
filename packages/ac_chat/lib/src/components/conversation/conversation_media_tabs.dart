@@ -1,23 +1,24 @@
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../core/ac_chat.dart';
+import '../ac_chat.dart';
 import 'media_viewer_screen.dart';
 
 class ConversationMediaTabs extends StatefulWidget {
-  final AcChatConversation chat;
+  final AcChatConversation conversation;
   final AcChatTheme ct;
   final AcChatApi? api;
 
   const ConversationMediaTabs({
     super.key,
-    required this.chat,
+    required this.conversation,
     required this.ct,
     this.api,
   });
 
   static Future<T?> showModal<T>({
     required BuildContext context,
-    required AcChatConversation chat,
+    required AcChatConversation conversation,
     required AcChatTheme ct,
     AcChatApi? api,
   }) {
@@ -71,7 +72,7 @@ class ConversationMediaTabs extends StatefulWidget {
               child: SingleChildScrollView(
                 controller: scrollController,
                 child: ConversationMediaTabs(
-                  chat: chat,
+                  conversation: conversation,
                   ct: ct,
                   api: api,
                 ),
@@ -104,9 +105,9 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
   }
 
   void _openViewer(BuildContext context, AcChatMessage msg) async {
-    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
+    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.getApi(context);
     final sender = await effectiveApi.getUserById(userId: msg.senderId);
-    final senderName = msg.senderId == (await effectiveApi.getCurrentUser()).userId
+    final senderName = msg.senderId == widget.api?.userId
         ? 'You'
         : (sender?.name ?? 'Unknown');
     Navigator.push(
@@ -123,11 +124,11 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
 
   @override
   Widget build(BuildContext context) {
-    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.of(context);
+    AcChatApi effectiveApi = widget.api ?? AcChatApiProvider.getApi(context);
     final ct = widget.ct;
 
     return FutureBuilder<List<AcChatMessage>>(
-      future: effectiveApi.getMessages(conversationId: widget.chat.conversationId),
+      future: effectiveApi.getMessages(conversationId: widget.conversation.conversationId),
       builder: (context, snapshot) {
         final allMessages = snapshot.data ?? [];
 
@@ -143,9 +144,9 @@ class _ConversationMediaTabsState extends State<ConversationMediaTabs>
             .where((m) => m.type == 'text' && urlRegex.hasMatch(m.text))
             .toList();
 
-        final dynamic avatarId = widget.chat.type == 'group'
-            ? '${widget.chat.conversationId}-group'
-            : widget.chat.conversationId;
+        final dynamic avatarId = widget.conversation.type == 'group'
+            ? '${widget.conversation.conversationId}-group'
+            : widget.conversation.conversationId;
         final themeColor = avatarColor(avatarId);
 
         return Column(

@@ -143,7 +143,7 @@ class MyRestChannel implements AcChatSyncChannel {
   }
 
   @override
-  Future<void> markAsRead(
+  Future<void> notifyConversationRead(
     String conversationId,
     String currentUserId,
   ) async {
@@ -165,7 +165,7 @@ class MyRestChannel implements AcChatSyncChannel {
     required void Function(AcChatMessage message) onMessageReceived,
     required void Function(
       AcChatConversation conversation,
-      List<AcChatConversationUser> members,
+      List<AcChatConversationUser> users,
     ) onConversationChanged,
     required void Function(List<AcChatUser> users) onUsersLoaded,
   }) async {
@@ -215,7 +215,7 @@ final sqlite = AcChatSqlite(
 | is_pinned         | INTEGER | `0` / `1`                         |
 | is_muted          | INTEGER | `0` / `1`                         |
 
-### `conversation_members`
+### `conversation_users`
 | Column          | Type | Notes                          |
 |-----------------|------|--------------------------------|
 | conversation_id | TEXT | Composite PK with `user_id`    |

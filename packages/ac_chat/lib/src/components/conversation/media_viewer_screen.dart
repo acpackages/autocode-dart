@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../ac_chat.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final AcChatMessage message;
@@ -98,7 +99,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           IconButton(
             icon: Icon(Icons.share_rounded, color: widget.ct.white),
             onPressed: () {
-              final linkOrPath = widget.message.filePath ?? widget.message.fileUrl ?? widget.message.localPath ?? widget.message.text;
+              final linkOrPath = widget.message.fileUrl ?? widget.message.localPath ?? widget.message.text;
               Clipboard.setData(ClipboardData(text: linkOrPath));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -140,9 +141,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   Widget _buildViewerContent() {
     final type = widget.message.type;
     final localPath = widget.message.localPath;
-    final remoteUrl = (widget.message.filePath != null && widget.message.filePath!.startsWith('http'))
-        ? widget.message.filePath
-        : (widget.message.fileUrl ?? (widget.message.text.startsWith('http') ? widget.message.text : null));
+    final remoteUrl = (widget.message.fileUrl ?? (widget.message.text.startsWith('http') ? widget.message.text : null));
     final text = widget.message.text;
 
     if (type == 'image') {
@@ -597,9 +596,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           return;
         }
       }
-      final urlToLaunch = (widget.message.filePath != null && widget.message.filePath!.startsWith('http'))
-          ? widget.message.filePath
-          : ((fileUrl != null && fileUrl.startsWith('http'))
+      final urlToLaunch = ((fileUrl != null && fileUrl.startsWith('http'))
               ? fileUrl
               : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null));
       if (urlToLaunch != null) {
@@ -633,9 +630,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     final localPath = message.localPath;
     final fileUrl = message.fileUrl;
     final text = message.text;
-    final downloadUrl = (message.filePath != null && message.filePath!.startsWith('http'))
-        ? message.filePath
-        : ((fileUrl != null && fileUrl.startsWith('http'))
+    final downloadUrl =((fileUrl != null && fileUrl.startsWith('http'))
             ? fileUrl
             : ((text.startsWith('http://') || text.startsWith('https://')) ? text : null));
     final fileName = message.fileName ??

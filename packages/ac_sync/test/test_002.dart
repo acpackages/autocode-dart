@@ -1,16 +1,8 @@
 import 'dart:io';
-import 'package:ac_sync/src/core/ac_sync_destination_database.dart';
-import 'package:ac_sync/src/core/ac_sync_source_database.dart';
-import 'package:ac_sync/src/models/ac_notify_changes_callback_args.dart';
-import 'package:ac_sync/src/models/ac_notify_changes_to_source_fun_args.dart';
-import 'package:ac_sync/src/models/ac_notify_sync_success_to_source_fun_args.dart';
-import 'package:test/test.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_sync/ac_sync.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-import 'package:ac_sync/src/database/data_dictionary.dart' as sync_dd;
 import 'package:autocode/autocode.dart';
-import 'package:ac_mirrors/ac_mirrors.dart';
 import './data_dictionary.dart' as DD;
 
 late AcSyncDestinationDatabase syncDestinationDatabase;

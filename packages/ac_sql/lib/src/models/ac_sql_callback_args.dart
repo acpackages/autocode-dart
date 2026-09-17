@@ -2,7 +2,6 @@ import 'dart:core';
 
 import 'package:ac_mirrors/ac_mirrors.dart';
 import 'package:autocode/autocode.dart';
-import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 
 /* AcDoc({
   "summary": "Represents the result of a database Data Access Object (DAO) operation.",

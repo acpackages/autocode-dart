@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:ac_chat_on_firebase/ac_chat_on_firebase.dart';
 
 /// Entry point for the ac_chat_on_firebase example.

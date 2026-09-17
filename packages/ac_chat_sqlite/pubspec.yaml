@@ -4,22 +4,20 @@ version: 0.1.0
 publish_to: none
 
 environment:
-  sdk: ^3.6.2
-  flutter: ">=3.27.4"
+  sdk: ^3.7.0
 
 dependencies:
-  flutter:
-    sdk: flutter
-  ac_chat:
-    path: './../ac_chat'
+  ac_chat_core:
+    path: './../ac_chat_core'
+  ac_extensions:
+    path: './../ac_extensions'
   ac_sql:
     path: './../ac_sql'
   ac_data_dictionary:
     path: './../ac_data_dictionary'
   autocode:
     path: './../autocode'
-  uuid: ^4.0.0
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
+  lints: ^5.0.0
+  test: ^1.24.0

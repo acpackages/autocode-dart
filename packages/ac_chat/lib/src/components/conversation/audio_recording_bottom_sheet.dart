@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
-import '../../core/ac_chat.dart';
+import '../ac_chat.dart';
 
 class AudioRecordingBottomSheet extends StatefulWidget {
   final AcChatTheme ct;

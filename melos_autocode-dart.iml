@@ -532,6 +532,9 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_notifications/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_notifications/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_notifications/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

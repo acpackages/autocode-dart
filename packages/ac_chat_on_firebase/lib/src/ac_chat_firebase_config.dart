@@ -15,7 +15,7 @@ class AcChatFirebaseConfig {
   final String messagesSubcollection;
 
   /// Name of the subcollection inside each conversation document that holds
-  /// member/participant documents.
+  /// user/participant documents.
   final String conversationUsersSubcollection;
 
   /// Name of the subcollection inside each user document that holds
@@ -41,7 +41,7 @@ class AcChatFirebaseConfig {
     this.usersCollection = 'users',
     this.conversationsCollection = 'conversations',
     this.messagesSubcollection = 'messages',
-    this.conversationUsersSubcollection = 'members',
+    this.conversationUsersSubcollection = 'users',
     this.updatesSubcollection = 'updates',
     this.storagePath = 'chat',
     this.messagesPageSize = 50,

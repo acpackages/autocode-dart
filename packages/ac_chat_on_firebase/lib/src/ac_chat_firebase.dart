@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:ac_chat/ac_chat.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/widgets.dart';
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:uuid/uuid.dart';
 
 import 'ac_chat_firebase_config.dart';
@@ -68,7 +69,7 @@ class AcChatFirebase implements AcChatSyncChannel {
 
   final List<AcChatUser> _users = [];
   final List<AcChatConversation> _conversations = [];
-  final Map<String, List<AcChatConversationUser>> _members = {};
+  final Map<String, List<AcChatConversationUser>> _conversationUsers = {};
   final Map<String, List<AcChatMessage>> _messages = {};
 
   final Map<String, AcChatUser> _userIndex = {};
@@ -83,10 +84,19 @@ class AcChatFirebase implements AcChatSyncChannel {
 
   // ── Channel callbacks ──────────────────────────────────────────────────────
 
+  void Function({required String conversationId, required List<String> userIds})? _onConversationUsersRemoved;
+  void Function({required String conversationId, required String receiverId, required List<String> messageIds})? _onConversationRead;
+  void Function({required AcChatConversation conversation})? _onConversationUpdate;
+  void Function({required AcChatConversationUser conversationUser})? _onConversationUserUpdate;
+  void Function({required List<String> messageIds, required String conversationId, required String receiverId})? _onMessagesDelivered;
+  void Function({required List<String> messageIds, required String conversationId, required String receiverId})? _onMessagesRead;
   void Function({required AcChatMessage message})? _onMessageReceived;
+  void Function({required Map<String, dynamic> updateData, required String messageId, required String conversationId})? _onMessageUpdate;
+  void Function({required AcChatConversation conversation, required List<String> userIds})? _onNewConversation;
+  void Function({required String conversationId, required List<String> userIds})? _onNewConversationUsers;
   void Function({
     required AcChatConversation conversation,
-    required List<AcChatConversationUser> members,
+    required List<AcChatConversationUser> users,
   })? _onConversationChanged;
   void Function({required List<AcChatUser> users})? _onUsersLoaded;
   void Function({
@@ -136,15 +146,15 @@ class AcChatFirebase implements AcChatSyncChannel {
   // ─── AcChatSyncChannel Implementation ──────────────────────────────────────
 
   @override
-  Future<void> sendMessage({
+  Future<bool> sendMessage({
     required AcChatMessage message,
     required List<String> recipientIds,
     Map<String, dynamic>? notificationPayload,
   }) async {
     final targets = recipientIds.isNotEmpty
         ? recipientIds
-        : (_members[message.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ??
-            _conversationIndex[message.conversationId]?.memberIds.where((id) => id != _currentUserId).toList() ??
+        : (_conversationUsers[message.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ??
+            _conversationIndex[message.conversationId]?.userIds.where((id) => id != _currentUserId).toList() ??
             []);
 
     final conv = _conversationIndex[message.conversationId];
@@ -161,9 +171,8 @@ class AcChatFirebase implements AcChatSyncChannel {
 
       final payload = FirestoreExtensions.messageToUpdatePayload(
         message,
-        memberIds: conv?.memberIds ?? [_currentUserId, ...targets],
+        userIds: conv?.userIds ?? [_currentUserId, ...targets],
         conversationName: conv?.conversationName,
-        groupName: conv?.groupName,
         isGroup: conv?.type == 'group',
       );
       payload[FirestoreExtensions.fUpdateId] = updateId;
@@ -174,30 +183,32 @@ class AcChatFirebase implements AcChatSyncChannel {
       batch.set(updateRef, payload);
     }
     await batch.commit();
+    return true;
   }
 
   @override
   Future<void> createConversation({
     required AcChatConversation conversation,
-    required List<String> memberIds,
+    List<String>? userIds,
     Map<String, dynamic>? notificationPayload,
   }) async {
     try {
-      final allMembers = Set<String>.from(memberIds);
-      if (_currentUserId.isNotEmpty) allMembers.add(_currentUserId);
-      conversation.memberIds = allMembers.toList();
+      final effectiveUserIds = userIds ?? userIds ?? [];
+      final allUsers = Set<String>.from(effectiveUserIds);
+      if (_currentUserId.isNotEmpty) allUsers.add(_currentUserId);
+      conversation.userIds = allUsers.toList();
 
       _conversationIndex[conversation.conversationId] = conversation;
       _conversations.removeWhere((c) => c.conversationId == conversation.conversationId);
       _conversations.insert(0, conversation);
-      _members[conversation.conversationId] = allMembers
+      _conversationUsers[conversation.conversationId] = allUsers
           .map((uid) => AcChatConversationUser()
             ..conversationId = conversation.conversationId
             ..userId = uid)
           .toList();
 
       final batch = _firestore.batch();
-      for (final recipientId in allMembers) {
+      for (final recipientId in allUsers) {
         if (recipientId == _currentUserId) continue;
         final updateId = _uuid.v4();
         final updateRef = _firestore
@@ -210,18 +221,17 @@ class AcChatFirebase implements AcChatSyncChannel {
           FirestoreExtensions.fUpdateId: updateId,
           FirestoreExtensions.fUpdateType: AcChatUpdateType.conversation,
           FirestoreExtensions.fConversationId: conversation.conversationId,
-          FirestoreExtensions.fMemberIds: allMembers.toList(),
+          FirestoreExtensions.fUserIds: allUsers.toList(),
           FirestoreExtensions.fConversationName: conversation.conversationName,
-          FirestoreExtensions.fGroupName: conversation.groupName,
           if (conversation.conversationAvatar != null)
             FirestoreExtensions.fConversationAvatar: conversation.conversationAvatar,
           if (conversation.conversationDescription != null)
             FirestoreExtensions.fConversationDescription: conversation.conversationDescription,
           FirestoreExtensions.fCreatedBy: conversation.createdBy,
-          FirestoreExtensions.fCreatedAt: Timestamp.fromDate(conversation.createdAtUtc),
+          FirestoreExtensions.fCreatedAt: Timestamp.fromDate(conversation.createdAt),
           FirestoreExtensions.fIsGroup: conversation.type == 'group',
-          FirestoreExtensions.fTimestamp: Timestamp.fromDate(conversation.lastTimeUtc),
-          FirestoreExtensions.fLastTime: Timestamp.fromDate(conversation.lastTimeUtc),
+          FirestoreExtensions.fTimestamp: Timestamp.fromDate(conversation.lastTime),
+          FirestoreExtensions.fLastTime: Timestamp.fromDate(conversation.lastTime),
           FirestoreExtensions.fSenderId: _currentUserId,
           if (notificationPayload != null) 'notification': notificationPayload,
         });
@@ -235,12 +245,12 @@ class AcChatFirebase implements AcChatSyncChannel {
 
   Future<AcChatConversation> createGroupConversation({
     required String groupName,
-    required List<String> memberUserIds,
+    required List<String> userUserIds,
     String? groupAvatar,
     String? groupDescription,
   }) async {
-    final allMembers = Set<String>.from(memberUserIds);
-    if (_currentUserId.isNotEmpty) allMembers.add(_currentUserId);
+    final allUsers = Set<String>.from(userUserIds);
+    if (_currentUserId.isNotEmpty) allUsers.add(_currentUserId);
 
     final conv = AcChatConversation()
       ..conversationId = _uuid.v4()
@@ -249,23 +259,22 @@ class AcChatFirebase implements AcChatSyncChannel {
       ..conversationAvatar = groupAvatar
       ..conversationDescription = groupDescription
       ..createdBy = _currentUserId
-      ..createdAtUtc = DateTime.now().toUtc()
+      ..createdAt = DateTime.now().toUtc()
       ..lastMessage = 'Group created'
       ..lastMessageType = 'system'
-      ..lastTimeUtc = DateTime.now().toUtc()
-      ..memberIds = allMembers.toList();
+      ..lastTime = DateTime.now().toUtc()
+      ..userIds = allUsers.toList();
 
     await createConversation(
       conversation: conv,
-      memberIds: allMembers.toList(),
+      userIds: allUsers.toList(),
     );
     return conv;
   }
 
   @override
-  Future<void> markAsRead({
+  Future<void> notifyConversationRead({
     required String conversationId,
-    required String currentUserId,
     List<String>? messageIds,
   }) async {
     final conv = _conversationIndex[conversationId];
@@ -278,7 +287,6 @@ class AcChatFirebase implements AcChatSyncChannel {
 
     final msgs = _messages[conversationId] ?? [];
     final unreadMsgs = msgs.where((m) =>
-        m.senderId != currentUserId &&
         m.senderId.isNotEmpty &&
         m.status != 'read' &&
         (messageIds == null || messageIds.contains(m.messageId))).toList();
@@ -288,7 +296,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       bySender.putIfAbsent(m.senderId, () => []).add(m.messageId);
     }
     for (final entry in bySender.entries) {
-      await sendReadReceipt(
+      await notifyMessagesRead(
         conversationId: conversationId,
         senderId: entry.key,
         messageIds: entry.value,
@@ -297,38 +305,54 @@ class AcChatFirebase implements AcChatSyncChannel {
   }
 
   @override
-  Future<void> sendDeliveryReceipt({
-    required String messageId,
+  Future<void> notifyMessagesDelivered({
+    required List<String> messageIds,
     required String conversationId,
     required String senderId,
   }) async {
-    if (senderId.isEmpty || senderId == _currentUserId) return;
+    if (senderId.isEmpty || senderId == _currentUserId || messageIds.isEmpty) return;
     try {
-      final updateId = _uuid.v4();
-      await _firestore
-          .collection(_config.usersCollection)
-          .doc(senderId)
-          .collection(_config.updatesSubcollection)
-          .doc(updateId)
-          .set({
-        FirestoreExtensions.fUpdateId: updateId,
-        FirestoreExtensions.fUpdateType: AcChatUpdateType.messageUpdate,
-        FirestoreExtensions.fConversationId: conversationId,
-        FirestoreExtensions.fMessageId: messageId,
-        FirestoreExtensions.fSenderId: _currentUserId,
-        FirestoreExtensions.fTimestamp: Timestamp.now(),
-        FirestoreExtensions.fData: {
-          FirestoreExtensions.fStatus: 'delivered',
-          'delivered_time': DateTime.now().millisecondsSinceEpoch,
-        },
-      });
+      final batch = _firestore.batch();
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (final msgId in messageIds) {
+        final updateId = _uuid.v4();
+        final updateRef = _firestore
+            .collection(_config.usersCollection)
+            .doc(senderId)
+            .collection(_config.updatesSubcollection)
+            .doc(updateId);
+
+        batch.set(updateRef, {
+          FirestoreExtensions.fUpdateId: updateId,
+          FirestoreExtensions.fUpdateType: AcChatUpdateType.messageUpdate,
+          FirestoreExtensions.fConversationId: conversationId,
+          FirestoreExtensions.fMessageId: msgId,
+          FirestoreExtensions.fSenderId: _currentUserId,
+          FirestoreExtensions.fTimestamp: Timestamp.now(),
+          FirestoreExtensions.fData: {
+            FirestoreExtensions.fStatus: 'delivered',
+            'delivered_time': nowMs,
+          },
+        });
+      }
+      await batch.commit();
     } catch (e, st) {
-      _log('sendDeliveryReceipt error', e, st);
+      _log('notifyMessagesDelivered error', e, st);
     }
   }
 
+  Future<void> notifyMessageDelivered({
+    required String messageId,
+    required String conversationId,
+    required String senderId,
+  }) => notifyMessagesDelivered(
+        messageIds: [messageId],
+        conversationId: conversationId,
+        senderId: senderId,
+      );
+
   @override
-  Future<void> sendReadReceipt({
+  Future<void> notifyMessagesRead({
     required String conversationId,
     required String senderId,
     required List<String> messageIds,
@@ -360,7 +384,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       }
       await batch.commit();
     } catch (e, st) {
-      _log('sendReadReceipt error', e, st);
+      _log('notifyMessagesRead error', e, st);
     }
   }
 
@@ -416,7 +440,7 @@ class AcChatFirebase implements AcChatSyncChannel {
 
       final targets = recipientIds.isNotEmpty
           ? recipientIds
-          : (_members[conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? []);
+          : (_conversationUsers[conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? []);
 
       final batch = _firestore.batch();
       for (final recipientId in targets) {
@@ -445,13 +469,13 @@ class AcChatFirebase implements AcChatSyncChannel {
   }
 
   @override
-  Future<void> addGroupMembers({
-    required String conversationId,
-    required List<String> memberIds,
+  Future<void> updateConversation({
+    required AcChatConversation conversation,
   }) async {
     try {
+      final targets = conversation.userIds;
       final batch = _firestore.batch();
-      for (final recipientId in memberIds) {
+      for (final recipientId in targets) {
         if (recipientId == _currentUserId) continue;
         final updateId = _uuid.v4();
         final updateRef = _firestore
@@ -463,41 +487,142 @@ class AcChatFirebase implements AcChatSyncChannel {
         batch.set(updateRef, {
           FirestoreExtensions.fUpdateId: updateId,
           FirestoreExtensions.fUpdateType: AcChatUpdateType.conversation,
-          FirestoreExtensions.fConversationId: conversationId,
-          FirestoreExtensions.fMemberIds: memberIds,
+          FirestoreExtensions.fConversationId: conversation.conversationId,
+          FirestoreExtensions.fUserIds: conversation.userIds,
+          FirestoreExtensions.fConversationName: conversation.conversationName,
+          if (conversation.conversationAvatar != null)
+            FirestoreExtensions.fConversationAvatar: conversation.conversationAvatar,
+          if (conversation.conversationDescription != null)
+            FirestoreExtensions.fConversationDescription: conversation.conversationDescription,
+          FirestoreExtensions.fCreatedBy: conversation.createdBy,
+          FirestoreExtensions.fCreatedAt: Timestamp.fromDate(conversation.createdAt),
+          FirestoreExtensions.fIsGroup: conversation.type == 'group',
+          FirestoreExtensions.fTimestamp: Timestamp.fromDate(conversation.lastTime),
+          FirestoreExtensions.fLastTime: Timestamp.fromDate(conversation.lastTime),
+          FirestoreExtensions.fSenderId: _currentUserId,
+        });
+      }
+      await batch.commit();
+    } catch (e, st) {
+      _log('updateConversation error', e, st);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateConversationUser({
+    required AcChatConversationUser conversationUser,
+  }) async {
+    try {
+      final conv = _conversationIndex[conversationUser.conversationId];
+      final targets = conv?.userIds ?? [conversationUser.userId];
+      final batch = _firestore.batch();
+      for (final recipientId in targets) {
+        if (recipientId == _currentUserId) continue;
+        final updateId = _uuid.v4();
+        final updateRef = _firestore
+            .collection(_config.usersCollection)
+            .doc(recipientId)
+            .collection(_config.updatesSubcollection)
+            .doc(updateId);
+
+        batch.set(updateRef, {
+          FirestoreExtensions.fUpdateId: updateId,
+          FirestoreExtensions.fUpdateType: 'conversation_user_update',
+          FirestoreExtensions.fConversationId: conversationUser.conversationId,
+          'userId': conversationUser.userId,
+          'role': conversationUser.role,
+          'is_pinned': conversationUser.isPinned,
+          'is_muted': conversationUser.isMuted,
+          'is_archived': conversationUser.isArchived,
+          'unread_count': conversationUser.unreadCount,
           FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
           FirestoreExtensions.fSenderId: _currentUserId,
         });
       }
       await batch.commit();
     } catch (e, st) {
-      _log('addGroupMembers error', e, st);
+      _log('updateConversationUser error', e, st);
+      rethrow;
     }
   }
 
   @override
-  Future<void> removeGroupMember({
+  Future<void> addConversationUsers({
     required String conversationId,
-    required String userId,
+    required List<String> userIds,
   }) async {
     try {
-      final updateId = _uuid.v4();
-      await _firestore
-          .collection(_config.usersCollection)
-          .doc(userId)
-          .collection(_config.updatesSubcollection)
-          .doc(updateId)
-          .set({
-        FirestoreExtensions.fUpdateId: updateId,
-        FirestoreExtensions.fUpdateType: 'removed_from_conversation',
-        FirestoreExtensions.fConversationId: conversationId,
-        FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
-        FirestoreExtensions.fSenderId: _currentUserId,
-      });
+      final batch = _firestore.batch();
+      for (final recipientId in userIds) {
+        if (recipientId == _currentUserId) continue;
+        final updateId = _uuid.v4();
+        final updateRef = _firestore
+            .collection(_config.usersCollection)
+            .doc(recipientId)
+            .collection(_config.updatesSubcollection)
+            .doc(updateId);
+
+        batch.set(updateRef, {
+          FirestoreExtensions.fUpdateId: updateId,
+          FirestoreExtensions.fUpdateType: 'new_conversation_users',
+          FirestoreExtensions.fConversationId: conversationId,
+          FirestoreExtensions.fUserIds: userIds,
+          'userIds': userIds,
+          FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
+          FirestoreExtensions.fSenderId: _currentUserId,
+        });
+      }
+      await batch.commit();
     } catch (e, st) {
-      _log('removeGroupMember error', e, st);
+      _log('addConversationUsers error', e, st);
     }
   }
+
+  // Future<void> addConversationUsers({
+  //   required String conversationId,
+  //   required List<String> userIds,
+  // }) => addConversationUsers(
+  //       conversationId: conversationId,
+  //       userIds: userIds,
+  //     );
+
+  @override
+  Future<void> removeConversationUsers({
+    required String conversationId,
+    required List<String> userIds,
+  }) async {
+    try {
+      final batch = _firestore.batch();
+      for (final userId in userIds) {
+        final updateId = _uuid.v4();
+        final updateRef = _firestore
+            .collection(_config.usersCollection)
+            .doc(userId)
+            .collection(_config.updatesSubcollection)
+            .doc(updateId);
+
+        batch.set(updateRef, {
+          FirestoreExtensions.fUpdateId: updateId,
+          FirestoreExtensions.fUpdateType: 'removed_from_conversation',
+          FirestoreExtensions.fConversationId: conversationId,
+          FirestoreExtensions.fTimestamp: FieldValue.serverTimestamp(),
+          FirestoreExtensions.fSenderId: _currentUserId,
+        });
+      }
+      await batch.commit();
+    } catch (e, st) {
+      _log('removeConversationUsers error', e, st);
+    }
+  }
+
+  // Future<void> removeConversationUsers({
+  //   required String conversationId,
+  //   required String userId,
+  // }) => removeConversationUsers(
+  //       conversationId: conversationId,
+  //       userIds: [userId],
+  //     );
 
   @override
   Future<void> acknowledgeUpdate({required String updateId}) async {
@@ -516,12 +641,22 @@ class AcChatFirebase implements AcChatSyncChannel {
   @override
   Future<void> startListening({
     required String currentUserId,
+    void Function({required String conversationId, required List<String> userIds})? onConversationUsersRemoved,
+    void Function({required String conversationId, required String receiverId, required List<String> messageIds})? onConversationRead,
+    void Function({required AcChatConversation conversation})? onConversationUpdate,
+    void Function({required AcChatConversationUser conversationUser})? onConversationUserUpdate,
+    void Function({required List<String> messageIds, required String conversationId, required String receiverId})? onMessagesDelivered,
+    void Function({required List<String> messageIds, required String conversationId, required String receiverId})? onMessagesRead,
     required void Function({required AcChatMessage message}) onMessageReceived,
-    required void Function({
+    void Function({required Map<String, dynamic> updateData, required String messageId, required String conversationId})? onMessageUpdate,
+    void Function({required AcChatConversation conversation, required List<String> userIds})? onNewConversation,
+    void Function({required String conversationId, required List<String> userIds})? onNewConversationUsers,
+    void Function({required String conversationId, required String userId, required bool isTyping})? onUserTyping,
+    void Function({
       required AcChatConversation conversation,
-      required List<AcChatConversationUser> members,
-    }) onConversationChanged,
-    required void Function({required List<AcChatUser> users}) onUsersLoaded,
+      required List<AcChatConversationUser> users,
+    })? onConversationChanged,
+    void Function({required List<AcChatUser> users})? onUsersLoaded,
     void Function({
       required String messageId,
       required String conversationId,
@@ -538,11 +673,20 @@ class AcChatFirebase implements AcChatSyncChannel {
     })? onUserPresenceChanged,
   }) async {
     _currentUserId = currentUserId;
+    _onConversationUsersRemoved = onConversationUsersRemoved;
+    _onConversationRead = onConversationRead;
+    _onConversationUpdate = onConversationUpdate;
+    _onConversationUserUpdate = onConversationUserUpdate;
+    _onMessagesDelivered = onMessagesDelivered;
+    _onMessagesRead = onMessagesRead;
     _onMessageReceived = onMessageReceived;
+    _onMessageUpdate = onMessageUpdate;
+    _onNewConversation = onNewConversation;
+    _onNewConversationUsers = onNewConversationUsers;
+    _onTypingChanged = onUserTyping ?? onTypingChanged;
     _onConversationChanged = onConversationChanged;
     _onUsersLoaded = onUsersLoaded;
     _onMessageStatusUpdated = onMessageStatusUpdated;
-    _onTypingChanged = onTypingChanged;
     _onUserPresenceChanged = onUserPresenceChanged;
 
     await initialize();
@@ -655,25 +799,57 @@ class AcChatFirebase implements AcChatSyncChannel {
         return;
       }
 
+      if (type == 'removed_from_conversation') {
+        _onConversationUsersRemoved?.call(
+          conversationId: convId,
+          userIds: [_currentUserId],
+        );
+        return;
+      }
+
+      if (type == 'conversation_user_update') {
+        final convUser = AcChatConversationUser()
+          ..conversationId = convId
+          ..userId = data['userId']?.toString() ?? ''
+          ..role = data['role']?.toString() ?? 'user';
+        if (data['is_pinned'] != null) convUser.isPinned = data['is_pinned'] == true;
+        if (data['is_muted'] != null) convUser.isMuted = data['is_muted'] == true;
+        if (data['is_archived'] != null) convUser.isArchived = data['is_archived'] == true;
+        _onConversationUserUpdate?.call(conversationUser: convUser);
+        return;
+      }
+
+      if (type == 'new_conversation_users') {
+        final userIds = (data['userIds'] as List?)?.map((e) => e.toString()).toList() ??
+            (data['userIds'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        _onNewConversationUsers?.call(conversationId: convId, userIds: userIds);
+        return;
+      }
+
       // Ensure conversation exists in local memory
       AcChatConversation? conv = _conversationIndex[convId];
-      if (conv == null && convId.isNotEmpty) {
+      final isNewConv = conv == null && convId.isNotEmpty;
+      if (isNewConv) {
         conv = FirestoreExtensions.conversationFromUpdateData(data);
         _conversationIndex[convId] = conv;
         _conversations.removeWhere((c) => c.conversationId == convId);
         _conversations.insert(0, conv);
 
-        final memberList = conv.memberIds
+        final userList = conv.userIds
             .map((uid) => AcChatConversationUser()
               ..conversationId = convId
               ..userId = uid)
             .toList();
-        _members[convId] = memberList;
+        _conversationUsers[convId] = userList;
 
         if (_isChannelMode) {
+          _onNewConversation?.call(
+            conversation: conv,
+            userIds: conv.userIds,
+          );
           _onConversationChanged?.call(
             conversation: conv,
-            members: memberList,
+            users: userList,
           );
         }
       }
@@ -711,10 +887,15 @@ class AcChatFirebase implements AcChatSyncChannel {
           _notifyDataChanged();
         }
       } else if (type == AcChatUpdateType.conversation || type == 'conversation') {
+        if (!isNewConv && conv != null) {
+          final updated = FirestoreExtensions.conversationFromUpdateData(data);
+          _conversationIndex[convId] = updated;
+          _onConversationUpdate?.call(conversation: updated);
+        }
         if (_isChannelMode && conv != null) {
           _onConversationChanged?.call(
             conversation: conv,
-            members: _members[convId] ?? [],
+            users: _conversationUsers[convId] ?? [],
           );
         } else {
           _notifyDataChanged();
@@ -722,6 +903,26 @@ class AcChatFirebase implements AcChatSyncChannel {
       } else if (type == AcChatUpdateType.messageUpdate || type == 'message_update') {
         final existingMsg = _messageIndex[msgId];
         final updatePayload = data[FirestoreExtensions.fData] as Map<String, dynamic>? ?? {};
+
+        final status = updatePayload[FirestoreExtensions.fStatus] as String?;
+        if (status == 'delivered') {
+          _onMessagesDelivered?.call(
+            messageIds: [msgId],
+            conversationId: convId,
+            receiverId: senderId ?? '',
+          );
+        } else if (status == 'read') {
+          _onMessagesRead?.call(
+            messageIds: [msgId],
+            conversationId: convId,
+            receiverId: senderId ?? '',
+          );
+        }
+        _onMessageUpdate?.call(
+          updateData: updatePayload,
+          messageId: msgId,
+          conversationId: convId,
+        );
 
         if (existingMsg != null) {
           if (updatePayload.containsKey(FirestoreExtensions.fText)) {
@@ -753,7 +954,7 @@ class AcChatFirebase implements AcChatSyncChannel {
           }
           if (updatePayload.containsKey('edited_time')) {
             final et = updatePayload['edited_time'];
-            existingMsg.editedTimeUtc = et is int
+            existingMsg.editedTime = et is int
                 ? DateTime.fromMillisecondsSinceEpoch(et, isUtc: true)
                 : (et is Timestamp ? et.toDate().toUtc() : (et is DateTime ? et.toUtc() : (et is String ? parseUtc(et) : null)));
           }
@@ -781,6 +982,19 @@ class AcChatFirebase implements AcChatSyncChannel {
           }
         }
       } else if (type == AcChatUpdateType.read || type == 'read') {
+        final messageIds = (data['messageIds'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        if (messageIds.isNotEmpty) {
+          _onMessagesRead?.call(
+            messageIds: messageIds,
+            conversationId: convId,
+            receiverId: senderId ?? data['readerId']?.toString() ?? '',
+          );
+          _onConversationRead?.call(
+            conversationId: convId,
+            receiverId: senderId ?? data['readerId']?.toString() ?? '',
+            messageIds: messageIds,
+          );
+        }
         if (senderId == _currentUserId && conv != null) {
           conv.unread = 0;
           if (!_isChannelMode) {
@@ -808,6 +1022,7 @@ class AcChatFirebase implements AcChatSyncChannel {
 
   AcChatApi buildApi({
     required AcChatTheme theme,
+    required String userId,
     FutureOr<AcChatUser?> Function({required BuildContext context})? onNewContact,
     FutureOr<void> Function({required BuildContext context})? onNewGroup,
     List<AcChatUser> Function()? getContacts,
@@ -816,7 +1031,7 @@ class AcChatFirebase implements AcChatSyncChannel {
     String? newContactSubtitle,
     String? newGroupLabel,
     String? newGroupSubtitle,
-    FutureOr<List<AcChatUser>> Function({required String query})? onSearchRemoteUsers,
+    FutureOr<List<AcChatUser>> Function({String? query,List<String>? userIds})? onGetRemoteUsers,
     Widget? Function({required BuildContext context, required AcChatMessage message})? customMessageBuilder,
     void Function({required AcChatMessage message})? onMessageTap,
     Widget? Function({required BuildContext context, required AcChatConversation conversation})? customInputBuilder,
@@ -834,7 +1049,8 @@ class AcChatFirebase implements AcChatSyncChannel {
     int? maxGroupParticipants,
   }) {
     return AcChatApi(
-      theme: theme,
+      // theme: theme,
+      userId: userId,
       getCurrentUser: _getCurrentUser,
       getUsers: _getUsers,
       getUserById: ({required String userId}) => _getUserById(userId),
@@ -845,36 +1061,36 @@ class AcChatFirebase implements AcChatSyncChannel {
           _getMessages(conversationId),
       sendMessage: ({required AcChatMessage message}) =>
           _sendMessageStandalone(message),
-      markAsRead: ({required String conversationId}) =>
-          _markAsReadStandalone(conversationId),
+      notifyConversationRead: ({required String conversationId}) =>
+          _notifyConversationReadStandalone(conversationId),
       insertConversation: ({AcChatConversation? newConversation, required String otherUserId}) async =>
           _insertConversation(( newConversation)!, otherUserId),
-      createGroupConversation: ({
-        required String groupName,
-        required List<String> memberUserIds,
-        String? groupAvatar,
-        String? groupDescription,
-      }) =>
-          createGroupConversation(
-        groupName: groupName,
-        memberUserIds: memberUserIds,
-        groupAvatar: groupAvatar,
-        groupDescription: groupDescription,
-      ),
+      // createGroupConversation: ({
+      //   required String groupName,
+      //   required List<String> userUserIds,
+      //   String? groupAvatar,
+      //   String? groupDescription,
+      // }) =>
+      //     createGroupConversation(
+      //   groupName: groupName,
+      //   userUserIds: userUserIds,
+      //   groupAvatar: groupAvatar,
+      //   groupDescription: groupDescription,
+      // ),
       updateMessage: ({required String messageId, required Map<String, dynamic> data}) =>
           _updateMessageStandalone(messageId, data),
-      onNewContact: onNewContact,
-      onNewGroup: onNewGroup,
+      // onNewContact: onNewContact,
+      // onNewGroup: onNewGroup,
       getContacts: getContacts,
       contactsSectionTitle: contactsSectionTitle,
       newContactLabel: newContactLabel,
       newContactSubtitle: newContactSubtitle,
       newGroupLabel: newGroupLabel,
       newGroupSubtitle: newGroupSubtitle,
-      onSearchRemoteUsers: onSearchRemoteUsers,
-      customMessageBuilder: customMessageBuilder,
+      onGetRemoteUsers: onGetRemoteUsers,
+      // customMessageBuilder: customMessageBuilder,
       onMessageTap: onMessageTap,
-      customInputBuilder: customInputBuilder,
+      // customInputBuilder: customInputBuilder,
       enableVideoCall: enableVideoCall ?? true,
       enableVoiceCall: enableVoiceCall ?? true,
       showNewConversationButton: showNewConversationButton ?? true,
@@ -904,12 +1120,12 @@ class AcChatFirebase implements AcChatSyncChannel {
   Future<List<AcChatConversation>> _getConversations() async => List.unmodifiable(_conversations);
 
   Future<List<AcChatConversationUser>> _getConversationUsers(String conversationId) async =>
-      List.unmodifiable(_members[conversationId] ?? []);
+      List.unmodifiable(_conversationUsers[conversationId] ?? []);
 
   Future<List<AcChatMessage>> _getMessages(String conversationId) async =>
       List.unmodifiable(_messages[conversationId] ?? []);
 
-  Future<void> _markAsReadStandalone(String conversationId) async {
+  Future<void> _notifyConversationReadStandalone(String conversationId) async {
     _conversationIndex[conversationId]?.unread = 0;
     final idx = _conversations.indexWhere((c) => c.conversationId == conversationId);
     if (idx >= 0) _conversations[idx].unread = 0;
@@ -923,12 +1139,12 @@ class AcChatFirebase implements AcChatSyncChannel {
     if (newConv.conversationId.isEmpty) {
       newConv.conversationId = _uuid.v4();
     }
-    final allMembers = {_currentUserId, otherUserId}.where((id) => id.isNotEmpty).toList();
-    newConv.memberIds = allMembers;
+    final allUsers = {_currentUserId, otherUserId}.where((id) => id.isNotEmpty).toList();
+    newConv.userIds = allUsers;
 
     _conversationIndex[newConv.conversationId] = newConv;
     _conversations.insert(0, newConv);
-    _members[newConv.conversationId] = allMembers
+    _conversationUsers[newConv.conversationId] = allUsers
         .map((uid) => AcChatConversationUser()
           ..conversationId = newConv.conversationId
           ..userId = uid)
@@ -937,7 +1153,7 @@ class AcChatFirebase implements AcChatSyncChannel {
 
     createConversation(
       conversation: newConv,
-      memberIds: allMembers,
+      userIds: allUsers,
     ).catchError((Object e) {
       _log('insertConversation error', e, StackTrace.current);
       return null;
@@ -957,7 +1173,7 @@ class AcChatFirebase implements AcChatSyncChannel {
 
     sendMessage(
       message: msg,
-      recipientIds: _members[msg.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? [],
+      recipientIds: _conversationUsers[msg.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? [],
     ).then((_) {
       msg.status = 'sent';
       _upsertMessage(msg.conversationId, msg);
@@ -977,7 +1193,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       messageId: messageId,
       conversationId: msg.conversationId,
       data: data,
-      recipientIds: _members[msg.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? [],
+      recipientIds: _conversationUsers[msg.conversationId]?.map((m) => m.userId).where((id) => id != _currentUserId).toList() ?? [],
     ).catchError((Object e) {
       _log('updateMessage background error', e, StackTrace.current);
       return null;
@@ -996,4 +1212,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       stackTrace: stackTrace,
     );
   }
+
+  @override
+  Future<void> Function({required String conversationId, required String messageId})? onMessageFlushed;
 }

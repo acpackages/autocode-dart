@@ -1,11 +1,7 @@
-import 'dart:io';
-import 'package:test/test.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_sync/ac_sync.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-import 'package:ac_sync/src/database/data_dictionary.dart' as sync_dd;
 import 'package:autocode/autocode.dart';
-import 'package:ac_mirrors/ac_mirrors.dart';
 import './data_dictionary.dart' as DD;
 
 Future<void> main() async {

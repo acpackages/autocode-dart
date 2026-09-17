@@ -694,7 +694,7 @@ messages of other users and mark channel as unread from selected message onwards
   download on web.
 - [[#1591]](https://github.com/GetStream/stream-chat-flutter/issues/1591)
   Fixed `AcChannelInfoBottomSheet` not
-  rendering member list properly.
+  rendering user list properly.
 - [[#1427]](https://github.com/GetStream/stream-chat-flutter/issues/1427) Fixed unable to load asset
   error for
   `packages/ac_chat/lib/svgs/video_call_icon.svg`.
@@ -726,7 +726,7 @@ messages of other users and mark channel as unread from selected message onwards
   image/data in Message link preview.
 - [[#1482]](https://github.com/GetStream/stream-chat-flutter/issues/1482)
   Fixed `StreaChannelListTile` not showing
-  unread indicator when `currentUser` is not present in the initial member list.
+  unread indicator when `currentUser` is not present in the initial user list.
 - [[#1487]](https://github.com/GetStream/stream-chat-flutter/issues/1487) Use localized title
   for `WebOrDesktopAttachmentPickerOption` in `StreamMessageInput`.
 - [[#1250]](https://github.com/GetStream/stream-chat-flutter/issues/1250) Fixed bottomRow
@@ -1329,7 +1329,7 @@ the [V4 Migration Guide](https://getstream.io/chat/docs/sdk/flutter/guides/migra
 
 - [[#766]](https://github.com/GetStream/stream-chat-flutter/issues/766) `AcAttachmentActionsModal` now
   has customisation options for actions.
-- Fixed `MessageWidget` null errors associated with `channel.memberCount`.
+- Fixed `MessageWidget` null errors associated with `channel.userCount`.
 - Fixed adding attachments on web.
 - [[#767]](https://github.com/GetStream/stream-chat-flutter/issues/767): Fix `MessageInput` focus
   behaviour when sending messages.
@@ -1375,7 +1375,7 @@ the [V4 Migration Guide](https://getstream.io/chat/docs/sdk/flutter/guides/migra
 
 - Added `MessageInput.customOverlays` property to add custom overlays to the message input.
 - Added `MessageInput.mentionAllAppUsers` property to mention all app users in the message input.
-- The `MessageInput` now supports local search for channels with less than 100 members.
+- The `MessageInput` now supports local search for channels with less than 100 users.
 - Added `MessageListView.paginationLoadingIndicatorBuilder` to override the default loading
   indicator shown while paginating the message list.
 - Added new `linkBackgroundColor` in `MessageTheme` for setting background colors of link
@@ -1528,7 +1528,7 @@ breakdown:
 🐞 Fixed
 
 - [#590](https://github.com/GetStream/stream-chat-flutter/issues/590): livestream use case, no
-  members when sending message
+  users when sending message
 
 ## 2.1.1
 
@@ -1616,7 +1616,7 @@ typedef MessageBuilder = Widget Function(
   use case
 - [#484](https://github.com/GetStream/stream-chat-flutter/issues/484): messages don't update without
   a reload
-- `MessageListView` not rendering if the user is not a member of the channel
+- `MessageListView` not rendering if the user is not a user of the channel
 - Fix `MessageInput` overflow when there are no actions
 - Minor fixes and improvements
 
@@ -1680,7 +1680,7 @@ typedef MessageBuilder = Widget Function(
   use case
 - [#484](https://github.com/GetStream/stream-chat-flutter/issues/484): messages don't update without
   a reload
-- `MessageListView` not rendering if the user is not a member of the channel
+- `MessageListView` not rendering if the user is not a user of the channel
 
 ## 2.0.0-nullsafety.7
 

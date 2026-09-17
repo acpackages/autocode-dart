@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../core/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../ac_chat.dart';
 
 class ReplyBar extends StatelessWidget {
   final AcChatMessage message;
@@ -14,15 +15,14 @@ class ReplyBar extends StatelessWidget {
   });
 
   Future<String> _getSenderName(AcChatApi api) async {
-    final current = await api.getCurrentUser();
-    if (message.senderId == current.userId) return 'You';
+    if (message.senderId == api.userId) return 'You';
     final sender = await api.getUserById(userId: message.senderId);
     return sender?.name ?? 'Unknown';
   }
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
+    AcChatApi api = AcChatApiProvider.getApi(context);
     return FutureBuilder<String>(
       future: _getSenderName(api),
       builder: (context, snapshot) {

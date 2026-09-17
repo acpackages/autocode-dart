@@ -1,25 +1,24 @@
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/ac_chat.dart';
+import '../../ac_chat.dart';
 
 class ConversationListItem extends StatefulWidget {
-  final AcChatConversation chat;
+  final AcChatConversation conversation;
   final AcChatTheme ct;
   final bool isDark;
   final bool isSelected;
   final VoidCallback onTap;
-  final AcChatUser? otherUser;
   final bool showOnlineStatus;
   final bool pinningEnabled;
 
   const ConversationListItem({
     super.key,
-    required this.chat,
+    required this.conversation,
     required this.ct,
     required this.isDark,
     required this.isSelected,
     required this.onTap,
-    this.otherUser,
     this.showOnlineStatus = true,
     this.pinningEnabled = true,
   });
@@ -29,23 +28,20 @@ class ConversationListItem extends StatefulWidget {
 }
 
 class _ConversationListItemState extends State<ConversationListItem> {
-  AcChatUser? _user;
-  AcChatUser? _currentUser;
+  AcChatUser? conUser;
   AcChatMessage? _lastMessageObj;
 
-  AcChatConversation get chat => widget.chat;
+  AcChatConversation get conversation => widget.conversation;
   AcChatTheme get ct => widget.ct;
   bool get isDark => widget.isDark;
   bool get isSelected => widget.isSelected;
   VoidCallback get onTap => widget.onTap;
-  AcChatUser? get otherUser => widget.otherUser;
   bool get showOnlineStatus => widget.showOnlineStatus;
   bool get pinningEnabled => widget.pinningEnabled;
 
   @override
   void initState() {
     super.initState();
-    _user = widget.otherUser;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadItemData();
     });
@@ -54,60 +50,19 @@ class _ConversationListItemState extends State<ConversationListItem> {
   @override
   void didUpdateWidget(covariant ConversationListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.otherUser != null && widget.otherUser != oldWidget.otherUser) {
-      _user = widget.otherUser;
-    }
-    if (widget.chat.conversationId != oldWidget.chat.conversationId ||
-        widget.chat.otherUserId != oldWidget.chat.otherUserId) {
-      _loadItemData();
+    if (conversation.otherUser != null && conversation.otherUser!.user != null) {
+      conUser = conversation.otherUser!.user!;
     }
   }
 
   Future<void> _loadItemData() async {
-    final api = AcChatApiProvider.of(context);
-    final currentUser = await api.getCurrentUser();
-    AcChatUser? user = _user ?? widget.otherUser;
-    final isGroup = chat.type == 'group';
-    if ((user == null || user.name.trim().isEmpty) && !isGroup) {
-      try {
-        final members = await api.getConversationUsers(conversationId: chat.conversationId);
-        final otherMember = members.firstWhere(
-          (m) => m.userId.isNotEmpty && m.userId != currentUser.userId,
-          orElse: () => AcChatConversationUser(),
-        );
-        if (otherMember.userId.isNotEmpty) {
-          final u = await api.getUserById(userId: otherMember.userId);
-          if (u != null && u.name.trim().isNotEmpty) user = u;
-        }
-      } catch (_) {}
-
-      if (user == null || user.name.trim().isEmpty) {
-        final otherId = chat.memberIds.firstWhere(
-          (id) => id.isNotEmpty && id != currentUser.userId,
-          orElse: () => '',
-        );
-        if (otherId.isNotEmpty) {
-          try {
-            final u = await api.getUserById(userId: otherId);
-            if (u != null && u.name.trim().isNotEmpty) user = u;
-          } catch (_) {}
-        }
-      }
-
-      if (user == null || user.name.trim().isEmpty) {
-        final directUserId = chat.otherUserId;
-        if (directUserId != null && directUserId.isNotEmpty && directUserId != currentUser.userId) {
-          try {
-            final u = await api.getUserById(userId: directUserId);
-            if (u != null && u.name.trim().isNotEmpty) user = u;
-          } catch (_) {}
-        }
-      }
-    }
+    AcChatApi api = AcChatApiProvider.getApi(context);
+    AcChatUser? user = conversation.otherUser?.user;
+    final isGroup = conversation.type == 'group';
 
     AcChatMessage? lastMessageObj;
     try {
-      final msgs = await api.getMessages(conversationId: chat.conversationId);
+      final msgs = await api.getMessages(conversationId: conversation.conversationId);
       if (msgs.isNotEmpty) {
         lastMessageObj = msgs.last;
       }
@@ -115,9 +70,8 @@ class _ConversationListItemState extends State<ConversationListItem> {
 
     if (mounted) {
       setState(() {
-        _currentUser = currentUser;
-        if (user != null && user.name.trim().isNotEmpty) {
-          _user = user;
+        if (user != null && user!.name.trim().isNotEmpty) {
+          user = user;
         }
         _lastMessageObj = lastMessageObj;
       });
@@ -126,33 +80,33 @@ class _ConversationListItemState extends State<ConversationListItem> {
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
-    final user = _user ?? otherUser;
-    final currentUser = _currentUser;
+    AcChatApi api = AcChatApiProvider.getApi(context);
+    final user = conUser;
+    print("Conversation List Item User");
+    print(conversation.toJson());
+    print(user != null ? user.toJson():null);
     final lastMessageObj = _lastMessageObj;
-    final isGroup = chat.type == 'group';
+    final isGroup = conversation.type == 'group';
     final name = isGroup
-        ? (chat.groupName != null && chat.groupName!.trim().isNotEmpty
-            ? chat.groupName!
-            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
-                ? chat.conversationName!
-                : 'Group'))
+        ? (conversation.conversationName != null && conversation.conversationName!.trim().isNotEmpty
+        ? conversation.conversationName!
+        : 'Group')
         : (user != null && user.name.trim().isNotEmpty
             ? user.name
-            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
-                ? chat.conversationName!
+            : (conversation.conversationName != null && conversation.conversationName!.trim().isNotEmpty
+                ? conversation.conversationName!
                 : 'Unknown'));
     final initials = _initials(name: name);
-    final dynamic userId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? chat.otherUserId ?? '');
-    final color = avatarColor(userId);
-    final lastTime = chat.lastTime;
-    final unread = chat.unread;
-    final isPinned = pinningEnabled && chat.isPinned;
-    final isMuted = chat.isMuted;
-    final lastMsg = chat.lastMessage;
+    // final dynamic userId = isGroup ? '${conversation.conversationId}-group' : (user?.name ?? '');
+    final color = avatarColor(name);
+    final lastTime = conversation.lastTime;
+    final unread = conversation.unread;
+    final isPinned = pinningEnabled && conversation.isPinned;
+    final isMuted = conversation.isMuted;
+    final lastMsg = conversation.lastMessage;
     final isToday = _isToday(dt: lastTime);
 
-    final isSentByMe = lastMessageObj != null && currentUser != null && lastMessageObj.senderId == currentUser.userId;
+    final isSentByMe = lastMessageObj != null && lastMessageObj.senderId == api.userId;
 
     return InkWell(
       onTap: onTap,
@@ -338,35 +292,39 @@ class _ConversationListItemState extends State<ConversationListItem> {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
+        if(api.enableConversationArchiving)
         const SizedBox(height: 12),
+        if(api.enableConversationArchiving)
         _ContextOption(
-          icon: chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
-          label: chat.isArchived ? 'Unarchive Chat' : 'Archive Chat',
+          icon: conversation.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+          label: conversation.isArchived ? 'Unarchive Chat' : 'Archive Chat',
           ct: ct,
           onTap: () async {
             Navigator.pop(bottomCtx);
-            await api.archiveConversation(conversationId: chat.conversationId, isArchived: !chat.isArchived);
+            await api.archiveConversation(conversationId: conversation.conversationId, isArchived: !conversation.isArchived);
           },
         ),
+        if(api.enableConversationMuting)
         _ContextOption(
-          icon: chat.isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
-          label: chat.isMuted ? 'Unmute' : 'Mute',
+          icon: conversation.isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+          label: conversation.isMuted ? 'Unmute' : 'Mute',
           ct: ct,
           onTap: () async {
             Navigator.pop(bottomCtx);
-            await api.muteConversation(conversationId: chat.conversationId, muted: !chat.isMuted);
+            await api.muteConversation(conversationId: conversation.conversationId, muted: !conversation.isMuted);
           },
         ),
         if (pinningEnabled)
           _ContextOption(
-            icon: chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-            label: chat.isPinned ? 'Unpin Chat' : 'Pin Chat',
+            icon: conversation.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+            label: conversation.isPinned ? 'Unpin Chat' : 'Pin Chat',
             ct: ct,
             onTap: () async {
               Navigator.pop(bottomCtx);
-              await api.pinConversation(conversationId: chat.conversationId, isPinned: !chat.isPinned);
+              await api.pinConversation(conversationId: conversation.conversationId, isPinned: !conversation.isPinned);
             },
           ),
+        if(api.enableConversationDeletion)
         _ContextOption(
           icon: Icons.delete_outline,
           label: 'Delete Chat',
@@ -392,7 +350,7 @@ class _ConversationListItemState extends State<ConversationListItem> {
               ),
             );
             if (confirmed == true) {
-              await api.deleteConversation(conversationId: chat.conversationId);
+              await api.deleteConversation(conversationId: conversation.conversationId);
             }
           },
         ),

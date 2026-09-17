@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+
 import '../models/ac_chat_notification_payload.dart';
 import '../services/ac_chat_notification_service.dart';
 

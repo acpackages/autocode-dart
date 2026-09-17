@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
-import 'package:autocode/src/utils/ac_string_utils.dart';
 
 /* AcDoc({
   "description": "Defines a comprehensive logger that supports multiple log output formats including console, print, HTML, and plain text."

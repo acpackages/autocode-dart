@@ -1,3 +1,5 @@
+import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -62,18 +64,26 @@ class _ThemeInherited extends InheritedWidget {
 // ─────────────────────────────────────────────────────────────
 
 class AcChatApiProvider extends InheritedWidget {
-  final dynamic api;
+  final AcChatApi api;
+  final AcChat chat;
 
   const AcChatApiProvider({
     super.key,
     required this.api,
+    required this.chat,
     required super.child,
   });
 
-  static dynamic of(BuildContext context) {
+  static AcChatApi getApi(BuildContext context) {
     final provider = context.dependOnInheritedWidgetOfExactType<AcChatApiProvider>();
     assert(provider != null, 'No AcChatApiProvider found in context');
     return provider!.api;
+  }
+
+  static AcChat getChat(BuildContext context) {
+    final provider = context.dependOnInheritedWidgetOfExactType<AcChatApiProvider>();
+    assert(provider != null, 'No AcChatApiProvider found in context');
+    return provider!.chat;
   }
 
   @override

@@ -1,30 +1,33 @@
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/material.dart';
-import '../core/ac_chat.dart';
+import '../../ac_chat.dart';
 import 'conversation/conversation_media_tabs.dart';
 
-class ChatProfileScreen extends StatefulWidget {
-  final AcChatConversation chat;
+
+class ConversationProfileScreen extends StatefulWidget {
+  final AcChatConversation conversation;
+  final AcChat chat;
   final VoidCallback? onClose;
   final bool isEmbedded;
   final AcChatApi api;
 
-  const ChatProfileScreen({
+  const ConversationProfileScreen({
     super.key,
-    required this.chat,
+    required this.conversation,
     this.onClose,
     this.isEmbedded = false,
     required this.api,
+    required this.chat,
   });
 
   @override
-  State<ChatProfileScreen> createState() => _ChatProfileScreenState();
+  State<ConversationProfileScreen> createState() => _ConversationProfileScreenState();
 }
 
-class _ChatProfileScreenState extends State<ChatProfileScreen> {
+class _ConversationProfileScreenState extends State<ConversationProfileScreen> {
   bool _isLoading = true;
-  AcChatUser? _currentUser;
-  AcChatUser? _user;
-  List<AcChatConversationUser> _membersList = [];
+  AcChatUser? user;
+  List<AcChatConversationUser> usersList = [];
   bool _isBlocked = false;
   List<AcChatMessage> _mediaMsgs = [];
 
@@ -36,44 +39,15 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
 
   Future<void> _loadProfileData() async {
     final api = widget.api;
-    final chat = widget.chat;
-    final isGroup = chat.type == 'group';
-    AcChatUser? user;
-    final currentUser = await api.getCurrentUser();
-    if (!isGroup) {
-      final members = await api.getConversationUsers(conversationId: chat.conversationId);
-      final otherMember = members.firstWhere(
-        (m) => m.userId.isNotEmpty && m.userId != currentUser.userId,
-        orElse: () => AcChatConversationUser(),
-      );
-      if (otherMember.userId.isNotEmpty) {
-        final u = await api.getUserById(userId: otherMember.userId);
-        if (u != null && u.name.trim().isNotEmpty) user = u;
-      }
-      if (user == null || user.name.trim().isEmpty) {
-        final otherId = chat.memberIds.firstWhere(
-          (id) => id.isNotEmpty && id != currentUser.userId,
-          orElse: () => '',
-        );
-        if (otherId.isNotEmpty) {
-          final u = await api.getUserById(userId: otherId);
-          if (u != null && u.name.trim().isNotEmpty) user = u;
-        }
-      }
-      if (user == null || user.name.trim().isEmpty) {
-        final directUserId = chat.otherUserId;
-        if (directUserId != null && directUserId.isNotEmpty && directUserId != currentUser.userId) {
-          final u = await api.getUserById(userId: directUserId);
-          if (u != null && u.name.trim().isNotEmpty) user = u;
-        }
-      }
-    }
+    final conversation = widget.conversation;
+    final isGroup = conversation.type == 'group';
+    user = conversation.otherUser?.user;
 
-    var membersList = await api.getConversationUsers(conversationId: chat.conversationId);
-    if (isGroup && membersList.isEmpty && chat.memberIds.isNotEmpty) {
-      membersList = chat.memberIds
+    var usersList = await api.getConversationUsers(conversationId: conversation.conversationId);
+    if (isGroup && usersList.isEmpty && conversation.userIds.isNotEmpty) {
+      usersList = conversation.userIds
           .map((id) => AcChatConversationUser()
-            ..conversationId = chat.conversationId
+            ..conversationId = conversation.conversationId
             ..userId = id)
           .toList();
     }
@@ -81,30 +55,29 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
     final participantChats = <AcChatConversation>[];
     bool isBlocked = false;
     if (user != null) {
-      final targetUserId = user.userId;
+      final targetUserId = user!.userId;
       final otherChats = (await api.getConversations())
-          .where((c) => c.conversationId != chat.conversationId)
+          .where((c) => c.conversationId != conversation.conversationId)
           .toList();
 
       for (var c in otherChats) {
-        final members = await api.getConversationUsers(conversationId: c.conversationId);
-        if (members.any((m) => m.userId == targetUserId)) {
+        final users = await api.getConversationUsers(conversationId: c.conversationId);
+        if (users.any((m) => m.userId == targetUserId)) {
           participantChats.add(c);
         }
       }
 
-      isBlocked = await api.isUserBlocked(userId: user.userId);
+      isBlocked = await api.isUserBlocked(userId: user!.userId);
     }
 
-    final mediaMsgs = (await api.getMessages(conversationId: chat.conversationId))
+    final mediaMsgs = (await api.getMessages(conversationId: conversation.conversationId))
         .where((m) => m.type == 'image' || m.type == 'video' || m.type == 'audio')
         .toList();
 
     if (mounted) {
       setState(() {
-        _currentUser = currentUser;
-        _user = user;
-        _membersList = membersList;
+        user = user;
+        usersList = usersList;
         _isBlocked = isBlocked;
         _mediaMsgs = mediaMsgs;
         _isLoading = false;
@@ -115,10 +88,14 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final api = widget.api;
-    final chat = widget.chat;
+    final conversation = widget.conversation;
     final ct = api.theme;
     final isDark = ct.isDark;
 
+    print("[Conversation profile screen] user");
+    print(conversation.otherUser);
+    print(conversation.otherUser?.user?.toJson());
+    print(user);
     if (_isLoading) {
       return Scaffold(
         backgroundColor: ct.scaffold,
@@ -126,23 +103,19 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
       );
     }
 
-    final currentUser = _currentUser;
-    final isGroup = chat.type == 'group';
-    final user = _user;
-    final membersList = _membersList;
+    final isGroup = conversation.type == 'group';
+    // final user = user;
     final isBlocked = _isBlocked;
     final mediaMsgs = _mediaMsgs;
 
     final name = isGroup
-        ? (chat.groupName != null && chat.groupName!.trim().isNotEmpty
-            ? chat.groupName!
-            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
-                ? chat.conversationName!
-                : 'Group'))
-        : (user != null && user.name.trim().isNotEmpty
-            ? user.name
-            : (chat.conversationName != null && chat.conversationName!.trim().isNotEmpty
-                ? chat.conversationName!
+        ? (conversation.conversationName != null && conversation.conversationName!.trim().isNotEmpty
+        ? conversation.conversationName!
+        : 'Group')
+        : (user != null && user!.name.trim().isNotEmpty
+            ? user!.name
+            : (conversation.conversationName != null && conversation.conversationName!.trim().isNotEmpty
+                ? conversation.conversationName!
                 : 'Unknown'));
 
     final userEmail = user?.email.trim();
@@ -151,14 +124,13 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
         ? userEmail
         : ((userPhone != null && userPhone.isNotEmpty) ? userPhone : 'No email');
     final subtitleText = isGroup
-        ? 'Group • ${membersList.length} members'
+        ? 'Group • ${usersList.length} users'
         : 'Direct Message • $userContact';
-
-    final dynamic avatarId = isGroup ? '${chat.conversationId}-group' : (user?.userId ?? chat.otherUserId ?? '');
-    final themeColor = avatarColor(avatarId);
+    final themeColor = avatarColor(name);
 
     return AcChatApiProvider(
       api: api,
+      chat: widget.chat,
       child: Scaffold(
         backgroundColor: ct.scaffold,
         body: CustomScrollView(
@@ -193,7 +165,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                     children: [
                       const SizedBox(height: 40),
                       Hero(
-                        tag: widget.isEmbedded ? 'avatar-profile-${chat.conversationId}' : 'avatar-${chat.conversationId}',
+                        tag: widget.isEmbedded ? 'avatar-profile-${conversation.conversationId}' : 'avatar-${conversation.conversationId}',
                         child: CircleAvatar(
                           radius: 54,
                           backgroundColor: ct.white.withValues(alpha: 0.2),
@@ -251,7 +223,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         onTap: () {
                           ConversationMediaTabs.showModal(
                             context: context,
-                            chat: chat,
+                            conversation: conversation,
                             ct: ct,
                             api: api,
                           );
@@ -373,11 +345,11 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             //                     fontWeight: FontWeight.bold,
             //                   ),
             //                 ),
-            //                 if (isGroup && api.addGroupMembers != null)
+            //                 if (isGroup && api.addConversationMembers != null)
             //                   IconButton(
             //                     icon: Icon(Icons.person_add_alt_1_rounded, color: ct.activeTabColor, size: 22),
             //                     onPressed: () async {
-            //                       if (membersList.length >= api.maxGroupParticipants) {
+            //                       if (usersList.length >= api.maxGroupParticipants) {
             //                         ScaffoldMessenger.of(context).showSnackBar(
             //                           SnackBar(
             //                             content: Text('Group participant limit (${api.maxGroupParticipants}) reached'),
@@ -386,7 +358,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             //                         return;
             //                       }
             //                       final allUsers = api.getUsers();
-            //                       final currentMemberIds = membersList.map((m) => m.userId).toSet();
+            //                       final currentMemberIds = usersList.map((m) => m.userId).toSet();
             //                       final myId = api.getCurrentUser().userId;
             //                       final candidates = allUsers
             //                           .where((u) => !currentMemberIds.contains(u.userId) && u.userId != myId)
@@ -411,8 +383,8 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             //                       );
             //
             //                       if (selectedUser != null) {
-            //                         await api.addGroupMembers!(
-            //                           conversationId: chat.conversationId,
+            //                         await api.addConversationMembers!(
+            //                           conversationId: conversation.conversationId,
             //                           userIds: [selectedUser.userId],
             //                         );
             //                         if (mounted) setState(() {});
@@ -427,10 +399,10 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             //             ListView.builder(
             //               shrinkWrap: true,
             //               physics: const NeverScrollableScrollPhysics(),
-            //               itemCount: membersList.length,
+            //               itemCount: usersList.length,
             //               itemBuilder: (context, index) {
-            //                 final memberRel = membersList[index];
-            //                 final u = api.getUserById(userId: memberRel.userId);
+            //                 final userRel = usersList[index];
+            //                 final u = api.getUserById(userId: userRel.userId);
             //                 if (u == null) return const SizedBox.shrink();
             //                 final isMe = u.userId == api.getCurrentUser().userId;
             //
@@ -447,12 +419,12 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
             //                     style: TextStyle(color: ct.text),
             //                   ),
             //                   subtitle: Text(u.email, style: TextStyle(color: ct.subText, fontSize: 12)),
-            //                   trailing: (!isMe && api.removeGroupMember != null)
+            //                   trailing: (!isMe && api.removeConversationMembers != null)
             //                       ? IconButton(
             //                           icon: Icon(Icons.remove_circle_outline, color: ct.messageDestructive, size: 20),
             //                           onPressed: () async {
-            //                             await api.removeGroupMember!(
-            //                               conversationId: chat.conversationId,
+            //                             await api.removeConversationMembers!(
+            //                               conversationId: conversation.conversationId,
             //                               userId: u.userId,
             //                             );
             //                             if (mounted) setState(() {});
@@ -527,25 +499,28 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                   child: Column(
                     children: [
                       // Mute Notifications
+                      if(api.enableConversationMuting)
                       SwitchListTile(
-                        secondary: Icon(chat.isMuted ? Icons.volume_off : Icons.volume_up_outlined, color: ct.subText),
+                        secondary: Icon(conversation.isMuted ? Icons.volume_off : Icons.volume_up_outlined, color: ct.subText),
                         title: Text('Mute Notifications', style: TextStyle(color: ct.text)),
-                        value: chat.isMuted,
+                        value: conversation.isMuted,
                         activeThumbColor: ct.activeTabColor,
                         onChanged: (val) async {
-                          await api.muteConversation(conversationId: chat.conversationId, muted: val);
+                          await api.muteConversation(conversationId: conversation.conversationId, muted: val);
                           setState(() {
-                            chat.isMuted = val;
+                            conversation.isMuted = val;
                           });
                         },
                       ),
+                      if(api.enableConversationMuting)
                       // Disappearing Messages
                       Divider(color: ct.divider, height: 1),
+                      if(api.enableMessageDisappearing)
                       ListTile(
                         leading: Icon(Icons.timer_outlined, color: ct.subText),
                         title: Text('Disappearing Messages', style: TextStyle(color: ct.text)),
                         subtitle: Text(
-                          _formatDisappearingDuration(chat.disappearingDurationSeconds),
+                          _formatDisappearingDuration(conversation.disappearingDurationSeconds),
                           style: TextStyle(color: ct.subText, fontSize: 12),
                         ),
                         onTap: () async {
@@ -575,20 +550,20 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                           );
                           if (selected != null && mounted) {
                             setState(() {
-                              chat.disappearingDurationSeconds = selected > 0 ? selected : null;
+                              conversation.disappearingDurationSeconds = selected > 0 ? selected : null;
                             });
                           }
                         },
                       ),
                       // Edit Group (if isGroup)
-                      if (isGroup && (!api.enableGroupAdminRoles || chat.createdBy == currentUser?.userId)) ...[
+                      if (isGroup && (!api.enableGroupAdminRoles || conversation.createdBy == api.userId)) ...[
                         Divider(color: ct.divider, height: 1),
                         ListTile(
                           leading: Icon(Icons.edit_outlined, color: ct.subText),
                           title: Text('Edit Group Details', style: TextStyle(color: ct.text)),
                           onTap: () async {
-                            final nameCtrl = TextEditingController(text: chat.groupName);
-                            final descCtrl = TextEditingController(text: chat.groupDescription);
+                            final nameCtrl = TextEditingController(text: conversation.conversationName);
+                            final descCtrl = TextEditingController(text: conversation.conversationDescription);
                             final confirmed = await showDialog<bool>(
                               context: context,
                               builder: (dCtx) => AlertDialog(
@@ -614,13 +589,13 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                               ),
                             );
                             if (confirmed == true && mounted) {
-                              chat.groupName = nameCtrl.text.trim();
-                              chat.groupDescription = descCtrl.text.trim();
-                              await api.updateGroupDetails(
-                                conversationId: chat.conversationId,
-                                groupName: chat.groupName,
-                                groupDescription: chat.groupDescription,
-                              );
+                              conversation.conversationName = nameCtrl.text.trim();
+                              conversation.conversationDescription = descCtrl.text.trim();
+                              // await api.updateGroupDetails(
+                              //   conversationId: conversation.conversationId,
+                              //   groupName: conversation.conversationName,
+                              //   groupDescription: conversation.conversationDescription,
+                              // );
                               setState(() {});
                             }
                           },
@@ -628,11 +603,12 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                       ],
                       // Export Chat
                       Divider(color: ct.divider, height: 1),
+                      if(api.enableConversationExport)
                       ListTile(
                         leading: Icon(Icons.file_download_outlined, color: ct.subText),
                         title: Text('Export Chat', style: TextStyle(color: ct.text)),
                         onTap: () async {
-                          final data = await api.exportChat(conversationId: chat.conversationId, asJson: true);
+                          final data = await api.exportChat(conversationId: conversation.conversationId, asJson: true);
                           if (mounted) {
                             showDialog(
                               context: context,
@@ -650,7 +626,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                         Divider(color: ct.divider, height: 1),
                         Builder(
                           builder: (context) {
-                            final targetUid = user.userId;
+                            final targetUid = user!.userId;
 
                             return ListTile(
                               leading: Icon(isBlocked ? Icons.lock_open : Icons.block, color: ct.messageDestructive),
@@ -671,7 +647,7 @@ class _ChatProfileScreenState extends State<ChatProfileScreen> {
                           leading: Icon(Icons.report_outlined, color: ct.messageDestructive),
                           title: Text('Report User', style: TextStyle(color: ct.messageDestructive)),
                           onTap: () async {
-                            final targetUid = user.userId;
+                            final targetUid = user!.userId;
                             final reasonCtrl = TextEditingController();
                             final confirmed = await showDialog<bool>(
                               context: context,

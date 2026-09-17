@@ -1,10 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:autocode/autocode.dart';
-import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-
-import 'internal_data_dictionary.dart';
 
 testDataDictionary() async {
   var dataDictionaryFile = File('../assets/data_dictionary.json');

@@ -86,7 +86,7 @@ class AcSyncDatabase {
     try {
       logger.log(
           "[AcSyncDatabase|$isDestination]  Disabling foreign keys for sync application...");
-      await dao!.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
+      await dao!.disableForeignKeyChecks();
       for (var tableName in changes.tableChanges.keys) {
         var tableChanges = changes.tableChanges[tableName]!;
         logger.log(
@@ -174,7 +174,7 @@ class AcSyncDatabase {
         }
       }
       logger.log("[AcSyncDatabase|$isDestination]   Re-enabling foreign keys...");
-      await dao!.executeStatement(statement: "PRAGMA foreign_keys = ON;");
+      await dao!.enableForeignKeyChecks();
       result.setSuccess();
       logger.log("[AcSyncDatabase|$isDestination]   Sync changes applied successfully.");
     } catch (e, stack) {
@@ -203,7 +203,7 @@ class AcSyncDatabase {
       for (var tableName in changes.tableChanges.keys) {
         final tableDef = definition.tableDefinitions.firstWhere((t) =>
         t.tableName == tableName);
-        if (tableDef != null && tableDef.deleteAfterSyncFromDestination) {
+        if (tableDef.deleteAfterSyncFromDestination) {
           final tableChanges = changes.tableChanges[tableName]!;
           final pkField = tableDef.primaryKeyField.isNotEmpty ? tableDef
               .primaryKeyField : 'id';
@@ -359,10 +359,10 @@ class AcSyncDatabase {
 
             for (var log in logs) {
               String op = log.getString(TblAcSyncChangeLogs.rowOperation);
-              String? payloadStr = log.getString(
+              String payloadStr = log.getString(
                   TblAcSyncChangeLogs.rowPayload);
               Map<String, dynamic> payload = {};
-              if (payloadStr != null && payloadStr.isNotEmpty) {
+              if (payloadStr.isNotEmpty) {
                 try {
                   payload = jsonDecode(payloadStr);
                 } catch (e) {
@@ -761,9 +761,9 @@ class AcSyncDatabase {
     );
     if (rowsResult.isSuccess() && rowsResult.rows.isNotEmpty) {
       var row = rowsResult.rows.first;
-      String? metaStr = row.getString(TblAcSyncSessions.metadata);
+      String metaStr = row.getString(TblAcSyncSessions.metadata);
       Map<String, dynamic> metadata = {};
-      if (metaStr != null && metaStr.isNotEmpty) {
+      if (metaStr.isNotEmpty) {
         try {
           metadata = jsonDecode(metaStr);
         } catch (_) {}
@@ -792,10 +792,10 @@ class AcSyncDatabase {
         outgoingTargetCheckpoint: metadata['outgoingTargetCheckpoint'],
         outgoingCompleted: row.getInt(TblAcSyncSessions.outgoingCompleted) == 1 || row.getBool(TblAcSyncSessions.outgoingCompleted),
         metadata: metadata,
-        createdAt: row.getString(TblAcSyncSessions.createdAt) ?? "",
-        updatedAt: row.getString(TblAcSyncSessions.updatedAt) ?? "",
-        lastActivityAt: row.getString(TblAcSyncSessions.lastActivityAt) ?? "",
-        expiresAt: row.getString(TblAcSyncSessions.expiresAt) ?? "",
+        createdAt: row.getString(TblAcSyncSessions.createdAt),
+        updatedAt: row.getString(TblAcSyncSessions.updatedAt),
+        lastActivityAt: row.getString(TblAcSyncSessions.lastActivityAt),
+        expiresAt: row.getString(TblAcSyncSessions.expiresAt),
       );
     }
     return null;

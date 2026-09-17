@@ -1,7 +1,8 @@
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../../core/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../../ac_chat.dart';
 
 class ImageMessageBubble extends StatelessWidget {
   final AcChatMessage message;
@@ -13,9 +14,7 @@ class ImageMessageBubble extends StatelessWidget {
     Widget imageWidget;
 
     final localFilePath = message.localPath;
-    final remoteUrl = (message.filePath != null && message.filePath!.startsWith('http'))
-        ? message.filePath
-        : (message.fileUrl ?? (message.text.startsWith('http') ? message.text : null));
+    final remoteUrl = (message.fileUrl != null && message.fileUrl!.startsWith('http')) ? message.fileUrl : null;
 
     if (message.byteData != null && message.byteData!.isNotEmpty) {
       imageWidget = Image.memory(

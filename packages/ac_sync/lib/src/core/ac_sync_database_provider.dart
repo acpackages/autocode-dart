@@ -1,5 +1,4 @@
 import '../../ac_sync.dart';
-import './ac_sync_provider.dart';
 
 class AcSyncDatabaseProvider implements AcSyncProvider {
   final AcSyncDatabase database;

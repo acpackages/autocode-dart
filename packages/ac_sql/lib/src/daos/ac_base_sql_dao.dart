@@ -28,6 +28,34 @@ class AcBaseSqlDao {
     sqlConnection = AcSqlConnection();
   }
 
+  /* AcDoc({"summary": "The database type corresponding to this DAO instance."}) */
+  AcEnumSqlDatabaseType get databaseType => AcEnumSqlDatabaseType.unknown;
+
+  /* AcDoc({"summary": "The SQL expression for generating a UUID inline."}) */
+  String get uuidExpression => "''";
+
+  /* AcDoc({"summary": "The SQL statement to disable foreign key checks."}) */
+  String get disableForeignKeyChecksSql => "";
+
+  /* AcDoc({"summary": "The SQL statement to enable foreign key checks."}) */
+  String get enableForeignKeyChecksSql => "";
+
+  /* AcDoc({"summary": "Disables foreign key constraint checks."}) */
+  Future<AcResult> disableForeignKeyChecks() async {
+    if (disableForeignKeyChecksSql.isNotEmpty) {
+      return executeStatement(statement: disableForeignKeyChecksSql);
+    }
+    return AcResult()..setSuccess();
+  }
+
+  /* AcDoc({"summary": "Enables foreign key constraint checks."}) */
+  Future<AcResult> enableForeignKeyChecks() async {
+    if (enableForeignKeyChecksSql.isNotEmpty) {
+      return executeStatement(statement: enableForeignKeyChecksSql);
+    }
+    return AcResult()..setSuccess();
+  }
+
   /* AcDoc({
     "summary": "Checks if the configured database exists.",
     "description": "Implementations should query the database server to verify the existence of the database specified in the `sqlConnection` configuration.",

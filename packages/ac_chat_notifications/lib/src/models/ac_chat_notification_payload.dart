@@ -1,4 +1,4 @@
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 
 /// Universal data payload representing a chat notification.
 ///

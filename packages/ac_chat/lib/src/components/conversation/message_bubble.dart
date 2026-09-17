@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/ac_chat.dart';
-import '../../common/chat_colors.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../ac_chat.dart';
 import 'media_download_wrapper.dart';
+import 'media_upload_wrapper.dart';
 import 'media_viewer_screen.dart';
 import 'message_bubbles/image_message_bubble.dart';
 import 'message_bubbles/audio_message_bubble.dart';
@@ -17,6 +18,7 @@ import 'message_bubbles/contact_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
   final AcChatMessage message;
+  final AcChat chat;
   final AcChatTheme ct;
   final bool isDark;
   final bool isGroup;
@@ -29,9 +31,9 @@ class MessageBubble extends StatelessWidget {
   final void Function(AcChatMessage)? onStar;
   final void Function(AcChatMessage)? onPin;
   final VoidCallback? onSelect;
+  final void Function(AcChatMessage)? onRetryUpload;
   final bool isSelected;
   final bool isSelectionMode;
-  final String? currentUserId;
 
   final bool isSenderChanged;
   final bool showTail;
@@ -39,6 +41,7 @@ class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    required this.chat,
     required this.ct,
     required this.isDark,
     required this.isGroup,
@@ -51,33 +54,24 @@ class MessageBubble extends StatelessWidget {
     this.onStar,
     this.onPin,
     this.onSelect,
+    this.onRetryUpload,
     this.isSelected = false,
     this.isSelectionMode = false,
-    this.currentUserId,
     this.isSenderChanged = false,
     this.showTail = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final api = AcChatApiProvider.of(context);
-    if (currentUserId != null && currentUserId!.isNotEmpty) {
-      return _buildBubbleContent(context, api, currentUserId!);
-    }
-    return FutureBuilder<AcChatUser>(
-      future: api.getCurrentUser(),
-      builder: (context, snapshot) {
-        final myId = snapshot.data?.userId ?? '';
-        return _buildBubbleContent(context, api, myId);
-      },
-    );
+    AcChatApi api = AcChatApiProvider.getApi(context);
+    return _buildBubbleContent(context, api);
   }
 
-  Widget _buildBubbleContent(BuildContext context, AcChatApi api, String myId) {
-    final isMe = message.senderId == myId;
+  Widget _buildBubbleContent(BuildContext context, AcChatApi api) {
+    final isMe = message.senderId == api.userId;
     final type = message.type;
     final status = message.status;
-    final localTime = message.timeUtc.toLocal();
+    final localTime = message.time.toLocal();
     final timeStr = DateFormat('hh:mm a').format(localTime);
 
     Widget bubbleContent = Container(
@@ -124,7 +118,6 @@ class MessageBubble extends StatelessWidget {
                 // Reply preview
                 if (message.replyTo != null && api.enableMessageReplying)
                   _ReplyPreview(replyTo: message.replyTo!, ct: ct),
-
                 // Message content (or deleted placeholder)
                 if (message.isDeleted)
                   _buildDeletedContent(ct)
@@ -133,7 +126,7 @@ class MessageBubble extends StatelessWidget {
 
                 // Reactions Badge Row
                 if (api.enableMessageReactions && message.reactions.isNotEmpty && !message.isDeleted)
-                  _buildReactionsRow(context, api, myId, ct),
+                  _buildReactionsRow(context, api, api.userId, ct),
 
                 // Time + edited tag + starred icon + ticks
                 const SizedBox(height: 3),
@@ -294,7 +287,15 @@ class MessageBubble extends StatelessWidget {
               // api.onMessageTap!(message);
               return;
             }
-            final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio');
+            final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio' || type == 'voice_note');
+            if (isMedia && (message.status == 'sending' || message.status == 'uploading')) {
+              // Attachment is currently uploading, tap does not open viewer
+              return;
+            }
+            if (isMedia && message.status == 'failed') {
+              onRetryUpload?.call(message);
+              return;
+            }
             if (isMedia && !message.isDeleted) {
               final local = message.localPath;
               if (local != null && local.isNotEmpty && !kIsWeb) {
@@ -439,7 +440,8 @@ class MessageBubble extends StatelessWidget {
         content = ContactMessageBubble(message: message, ct: ct);
         break;
       default:
-        final custom = AcChatApiProvider.of(context)
+        AcChat chat = AcChatApiProvider.getChat(context);
+        final custom = chat
             .customMessageBuilder
             ?.call(context: context, message: message);
         content = custom ??
@@ -450,6 +452,16 @@ class MessageBubble extends StatelessWidget {
         break;
     }
 
+    final isMedia = (type == 'image' || type == 'video' || type == 'document' || type == 'audio' || type == 'voice_note');
+    if (isMedia) {
+      content = MediaUploadWrapper(
+        message: message,
+        ct: ct,
+        child: content,
+        onRetry: onRetryUpload != null ? () => onRetryUpload!(message) : null,
+      );
+    }
+
     if (type == 'image' || type == 'video' || type == 'document') {
       return MediaDownloadWrapper(message: message, ct: ct, child: content);
     }
@@ -457,7 +469,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   void _showBubbleMenu(BuildContext context, AcChatApi api) async {
-    final myId = (await api.getCurrentUser()).userId;
+    final myId = api.userId;
     final isMe = message.senderId == myId;
     final now = DateTime.now().toUtc();
 
@@ -465,12 +477,12 @@ class MessageBubble extends StatelessWidget {
     final canEdit = api.enableMessageEditing &&
         isMe &&
         !message.isDeleted &&
-        now.difference(message.timeUtc) <= api.editTimeWindow;
+        now.difference(message.time) <= api.editTimeWindow;
 
     final canDeleteForEveryone = api.enableMessageDeletingForEveryone &&
         isMe &&
         !message.isDeleted &&
-        now.difference(message.timeUtc) <= api.deleteForEveryoneWindow;
+        now.difference(message.time) <= api.deleteForEveryoneWindow;
 
     final canDeleteForMe = api.enableMessageDeletingForMe;
     final isMedia = message.type == 'image' ||
@@ -551,7 +563,24 @@ class MessageBubble extends StatelessWidget {
     } else if (selected == 'forward') {
       onForward?.call(message);
     } else if (selected == 'download') {
-      api.downloadMedia(message: message);
+      try {
+        final savedPath = await api.downloadMedia(message: message);
+        if (savedPath != null) {
+          message.isDownloaded = true;
+          message.localPath = savedPath;
+          await api.updateMessage(
+            messageId: message.messageId,
+            data: {
+              'is_downloaded': true,
+              'local_path': savedPath,
+              'isDownloaded': true,
+              'localPath': savedPath,
+            },
+          );
+        }
+      } catch (e) {
+        debugPrint('[MessageBubble] download failed: $e');
+      }
     } else if (selected == 'star') {
       if (onStar != null) {
         onStar!(message);

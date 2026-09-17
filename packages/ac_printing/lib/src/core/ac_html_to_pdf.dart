@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_printing/ac_printing.dart';
 import 'package:autocode/autocode.dart';
-import 'package:pdf/pdf.dart';
 import 'package:puppeteer/puppeteer.dart';
 class AcHtmlToPdf {
   late Browser browser;

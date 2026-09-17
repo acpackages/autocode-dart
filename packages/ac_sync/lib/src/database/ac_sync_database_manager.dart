@@ -352,7 +352,7 @@ END;
 
       if(tableDefinitions != null){
         logger.log("[AcSyncDatabaseManager] Cleaning up destination database tables...");
-        await destDao.executeStatement(statement: "PRAGMA foreign_keys = OFF;");
+        await destDao.disableForeignKeyChecks();
         // 3. Empty tables where syncToDestination is false
         for (var tableDef in tableDefinitions) {
           if (!tableDef.syncToDestination) {
@@ -367,7 +367,7 @@ END;
         await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDeviceLogs}");
         await destDao.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDevices}");
 
-        await destDao.executeStatement(statement: "PRAGMA foreign_keys = ON;");
+        await destDao.enableForeignKeyChecks();
         // 4. Perform Vacuum
         logger.log("[AcSyncDatabaseManager] Performing VACUUM on destination database...");
         await destDao.executeStatement(statement: "VACUUM");

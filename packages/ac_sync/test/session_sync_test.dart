@@ -3,7 +3,6 @@ import 'package:test/test.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:ac_sync/ac_sync.dart';
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
-import 'package:sqlite3/sqlite3.dart';
 import 'package:autocode/autocode.dart';
 import './data_dictionary.dart' as DD;
 

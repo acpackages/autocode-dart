@@ -9,7 +9,7 @@ class AcThreadChannel {
   SendPort? sendPort;
   int _lastMessageId = -1;
   final Map<int, Map<String, dynamic>> _pendingRequests = {};
-  final Map<String, Function> _keyCallbacks = {};
+  final Map<String, Function({required Map<String,dynamic> args})> _keyCallbacks = {};
   final List<Map<String, dynamic>> _outgoingQueue = [];
   AcLogger logger = AcLogger(logMessages: false, logType: AcEnumLogType.console);
 
@@ -24,8 +24,8 @@ class AcThreadChannel {
     }
     if (receivePort != null) {
       receivePort!.listen((rawData) async {
-        print("Received at receive port");
-        print(rawData);
+        // print("Received at receive port");
+        // print(rawData);
         if (rawData is! Map) return;
         final rawJson = Map<String, dynamic>.from(rawData);
         if (rawJson.containsKey("__is_channel_handshake__") && rawJson.containsKey("send_port")) {
@@ -82,25 +82,7 @@ class AcThreadChannel {
 
             try {
               logger.log("[AcThreadChannel] Calling callback for key : ${message.key}");
-              final callback = _keyCallbacks[message.key]!;
-              dynamic callbackData = message.data;
-              if (callbackData is Map && callbackData is! Map<String, dynamic>) {
-                callbackData = Map<String, dynamic>.from(callbackData);
-              }
-              dynamic res;
-              if (callbackData != null) {
-                try {
-                  res = await callback(callbackData);
-                } on NoSuchMethodError {
-                  res = await callback();
-                }
-              } else {
-                try {
-                  res = await callback();
-                } on NoSuchMethodError {
-                  res = await callback(null);
-                }
-              }
+              dynamic res = await _keyCallbacks[message.key]!(args: message.data);
               message.response = res;
               message.isResponse = true;
               message.isError = false;
@@ -121,12 +103,15 @@ class AcThreadChannel {
     }
   }
 
-  void _send(Map<String, dynamic> data) {
+  Future<void> _send(Map<String, dynamic> data) async {
     if (sendPort != null) {
-      print("Sent to send port");
+      print("[AcThreadChannel] Sending data");
+      print(data);
+      // print("Sent to send port");
+      // if
       sendPort!.send(data);
     } else {
-      print("Added to outgoing queue");
+      // print("Added to outgoing queue");
       _outgoingQueue.add(data);
     }
   }
@@ -138,7 +123,7 @@ class AcThreadChannel {
     }
   }
 
-  Future<dynamic> emit({required String key, dynamic data, Function? callback, Duration? timeout}) {
+  Future<dynamic> emit({required String key, Map<String,dynamic> data = const {}, Function? callback, Duration? timeout}) {
     _lastMessageId++;
     final messageId = _lastMessageId;
     var message = AcThreadChannelMessage(key: key, data: data, id: messageId);
@@ -162,7 +147,7 @@ class AcThreadChannel {
     return completer.future;
   }
 
-  void on({required String key, required Function callback}) {
+  void on({required String key, required Function({required Map<String,dynamic> args}) callback}) {
     _keyCallbacks[key] = callback;
   }
 

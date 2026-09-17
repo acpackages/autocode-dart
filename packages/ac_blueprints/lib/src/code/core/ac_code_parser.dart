@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:ac_blueprints/ac_blueprints.dart';
-import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 
 class AcCodeParser {

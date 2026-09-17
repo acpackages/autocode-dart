@@ -6,14 +6,16 @@ import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../../core/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
+import '../ac_chat.dart';
 import 'message_bubble.dart';
 import 'input_bar.dart';
 import 'reply_bar.dart';
 import 'attachments.dart';
 import 'conversation_media_tabs.dart';
-import '../chat_profile_screen.dart';
+import '../conversation_profile_screen.dart';
 import 'audio_recording_bottom_sheet.dart';
+
 
 class StickyDateState {
   final DateTime? date;
@@ -22,17 +24,20 @@ class StickyDateState {
 }
 
 class Conversation extends StatefulWidget {
-  final AcChatConversation chat;
-  final AcChatApi api;
+  final AcChatConversation conversation;
+  final AcChat chat;
   final VoidCallback? onBack;
   final bool isEmbedded;
   final VoidCallback? onViewProfile;
   final bool? enableTyping;
+  AcChatApi get api {
+    return chat.api;
+}
 
   const Conversation({
     super.key,
+    required this.conversation,
     required this.chat,
-    required this.api,
     this.onBack,
     this.isEmbedded = false,
     this.onViewProfile,
@@ -58,9 +63,8 @@ class _ConversationState extends State<Conversation>
   AcChatMessage? _editingMessage;
   late AnimationController _micAnim;
 
-  AcChatUser? _currentUser;
   AcChatUser? _otherUser;
-  List<AcChatUser> _members = [];
+  List<AcChatUser> users = [];
 
   // Multi-select state
   bool _isSelectionMode = false;
@@ -71,6 +75,7 @@ class _ConversationState extends State<Conversation>
   DateTimeRange? _filterDateRange;
   bool? _filterHasAttachment;
 
+  final List<AcChatMessage> _pendingUploadMessages = [];
   List<AcChatMessage> _cachedMessages = [];
   List<dynamic> _flatItems = [];
   final Map<int, BuildContext> _itemContexts = {};
@@ -81,50 +86,37 @@ class _ConversationState extends State<Conversation>
   StreamSubscription<List<AcChatMessage>>? _messagesSub;
   Timer? _typingTimer;
 
-  bool get _isGroup => widget.chat.type == "group";
+  bool get _isGroup => widget.conversation.type == "group";
 
   Future<void> _loadInitialData() async {
-    final curUser = await widget.api.getCurrentUser();
-    AcChatUser? other;
-    List<AcChatUser> members = [];
-    final convUsers = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
-    if (!_isGroup) {
-      final otherMember = convUsers.firstWhere(
-        (m) => m.userId.isNotEmpty && m.userId != curUser.userId,
-        orElse: () => AcChatConversationUser(),
-      );
-      if (otherMember.userId.isNotEmpty) {
-        other = await widget.api.getUserById(userId: otherMember.userId);
-      }
-      if (other == null || other.name.trim().isEmpty) {
-        final otherId = widget.chat.memberIds.firstWhere(
-          (id) => id.isNotEmpty && id != curUser.userId,
-          orElse: () => '',
-        );
-        if (otherId.isNotEmpty) {
-          other = await widget.api.getUserById(userId: otherId);
-        }
-      }
+    print("[Conversation] current user : ");
+    AcChatUser? other = widget.conversation.otherUser != null ? widget.conversation.otherUser!.user:null;
+    List<AcChatUser> users = [];
+    final convUsers = await widget.api.getConversationUsers(conversationId: widget.conversation.conversationId);
+    var userIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
+    if (userIds.isEmpty && widget.conversation.userIds.isNotEmpty) {
+      userIds = widget.conversation.userIds;
     }
-    var memberUserIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
-    if (memberUserIds.isEmpty && widget.chat.memberIds.isNotEmpty) {
-      memberUserIds = widget.chat.memberIds;
-    }
-    final futures = memberUserIds.map((id) => widget.api.getUserById(userId: id));
+    final futures = userIds.map((id) => widget.api.getUserById(userId: id));
     final resolved = await Future.wait(futures);
-    members = resolved.whereType<AcChatUser>().toList();
+    users = resolved.whereType<AcChatUser>().toList();
 
     if (mounted) {
       setState(() {
-        _currentUser = curUser;
         _otherUser = other;
-        _members = members;
+        users = users;
       });
     }
   }
 
   void _loadMessages() async {
-    final all = await widget.api.getMessages(conversationId: widget.chat.conversationId);
+    final all = await widget.api.getMessages(conversationId: widget.conversation.conversationId);
+    for (final pending in _pendingUploadMessages) {
+      if (!all.any((m) => m.messageId == pending.messageId)) {
+        all.add(pending);
+      }
+    }
+    all.sort((a, b) => a.time.compareTo(b.time));
     _cachedMessages = all.where((m) {
       if (_searchQuery.isNotEmpty &&
           !m.text.toLowerCase().contains(_searchQuery.toLowerCase())) {
@@ -141,7 +133,7 @@ class _ConversationState extends State<Conversation>
       if (_filterDateRange != null) {
         final start = _filterDateRange!.start.toUtc();
         final end = _filterDateRange!.end.toUtc().add(const Duration(days: 1));
-        if (m.timeUtc.isBefore(start) || m.timeUtc.isAfter(end)) {
+        if (m.time.isBefore(start) || m.time.isAfter(end)) {
           return false;
         }
       }
@@ -154,13 +146,13 @@ class _ConversationState extends State<Conversation>
   void _computeFlatItems() async {
     final List<dynamic> flat = [];
     DateTime? lastDate;
-    final prefs = await widget.api.getConversationPrefs(conversationId: widget.chat.conversationId);
-    final lastReadTime = prefs?.lastReadTimeUtc;
+    final prefs = await widget.api.getConversationPrefs(conversationId: widget.conversation.conversationId);
+    final lastReadTime = prefs?.lastReadTime;
 
     var insertedUnreadSeparator = false;
 
     for (final msg in _cachedMessages) {
-      final msgDate = DateTime.utc(msg.timeUtc.year, msg.timeUtc.month, msg.timeUtc.day);
+      final msgDate = DateTime.utc(msg.time.year, msg.time.month, msg.time.day);
       if (lastDate == null || !_sameDay(lastDate, msgDate)) {
         flat.add(msgDate);
         lastDate = msgDate;
@@ -170,8 +162,8 @@ class _ConversationState extends State<Conversation>
       if (widget.api.enableUnreadMessagesSeparator &&
           !insertedUnreadSeparator &&
           lastReadTime != null &&
-          msg.timeUtc.isAfter(lastReadTime) &&
-          msg.senderId != (await widget.api.getCurrentUser()).userId) {
+          msg.time.isAfter(lastReadTime) &&
+          msg.senderId != widget.api.userId) {
         flat.add(_UnreadSeparatorMarker());
         insertedUnreadSeparator = true;
       }
@@ -187,7 +179,7 @@ class _ConversationState extends State<Conversation>
     _loadInitialData();
     _loadMessages();
 
-    widget.api.watchMessages(conversationId: widget.chat.conversationId).then((result){
+    widget.api.watchMessages(conversationId: widget.conversation.conversationId).then((result){
       _messagesSub = result?.listen((msgs) {
         if (mounted) {
           setState(() {
@@ -224,14 +216,14 @@ class _ConversationState extends State<Conversation>
     }
     if (widget.api.enableTypingIndicator) {
       widget.api.sendTypingIndicator(
-        conversationId: widget.chat.conversationId,
+        conversationId: widget.conversation.conversationId,
         isTyping: hasText,
       );
       _typingTimer?.cancel();
       if (hasText) {
         _typingTimer = Timer(const Duration(milliseconds: 2000), () {
           widget.api.sendTypingIndicator(
-            conversationId: widget.chat.conversationId,
+            conversationId: widget.conversation.conversationId,
             isTyping: false,
           );
         });
@@ -348,12 +340,12 @@ class _ConversationState extends State<Conversation>
     }
 
     final newMsg = AcChatMessage()
-      ..conversationId = widget.chat.conversationId
-      ..senderId = (await widget.api.getCurrentUser()).userId
+      ..conversationId = widget.conversation.conversationId
+      ..senderId = widget.api.userId
       ..type = 'text'
       ..text = text
-      ..timeUtc = DateTime.now().toUtc()
-      ..expiresAtUtc = _calculateExpiration()
+      ..time = DateTime.now().toUtc()
+      ..expiresAt = _calculateExpiration()
       ..replyTo = _replyTo;
 
     widget.api.sendMessage(message: newMsg);
@@ -372,53 +364,64 @@ class _ConversationState extends State<Conversation>
     final durationStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
     final messageId = Autocode.uuid();
 
-    String? publicUrl;
-    final uploader = widget.api.mediaUploader;
-    if (uploader != null && !kIsWeb) {
+    Uint8List? audioBytes;
+    final fileName = filePath.split(RegExp(r'[/\\]')).last;
+    if (!kIsWeb) {
       try {
         final f = io.File(filePath);
         if (f.existsSync()) {
-          final audioBytes = await f.readAsBytes();
-          final fileName = filePath.split(RegExp(r'[/\\]')).last;
-          publicUrl = await uploader.uploadMedia(
-            conversationId: widget.chat.conversationId,
-            messageId: messageId,
-            fileName: fileName,
-            bytes: audioBytes,
-            mimeType: 'audio/m4a',
-          );
+          audioBytes = await f.readAsBytes();
         }
       } catch (e) {
-        debugPrint('[Conversation] _sendAudio upload failed: $e');
+        debugPrint('[Conversation] _sendAudio read file failed: $e');
       }
     }
 
     final newMsg = AcChatMessage()
       ..messageId = messageId
-      ..conversationId = widget.chat.conversationId
-      ..senderId = (await widget.api.getCurrentUser()).userId
+      ..conversationId = widget.conversation.conversationId
+      ..senderId = widget.api.userId
       ..type = 'voice_note'
       ..text = '🎤 Voice message'
       ..duration = durationStr
-      ..filePath = publicUrl ?? filePath
-      ..fileUrl = publicUrl
+      ..fileUrl = null
       ..localPath = filePath
+      ..byteData = audioBytes
       ..isDownloaded = true
-      ..status = 'sent'
-      ..timeUtc = DateTime.now().toUtc()
-      ..expiresAtUtc = _calculateExpiration()
+      ..status = 'sending'
+      ..time = DateTime.now().toUtc()
+      ..expiresAt = _calculateExpiration()
       ..replyTo = _replyTo;
 
-    widget.api.sendMessage(message: newMsg);
     _replyTo = null;
+    _pendingUploadMessages.add(newMsg);
+
     setState(() {
       _loadMessages();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    if (audioBytes != null && audioBytes.isNotEmpty) {
+      _performMediaUpload(
+        message: newMsg,
+        bytes: audioBytes,
+        fileName: fileName,
+        mimeType: 'audio/m4a',
+      );
+    } else {
+      newMsg.status = 'sent';
+      _pendingUploadMessages.removeWhere((m) => m.messageId == newMsg.messageId);
+      await widget.api.sendMessage(message: newMsg);
+      if (mounted) {
+        setState(() {
+          _loadMessages();
+        });
+      }
+    }
   }
 
   DateTime? _calculateExpiration() {
-    final dur = widget.chat.disappearingDurationSeconds;
+    final dur = widget.conversation.disappearingDurationSeconds;
     if (dur != null && dur > 0) {
       return DateTime.now().toUtc().add(Duration(seconds: dur));
     }
@@ -430,9 +433,10 @@ class _ConversationState extends State<Conversation>
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ChatProfileScreen(
-            chat: widget.chat,
+          builder: (_) => ConversationProfileScreen(
+            conversation: widget.conversation,
             api: widget.api,
+            chat: widget.chat,
           ),
         ),
       );
@@ -564,7 +568,7 @@ class _ConversationState extends State<Conversation>
     final now = DateTime.now().toUtc();
     try {
       return _cachedMessages.firstWhere(
-        (m) => m.pinnedUntilUtc != null && m.pinnedUntilUtc!.isAfter(now),
+        (m) => m.pinnedUntil != null && m.pinnedUntil!.isAfter(now),
       );
     } catch (_) {
       return null;
@@ -620,24 +624,23 @@ class _ConversationState extends State<Conversation>
     final msgs = _cachedMessages;
     final width = MediaQuery.sizeOf(context).width;
     final isLarge = width >= 768;
-    final currentUser = _currentUser;
     final user = _otherUser;
-    final members = _members;
 
     final name = _isGroup
-        ? (widget.chat.conversationName != null && widget.chat.conversationName!.trim().isNotEmpty
-            ? widget.chat.conversationName!
+        ? (widget.conversation.conversationName != null && widget.conversation.conversationName!.trim().isNotEmpty
+            ? widget.conversation.conversationName!
             : 'Group')
         : (user != null && user.name.trim().isNotEmpty
             ? user.name
-            : (widget.chat.conversationName != null && widget.chat.conversationName!.trim().isNotEmpty
-                ? widget.chat.conversationName!
+            : (widget.conversation.conversationName != null && widget.conversation.conversationName!.trim().isNotEmpty
+                ? widget.conversation.conversationName!
                 : 'Chat'));
     final userId = _isGroup ? null : user?.userId;
-    final color = avatarColor(_isGroup ? '${widget.chat.conversationId}-group' : (userId ?? ''));
-
+    final color = avatarColor(_isGroup ? '${widget.conversation.conversationId}-group' : (userId ?? ''));
+    String previousSenderId = '';
     return AcChatApiProvider(
       api: widget.api,
+      chat: widget.chat,
       child: PopScope(
         canPop: !_showEmojiPicker && !_isSelectionMode,
         onPopInvokedWithResult: (didPop, result) {
@@ -716,7 +719,7 @@ class _ConversationState extends State<Conversation>
                           onTap: _openProfile,
                           child: Row(children: [
                             Hero(
-                              tag: 'avatar-${widget.chat.conversationId}',
+                              tag: 'avatar-${widget.conversation.conversationId}',
                               child: CircleAvatar(
                                 radius: 19,
                                 backgroundColor: color,
@@ -751,7 +754,7 @@ class _ConversationState extends State<Conversation>
                           if (widget.api.enableSearchFilters)
                             IconButton(
                               icon: Icon(Icons.filter_list_rounded, color: ct.white),
-                              onPressed: () => _showSearchFilterSheet(context, ct, members),
+                              onPressed: () => _showSearchFilterSheet(context, ct, users),
                             ),
                           IconButton(
                             icon: Icon(Icons.close, color: ct.white),
@@ -794,7 +797,7 @@ class _ConversationState extends State<Conversation>
                                 } else if (v == 'Media, Links, and Docs') {
                                   ConversationMediaTabs.showModal(
                                     context: context,
-                                    chat: widget.chat,
+                                    conversation: widget.conversation,
                                     ct: ct,
                                     api: widget.api,
                                   );
@@ -818,7 +821,7 @@ class _ConversationState extends State<Conversation>
                                   _menuItem('Media, Links, and Docs', ct),
                                 if (widget.api.enableConversationMuting)
                                   _menuItem('Mute Notifications', ct),
-                                if (widget.api.enableChatExport)
+                                if (widget.api.enableConversationExport)
                                   _menuItem('Export Chat', ct),
                                 if (!_isGroup && user != null && widget.api.enableUserBlocking)
                                   _menuItem('Block User', ct),
@@ -885,6 +888,11 @@ class _ConversationState extends State<Conversation>
                                   ),
                                 );
                               }
+                              bool showTail = true;
+                              if(item is AcChatMessage){
+                                showTail = previousSenderId != item.senderId;
+                                previousSenderId = item.senderId;
+                              }
 
                               return _TrackedItem(
                                 index: index,
@@ -896,7 +904,7 @@ class _ConversationState extends State<Conversation>
                                       key: ValueKey((item as AcChatMessage).messageId),
                                       message: item,
                                       isGroup: _isGroup,
-                                      currentUserId: currentUser?.userId,
+                                      chat: widget.chat,
                                       ct: ct,
                                       isDark: isDark,
                                       isSelected: _selectedMessageIds.contains(item.messageId),
@@ -904,6 +912,7 @@ class _ConversationState extends State<Conversation>
                                       onSelect: widget.api.enableMultiSelect
                                           ? () => _toggleSelection(item.messageId)
                                           : null,
+                                      onRetryUpload: (m) => _retryUpload(m),
                                       onReply: (m) => setState(() => _replyTo = m),
                                       onCopy: (t) => _toast(context, 'Copied to clipboard'),
                                       onEdit: (m) {
@@ -936,7 +945,7 @@ class _ConversationState extends State<Conversation>
                                         setState(() => _loadMessages());
                                       },
                                       onReaction: (m, emoji) async {
-                                        final myId = currentUser?.userId ?? (await widget.api.getCurrentUser()).userId;
+                                        final myId = widget.api.userId;
                                         final already = m.reactions[emoji]?.contains(myId) ?? false;
                                         if (already) {
                                           widget.api.removeReaction(messageId: m.messageId, emoji: emoji);
@@ -945,6 +954,7 @@ class _ConversationState extends State<Conversation>
                                         }
                                         setState(() => _loadMessages());
                                       },
+                                  showTail: showTail
                                     ),
                               );
                             },
@@ -988,14 +998,14 @@ class _ConversationState extends State<Conversation>
               ),
 
               // Bottom Input Bar
-              if (widget.api.customInputBuilder != null)
-                widget.api.customInputBuilder!(
+              if (widget.chat.customInputBuilder != null)
+                widget.chat.customInputBuilder!(
                   context: context,
-                  conversation: widget.chat,
+                  conversation: widget.conversation,
                 ) ??
-                    _buildInputBar(ct, isDark, members)
+                    _buildInputBar(ct, isDark, users)
               else
-                _buildInputBar(ct, isDark, members),
+                _buildInputBar(ct, isDark, users),
             ],
           ),
         ),
@@ -1021,14 +1031,13 @@ class _ConversationState extends State<Conversation>
 
     if (widget.api.enableTypingIndicator) {
       return FutureBuilder<Stream<Map<String, bool>>?>(
-        future: widget.api.watchTyping(conversationId: widget.chat.conversationId),
+        future: widget.api.watchTyping(conversationId: widget.conversation.conversationId),
         builder: (context, streamSnap) {
           return StreamBuilder<Map<String, bool>>(
             stream: streamSnap.data,
             builder: (context, snapshot) {
               final typingMap = snapshot.data ?? {};
-              final curUserId = _currentUser?.userId ?? '';
-              final someoneTyping = typingMap.entries.any((e) => e.key != curUserId && e.value);
+              final someoneTyping = typingMap.entries.any((e) => e.key != widget.api.userId && e.value);
 
               if (someoneTyping) {
                 return Text(
@@ -1077,7 +1086,7 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  Widget _buildInputBar(AcChatTheme ct, bool isDark, List<AcChatUser> members) {
+  Widget _buildInputBar(AcChatTheme ct, bool isDark, List<AcChatUser> users) {
     if (widget.api.readOnly) return const SizedBox.shrink();
 
     return Column(
@@ -1125,7 +1134,7 @@ class _ConversationState extends State<Conversation>
           enableTyping: widget.enableTyping ?? widget.api.enableTyping,
           micAnim: _micAnim,
           api: widget.api,
-          mentionCandidates: members,
+          mentionCandidates: users,
           onSend: _send,
           onAttach: () => _showAttachmentModal(context, ct, isDark),
           onAttachOption: (label) => _handleAttachmentSelected(label, ct),
@@ -1150,12 +1159,12 @@ class _ConversationState extends State<Conversation>
   }
 
   Future<String> _groupSubtitle() async {
-    final convUsers = await widget.api.getConversationUsers(conversationId: widget.chat.conversationId);
-    var memberUserIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
-    if (memberUserIds.isEmpty && widget.chat.memberIds.isNotEmpty) {
-      memberUserIds = widget.chat.memberIds;
+    final convUsers = await widget.api.getConversationUsers(conversationId: widget.conversation.conversationId);
+    var userIds = convUsers.map((m) => m.userId).where((id) => id.isNotEmpty).toList();
+    if (userIds.isEmpty && widget.conversation.userIds.isNotEmpty) {
+      userIds = widget.conversation.userIds;
     }
-    final nameFutures = memberUserIds.map((id) async => (await widget.api.getUserById(userId: id))?.name ?? '');
+    final nameFutures = userIds.map((id) async => (await widget.api.getUserById(userId: id))?.name ?? '');
     final namesList = await Future.wait(nameFutures);
     final validNames = namesList.where((n) => n.trim().isNotEmpty).join(', ');
     return validNames.isNotEmpty ? validNames : 'tap here for group info';
@@ -1281,53 +1290,155 @@ class _ConversationState extends State<Conversation>
     final fileSize = _formatFileSize(bytes.length);
     final messageId = Autocode.uuid();
 
-    String? publicUrl;
-    final uploader = widget.api.mediaUploader;
-    if (uploader != null) {
-      try {
-        final mimeType = _inferMimeType(fileName);
-        publicUrl = await uploader.uploadMedia(
-          conversationId: widget.chat.conversationId,
-          messageId: messageId,
-          fileName: fileName,
-          bytes: bytes,
-          mimeType: mimeType,
-        );
-      } catch (e) {
-        debugPrint('[Conversation] uploadMedia failed: $e');
-        if (mounted) {
-          _toast(context, 'Failed to upload media');
+    String? localFilePath = file.path;
+    if (!kIsWeb) {
+      if (localFilePath != null && localFilePath.isNotEmpty && io.File(localFilePath).existsSync()) {
+        // localFilePath from picker is valid on disk
+      } else {
+        // Save to chat media directory so we have a persistent local path
+        try {
+          localFilePath = await widget.api.saveMediaFile(
+            type: type,
+            fileName: fileName,
+            bytes: bytes,
+            messageId: messageId,
+          );
+        } catch (e) {
+          debugPrint('[Conversation] saveMediaFile error: $e');
         }
-        return;
       }
     }
 
     final newMsg = AcChatMessage()
       ..messageId = messageId
-      ..conversationId = widget.chat.conversationId
-      ..senderId = (await widget.api.getCurrentUser()).userId
+      ..conversationId = widget.conversation.conversationId
+      ..senderId = widget.api.userId
       ..type = type
       ..text = ''
-      ..filePath = publicUrl ?? file.path
-      ..fileUrl = publicUrl
-      ..localPath = file.path
+      ..fileUrl = null
+      ..localPath = localFilePath
       ..fileName = fileName
       ..fileSize = fileSize
       ..byteData = bytes
       ..isDownloaded = true
-      ..timeUtc = DateTime.now().toUtc()
-      ..expiresAtUtc = _calculateExpiration()
+      ..time = DateTime.now().toUtc()
+      ..expiresAt = _calculateExpiration()
       ..replyTo = _replyTo
-      ..status = 'sent';
+      ..status = 'sending';
 
     _replyTo = null;
-    widget.api.sendMessage(message: newMsg);
+    _pendingUploadMessages.add(newMsg);
+
     if (mounted) {
       setState(() {
         _loadMessages();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
+
+    _performMediaUpload(
+      message: newMsg,
+      bytes: bytes,
+      fileName: fileName,
+    );
+  }
+
+  Future<void> _performMediaUpload({
+    required AcChatMessage message,
+    required Uint8List bytes,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    final mediaHandler = widget.api.mediaHandler;
+    if (mediaHandler != null) {
+      try {
+        final resolvedMime = mimeType ?? _inferMimeType(fileName);
+        widget.api.reportUploadProgress(messageId: message.messageId, progress: 0.0);
+
+        final publicUrl = await mediaHandler.uploadMedia(
+          conversationId: widget.conversation.conversationId,
+          messageId: message.messageId,
+          fileName: fileName,
+          bytes: bytes,
+          mimeType: resolvedMime,
+          onProgress: ({required double progress}) {
+            widget.api.reportUploadProgress(
+              messageId: message.messageId,
+              progress: progress,
+            );
+          },
+        );
+
+        widget.api.reportUploadProgress(messageId: message.messageId, progress: 1.0);
+        widget.api.clearUploadProgress(messageId: message.messageId);
+
+        message.fileUrl = publicUrl;
+        message.status = 'sent';
+
+        _pendingUploadMessages.removeWhere((m) => m.messageId == message.messageId);
+        await widget.api.sendMessage(message: message);
+
+        if (mounted) {
+          setState(() {
+            _loadMessages();
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        }
+      } catch (e) {
+        debugPrint('[Conversation] uploadMedia failed: $e');
+        widget.api.clearUploadProgress(messageId: message.messageId);
+        if (mounted) {
+          setState(() {
+            message.status = 'failed';
+          });
+          _toast(context, 'Failed to upload media. Tap to retry.');
+        }
+      }
+    } else {
+      message.status = 'sent';
+      _pendingUploadMessages.removeWhere((m) => m.messageId == message.messageId);
+      await widget.api.sendMessage(message: message);
+      if (mounted) {
+        setState(() {
+          _loadMessages();
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    }
+  }
+
+  Future<void> _retryUpload(AcChatMessage message) async {
+    final mediaHandler = widget.api.mediaHandler;
+    if (mediaHandler == null) return;
+
+    Uint8List? bytes = message.byteData;
+    if ((bytes == null || bytes.isEmpty) && message.localPath != null && !kIsWeb) {
+      try {
+        final f = io.File(message.localPath!);
+        if (f.existsSync()) {
+          bytes = await f.readAsBytes();
+        }
+      } catch (e) {
+        debugPrint('[Conversation] Error reading bytes for retry: $e');
+      }
+    }
+
+    if (bytes == null || bytes.isEmpty) {
+      if (mounted) {
+        _toast(context, 'Could not find local file data to retry');
+      }
+      return;
+    }
+
+    setState(() {
+      message.status = 'sending';
+    });
+
+    _performMediaUpload(
+      message: message,
+      bytes: bytes,
+      fileName: message.fileName ?? '${message.messageId}.${AcChatApi.defaultExtensionForType(message.type)}',
+    );
   }
 
   String _formatFileSize(int bytes) {
@@ -1399,13 +1510,13 @@ class _ConversationState extends State<Conversation>
             onTap: () async {
               Navigator.pop(context);
               final newMsg = AcChatMessage()
-                ..conversationId = widget.chat.conversationId
-                ..senderId = (await widget.api.getCurrentUser()).userId
+                ..conversationId = widget.conversation.conversationId
+                ..senderId = widget.api.userId
                 ..type = 'location'
                 ..text = '📍 Current Location\nLat: 37.7749, Lng: -122.4194'
                 ..isDownloaded = true
-                ..timeUtc = DateTime.now().toUtc()
-                ..expiresAtUtc = _calculateExpiration();
+                ..time = DateTime.now().toUtc()
+                ..expiresAt = _calculateExpiration();
               widget.api.sendMessage(message: newMsg);
               setState(() => _loadMessages());
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -1445,13 +1556,13 @@ class _ConversationState extends State<Conversation>
             onTap: () async {
               Navigator.pop(context);
               final newMsg = AcChatMessage()
-                ..conversationId = widget.chat.conversationId
-                ..senderId = (await widget.api.getCurrentUser()).userId
+                ..conversationId = widget.conversation.conversationId
+                ..senderId = widget.api.userId
                 ..type = 'contact'
                 ..text = '👤 ${c.name}\n$contactInfo'
                 ..isDownloaded = true
-                ..timeUtc = DateTime.now().toUtc()
-                ..expiresAtUtc = _calculateExpiration();
+                ..time = DateTime.now().toUtc()
+                ..expiresAt = _calculateExpiration();
               widget.api.sendMessage(message: newMsg);
               setState(() => _loadMessages());
               WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -1473,7 +1584,7 @@ class _ConversationState extends State<Conversation>
             onPressed: () {
               Navigator.pop(ctx);
               widget.api.muteConversation(
-                conversationId: widget.chat.conversationId,
+                conversationId: widget.conversation.conversationId,
                 muteDuration: const Duration(hours: 8),
               );
               _toast(context, 'Muted for 8 hours');
@@ -1484,7 +1595,7 @@ class _ConversationState extends State<Conversation>
             onPressed: () {
               Navigator.pop(ctx);
               widget.api.muteConversation(
-                conversationId: widget.chat.conversationId,
+                conversationId: widget.conversation.conversationId,
                 muteDuration: const Duration(days: 7),
               );
               _toast(context, 'Muted for 1 week');
@@ -1495,7 +1606,7 @@ class _ConversationState extends State<Conversation>
             onPressed: () {
               Navigator.pop(ctx);
               widget.api.muteConversation(
-                conversationId: widget.chat.conversationId,
+                conversationId: widget.conversation.conversationId,
                 muteDuration: const Duration(days: 3650),
               );
               _toast(context, 'Muted indefinitely');
@@ -1518,7 +1629,7 @@ class _ConversationState extends State<Conversation>
             onPressed: () async {
               Navigator.pop(ctx);
               final text = await widget.api.exportChat(
-                conversationId: widget.chat.conversationId,
+                conversationId: widget.conversation.conversationId,
                 asJson: false,
               );
               Clipboard.setData(ClipboardData(text: text));
@@ -1530,7 +1641,7 @@ class _ConversationState extends State<Conversation>
             onPressed: () async {
               Navigator.pop(ctx);
               final jsonStr = await widget.api.exportChat(
-                conversationId: widget.chat.conversationId,
+                conversationId: widget.conversation.conversationId,
                 asJson: true,
               );
               Clipboard.setData(ClipboardData(text: jsonStr));
@@ -1543,7 +1654,7 @@ class _ConversationState extends State<Conversation>
     );
   }
 
-  void _showSearchFilterSheet(BuildContext context, AcChatTheme ct, List<AcChatUser> members) {
+  void _showSearchFilterSheet(BuildContext context, AcChatTheme ct, List<AcChatUser> users) {
     showModalBottomSheet(
       context: context,
       backgroundColor: ct.surface,
@@ -1576,7 +1687,7 @@ class _ConversationState extends State<Conversation>
                       value: null,
                       child: Text('All Senders', style: TextStyle(color: ct.text)),
                     ),
-                    ...members.map((u) => DropdownMenuItem(
+                    ...users.map((u) => DropdownMenuItem(
                           value: u.userId,
                           child: Text(u.name, style: TextStyle(color: ct.text)),
                         )),

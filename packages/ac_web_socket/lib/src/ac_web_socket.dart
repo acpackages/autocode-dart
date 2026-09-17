@@ -71,7 +71,7 @@ class AcWebSocket {
           return;
         }
         try {
-          final decoded = jsonDecode(data as String) as Map<String, dynamic>;
+          final decoded = jsonDecode(data) as Map<String, dynamic>;
 
           final ackId = decoded['a'] as int?;
           final nsp = decoded['n'] ?? '/';

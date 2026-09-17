@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:ac_chat_on_firebase/ac_chat_on_firebase.dart';
 
 void main() {
@@ -21,7 +22,7 @@ void main() {
         firestore: fakeFirestore,
       );
       await backendAlice.initialize();
-      final apiAlice = backendAlice.buildApi(theme: const AcChatTheme(isDark: true));
+      final apiAlice = backendAlice.buildApi(theme: const AcChatTheme(isDark: true),userId: '');
 
       // 2. Setup Recipient (Bob) in Channel Mode (as used by AcChatSqlite)
       final backendBob = AcChatFirebase(
@@ -37,7 +38,7 @@ void main() {
         onMessageReceived: ({required message}) {
           bobReceivedMessages.add(message);
         },
-        onConversationChanged: ({required conversation, required members}) {
+        onConversationChanged: ({required conversation, required users}) {
           bobConversations.add(conversation);
         },
         onUsersLoaded: ({required users}) {},
@@ -47,7 +48,7 @@ void main() {
       final conv = AcChatConversation()
         ..conversationId = 'conv_alice_bob'
         ..type = 'direct'
-        ..memberIds = [userA, userB]
+        ..userIds = [userA, userB]
         ..lastTime = DateTime.now();
 
       await apiAlice.insertConversation(
@@ -105,7 +106,7 @@ void main() {
       backendAlice.dispose();
     });
 
-    test('markAsRead sends read receipt to Alice when Bob marks as read', () async {
+    test('notifyConversationRead sends read receipt to Alice when Bob marks as read', () async {
       final backendAlice = AcChatFirebase(
         currentUserId: userA,
         firestore: fakeFirestore,
@@ -115,7 +116,7 @@ void main() {
       await backendAlice.startListening(
         currentUserId: userA,
         onMessageReceived: ({required message}) {},
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
         onMessageStatusUpdated: ({required messageId, required conversationId, required status}) {
           aliceStatusUpdates.add({
@@ -137,7 +138,7 @@ void main() {
         onMessageReceived: ({required message}) {
           bobReceived.add(message);
         },
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
@@ -145,12 +146,12 @@ void main() {
       final conv = AcChatConversation()
         ..conversationId = 'conv_ab_receipt'
         ..type = 'direct'
-        ..memberIds = [userA, userB]
+        ..userIds = [userA, userB]
         ..lastTime = DateTime.now();
 
       await backendAlice.createConversation(
         conversation: conv,
-        memberIds: [userA, userB],
+        userIds: [userA, userB],
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -172,9 +173,8 @@ void main() {
       expect(bobReceived.length, equals(1));
 
       // Bob marks as read
-      await backendBob.markAsRead(
+      await backendBob.notifyConversationRead(
         conversationId: 'conv_ab_receipt',
-        currentUserId: userB,
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -191,7 +191,7 @@ void main() {
         firestore: fakeFirestore,
       );
 
-      final defaultApi = backend.buildApi(theme: const AcChatTheme(isDark: false));
+      final defaultApi = backend.buildApi(theme: const AcChatTheme(isDark: false),userId: '');
       expect(defaultApi.enableTypingIndicator, isTrue);
       expect(defaultApi.enableTyping, isTrue);
       expect(defaultApi.enableGroups, isTrue);
@@ -199,6 +199,7 @@ void main() {
 
       final customApi = backend.buildApi(
         theme: const AcChatTheme(isDark: false),
+        userId: '',
         enableTypingIndicator: false,
         enableTyping: false,
         enableGroups: false,
@@ -222,7 +223,7 @@ void main() {
         onMessageReceived: ({required message}) {
           received = message;
         },
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 

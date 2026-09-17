@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:ac_chat_notifications/ac_chat_notifications.dart';
 
 void main() {
@@ -127,7 +127,7 @@ void main() {
       int displayed = 0;
       final adapter = AcChatLocalNotificationAdapter(
         activeConversationId: 'conv_active',
-        api: AcChatApi(),
+        api: AcChatApi(userId: ''),
         onDisplayNotification: ({required payload}) async {
           displayed++;
         },
@@ -167,7 +167,7 @@ void main() {
     test('Badge count sync guard respects enableBadgeCountSync config flag', () async {
       int setBadge = 0;
       final disabledAdapter = AcChatLocalNotificationAdapter(
-        api: AcChatApi(enableBadgeCountSync: false),
+        api: AcChatApi(enableBadgeCountSync: false,userId:''),
         onSetBadgeCount: ({required int count}) async {
           setBadge = count;
         },
@@ -177,7 +177,7 @@ void main() {
       expect(setBadge, equals(0));
 
       final enabledAdapter = AcChatLocalNotificationAdapter(
-        api: AcChatApi(),
+        api: AcChatApi(userId: ''),
         onSetBadgeCount: ({required int count}) async {
           setBadge = count;
         },

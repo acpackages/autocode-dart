@@ -163,7 +163,7 @@ AcChatFirebase(
 ### `/conversations/{conversation_id}`
 ```json
 {
-  "member_ids": ["uid1", "uid2"],
+  "user_ids": ["uid1", "uid2"],
   "is_group": false,
   "group_name": null,
   "last_message": "Hello!",
@@ -174,7 +174,7 @@ AcChatFirebase(
 }
 ```
 
-### `/conversations/{conversation_id}/members/{user_id}`
+### `/conversations/{conversation_id}/users/{user_id}`
 ```json
 {
   "user_id": "uid1",
@@ -225,7 +225,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read, write: if true;
       }
-      match /members/{memberId} {
+      match /users/{userId} {
         allow read, write: if true;
       }
     }
@@ -241,7 +241,7 @@ Create these composite indexes in the Firebase Console (or via `firestore.indexe
 
 | Collection | Fields | Order |
 |---|---|---|
-| `conversations` | `member_ids` (array-contains), `last_time` | descending |
+| `conversations` | `user_ids` (array-contains), `last_time` | descending |
 | `messages` (subcollection) | `time` | ascending |
 
 ---
@@ -256,7 +256,7 @@ final channel = AcChatFirebase(currentUserId: 'uid');
 await channel.startListening(
   currentUserId: 'uid',
   onMessageReceived: (msg) { /* forward to SQLite */ },
-  onConversationChanged: (conv, members) { /* forward to SQLite */ },
+  onConversationChanged: (conv, users) { /* forward to SQLite */ },
   onUsersLoaded: (users) { /* forward to SQLite */ },
 );
 ```

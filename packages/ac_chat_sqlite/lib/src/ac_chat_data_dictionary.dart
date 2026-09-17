@@ -1,19 +1,13 @@
-/// Data dictionary schema definition for the ac_chat SQLite database.
-///
-/// This JSON is registered at startup under the name `"ac_chat"` and is
-/// consumed by [AcSqlDbSchemaManager] to create / migrate the database schema
-/// and by [AcSqlDbTable] for typed CRUD operations.
-const String kAcChatDataDictionaryJson = r'''
-{
+const Map<String,dynamic> kAcChatDataDictionaryJson = {
   "name": "ac_chat",
-  "version": 4,
+  "version": 1,
   "tables": {
     "users": {
       "tableName": "users",
       "tableColumns": {
         "user_id": {
           "columnName": "user_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
             "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
@@ -52,9 +46,9 @@ const String kAcChatDataDictionaryJson = r'''
           "columnName": "bio",
           "columnType": "STRING"
         },
-        "last_seen_utc": {
-          "columnName": "last_seen_utc",
-          "columnType": "INTEGER"
+        "last_seen": {
+          "columnName": "last_seen",
+          "columnType": "DATETIME"
         },
         "is_online": {
           "columnName": "is_online",
@@ -70,7 +64,7 @@ const String kAcChatDataDictionaryJson = r'''
       "tableColumns": {
         "conversation_id": {
           "columnName": "conversation_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
             "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
@@ -84,25 +78,25 @@ const String kAcChatDataDictionaryJson = r'''
             "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "direct" }
           }
         },
-        "group_name": {
-          "columnName": "group_name",
+        "conversation_name": {
+          "columnName": "conversation_name",
           "columnType": "STRING"
         },
-        "group_description": {
-          "columnName": "group_description",
+        "conversation_description": {
+          "columnName": "conversation_description",
           "columnType": "STRING"
         },
-        "group_avatar": {
-          "columnName": "group_avatar",
+        "conversation_avatar": {
+          "columnName": "conversation_avatar",
           "columnType": "STRING"
         },
         "created_by": {
           "columnName": "created_by",
           "columnType": "STRING"
         },
-        "created_at_utc": {
-          "columnName": "created_at_utc",
-          "columnType": "INTEGER"
+        "created_at": {
+          "columnName": "created_at",
+          "columnType": "DATETIME"
         },
         "last_message": {
           "columnName": "last_message",
@@ -122,7 +116,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "last_time": {
           "columnName": "last_time",
-          "columnType": "INTEGER",
+          "columnType": "DATETIME",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
@@ -157,9 +151,16 @@ const String kAcChatDataDictionaryJson = r'''
     "user_conversation_prefs": {
       "tableName": "user_conversation_prefs",
       "tableColumns": {
+        "user_conversation_pref_id": {
+          "columnName": "user_conversation_pref_id",
+          "columnType": "AUTO_INCREMENT",
+          "columnProperties": {
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+          }
+        },
         "conversation_id": {
           "columnName": "conversation_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
@@ -167,7 +168,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "user_id": {
           "columnName": "user_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
@@ -197,9 +198,9 @@ const String kAcChatDataDictionaryJson = r'''
             "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
           }
         },
-        "mute_until_utc": {
-          "columnName": "mute_until_utc",
-          "columnType": "INTEGER"
+        "mute_until": {
+          "columnName": "mute_until",
+          "columnType": "DATETIME"
         },
         "is_archived": {
           "columnName": "is_archived",
@@ -222,16 +223,16 @@ const String kAcChatDataDictionaryJson = r'''
           "columnType": "STRING",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
-            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "member" }
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "user" }
           }
         },
         "last_read_message_id": {
           "columnName": "last_read_message_id",
           "columnType": "STRING"
         },
-        "last_read_time_utc": {
-          "columnName": "last_read_time_utc",
-          "columnType": "INTEGER"
+        "last_read_time": {
+          "columnName": "last_read_time",
+          "columnType": "DATETIME"
         }
       },
       "tableProperties": {
@@ -246,29 +247,42 @@ const String kAcChatDataDictionaryJson = r'''
     "blocked_users": {
       "tableName": "blocked_users",
       "tableColumns": {
-        "user_id": {
-          "columnName": "user_id",
-          "columnType": "STRING",
+        "blocked_user_id": {
+          "columnName": "blocked_user_id",
+          "columnType": "AUTO_INCREMENT",
           "columnProperties": {
             "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+          }
+        },
+        "user_id": {
+          "columnName": "user_id",
+          "columnType": "UUID",
+          "columnProperties": {
             "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
           }
         },
-        "blocked_at_utc": {
-          "columnName": "blocked_at_utc",
-          "columnType": "INTEGER",
+        "blocked_at": {
+          "columnName": "blocked_at",
+          "columnType": "DATETIME",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
         }
       }
     },
-    "conversation_members": {
-      "tableName": "conversation_members",
+    "conversation_users": {
+      "tableName": "conversation_users",
       "tableColumns": {
+        "conversation_user_id": {
+          "columnName": "conversation_user_id",
+          "columnType": "AUTO_INCREMENT",
+          "columnProperties": {
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
+          }
+        },
         "conversation_id": {
           "columnName": "conversation_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
@@ -276,7 +290,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "user_id": {
           "columnName": "user_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
             "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
@@ -287,7 +301,7 @@ const String kAcChatDataDictionaryJson = r'''
           "columnType": "STRING",
           "columnProperties": {
             "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
-            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "member" }
+            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "user" }
           }
         }
       },
@@ -305,7 +319,7 @@ const String kAcChatDataDictionaryJson = r'''
       "tableColumns": {
         "message_id": {
           "columnName": "message_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
             "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
@@ -313,14 +327,14 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "conversation_id": {
           "columnName": "conversation_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
         },
         "sender_id": {
           "columnName": "sender_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
@@ -343,7 +357,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "time": {
           "columnName": "time",
-          "columnType": "INTEGER",
+          "columnType": "DATETIME",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
@@ -392,25 +406,21 @@ const String kAcChatDataDictionaryJson = r'''
           "columnName": "local_path",
           "columnType": "STRING"
         },
-        "file_path": {
-          "columnName": "file_path",
-          "columnType": "STRING"
-        },
         "file_url": {
           "columnName": "file_url",
           "columnType": "STRING"
         },
         "reply_to_id": {
           "columnName": "reply_to_id",
-          "columnType": "STRING"
+          "columnType": "UUID"
         },
         "delivered_time": {
           "columnName": "delivered_time",
-          "columnType": "INTEGER"
+          "columnType": "DATETIME"
         },
         "read_time": {
           "columnName": "read_time",
-          "columnType": "INTEGER"
+          "columnType": "DATETIME"
         },
         "is_edited": {
           "columnName": "is_edited",
@@ -422,7 +432,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "edited_time": {
           "columnName": "edited_time",
-          "columnType": "INTEGER"
+          "columnType": "DATETIME"
         },
         "is_deleted": {
           "columnName": "is_deleted",
@@ -448,74 +458,42 @@ const String kAcChatDataDictionaryJson = r'''
           "columnName": "mentions_json",
           "columnType": "TEXT"
         },
-        "pinned_until_utc": {
-          "columnName": "pinned_until_utc",
-          "columnType": "INTEGER"
+        "pinned_until": {
+          "columnName": "pinned_until",
+          "columnType": "DATETIME"
         },
-        "scheduled_time_utc": {
-          "columnName": "scheduled_time_utc",
-          "columnType": "INTEGER"
+        "scheduled_time": {
+          "columnName": "scheduled_time",
+          "columnType": "DATETIME"
         },
-        "expires_at_utc": {
-          "columnName": "expires_at_utc",
-          "columnType": "INTEGER"
+        "expires_at": {
+          "columnName": "expires_at",
+          "columnType": "DATETIME"
         }
       }
     },
-    "outbox_messages": {
-      "tableName": "outbox_messages",
+    "channel_cache": {
+      "tableName": "channel_cache",
       "tableColumns": {
-        "outbox_id": {
-          "columnName": "outbox_id",
-          "columnType": "STRING",
+        "cache_id": {
+          "columnName": "cache_id",
+          "columnType": "AUTO_INCREMENT",
           "columnProperties": {
-            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
-            "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
+            "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true }
           }
         },
-        "message_id": {
-          "columnName": "message_id",
-          "columnType": "STRING",
-          "columnProperties": {
-            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
-            "CHECK_IN_SAVE": { "propertyName": "CHECK_IN_SAVE", "propertyValue": true }
-          }
-        },
-        "conversation_id": {
-          "columnName": "conversation_id",
-          "columnType": "STRING",
-          "columnProperties": {
-            "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
-          }
-        },
-        "recipient_ids_json": {
-          "columnName": "recipient_ids_json",
+        "envelope_json": {
+          "columnName": "envelope_json",
           "columnType": "TEXT",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
         },
-        "retry_count": {
-          "columnName": "retry_count",
-          "columnType": "INTEGER",
-          "columnProperties": {
-            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
-            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": 0 }
-          }
-        },
         "created_at": {
           "columnName": "created_at",
-          "columnType": "INTEGER",
+          "columnType": "DATETIME",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
-          }
-        },
-        "status": {
-          "columnName": "status",
-          "columnType": "STRING",
-          "columnProperties": {
-            "NOT_NULL":      { "propertyName": "NOT_NULL",      "propertyValue": true },
-            "DEFAULT_VALUE": { "propertyName": "DEFAULT_VALUE", "propertyValue": "pending" }
           }
         }
       }
@@ -525,7 +503,7 @@ const String kAcChatDataDictionaryJson = r'''
       "tableColumns": {
         "message_id": {
           "columnName": "message_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "PRIMARY_KEY": { "propertyName": "PRIMARY_KEY", "propertyValue": true },
             "NOT_NULL":    { "propertyName": "NOT_NULL",    "propertyValue": true }
@@ -533,7 +511,7 @@ const String kAcChatDataDictionaryJson = r'''
         },
         "conversation_id": {
           "columnName": "conversation_id",
-          "columnType": "STRING",
+          "columnType": "UUID",
           "columnProperties": {
             "NOT_NULL": { "propertyName": "NOT_NULL", "propertyValue": true }
           }
@@ -549,5 +527,114 @@ const String kAcChatDataDictionaryJson = r'''
       }
     }
   }
+};
+
+/* Keys Start */
+/* Table Keys Start */
+
+class Tables {
+  static const String blockedUsers = "blocked_users";
+  static const String channelCache = "channel_cache";
+  static const String conversationUsers = "conversation_users";
+  static const String conversations = "conversations";
+  static const String messages = "messages";
+  static const String messagesFts = "messages_fts";
+  static const String userConversationPrefs = "user_conversation_prefs";
+  static const String users = "users";
 }
-''';
+
+class TblBlockedUsers {
+  static const String blockedUserId = "blocked_user_id";
+  static const String userId = "user_id";
+  static const String blockedAt = "blocked_at";
+}
+class TblChannelCache {
+  static const String cacheId = "cache_id";
+  static const String envelopeJson = "envelope_json";
+  static const String createdAt = "created_at";
+}
+class TblConversationUsers {
+  static const String conversationUserId = "conversation_user_id";
+  static const String conversationId = "conversation_id";
+  static const String userId = "user_id";
+  static const String role = "role";
+}
+class TblConversations {
+  static const String conversationId = "conversation_id";
+  static const String type = "type";
+  static const String conversationName = "conversation_name";
+  static const String conversationDescription = "conversation_description";
+  static const String conversationAvatar = "conversation_avatar";
+  static const String createdBy = "created_by";
+  static const String createdAt = "created_at";
+  static const String lastMessage = "last_message";
+  static const String lastMessageType = "last_message_type";
+  static const String lastTime = "last_time";
+  static const String unread = "unread";
+  static const String isPinned = "is_pinned";
+  static const String isMuted = "is_muted";
+  static const String disappearingDurationSeconds = "disappearing_duration_seconds";
+}
+class TblMessages {
+  static const String messageId = "message_id";
+  static const String conversationId = "conversation_id";
+  static const String senderId = "sender_id";
+  static const String type = "type";
+  static const String text = "text";
+  static const String time = "time";
+  static const String status = "status";
+  static const String mediaCaption = "media_caption";
+  static const String amount = "amount";
+  static const String paymentNote = "payment_note";
+  static const String duration = "duration";
+  static const String fileName = "file_name";
+  static const String fileSize = "file_size";
+  static const String isDownloaded = "is_downloaded";
+  static const String localPath = "local_path";
+  static const String fileUrl = "file_url";
+  static const String replyToId = "reply_to_id";
+  static const String deliveredTime = "delivered_time";
+  static const String readTime = "read_time";
+  static const String isEdited = "is_edited";
+  static const String editedTime = "edited_time";
+  static const String isDeleted = "is_deleted";
+  static const String reactionsJson = "reactions_json";
+  static const String isStarred = "is_starred";
+  static const String mentionsJson = "mentions_json";
+  static const String pinnedUntil = "pinned_until";
+  static const String scheduledTime = "scheduled_time";
+  static const String expiresAt = "expires_at";
+}
+class TblMessagesFts {
+  static const String messageId = "message_id";
+  static const String conversationId = "conversation_id";
+  static const String text = "text";
+}
+class TblUserConversationPrefs {
+  static const String userConversationPrefId = "user_conversation_pref_id";
+  static const String conversationId = "conversation_id";
+  static const String userId = "user_id";
+  static const String unreadCount = "unread_count";
+  static const String isPinned = "is_pinned";
+  static const String isMuted = "is_muted";
+  static const String muteUntil = "mute_until";
+  static const String isArchived = "is_archived";
+  static const String isHidden = "is_hidden";
+  static const String role = "role";
+  static const String lastReadMessageId = "last_read_message_id";
+  static const String lastReadTime = "last_read_time";
+}
+class TblUsers {
+  static const String userId = "user_id";
+  static const String name = "name";
+  static const String username = "username";
+  static const String email = "email";
+  static const String phone = "phone";
+  static const String avatar = "avatar";
+  static const String bio = "bio";
+  static const String lastSeen = "last_seen";
+  static const String isOnline = "is_online";
+}
+
+/* Table Keys End */
+/* Keys End */

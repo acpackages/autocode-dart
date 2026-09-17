@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../core/ac_chat.dart';
+import 'ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 
-class NewChatScreen extends StatefulWidget {
-  final AcChatApi api;
+class NewConversationScreen extends StatefulWidget {
+  final AcChat chat;
+  AcChatApi get api{
+    return chat.api;
+  }
 
-  const NewChatScreen({super.key, required this.api});
+  const NewConversationScreen({super.key, required this.chat});
 
   @override
-  State<NewChatScreen> createState() => _NewChatScreenState();
+  State<NewConversationScreen> createState() => _NewConversationScreenState();
 }
 
-class _NewChatScreenState extends State<NewChatScreen> {
+class _NewConversationScreenState extends State<NewConversationScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
   List<AcChatUser> _remoteUsers = [];
@@ -42,7 +46,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     setState(() => _query = q);
 
     _debounceTimer?.cancel();
-    if (widget.api.onSearchRemoteUsers != null && q.length >= 2) {
+    if (widget.api.onGetRemoteUsers != null && q.length >= 2) {
       _debounceTimer = Timer(const Duration(milliseconds: 400), () => _searchRemote(q));
     } else {
       setState(() {
@@ -53,12 +57,12 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   Future<void> _searchRemote(String q) async {
-    if (widget.api.onSearchRemoteUsers == null) return;
+    if (widget.api.onGetRemoteUsers == null) return;
     setState(() => _isSearchingRemote = true);
     try {
-      final results = await widget.api.onSearchRemoteUsers!(query: q);
+      final results = await widget.api.onGetRemoteUsers!(query: q);
       if (mounted && _query == q) {
-        final myId = (await widget.api.getCurrentUser()).userId;
+        final myId = widget.api.userId;
         final localIds = (await _localUsers()).map((u) => u.userId).toSet();
         setState(() {
           _remoteUsers = results
@@ -73,7 +77,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   Future<List<AcChatUser>> _localUsers() async {
-    final myId = (await widget.api.getCurrentUser()).userId;
+    final myId = widget.api.userId;
     final users = await widget.api.getContacts?.call() ?? await widget.api.getUsers();
     return users.where((u) => u.userId.isNotEmpty && u.userId != myId).toList();
   }
@@ -90,7 +94,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
   void _startChat(AcChatUser user) async {
     final existing = (await widget.api.getConversations()).where(
-      (c) => c.type == 'direct' && c.memberIds.contains(user.userId),
+      (c) => c.type == 'direct' && c.userIds.contains(user.userId),
     ).toList();
 
     AcChatConversation? conversation;
@@ -99,8 +103,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
     } else {
       final newConv = AcChatConversation()
         ..type = 'direct'
-        ..groupName = null
-        ..memberIds = [(await widget.api.getCurrentUser()).userId, user.userId]
+        ..conversationName = null
+        ..userIds = [widget.api.userId, user.userId]
         ..lastMessage = ''
         ..lastMessageType = 'text'
         ..isPinned = false
@@ -114,8 +118,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   void _startGroup() {
-    if (widget.api.onNewGroup != null) {
-      widget.api.onNewGroup!(context: context);
+    if (widget.chat.onNewGroup != null) {
+      widget.chat.onNewGroup!(context: context);
     } else {
       setState(() {
         _isGroupCreationMode = true;
@@ -159,18 +163,18 @@ class _NewChatScreenState extends State<NewChatScreen> {
     );
 
     if (groupName != null && groupName.isNotEmpty && mounted) {
-      final allMembers = [(await widget.api.getCurrentUser()).userId, ..._selectedMemberIds];
-      final groupConv = await widget.api.createGroupConversation(
-        groupName: groupName,
-        memberUserIds: allMembers,
-      );
-      if (mounted) Navigator.of(context).pop(groupConv);
+      final allMembers = [widget.api.userId, ..._selectedMemberIds];
+      // final groupConv = await widget.api.createGroupConversation(
+      //   groupName: groupName,
+      //   userIds: allMembers,
+      // );
+      // if (mounted) Navigator.of(context).pop(groupConv);
     }
   }
 
   Future<void> _startNewContact() async {
-    if (widget.api.onNewContact != null) {
-      final user = await widget.api.onNewContact!(context: context);
+    if (widget.chat.onNewContact != null) {
+      final user = await widget.chat.onNewContact!(context: context);
       if (user != null && mounted) {
         _startChat(user);
       } else if (mounted) {

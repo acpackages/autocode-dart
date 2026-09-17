@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:io' as io;
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../core/ac_chat.dart';
+import '../ac_chat.dart';
 
 class MediaDownloadWrapper extends StatefulWidget {
   final AcChatMessage message;
@@ -26,21 +27,32 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
 
   Future<void> _startDownload() async {
     if (_isDownloading) return;
-    AcChatApi api = AcChatApiProvider.of(context);
+    AcChatApi api = AcChatApiProvider.getApi(context);
     setState(() {
       _isDownloading = true;
-      _progress = 0.2;
+      _progress = 0.0;
     });
 
     try {
-      final savedPath = await api.downloadMedia(message: widget.message);
+      final savedPath = await api.downloadMedia(
+        message: widget.message,
+        onProgress: ({required double progress}) {
+          if (mounted) {
+            setState(() {
+              _progress = progress.clamp(0.0, 1.0);
+            });
+          }
+        },
+      );
       if (savedPath != null && mounted) {
         widget.message.isDownloaded = true;
         widget.message.localPath = savedPath;
         try {
-          api.updateMessage(
+          await api.updateMessage(
             messageId: widget.message.messageId,
             data: {
+              'is_downloaded': true,
+              'local_path': savedPath,
               'isDownloaded': true,
               'localPath': savedPath,
             },
@@ -61,9 +73,10 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
   @override
   Widget build(BuildContext context) {
     final path = widget.message.localPath;
-    final bool fileExists = !kIsWeb && path != null && path.isNotEmpty && io.File(path).existsSync();
+    final bool fileExists = kIsWeb || (path != null && path.isNotEmpty && io.File(path).existsSync());
+    final bool hasBytes = widget.message.byteData != null && widget.message.byteData!.isNotEmpty;
 
-    if (widget.message.isDownloaded && fileExists) {
+    if ((widget.message.isDownloaded && fileExists) || hasBytes) {
       return widget.child;
     }
 
@@ -115,7 +128,7 @@ class _MediaDownloadWrapperState extends State<MediaDownloadWrapper> {
                 alignment: Alignment.center,
                 children: [
                   CircularProgressIndicator(
-                    value: _progress,
+                    value: _progress > 0 ? _progress : null,
                     strokeWidth: 3,
                     valueColor: AlwaysStoppedAnimation<Color>(widget.ct.activeTabColor),
                     backgroundColor: widget.ct.divider,

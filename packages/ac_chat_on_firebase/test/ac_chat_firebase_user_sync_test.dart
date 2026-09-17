@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:ac_chat_on_firebase/ac_chat_on_firebase.dart';
 
 void main() {
@@ -34,7 +34,7 @@ void main() {
         onMessageReceived: ({required message}) {
           receivedMessagesB.add(message);
         },
-        onConversationChanged: ({required conversation, required members}) {
+        onConversationChanged: ({required conversation, required users}) {
           changedConversationsB.add(conversation);
         },
         onUsersLoaded: ({required users}) {},
@@ -44,14 +44,14 @@ void main() {
       final conv = AcChatConversation()
         ..conversationId = 'conv_ab'
         ..type = 'direct'
-        ..memberIds = [userA, userB]
+        ..userIds = [userA, userB]
         ..lastMessage = ''
         ..lastMessageType = 'text'
         ..lastTime = DateTime.now();
 
       await clientA.createConversation(
         conversation: conv,
-        memberIds: [userA, userB],
+        userIds: [userA, userB],
       );
 
       // 2. Send message from A to B
@@ -104,18 +104,18 @@ void main() {
       await clientB.startListening(
         currentUserId: userB,
         onMessageReceived: ({required message}) => receivedMessagesB.add(message),
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       final conv = AcChatConversation()
         ..conversationId = 'conv_ab_multi'
         ..type = 'direct'
-        ..memberIds = [userA, userB]
+        ..userIds = [userA, userB]
         ..lastTime = DateTime.now();
       await clientA.createConversation(
         conversation: conv,
-        memberIds: [userA, userB],
+        userIds: [userA, userB],
       );
 
       // Send 3 messages rapidly
@@ -154,22 +154,22 @@ void main() {
       await clientB.startListening(
         currentUserId: userB,
         onMessageReceived: ({required message}) => receivedMessagesB.add(message),
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       // Setup conversations
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_ab'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_ab'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
       await clientC.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_cb'..type = 'direct'..memberIds = [userC, userB]..lastTime = DateTime.now(),
-        memberIds: [userC, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_cb'..type = 'direct'..userIds = [userC, userB]..lastTime = DateTime.now(),
+        userIds: [userC, userB],
       );
       await clientD.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_db'..type = 'direct'..memberIds = [userD, userB]..lastTime = DateTime.now(),
-        memberIds: [userD, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_db'..type = 'direct'..userIds = [userD, userB]..lastTime = DateTime.now(),
+        userIds: [userD, userB],
       );
 
       // Send messages from each sender
@@ -229,17 +229,17 @@ void main() {
         onMessageReceived: ({required message}) {
           receivedMap[message.messageId] = message.conversationId;
         },
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_1'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_1'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_2'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_2'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
 
       await clientA.sendMessage(
@@ -285,13 +285,13 @@ void main() {
         onMessageReceived: ({required message}) {
           receiveCount++;
         },
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_dedup'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_dedup'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
 
       await clientA.sendMessage(
@@ -331,13 +331,13 @@ void main() {
       await clientB.startListening(
         currentUserId: userB,
         onMessageReceived: ({required message}) => count++,
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_lifecycle'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_lifecycle'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
 
       await clientA.sendMessage(
@@ -386,13 +386,13 @@ void main() {
       await client.startListening(
         currentUserId: userB,
         onMessageReceived: ({required message}) => receivedByB.add(message.messageId),
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_ab_auth'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_ab_auth'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
 
       await clientA.sendMessage(
@@ -416,13 +416,13 @@ void main() {
       await client.startListening(
         currentUserId: userC,
         onMessageReceived: ({required message}) => receivedByC.add(message.messageId),
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_ac_auth'..type = 'direct'..memberIds = [userA, userC]..lastTime = DateTime.now(),
-        memberIds: [userA, userC],
+        conversation: AcChatConversation()..conversationId = 'conv_ac_auth'..type = 'direct'..userIds = [userA, userC]..lastTime = DateTime.now(),
+        userIds: [userA, userC],
       );
 
       await clientA.sendMessage(
@@ -453,13 +453,13 @@ void main() {
       await clientB.startListening(
         currentUserId: userB,
         onMessageReceived: ({required message}) => updatedMessages.add(message),
-        onConversationChanged: ({required conversation, required members}) {},
+        onConversationChanged: ({required conversation, required users}) {},
         onUsersLoaded: ({required users}) {},
       );
 
       await clientA.createConversation(
-        conversation: AcChatConversation()..conversationId = 'conv_update'..type = 'direct'..memberIds = [userA, userB]..lastTime = DateTime.now(),
-        memberIds: [userA, userB],
+        conversation: AcChatConversation()..conversationId = 'conv_update'..type = 'direct'..userIds = [userA, userB]..lastTime = DateTime.now(),
+        userIds: [userA, userB],
       );
 
       final msg = AcChatMessage()

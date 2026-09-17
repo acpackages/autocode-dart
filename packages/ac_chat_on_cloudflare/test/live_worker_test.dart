@@ -18,7 +18,7 @@ void main() {
       expiresInSeconds: 3600,
     );
 
-    final uploader = AcChatCloudflareUploader(
+    final handler = AcChatCloudflareHandler(
       baseUrl: 'https://accountea-worker.softechcompany-com.workers.dev',
       getJwtToken: () => token,
     );
@@ -32,7 +32,7 @@ void main() {
     ]);
 
     print('Uploading test image to Cloudflare Worker...');
-    final uploadedUrl = await uploader.uploadMedia(
+    final uploadedUrl = await handler.uploadMedia(
       conversationId: 'test_conv',
       messageId: 'test_msg',
       fileName: 'test.jpg',
@@ -46,18 +46,17 @@ void main() {
       equals('https://accountea-worker.softechcompany-com.workers.dev/user/chat/conversations/test_conv/test_msg/test.jpg'),
     );
 
-    print('Fetching uploaded media via GET...');
-    final http = AcHttp();
-    final getResult = await http.get(
+    print('Downloading uploaded media via handler.downloadMedia...');
+    final progressList = <double>[];
+    final downloadedBytes = await handler.downloadMedia(
       url: uploadedUrl,
-      headers: {
-        'Authorization': 'Bearer $token',
+      onProgress: ({required double progress}) {
+        progressList.add(progress);
       },
     );
 
-    print('GET response code: ${getResult.responseCode.value}');
-    print('GET isSuccess: ${getResult.isSuccess()}');
-    expect(getResult.isSuccess(), isTrue);
-    expect(getResult.responseCode.value >= 200 && getResult.responseCode.value < 300, isTrue);
+    print('Downloaded bytes: ${downloadedBytes.length}');
+    expect(downloadedBytes, equals(jpegBytes));
+    expect(progressList.isNotEmpty, isTrue);
   });
 }

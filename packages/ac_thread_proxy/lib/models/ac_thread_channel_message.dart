@@ -5,7 +5,7 @@ import 'package:autocode/autocode.dart';
 class AcThreadChannelMessage {
   String key = "";
   int id = -1;
-  dynamic data = null;
+  Map<String,dynamic> data = {};
   bool isResponse = false;
   dynamic response = null;
   bool isError = false;
@@ -15,7 +15,7 @@ class AcThreadChannelMessage {
   AcThreadChannelMessage({
     this.key = "",
     this.id = -1,
-    this.data,
+    this.data = const {},
     this.isResponse = false,
     this.response,
     this.isError = false,

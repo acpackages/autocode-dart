@@ -21,7 +21,7 @@ void main() {
     });
 
     test('successfully communicates back and forth', () async {
-      childChannel.on(key: 'add', callback: (Map<String, dynamic> args) async {
+      childChannel.on(key: 'add', callback: ({required Map<String, dynamic> args}) async {
         return (args['a'] as int) + (args['b'] as int);
       });
 
@@ -30,7 +30,7 @@ void main() {
     });
 
     test('handles 0-arity callback when data is passed (resilience to arity mismatch)', () async {
-      childChannel.on(key: 'ping', callback: () async {
+      childChannel.on(key: 'ping', callback: ({required Map<String, dynamic> args}) async {
         return 'pong';
       });
 
@@ -39,16 +39,16 @@ void main() {
     });
 
     test('handles 1-arity callback when data is null (resilience to arity mismatch)', () async {
-      childChannel.on(key: 'checkNull', callback: (args) async {
+      childChannel.on(key: 'checkNull', callback: ({required Map<String, dynamic> args}) async {
         return args == null ? 'was_null' : 'not_null';
       });
 
-      final result = await mainChannel.emit(key: 'checkNull');
+      final result = await mainChannel.emit(key: 'checkNull',data: {});
       expect(result, equals('was_null'));
     });
 
     test('returns error when callback throws an exception without hanging', () async {
-      childChannel.on(key: 'failingOp', callback: (args) async {
+      childChannel.on(key: 'failingOp', callback: ({required Map<String, dynamic> args}) async {
         throw FormatException('Invalid payload format');
       });
 
@@ -60,13 +60,13 @@ void main() {
 
     test('returns error when key is not registered without hanging', () async {
       expect(
-        () async => await mainChannel.emit(key: 'unregistered_key'),
+        () async => await mainChannel.emit(key: 'unregistered_key',data: {}),
         throwsA(predicate((e) => e.toString().contains('No callback registered for key'))),
       );
     });
 
     test('handles timeout when requested', () async {
-      childChannel.on(key: 'slowOp', callback: (args) async {
+      childChannel.on(key: 'slowOp', callback: ({required Map<String, dynamic> args}) async {
         await Future.delayed(const Duration(seconds: 2));
         return 'done';
       });
@@ -74,6 +74,7 @@ void main() {
       expect(
         () async => await mainChannel.emit(
           key: 'slowOp',
+          data: {},
           timeout: const Duration(milliseconds: 100),
         ),
         throwsA(isA<TimeoutException>()),
@@ -81,11 +82,11 @@ void main() {
     });
 
     test('closing channel completes pending requests with error', () async {
-      childChannel.on(key: 'neverCompletes', callback: (args) async {
+      childChannel.on(key: 'neverCompletes', callback: ({required Map<String, dynamic> args}) async {
         await Completer<void>().future;
       });
 
-      final future = mainChannel.emit(key: 'neverCompletes');
+      final future = mainChannel.emit(key: 'neverCompletes',data: {});
       await Future.delayed(const Duration(milliseconds: 50));
       mainChannel.close();
 

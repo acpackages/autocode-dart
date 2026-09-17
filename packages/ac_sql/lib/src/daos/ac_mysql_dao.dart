@@ -10,6 +10,18 @@ import 'package:mysql_dart/mysql_client.dart';
   "example": "final mysqlConfig = AcSqlConnection(\n  hostname: '127.0.0.1',\n  port: 3306,\n  username: 'root',\n  password: 'password',\n  database: 'my_app'\n);\n\nfinal dao = AcMysqlDao();\nawait dao.setSqlConnection(sqlConnection: mysqlConfig);\n\nfinal result = await dao.getRows(statement: 'SELECT * FROM users');\nprint(result.rows);"
 }) */
 class AcMysqlDao extends AcBaseSqlDao {
+  @override
+  AcEnumSqlDatabaseType get databaseType => AcEnumSqlDatabaseType.mysql;
+
+  @override
+  String get uuidExpression => "UUID()";
+
+  @override
+  String get disableForeignKeyChecksSql => 'SET FOREIGN_KEY_CHECKS = 0;';
+
+  @override
+  String get enableForeignKeyChecksSql => 'SET FOREIGN_KEY_CHECKS = 1;';
+
   /* AcDoc({"summary": "Creates and opens a new MySQL connection to the specified database."}) */
   Future<MySQLConnection> _getConnection() async {
     final conn = await MySQLConnection.createConnection(
@@ -131,13 +143,6 @@ class AcMysqlDao extends AcBaseSqlDao {
       db = await _getConnectionWithoutDatabase();
       final statement =
           "CREATE DATABASE IF NOT EXISTS ${sqlConnection.database}";
-      final setParametersResult = setSqlStatementParameters(
-        statement: statement,
-        passedParameters: {"@databaseName": sqlConnection.database},
-      );
-      final updatedStatement = setParametersResult['statement'];
-      final updatedParameterValues =
-          setParametersResult['statementParametersMap'];
       await db.execute(statement);
       result.setSuccess(value: true, message: 'Database created');
     } catch (ex, stack) {
@@ -195,7 +200,6 @@ class AcMysqlDao extends AcBaseSqlDao {
   @override
   Future<AcResult> dropExistingRelationships() async {
     final result = AcResult();
-    MySQLConnection? db;
     try {
       bool continueOperation = true;
       const disableCheckStatement = "SET FOREIGN_KEY_CHECKS = 0;";
@@ -226,7 +230,6 @@ class AcMysqlDao extends AcBaseSqlDao {
         if (getResult.isSuccess()) {
           for (final row in getResult.rows) {
             final dropRelationshipStatement = row['drop_query'] as String;
-            final constraintName = row['constraint_name'] as String;
             logger.log(
               'Executing drop relationship statement: $dropRelationshipStatement',
             );
@@ -260,8 +263,6 @@ class AcMysqlDao extends AcBaseSqlDao {
       }
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
-    } finally {
-      await db?.close();
     }
     return result;
   }
@@ -298,6 +299,115 @@ class AcMysqlDao extends AcBaseSqlDao {
           await txn.execute(updatedStatement, updatedParameterValues);
         }
       });
+      result.setSuccess();
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    } finally {
+      await db?.close();
+    }
+    return result;
+  }
+
+  @override
+  Future<AcResult> executeSqlOperations({
+    required List<AcSqlOperation> operations,
+    Function(AcSqlCallbackArgs)? perOperationCallback,
+  }) async {
+    final result = AcSqlDaoResult();
+    MySQLConnection? db;
+
+    try {
+      db = await _getConnection();
+      await db.transactional((txn) async {
+        for (int i = 0; i < operations.length; i++) {
+          final sqlOperation = operations[i];
+          if (sqlOperation.rawSql != null) {
+            final setParametersResult = setSqlStatementParameters(
+              statement: sqlOperation.rawSql!,
+              passedParameters: sqlOperation.parameters ?? {},
+            );
+            await txn.execute(
+              setParametersResult['statement'],
+              setParametersResult['statementParametersMap'],
+            );
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.insert && sqlOperation.row != null) {
+            final row = sqlOperation.row!;
+            final columns = row.keys.toList();
+            final placeholders = List.generate(columns.length, (idx) => '@p$idx').join(', ');
+            final statement = "INSERT INTO ${sqlOperation.table} (${columns.join(', ')}) VALUES ($placeholders)";
+            final params = <String, dynamic>{};
+            for (var idx = 0; idx < columns.length; idx++) {
+              params['@p$idx'] = row[columns[idx]];
+            }
+            final setParametersResult = setSqlStatementParameters(
+              statement: statement,
+              passedParameters: params,
+            );
+            await txn.execute(
+              setParametersResult['statement'],
+              setParametersResult['statementParametersMap'],
+            );
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.update && sqlOperation.row != null) {
+            final row = sqlOperation.row!;
+            final setValues = row.keys.map((key) => "$key = @$key").join(", ");
+            final conditionClause = (sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty)
+                ? "WHERE ${sqlOperation.condition}"
+                : "";
+            final statement = "UPDATE ${sqlOperation.table} SET $setValues $conditionClause";
+            final setParametersResult = setSqlStatementParameters(
+              statement: statement,
+              passedParameters: {...row, ...(sqlOperation.parameters ?? {})},
+            );
+            await txn.execute(
+              setParametersResult['statement'],
+              setParametersResult['statementParametersMap'],
+            );
+          } else if (sqlOperation.operation == AcEnumDDRowOperation.delete) {
+            final conditionClause = (sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty)
+                ? "WHERE ${sqlOperation.condition}"
+                : "";
+            final statement = "DELETE FROM ${sqlOperation.table} $conditionClause";
+            final setParametersResult = setSqlStatementParameters(
+              statement: statement,
+              passedParameters: sqlOperation.parameters ?? {},
+            );
+            await txn.execute(
+              setParametersResult['statement'],
+              setParametersResult['statementParametersMap'],
+            );
+          }
+
+          if (perOperationCallback != null) {
+            perOperationCallback(AcSqlCallbackArgs(
+              completedCount: i + 1,
+              totalCount: operations.length,
+              description: "Executing SQL operation ${i + 1} of ${operations.length}",
+            ));
+          }
+        }
+      });
+      result.setSuccess();
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
+    } finally {
+      await db?.close();
+    }
+    return result;
+  }
+
+  @override
+  Future<AcResult> dropColumns({
+    required String tableName,
+    required List<String> columnNames,
+  }) async {
+    final result = AcResult();
+    MySQLConnection? db;
+    try {
+      db = await _getConnection();
+      for (final col in columnNames) {
+        final statement = "ALTER TABLE `$tableName` DROP COLUMN `$col`";
+        await db.execute(statement);
+      }
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
@@ -853,7 +963,6 @@ class AcMysqlDao extends AcBaseSqlDao {
             for (var i = 0; i < columns.length; i++) {
               params['@p$i'] = rowData[columns[i]];
             }
-            List<dynamic> parameterValues = List<dynamic>.empty(growable: true);
             final setParametersResult = setSqlStatementParameters(
               statement: statement,
               passedParameters: params,

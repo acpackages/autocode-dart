@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  ac_chat_core:
+    path: './../ac_chat_core'
   autocode:
     path: './../autocode'
   ac_extensions:

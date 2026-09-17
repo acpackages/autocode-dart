@@ -12,6 +12,8 @@ dependencies:
     sdk: flutter
   ac_chat:
     path: './../ac_chat'
+  ac_chat_core:
+    path: './../ac_chat_core'
   firebase_core: ^3.0.0
   cloud_firestore: ^5.0.0
   firebase_storage: ^12.0.0

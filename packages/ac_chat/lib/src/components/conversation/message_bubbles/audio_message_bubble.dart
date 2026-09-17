@@ -1,7 +1,8 @@
 import 'dart:io' as io;
+import 'package:ac_chat/ac_chat.dart';
+import 'package:ac_chat_core/ac_chat_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../../core/ac_chat.dart';
 
 class AudioMessageBubble extends StatefulWidget {
   final AcChatMessage message;
@@ -61,7 +62,7 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
                               widget.message.localPath!.isNotEmpty &&
                               io.File(widget.message.localPath!).existsSync())
                           ? widget.message.localPath!
-                          : (widget.message.filePath ?? widget.message.fileUrl ?? widget.message.text),
+                          : (widget.message.fileUrl ?? widget.message.text),
                     );
                   },
                   child: Container(
