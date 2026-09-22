@@ -44,6 +44,10 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         "CARGOKIT_ROOT_PROJECT_DIR=${CMAKE_SOURCE_DIR}"
     )
 
+    if (FLUTTER_ROOT)
+        list(APPEND CARGOKIT_ENV "FLUTTER_ROOT=${FLUTTER_ROOT}")
+    endif()
+
     if (WIN32)
         set(SCRIPT_EXTENSION ".cmd")
         set(IMPORT_LIB_EXTENSION ".lib")

@@ -12,3 +12,4 @@ environment.json
 **/build/**
 **/logs/**
 /.idea
+/packages/ac_quickjs/rust/target/

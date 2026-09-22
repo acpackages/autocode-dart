@@ -26,7 +26,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use libfjs::api::{JsContext, JsRuntime};
+//! use ac_quickjs::api::{JsContext, JsRuntime};
 //!
 //! // Create a runtime and context
 //! let runtime = JsRuntime::new()?;

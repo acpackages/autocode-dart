@@ -4,8 +4,6 @@ version = "3.3.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
-repository = "https://github.com/fluttercandies/fjs"
-homepage = "https://github.com/fluttercandies/fjs"
 description = "QuickJS-based JavaScript runtime for Dart and Flutter applications"
 readme = "../README.md"
 publish = false
@@ -18,7 +16,7 @@ crate-type = ["cdylib", "staticlib"]
 anyhow = "1"
 flutter_rust_bridge = "=2.12.0"
 futures = "0.3"
-rquickjs = { git = "https://github.com/DelSkayn/rquickjs.git", rev = "04e2734", version = "0.12.1", features = ["full-async", "bindgen", "loader", "dyn-load", "parallel", "macro", "futures"] }
+rquickjs = { git = "https://github.com/DelSkayn/rquickjs.git", rev = "04e2734", version = "0.12.1", features = ["full-async", "loader", "dyn-load", "parallel", "macro", "futures"] }
 tokio = { version = "1", features = ["full"] }
 
 llrt_abort = { git = "https://github.com/awslabs/llrt", rev = "952fd20" }
@@ -66,7 +64,7 @@ llrt_os = { git = "https://github.com/awslabs/llrt", rev = "952fd20" }
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 
 [patch.crates-io]
-# Force llrt modules to use the same rquickjs version as libfjs
+# Force llrt modules to use the same rquickjs version as ac_quickjs
 rquickjs = { git = "https://github.com/DelSkayn/rquickjs.git", rev = "04e2734", version = "0.12.1" }
 
 [profile.release]

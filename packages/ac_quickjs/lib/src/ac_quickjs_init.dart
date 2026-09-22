@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'frb/frb_generated.dart';
 
@@ -41,7 +43,7 @@ class AcQuickJs {
       return;
     }
 
-    final resolved = _resolveNativeLibrary();
+    final resolved = await _resolveNativeLibrary();
     if (resolved != null) {
       await LibFjs.init(
         externalLibrary: resolved,
@@ -55,7 +57,7 @@ class AcQuickJs {
   }
 
   /// Automatically resolves the bundled or platform native library.
-  static ExternalLibrary? _resolveNativeLibrary() {
+  static Future<ExternalLibrary?> _resolveNativeLibrary() async {
     // 1. Environment variable override
     final envPath = Platform.environment['AC_QUICKJS_LIB_PATH'];
     if (envPath != null && File(envPath).existsSync()) {
@@ -104,8 +106,16 @@ class AcQuickJs {
       return null;
     }
 
-    // 2. Search root paths (script dir, current working dir, package dirs)
+    // 2. Search root paths (package root via Isolate, script dir, current working dir, package dirs)
     final searchRoots = <String>[];
+
+    try {
+      final pkgUri = await Isolate.resolvePackageUri(Uri.parse('package:ac_quickjs/'));
+      if (pkgUri != null && pkgUri.isScheme('file')) {
+        final pkgRootDir = Directory.fromUri(pkgUri).parent.path;
+        searchRoots.add(pkgRootDir);
+      }
+    } catch (_) {}
 
     try {
       final scriptDir = File(Platform.script.toFilePath()).parent;
@@ -124,6 +134,32 @@ class AcQuickJs {
       cwdParent = cwdParent.parent;
       searchRoots.add(cwdParent.path);
     }
+
+    // Inspect .dart_tool/package_config.json in candidate roots
+    final pkgRoots = <String>[];
+    for (final root in searchRoots) {
+      final configFile = File('$root/.dart_tool/package_config.json');
+      if (configFile.existsSync()) {
+        try {
+          final content = configFile.readAsStringSync();
+          final data = jsonDecode(content);
+          if (data is Map && data['packages'] is List) {
+            for (final pkg in data['packages']) {
+              if (pkg is Map && pkg['name'] == 'ac_quickjs') {
+                final rootUri = pkg['rootUri']?.toString();
+                if (rootUri != null) {
+                  final resolvedUri = configFile.uri.resolve(rootUri);
+                  final pkgPath = Directory.fromUri(resolvedUri).path;
+                  pkgRoots.add(pkgPath);
+                }
+                break;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    searchRoots.insertAll(0, pkgRoots);
 
     for (final root in searchRoots) {
       for (final rel in relativeSubpaths) {

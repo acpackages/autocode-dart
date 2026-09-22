@@ -3,6 +3,51 @@
 version = 4
 
 [[package]]
+name = "ac_quickjs"
+version = "3.3.0"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "flutter_rust_bridge",
+ "futures",
+ "llrt_abort",
+ "llrt_assert",
+ "llrt_async_hooks",
+ "llrt_buffer",
+ "llrt_child_process",
+ "llrt_compression",
+ "llrt_console",
+ "llrt_context",
+ "llrt_crypto",
+ "llrt_dgram",
+ "llrt_dns",
+ "llrt_events",
+ "llrt_exceptions",
+ "llrt_fetch",
+ "llrt_fs",
+ "llrt_http",
+ "llrt_intl",
+ "llrt_json",
+ "llrt_navigator",
+ "llrt_net",
+ "llrt_os",
+ "llrt_path",
+ "llrt_perf_hooks",
+ "llrt_process",
+ "llrt_stream_web",
+ "llrt_string_decoder",
+ "llrt_temporal",
+ "llrt_timers",
+ "llrt_tty",
+ "llrt_url",
+ "llrt_util",
+ "llrt_utils",
+ "llrt_zlib",
+ "rquickjs",
+ "tokio",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -145,26 +190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bindgen"
-version = "0.72.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
-dependencies = [
- "bitflags",
- "cexpr",
- "clang-sys",
- "itertools",
- "log",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "syn",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -270,15 +295,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cexpr"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
-dependencies = [
- "nom",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -306,17 +322,6 @@ dependencies = [
  "num-traits",
  "wasm-bindgen",
  "windows-link",
-]
-
-[[package]]
-name = "clang-sys"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b023947811758c97c59bf9d1c188fd619ad4718dcaa767947df1cadb14f39f4"
-dependencies = [
- "glob",
- "libc",
- "libloading",
 ]
 
 [[package]]
@@ -557,51 +562,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
-name = "fjs"
-version = "3.3.0"
-dependencies = [
- "anyhow",
- "flate2",
- "flutter_rust_bridge",
- "futures",
- "llrt_abort",
- "llrt_assert",
- "llrt_async_hooks",
- "llrt_buffer",
- "llrt_child_process",
- "llrt_compression",
- "llrt_console",
- "llrt_context",
- "llrt_crypto",
- "llrt_dgram",
- "llrt_dns",
- "llrt_events",
- "llrt_exceptions",
- "llrt_fetch",
- "llrt_fs",
- "llrt_http",
- "llrt_intl",
- "llrt_json",
- "llrt_navigator",
- "llrt_net",
- "llrt_os",
- "llrt_path",
- "llrt_perf_hooks",
- "llrt_process",
- "llrt_stream_web",
- "llrt_string_decoder",
- "llrt_temporal",
- "llrt_timers",
- "llrt_tty",
- "llrt_url",
- "llrt_util",
- "llrt_utils",
- "llrt_zlib",
- "rquickjs",
- "tokio",
-]
-
-[[package]]
 name = "flate2"
 version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -830,12 +790,6 @@ name = "gimli"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
-
-[[package]]
-name = "glob"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "h2"
@@ -1195,15 +1149,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1299,16 +1244,6 @@ name = "libc"
 version = "0.2.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
-
-[[package]]
-name = "libloading"
-version = "0.8.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
-dependencies = [
- "cfg-if",
- "windows-link",
-]
 
 [[package]]
 name = "litemap"
@@ -1877,12 +1812,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "minimal-lexical"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1901,16 +1830,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "nom"
-version = "7.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
-dependencies = [
- "memchr",
- "minimal-lexical",
 ]
 
 [[package]]
@@ -2307,7 +2226,6 @@ name = "rquickjs-sys"
 version = "0.12.1"
 source = "git+https://github.com/DelSkayn/rquickjs.git?rev=04e2734#04e27345bd12e1d9b1eb68d76865805126313998"
 dependencies = [
- "bindgen",
  "cc",
 ]
 
@@ -2316,12 +2234,6 @@ name = "rustc-demangle"
 version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b50b8869d9fc858ce7266cce0194bd74df58b9d0e3f6df3a9fc8eb470d95c09d"
-
-[[package]]
-name = "rustc-hash"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe"
 
 [[package]]
 name = "rustc_version"

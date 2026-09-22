@@ -1445,19 +1445,20 @@ fn first_duplicate_name<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<
     None
 }
 
-/// Registers the fjs bridge object.
+/// Registers the ac_quickjs bridge object (and fjs alias for backwards compatibility).
 fn register_fjs<'js>(
     ctx: rquickjs::Ctx<'js>,
     bridge: Arc<BridgeCallback>,
     shutdown: crate::runtime::shutdown::RuntimeShutdown,
 ) -> rquickjs::CaughtResult<'js, ()> {
-    let fjs = Object::new(ctx.clone()).catch(&ctx)?;
-    fjs.set(
+    let bridge_obj = Object::new(ctx.clone()).catch(&ctx)?;
+    bridge_obj.set(
         "bridge_call",
         new_bridge_call(ctx.clone(), bridge, shutdown)?,
     )
     .catch(&ctx)?;
-    ctx.globals().set("fjs", fjs).catch(&ctx)?;
+    ctx.globals().set("ac_quickjs", bridge_obj.clone()).catch(&ctx)?;
+    ctx.globals().set("fjs", bridge_obj).catch(&ctx)?;
     Ok(())
 }
 

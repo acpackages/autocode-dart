@@ -1,0 +1,3 @@
+# Cargokit crate options for ac_quickjs
+# Local compilation via cargo is enabled.
+cargo: {}
