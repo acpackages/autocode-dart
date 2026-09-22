@@ -1,0 +1,11 @@
+name: ac_quickjs_dart_example
+description: Pure Dart CLI example demonstrating ac_quickjs with zero Flutter dependencies.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  ac_quickjs:
+    path: ../../

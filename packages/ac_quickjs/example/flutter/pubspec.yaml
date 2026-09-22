@@ -1,0 +1,21 @@
+name: ac_quickjs_flutter_example
+description: Minimal Flutter application demonstrating ac_quickjs compatibility.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_quickjs:
+    path: ../../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

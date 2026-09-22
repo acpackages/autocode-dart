@@ -1,0 +1,11 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - '**/*.freezed.dart'
+    - 'lib/src/frb/frb_generated.*'
+    - 'cargokit/**'
+
+linter:
+  rules:
+    - avoid_print: false
