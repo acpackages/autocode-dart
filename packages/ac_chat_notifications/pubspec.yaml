@@ -11,8 +11,6 @@ dependencies:
   flutter:
     sdk: flutter
   uuid: ^4.0.0
-  ac_chat:
-    path: './../ac_chat'
   ac_chat_core:
     path: './../ac_chat_core'
 

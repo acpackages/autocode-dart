@@ -535,6 +535,9 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_on_ac_ws/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

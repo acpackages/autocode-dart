@@ -1,5 +1,5 @@
-name: ac_exceptor
-description: Simple, robust Dart and Flutter exception-capturing package that persists grouped exceptions and occurrence logs into local SQLite database using ac_sql and ac_data_dictionary.
+name: ac_exceptor_flutter
+description: Extension of ac_exceptor for flutter
 version: 0.0.1
 publish_to: none
 
@@ -7,8 +7,10 @@ environment:
   sdk: ^3.7.0
 
 dependencies:
-  ac_sql:
-    path: ../ac_sql
+  flutter:
+    sdk: flutter
+  ac_exceptor:
+    path: ../ac_exceptor
   ac_data_dictionary:
     path: ../ac_data_dictionary
   autocode:

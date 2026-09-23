@@ -1,6 +1,12 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:ac_exceptor/ac_exceptor.dart';
+import 'package:autocode/autocode.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:test/test.dart';
+
 void main() {
   // group('AcExceptor SQLite & Error Handling Tests', () {
   //   const testDbPath = 'test_cache/test_exceptor.db';
@@ -22,7 +28,7 @@ void main() {
   //
   //   setUp(() async {
   //     deleteTestDb();
-  //     await AcExceptor.initialize(
+  //     await AcExceptor().initialize(
   //       databasePath: testDbPath,
   //       registerFlutterError: false,
   //       registerPlatformDispatcher: false,

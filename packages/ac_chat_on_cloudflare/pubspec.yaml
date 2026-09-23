@@ -8,10 +8,6 @@ environment:
   flutter: ">=3.27.4"
 
 dependencies:
-  flutter:
-    sdk: flutter
-  ac_chat:
-    path: './../ac_chat'
   ac_chat_core:
     path: './../ac_chat_core'
   autocode:

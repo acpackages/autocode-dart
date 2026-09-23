@@ -2,14 +2,10 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:ui';
-
 import 'package:ac_data_dictionary/ac_data_dictionary.dart';
 import 'package:ac_extensions/ac_extensions.dart';
 import 'package:ac_sql/ac_sql.dart';
 import 'package:autocode/autocode.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 
 import 'ac_exceptor_data_dictionary.dart';
 
@@ -51,39 +47,49 @@ dynamic acExceptorIgnore<T>(dynamic Function() action, {T? fallbackValue}) {
 /// Lightweight Dart & Flutter exception-capturing utility that persists grouped
 /// exception summaries and separate occurrence logs into a local SQLite database.
 class AcExceptor {
-  AcExceptor._();
+  static AcExceptor? globalInstance;
+  static init() async {
+    AcExceptor.globalInstance = AcExceptor();
+    await AcExceptor.globalInstance!.initialize();
+  }
 
-  static String _databasePath = '_ac_exceptor_/cache.db';
-  static final String _dataDictionaryName = 'ac_exceptor';
-  static late AcSqliteDao _dao;
-  static bool _initialized = false;
-  static bool _isInternalCapturing = false;
-  static Future<void> _queue = Future.value();
+  static Future<Isolate> startIsolate<T>(
+      void Function(T message) entryPoint,
+      T message, {
+        bool paused = false,
+        bool errorsAreFatal = true,
+        SendPort? onExit,
+        String? debugName,
+      }) async {
+    return await globalInstance!.spawnIsolate(entryPoint, message,paused: paused,errorsAreFatal: errorsAreFatal,onExit: onExit,debugName: debugName);
+  }
 
-  static FlutterExceptionHandler? _originalFlutterOnError;
-  static ErrorCallback? _originalPlatformOnError;
 
-  /// Whether [AcExceptor] has been initialized.
-  static bool get isInitialized => _initialized;
+  String _databasePath = '_ac_exceptor_/cache.db';
+  final String _dataDictionaryName = 'ac_exceptor';
+  late AcSqliteDao _dao;
+  bool isInitialized = false;
+  bool _isInternalCapturing = false;
+  Future<void> _queue = Future.value();
 
   /// Returns `true` if running on the main/root isolate, or `false` if running on a background worker isolate.
-  static bool get isMainIsolate {
+  bool get isMainIsolate {
     final name = Isolate.current.debugName;
     return name == null || name == 'main';
   }
 
   /// The active database path.
-  static String get databasePath => _databasePath;
+  String get databasePath => _databasePath;
 
   /// The active data dictionary name.
-  static String get dataDictionaryName => _dataDictionaryName;
+  String get dataDictionaryName => _dataDictionaryName;
 
   /// Executes [action] and suppresses any exception that occurs inside it.
   /// Neither records to [AcExceptor] nor throws to caller.
-  static dynamic ignore<T>(dynamic Function() action, {T? fallbackValue}) =>
+  dynamic ignore<T>(dynamic Function() action, {T? fallbackValue}) =>
       acExceptorIgnore<T>(action, fallbackValue: fallbackValue);
 
-  static ReceivePort? _isolateErrorPort;
+  ReceivePort? _isolateErrorPort;
 
   /// A [ReceivePort] on the main isolate that listens for uncaught errors from worker isolates
   /// spawned via [Isolate.spawn].
@@ -96,7 +102,7 @@ class AcExceptor {
   ///   onError: AcExceptor.isolateErrorPort.sendPort,
   /// );
   /// ```
-  static ReceivePort get isolateErrorPort {
+  ReceivePort get isolateErrorPort {
     if (_isolateErrorPort == null) {
       _isolateErrorPort = ReceivePort();
       _isolateErrorPort!.listen((dynamic message) {
@@ -121,7 +127,7 @@ class AcExceptor {
   /// ```dart
   /// await AcExceptor.spawnIsolate(myWorkerFunction, message);
   /// ```
-  static Future<Isolate> spawnIsolate<T>(
+  Future<Isolate> spawnIsolate<T>(
     void Function(T message) entryPoint,
     T message, {
     bool paused = false,
@@ -140,69 +146,6 @@ class AcExceptor {
     );
   }
 
-  /// Completely initializes [AcExceptor] and runs the [runner] callback inside
-  /// a guarded asynchronous error boundary.
-  ///
-  /// This protects the entire application lifecycle, including synchronous startup failures,
-  /// widget initialization errors, and uncaught async exceptions.
-  ///
-  /// Example:
-  /// ```dart
-  /// void main() async {
-  ///   await AcExceptor.runGuarded(() async {
-  ///     // Setup services...
-  ///     runApp(const MyApp());
-  ///   });
-  /// }
-  /// ```
-  static Future<void> runGuarded(
-    FutureOr<void> Function() runner, {
-    String databasePath = '_ac_exceptor_/cache.db',
-    String dataDictionaryName = 'ac_exceptor',
-    bool registerFlutterError = true,
-    bool registerPlatformDispatcher = true,
-  }) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await initialize(
-      databasePath: databasePath,
-      dataDictionaryName: dataDictionaryName,
-      registerFlutterError: registerFlutterError,
-      registerPlatformDispatcher: registerPlatformDispatcher,
-    );
-
-    await guardAsync(() async {
-      await runner();
-    });
-  }
-
-  /// Completely initializes [AcExceptor] and launches the Flutter application [app]
-  /// inside a guarded asynchronous error boundary.
-  ///
-  /// This protects the entire application lifecycle, including synchronous startup failures,
-  /// widget build/render errors, and uncaught async exceptions.
-  ///
-  /// Example:
-  /// ```dart
-  /// void main() async {
-  ///   await AcExceptor.runAppGuarded(const MyApp());
-  /// }
-  /// ```
-  static Future<void> runAppGuarded(
-    Widget app, {
-    String databasePath = '_ac_exceptor_/cache.db',
-    String dataDictionaryName = 'ac_exceptor',
-    bool registerFlutterError = true,
-    bool registerPlatformDispatcher = true,
-  }) async {
-    await runGuarded(
-      () => runApp(app),
-      databasePath: databasePath,
-      dataDictionaryName: dataDictionaryName,
-      registerFlutterError: registerFlutterError,
-      registerPlatformDispatcher: registerPlatformDispatcher,
-    );
-  }
-
   /// Initializes the exception-capturing mechanism and SQLite database schema.
   ///
   /// - Automatically detects whether it is running on the main isolate or a background
@@ -213,19 +156,19 @@ class AcExceptor {
   ///
   /// This is safe to call during application bootstrap (e.g. before `runApp`) or at
   /// the start of background isolates.
-  static Future<void> initialize({
+  Future<void> initialize({
     String databasePath = '_ac_exceptor_/cache.db',
     String dataDictionaryName = 'ac_exceptor',
     bool registerFlutterError = true,
     bool registerPlatformDispatcher = true,
   }) async {
-    if (_initialized &&
+    if (isInitialized &&
         _databasePath == databasePath &&
         _dataDictionaryName == dataDictionaryName) {
       return;
     }
 
-    if (_initialized) {
+    if (isInitialized) {
       await dispose();
     }
 
@@ -278,24 +221,6 @@ class AcExceptor {
       ''',
     );
 
-    // 4. Register error handlers safely (auto-adapting for main vs background isolates)
-    if (registerFlutterError) {
-      try {
-        _originalFlutterOnError = FlutterError.onError;
-        FlutterError.onError = _handleFlutterError;
-      } catch (_) {
-        // Ignored if Flutter framework bindings are unavailable in this isolate
-      }
-    }
-
-    if (registerPlatformDispatcher) {
-      try {
-        _originalPlatformOnError = PlatformDispatcher.instance.onError;
-        PlatformDispatcher.instance.onError = _handlePlatformError;
-      } catch (_) {
-        // Ignored if PlatformDispatcher is unavailable in this isolate
-      }
-    }
 
     // 5. Connect AcLogger and AcResult hooks to capture all handled exceptions
     AcLogger.onErrorCallback = ({
@@ -323,7 +248,7 @@ class AcExceptor {
       isolateErrorPort;
     }
 
-    _initialized = true;
+    isInitialized = true;
   }
 
   /// Runs [computation] in a background worker isolate with full automatic exception capture
@@ -335,7 +260,7 @@ class AcExceptor {
   ///   return heavyComputation();
   /// });
   /// ```
-  static Future<R> runIsolate<R>(
+  Future<R> runIsolate<R>(
     FutureOr<R> Function() computation, {
     String? debugName,
   }) async {
@@ -367,7 +292,7 @@ class AcExceptor {
   ///   fallbackValue: defaultValue,
   /// );
   /// ```
-  static Future<R?> runIsolateGuarded<R>(
+  Future<R?> runIsolateGuarded<R>(
     FutureOr<R> Function() computation, {
     R? fallbackValue,
     String? debugName,
@@ -382,12 +307,12 @@ class AcExceptor {
   /// Records a caught exception with its optional stack trace.
   ///
   /// Set [isHandled] to `true` (or use [captureHandled]) to record it as a handled exception.
-  static Future<void> capture(
+  Future<void> capture(
     dynamic exception, [
     StackTrace? stackTrace,
     bool isHandled = false,
   ]) {
-    if (!_initialized ||
+    if (!isInitialized ||
         _isInternalCapturing ||
         Zone.current[_kAcExceptorIgnoreZoneKey] == true) {
       return Future.value();
@@ -421,14 +346,14 @@ class AcExceptor {
   }
 
   /// Convenience shorthand to record a handled exception with its optional stack trace.
-  static Future<void> captureHandled(
+  Future<void> captureHandled(
     dynamic exception, [
     StackTrace? stackTrace,
   ]) => capture(exception, stackTrace, true);
 
   /// Safely executes synchronous [action]. If an exception occurs, it is automatically
   /// recorded as a handled exception via [captureHandled], and [onError] or [fallbackValue] is returned.
-  static T? guard<T>(
+  T? guard<T>(
     T Function() action, {
     T Function(Object error, StackTrace stackTrace)? onError,
     T? fallbackValue,
@@ -446,7 +371,7 @@ class AcExceptor {
 
   /// Safely executes asynchronous [action]. If an exception occurs, it is automatically
   /// recorded as a handled exception via [captureHandled], and [onError] or [fallbackValue] is returned.
-  static Future<T?> guardAsync<T>(
+  Future<T?> guardAsync<T>(
     Future<T> Function() action, {
     FutureOr<T> Function(Object error, StackTrace stackTrace)? onError,
     T? fallbackValue,
@@ -463,34 +388,12 @@ class AcExceptor {
   }
 
   /// Internal handler for Flutter framework errors.
-  static void _handleFlutterError(FlutterErrorDetails details) {
-    if (Zone.current[_kAcExceptorIgnoreZoneKey] == true) {
-      return;
-    }
-    capture(details.exception, details.stack ?? StackTrace.current);
+  
 
-    if (_originalFlutterOnError != null) {
-      _originalFlutterOnError!(details);
-    } else {
-      FlutterError.presentError(details);
-    }
-  }
-
-  /// Internal handler for Dart uncaught exceptions.
-  static bool _handlePlatformError(Object exception, StackTrace stackTrace) {
-    if (Zone.current[_kAcExceptorIgnoreZoneKey] == true) {
-      return true;
-    }
-    capture(exception, stackTrace);
-
-    if (_originalPlatformOnError != null) {
-      return _originalPlatformOnError!(exception, stackTrace);
-    }
-    return false;
-  }
+  
 
   /// Persists or updates the grouped exception and writes the individual occurrence row.
-  static Future<void> _recordException(
+  Future<void> _recordException(
     dynamic exception,
     StackTrace stackTrace, {
     bool isHandled = false,
@@ -573,8 +476,8 @@ class AcExceptor {
   }
 
   /// Retrieves all grouped exceptions from the SQLite database.
-  static Future<List<Map<String, dynamic>>> getExceptions() async {
-    if (!_initialized) return [];
+  Future<List<Map<String, dynamic>>> getExceptions() async {
+    if (!isInitialized) return [];
     final result = await _dao.getRows(
       statement:
           'SELECT * FROM ${AcExceptorTables.exceptions} ORDER BY ${AcExceptorColumns.id} ASC',
@@ -583,10 +486,10 @@ class AcExceptor {
   }
 
   /// Retrieves occurrence records from the SQLite database, optionally filtered by [exceptionId].
-  static Future<List<Map<String, dynamic>>> getOccurrences({
+  Future<List<Map<String, dynamic>>> getOccurrences({
     int? exceptionId,
   }) async {
-    if (!_initialized) return [];
+    if (!isInitialized) return [];
     if (exceptionId != null) {
       final result = await _dao.getRows(
         statement:
@@ -606,18 +509,8 @@ class AcExceptor {
   }
 
   /// Disposes the exception handler, unhooks error listeners, and closes the database connection.
-  static Future<void> dispose() async {
-    if (!_initialized) return;
-
-    if (FlutterError.onError == _handleFlutterError) {
-      FlutterError.onError = _originalFlutterOnError;
-    }
-    if (PlatformDispatcher.instance.onError == _handlePlatformError) {
-      PlatformDispatcher.instance.onError = _originalPlatformOnError;
-    }
-    _originalFlutterOnError = null;
-    _originalPlatformOnError = null;
-
+  Future<void> dispose() async {
+    if (!isInitialized) return;
     AcLogger.onErrorCallback = null;
     AcResult.onException = null;
 
@@ -632,7 +525,7 @@ class AcExceptor {
     _isolateErrorPort?.close();
     _isolateErrorPort = null;
 
-    _initialized = false;
+    isInitialized = false;
   }
 }
 
@@ -644,19 +537,24 @@ extension AcExceptorFutureExtension<T> on Future<T> {
     return then<T?>(
       (val) => val,
       onError: (Object error, StackTrace stackTrace) async {
-        await AcExceptor.captureHandled(error, stackTrace);
+        if(AcExceptor.globalInstance != null){
+          await AcExceptor.globalInstance!.captureHandled(error, stackTrace);
+        }
         return fallbackValue;
       },
     );
   }
 }
-
+//
 /// Extension on synchronous functions for auto-capturing handled errors into [AcExceptor].
 extension AcExceptorFunctionExtension<T> on T Function() {
   /// Returns a guarded version of this function that automatically captures any thrown
   /// exception in [AcExceptor] as a handled exception and returns [fallbackValue].
   T? Function() guarded({T? fallbackValue}) {
-    return () => AcExceptor.guard(this, fallbackValue: fallbackValue);
+    if(AcExceptor.globalInstance != null){
+      return () => AcExceptor.globalInstance!.guard(this, fallbackValue: fallbackValue);
+    }
+    return () => fallbackValue;
   }
 }
 
@@ -665,6 +563,9 @@ extension AcExceptorAsyncFunctionExtension<T> on Future<T> Function() {
   /// Returns a guarded version of this async function that automatically captures any thrown
   /// exception in [AcExceptor] as a handled exception and returns [fallbackValue].
   Future<T?> Function() guardedAsync({T? fallbackValue}) {
-    return () => AcExceptor.guardAsync(this, fallbackValue: fallbackValue);
+    if(AcExceptor.globalInstance != null){
+      return () => AcExceptor.globalInstance!.guardAsync(this, fallbackValue: fallbackValue);
+    }
+    return () async => fallbackValue;
   }
 }

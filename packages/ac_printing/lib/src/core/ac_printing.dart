@@ -1,35 +1,26 @@
 import 'dart:typed_data';
 import 'package:autocode/autocode.dart';
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
-import '../../ac_printing.dart';
+import '../models/ac_page_format.dart';
+import '../models/ac_print_settings.dart';
+import '../models/ac_printer.dart';
+import '../platform/ac_printing_platform.dart';
 
 class AcPrinting {
-  AcPrinter? _activePrinter;
+  AcPrinter? activePrinter;
 
+  /// Retrieves all available printers installed on the system.
   Future<AcResult> getPrinters() async {
-    AcResult result = AcResult();
-    try{
-      List<AcPrinter> printers = List.empty(growable: true);
-        for(var printer in await Printing.listPrinters()){
-          var acPrinter = AcPrinter();
-          acPrinter.name = printer.name;
-          acPrinter.url = printer.url;
-          acPrinter.location = printer.location ?? '';
-          acPrinter.comment = printer.comment ?? '';
-          acPrinter.isDefault = printer.isDefault;
-          acPrinter.isAvailable = printer.isAvailable;
-          printers.add(acPrinter);
-        }
+    final result = AcResult();
+    try {
+      final List<AcPrinter> printers = await AcPrintingPlatform.instance.getPrinters();
       result.setSuccess(value: printers);
-    }
-    catch(ex,stack){
-      result.setException(exception: ex,stackTrace: stack);
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
     }
     return result;
   }
 
-  /// Shares a PDF document (opens the system share dialog, which can lead to printing).
+  /// Shares a PDF document (opens the system share dialog or default viewer).
   ///
   /// [bytes]: The PDF document as Uint8List.
   /// [name]: Optional filename for the shared PDF (defaults to 'document.pdf').
@@ -37,65 +28,108 @@ class AcPrinting {
     required Uint8List bytes,
     String name = 'document.pdf',
   }) async {
-    return await Printing.sharePdf(bytes: bytes, filename: name);
+    try {
+      return await AcPrintingPlatform.instance.sharePdf(bytes: bytes, name: name);
+    } catch (_) {
+      return false;
+    }
   }
 
-  /// Convenience method to directly print a pre-loaded PDF to a specific printer.
+  /// Sends a PDF document to a printer.
   ///
-  /// [printer]: The target printer as an AcPrinter model.
   /// [pdfBytes]: The complete PDF as Uint8List.
-  /// [name]: Optional name.
+  /// [printer]: Target printer model.
+  /// [printerName]: Target printer name.
+  /// [pageFormat]: Desired page format.
+  /// [settings]: Detailed print settings (copies, color, duplex, orientation).
+  /// [jobName]: Document title shown in print spooler.
   Future<AcResult> printPdf({
     required Uint8List pdfBytes,
     AcPrinter? printer,
     String? printerName,
     AcPageFormat? pageFormat,
+    AcPrintSettings? settings,
+    String jobName = 'Document',
   }) async {
-    AcResult result = AcResult();
-    var printers = await Printing.listPrinters();
-    Printer? printerToUse;
-    for(var p in printers){
-      if(printerName!=null){
-        if(p.name == printerName){
-          printerToUse = p;
-          break;
+    final result = AcResult();
+    try {
+      final printersResult = await getPrinters();
+      final printers = printersResult.isSuccess() && printersResult.value is List<AcPrinter>
+          ? printersResult.value as List<AcPrinter>
+          : <AcPrinter>[];
+
+      AcPrinter? printerToUse;
+      if (printerName != null && printerName.isNotEmpty) {
+        for (final p in printers) {
+          if (p.name.toLowerCase() == printerName.toLowerCase()) {
+            printerToUse = p;
+            break;
+          }
+        }
+        printerToUse ??= (AcPrinter()..name = printerName);
+      } else if (printer != null) {
+        printerToUse = printer;
+      } else if (activePrinter != null) {
+        printerToUse = activePrinter;
+      } else {
+        for (final p in printers) {
+          if (p.isDefault) {
+            printerToUse = p;
+            break;
+          }
+        }
+        if (printerToUse == null && printers.isNotEmpty) {
+          printerToUse = printers.first;
         }
       }
-      else if(printer!=null){
-        if(p.name == printer.name){
-          printerToUse = p;
-          break;
-        }
+
+      if (printerToUse != null && !printerToUse.isAvailable) {
+        result.setFailure(message: 'printer "${printerToUse.name}" is not available');
+        return result;
       }
-      else if(_activePrinter!=null){
-        if(p.name == _activePrinter!.name){
-          printerToUse = p;
-          break;
-        }
+
+      final effectivePageFormat = pageFormat ?? settings?.pageFormat ?? AcPageFormat.instanceFromName(name: 'A4');
+      final effectiveSettings = settings ?? (AcPrintSettings()..pageFormat = effectivePageFormat);
+      effectiveSettings.pageFormat = effectivePageFormat;
+
+      final success = await AcPrintingPlatform.instance.printPdf(
+        pdfBytes: pdfBytes,
+        printer: printerToUse,
+        printerName: printerToUse?.name,
+        pageFormat: effectivePageFormat,
+        settings: effectiveSettings,
+        jobName: jobName,
+      );
+
+      if (success) {
+        result.setSuccess();
+      } else {
+        result.setFailure(
+            message: 'could not print to "${printerToUse?.name ?? 'default printer'}"');
       }
-      else if(p.isDefault){
-        printerToUse = p;
-        break;
-      }
-    }
-    if(printerToUse!=null){
-      if(printerToUse.isAvailable){
-        var success = await Printing.directPrintPdf(printer: printerToUse, onLayout: (_)=>pdfBytes,format:pageFormat == null?PdfPageFormat.a4:pageFormat.toPdfPageFormat() );
-        if(success){
-          result.setSuccess();
-        }
-        else{
-          result.setFailure(message: 'could not print');
-        }
-      }
-      else{
-        result.setFailure(message: 'printer not available');
-      }
-    }
-    else{
-      result.setFailure(message: 'printer not found');
+    } catch (ex, stack) {
+      result.setException(exception: ex, stackTrace: stack);
     }
 
     return result;
+  }
+
+  /// Convenience method to directly print a PDF to a specific printer.
+  Future<AcResult> directPrintPdf({
+    required Uint8List pdfBytes,
+    AcPrinter? printer,
+    String? printerName,
+    AcPageFormat? pageFormat,
+    AcPrintSettings? settings,
+    String jobName = 'Document',
+  }) {
+    return printPdf(
+      pdfBytes: pdfBytes,
+      printer: printer,
+      printerName: printerName,
+      pageFormat: pageFormat,
+      settings: settings,
+      jobName: jobName,
+    );
   }
 }

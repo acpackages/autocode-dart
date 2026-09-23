@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ac_extensions/ac_extensions.dart';
-import 'package:ac_printing/ac_printing.dart';
 import 'package:autocode/autocode.dart';
 import 'package:puppeteer/puppeteer.dart';
+import '../../ac_printing.dart';
+
 class AcHtmlToPdf {
   late Browser browser;
   bool available=false;
@@ -60,7 +61,6 @@ class AcHtmlToPdf {
     _debug("Generating pdf from html with completed message : $consoleCompletedMessage");
     AcResult result = AcResult();
     try {
-      Uint8List? pdfData;
       DateTime startTime = DateTime.now();
       bool completed = false;
       if (consoleCompletedMessage.isEmpty) {
@@ -100,10 +100,10 @@ class AcHtmlToPdf {
         );
 
         if (pageSizeQuerySelector != null) {
-          print("PageSizeSelector" + pageSizeQuerySelector);
+          print("PageSizeSelector$pageSizeQuerySelector");
           final size = Map.from(await page.evaluate('''
           function() {
-            const el = document.querySelector('${pageSizeQuerySelector}');
+            const el = document.querySelector('$pageSizeQuerySelector');
             if (!el) return null;
           
             const rect = el.getBoundingClientRect();
@@ -123,7 +123,7 @@ class AcHtmlToPdf {
             };
           }
           '''));
-          print("Page Size : " + jsonEncode(size));
+          print("Page Size : ${jsonEncode(size)}");
           result = await pagePdf(page, callback: callback, heightIN: size.getDouble('heightIn'), widthIN: size.getDouble('widthIn'));
           completed = true;
         } else {
