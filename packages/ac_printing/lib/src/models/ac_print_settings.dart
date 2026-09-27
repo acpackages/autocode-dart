@@ -23,7 +23,7 @@ class AcPrintSettings {
   bool duplex = false;
 
   @AcBindJsonProperty(key: keyOrientation)
-  String orientation = "portrait"; // "portrait" or "landscape"
+  String orientation = "auto"; // "auto", "portrait", or "landscape"
 
   AcPrintSettings();
 

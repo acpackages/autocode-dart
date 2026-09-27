@@ -1,0 +1,1 @@
+// Web stub for file transfer (dart:io File is not available on web)

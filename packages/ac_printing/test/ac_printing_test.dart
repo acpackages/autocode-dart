@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:ac_printing/ac_printing.dart';
 import 'package:test/test.dart';
@@ -95,6 +96,19 @@ void main() {
 
       final pdfFormat = a4.toPdfPageFormat();
       expect(pdfFormat.width, closeTo(210.0 * 72.0 / 25.4, 0.1));
+
+      final a5 = AcPageFormat.instanceFromName(name: 'A5');
+      expect(a5.width, equals(148.0));
+      expect(a5.height, equals(210.0));
+
+      final a5PaperPortrait = a5.toPaperFormat();
+      expect(a5PaperPortrait.width, closeTo(148.0 / 25.4, 0.01));
+      expect(a5PaperPortrait.height, closeTo(210.0 / 25.4, 0.01));
+
+      a5.isPortrait = false;
+      final a5PaperLandscape = a5.toPaperFormat();
+      expect(a5PaperLandscape.width, closeTo(210.0 / 25.4, 0.01));
+      expect(a5PaperLandscape.height, closeTo(148.0 / 25.4, 0.01));
     });
 
     test('AcPrintSettings configuration and serialization', () {
@@ -174,6 +188,35 @@ void main() {
       expect(mockAdapter.lastPageFormat!.height, equals(210.0));
       expect(mockAdapter.lastSettings, isNotNull);
       expect(mockAdapter.lastSettings!.pageFormat.width, equals(148.0));
+    });
+
+    test('AcPageFormat.fromPdfBytes extracts exact dimensions from PDF', () async {
+      final pdfFile = File('landscape_test.pdf');
+      if (await pdfFile.exists()) {
+        final bytes = await pdfFile.readAsBytes();
+        final format = AcPageFormat.fromPdfBytes(bytes);
+
+        expect(format, isNotNull);
+        expect(format!.width, closeTo(297.0, 1.0));
+        expect(format.height, closeTo(210.0, 1.0));
+        expect(format.isPortrait, isFalse);
+      }
+    });
+
+    test('printPdf automatically extracts exact dimensions from PDF when pageFormat is omitted', () async {
+      final pdfFile = File('landscape_test.pdf');
+      if (await pdfFile.exists()) {
+        final bytes = await pdfFile.readAsBytes();
+        final result = await acPrinting.printPdf(
+          pdfBytes: bytes,
+        );
+
+        expect(result.isSuccess(), isTrue);
+        expect(mockAdapter.lastPageFormat, isNotNull);
+        expect(mockAdapter.lastPageFormat!.width, closeTo(297.0, 1.0));
+        expect(mockAdapter.lastPageFormat!.height, closeTo(210.0, 1.0));
+        expect(mockAdapter.lastPageFormat!.isPortrait, isFalse);
+      }
     });
   });
 

@@ -13,7 +13,7 @@ export './src/daos/ac_mssql_dao.dart';
 export './src/daos/ac_mysql_dao.dart';
 export './src/daos/ac_oracle_dao.dart';
 export './src/daos/ac_postgres_dao.dart';
-export './src/daos/ac_sqlite_dao.dart';
+export './src/daos/ac_sqlite_dao_stub.dart' if (dart.library.io) './src/daos/ac_sqlite_dao.dart';
 
 export './src/database/ac_schema_data_dictionary.dart';
 export './src/database/ac_sql_database.dart';

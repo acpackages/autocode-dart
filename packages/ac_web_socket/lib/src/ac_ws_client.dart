@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:io';
+import './transport/ws_transport_loader.dart';
 import './ac_web_socket.dart';
 
 class AcWsClient {
   final String url;
   final String nsp;
   final Map<String, String> query;
-  final SecurityContext? securityContext;
+  final dynamic securityContext;
   final bool acceptBadCertificates;
 
   AcWebSocket? _socket;
@@ -42,22 +42,14 @@ class AcWsClient {
     });
 
     try {
-      WebSocket ws;
-      if (uri.scheme == 'wss' || uri.scheme == 'https') {
-        final client = HttpClient(context: securityContext);
-        if (acceptBadCertificates) {
-          client.badCertificateCallback = (cert, host, port) => true;
-        }
-        ws = await WebSocket.connect(
-          uri.replace(scheme: uri.scheme == 'https' ? 'wss' : uri.scheme).toString(),
-          customClient: client,
-        );
-      } else {
-        ws = await WebSocket.connect(uri.toString());
-      }
+      final transport = await connectTransport(
+        url: uri.toString(),
+        securityContext: securityContext,
+        acceptBadCertificates: acceptBadCertificates,
+      );
       
       _socket = AcWebSocket(
-        ws, 
+        transport, 
         id: 'client', 
         nsp: nsp,
         pingInterval: instantDetection ? const Duration(seconds: 5) : null,

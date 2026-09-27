@@ -88,9 +88,16 @@ class AcPrinting {
         return result;
       }
 
-      final effectivePageFormat = pageFormat ?? settings?.pageFormat ?? AcPageFormat.instanceFromName(name: 'A4');
-      final effectiveSettings = settings ?? (AcPrintSettings()..pageFormat = effectivePageFormat);
-      effectiveSettings.pageFormat = effectivePageFormat;
+      final detectedFormat = (pageFormat == null || pageFormat.width <= 0)
+          ? AcPageFormat.fromPdfBytes(pdfBytes)
+          : null;
+      final effectivePageFormat = pageFormat ?? settings?.pageFormat ?? detectedFormat;
+      AcPrintSettings? effectiveSettings = settings;
+      if (effectivePageFormat != null && effectiveSettings != null) {
+        effectiveSettings.pageFormat = effectivePageFormat;
+      } else if (effectivePageFormat != null && effectiveSettings == null) {
+        effectiveSettings = AcPrintSettings()..pageFormat = effectivePageFormat;
+      }
 
       final success = await AcPrintingPlatform.instance.printPdf(
         pdfBytes: pdfBytes,

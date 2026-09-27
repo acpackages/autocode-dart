@@ -88,13 +88,15 @@ class AcFlutterMobilePrinting implements AcPrintingPlatformAdapter {
   }
 
   String _resolvePaperName(AcPageFormat format) {
-    if ((format.width - 210).abs() <= 2 && (format.height - 297).abs() <= 2) return 'A4';
-    if ((format.width - 216).abs() <= 2 && (format.height - 279).abs() <= 2) return 'LETTER';
-    if ((format.width - 216).abs() <= 2 && (format.height - 356).abs() <= 2) return 'LEGAL';
-    if ((format.width - 297).abs() <= 2 && (format.height - 420).abs() <= 2) return 'A3';
-    if ((format.width - 148).abs() <= 2 && (format.height - 210).abs() <= 2) return 'A5';
-    if ((format.width - 105).abs() <= 2 && (format.height - 148).abs() <= 2) return 'A6';
-    if ((format.width - 190).abs() <= 2 && (format.height - 254).abs() <= 2) return 'EXECUTIVE';
+    final shortSide = format.width < format.height ? format.width : format.height;
+    final longSide = format.width < format.height ? format.height : format.width;
+    if ((shortSide - 210).abs() <= 2 && (longSide - 297).abs() <= 2) return 'A4';
+    if ((shortSide - 216).abs() <= 2 && (longSide - 279).abs() <= 2) return 'LETTER';
+    if ((shortSide - 216).abs() <= 2 && (longSide - 356).abs() <= 2) return 'LEGAL';
+    if ((shortSide - 297).abs() <= 2 && (longSide - 420).abs() <= 2) return 'A3';
+    if ((shortSide - 148).abs() <= 2 && (longSide - 210).abs() <= 2) return 'A5';
+    if ((shortSide - 105).abs() <= 2 && (longSide - 148).abs() <= 2) return 'A6';
+    if ((shortSide - 190).abs() <= 2 && (longSide - 254).abs() <= 2) return 'EXECUTIVE';
     return 'CUSTOM';
   }
 

@@ -117,6 +117,8 @@ class AcCupsPrinting implements AcPrintingPlatformAdapter {
           args.addAll(['-o', 'landscape']);
         }
         args.addAll(['-o', 'fit-to-page']);
+      } else {
+        args.addAll(['-o', 'fit-to-page']);
       }
 
       args.add(tempFile.path);
@@ -159,14 +161,16 @@ class AcCupsPrinting implements AcPrintingPlatformAdapter {
   }
 
   String _resolveCupsMedia(AcPageFormat format) {
+    final shortSide = format.width < format.height ? format.width : format.height;
+    final longSide = format.width < format.height ? format.height : format.width;
     // Check standard sizes by dimensions (within 2mm tolerance)
-    if ((format.width - 210).abs() <= 2 && (format.height - 297).abs() <= 2) return 'A4';
-    if ((format.width - 216).abs() <= 2 && (format.height - 279).abs() <= 2) return 'Letter';
-    if ((format.width - 216).abs() <= 2 && (format.height - 356).abs() <= 2) return 'Legal';
-    if ((format.width - 297).abs() <= 2 && (format.height - 420).abs() <= 2) return 'A3';
-    if ((format.width - 148).abs() <= 2 && (format.height - 210).abs() <= 2) return 'A5';
-    if ((format.width - 105).abs() <= 2 && (format.height - 148).abs() <= 2) return 'A6';
-    if ((format.width - 182).abs() <= 2 && (format.height - 257).abs() <= 2) return 'B5';
+    if ((shortSide - 210).abs() <= 2 && (longSide - 297).abs() <= 2) return 'A4';
+    if ((shortSide - 216).abs() <= 2 && (longSide - 279).abs() <= 2) return 'Letter';
+    if ((shortSide - 216).abs() <= 2 && (longSide - 356).abs() <= 2) return 'Legal';
+    if ((shortSide - 297).abs() <= 2 && (longSide - 420).abs() <= 2) return 'A3';
+    if ((shortSide - 148).abs() <= 2 && (longSide - 210).abs() <= 2) return 'A5';
+    if ((shortSide - 105).abs() <= 2 && (longSide - 148).abs() <= 2) return 'A6';
+    if ((shortSide - 182).abs() <= 2 && (longSide - 257).abs() <= 2) return 'B5';
 
     // Fallback to custom dimensions with Custom. prefix required by CUPS
     final w = format.width.round();

@@ -90,10 +90,16 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     String jobName = 'Document',
   }) async {
     final targetPrinter = printerName ?? printer?.name ?? '';
-    final effectiveFormat = pageFormat ?? settings?.pageFormat ?? AcPageFormat.instanceFromName(name: 'A4');
-    final widthMm = effectiveFormat.width > 0 ? effectiveFormat.width : 210.0;
-    final heightMm = effectiveFormat.height > 0 ? effectiveFormat.height : 297.0;
-    final isPortrait = effectiveFormat.isPortrait;
+    final hasExplicitFormat = (pageFormat != null && pageFormat.width > 0) ||
+        (settings?.pageFormat != null && settings!.pageFormat.width > 0);
+    final widthMm = hasExplicitFormat
+        ? (pageFormat?.width ?? settings!.pageFormat.width)
+        : 0.0;
+    final heightMm = hasExplicitFormat
+        ? (pageFormat?.height ?? settings!.pageFormat.height)
+        : 0.0;
+    final orientation = settings?.orientation.toLowerCase() ??
+        (pageFormat != null ? (pageFormat.isPortrait ? 'portrait' : 'landscape') : 'auto');
     final copies = settings?.copies ?? 1;
 
     final tempDir = Directory.systemTemp;
@@ -103,13 +109,13 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     try {
       await tempFile.writeAsBytes(pdfBytes, flush: true);
 
-      // Strategy 1: Native Windows WinRT + PrintDocument with exact PaperSize
+      // Strategy 1: Native Windows WinRT + PrintDocument with high DPI & auto-orientation
       final success = await _printViaWinRtPrintDocument(
         pdfFile: tempFile,
         printerName: targetPrinter,
         widthMm: widthMm,
         heightMm: heightMm,
-        isPortrait: isPortrait,
+        orientation: orientation,
         copies: copies,
         jobName: jobName,
       );
@@ -188,7 +194,7 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     required String printerName,
     required double widthMm,
     required double heightMm,
-    required bool isPortrait,
+    required String orientation,
     required int copies,
     required String jobName,
   }) async {
@@ -199,7 +205,7 @@ param(
     [string]\$PrinterName,
     [double]\$WidthMm,
     [double]\$HeightMm,
-    [bool]\$IsPortrait,
+    [string]\$Orientation,
     [int]\$Copies,
     [string]\$DocTitle
 )
@@ -211,6 +217,7 @@ try {
     [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
     [Windows.Data.Pdf.PdfDocument, Windows.Data.Pdf, ContentType = WindowsRuntime] | Out-Null
     [Windows.Storage.Streams.InMemoryRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Pdf.PdfPageRenderOptions, Windows.Data.Pdf, ContentType = WindowsRuntime] | Out-Null
 
     \$methods = [System.WindowsRuntimeSystemExtensions].GetMethods()
     \$asTaskGeneric = (\$methods | Where-Object { 
@@ -242,44 +249,111 @@ try {
     \$file = Await-WinRT ([Windows.Storage.StorageFile]::GetFileFromPathAsync(\$PdfPath)) ([Windows.Storage.StorageFile])
     \$doc = Await-WinRT ([Windows.Data.Pdf.PdfDocument]::LoadFromFileAsync(\$file)) ([Windows.Data.Pdf.PdfDocument])
 
+    if (\$doc.PageCount -eq 0) {
+        exit 0
+    }
+
     \$pd = New-Object System.Drawing.Printing.PrintDocument
     if (\$PrinterName -ne "") {
         \$pd.PrinterSettings.PrinterName = \$PrinterName
     }
     \$pd.DocumentName = \$DocTitle
+    \$pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+    \$pd.OriginAtMargins = \$false
 
-    \$targetW = [int](\$WidthMm / 25.4 * 100)
-    \$targetH = [int](\$HeightMm / 25.4 * 100)
-
-    \$found = \$false
-    foreach (\$ps in \$pd.PrinterSettings.PaperSizes) {
-        if ([Math]::Abs(\$ps.Width - \$targetW) -le 15 -and [Math]::Abs(\$ps.Height - \$targetH) -le 15) {
-            \$pd.DefaultPageSettings.PaperSize = \$ps
-            \$found = \$true
-            break
-        }
-    }
-    if (-not \$found) {
-        \$pd.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize("Custom", \$targetW, \$targetH)
-    }
-
-    \$pd.DefaultPageSettings.Landscape = (-not \$IsPortrait)
     if (\$Copies -gt 1) {
         \$pd.PrinterSettings.Copies = \$Copies
     }
-    \$pd.PrintController = New-Object System.Drawing.Printing.StandardPrintController
+
+    # Match paper size
+    if (\$WidthMm -gt 0 -and \$HeightMm -gt 0) {
+        \$docShort = [Math]::Min(\$WidthMm, \$HeightMm)
+        \$docLong = [Math]::Max(\$WidthMm, \$HeightMm)
+    } else {
+        \$p0 = \$doc.GetPage(0)
+        \$docShort = [Math]::Min(\$p0.Size.Width, \$p0.Size.Height) * 25.4 / 72.0
+        \$docLong = [Math]::Max(\$p0.Size.Width, \$p0.Size.Height) * 25.4 / 72.0
+    }
+
+    \$targetShort = [int](\$docShort / 25.4 * 100)
+    \$targetLong = [int](\$docLong / 25.4 * 100)
+
+    \$bestMatch = \$null
+    \$bestDiff = 999999
+
+    foreach (\$ps in \$pd.PrinterSettings.PaperSizes) {
+        \$psShort = [Math]::Min(\$ps.Width, \$ps.Height)
+        \$psLong = [Math]::Max(\$ps.Width, \$ps.Height)
+        \$diffShort = [Math]::Abs(\$psShort - \$targetShort)
+        \$diffLong = [Math]::Abs(\$psLong - \$targetLong)
+        \$totalDiff = \$diffShort + \$diffLong
+
+        # Max tolerance: 10 hundredths of an inch (~2.5mm) per dimension to avoid false matches (e.g. Statement vs A5)
+        if (\$diffShort -le 10 -and \$diffLong -le 10 -and \$totalDiff -lt \$bestDiff) {
+            \$bestDiff = \$totalDiff
+            \$bestMatch = \$ps
+            if (\$totalDiff -eq 0) { break }
+        }
+    }
+
+    if (\$bestMatch) {
+        \$pd.DefaultPageSettings.PaperSize = \$bestMatch
+    } elseif (\$WidthMm -gt 0 -and \$HeightMm -gt 0) {
+        \$pd.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize("Custom", \$targetShort, \$targetLong)
+    }
 
     \$script:pageIndex = 0
+
+    \$pd.add_QueryPageSettings({
+        param(\$sender, \$e)
+        if (\$script:pageIndex -lt \$doc.PageCount) {
+            \$p = \$doc.GetPage(\$script:pageIndex)
+            \$isLandscape = (\$p.Size.Width -gt \$p.Size.Height)
+            if (\$Orientation.ToLower() -eq "landscape") {
+                \$e.PageSettings.Landscape = \$true
+            } elseif (\$Orientation.ToLower() -eq "portrait") {
+                \$e.PageSettings.Landscape = \$false
+            } else {
+                \$e.PageSettings.Landscape = \$isLandscape
+            }
+        }
+    })
+
     \$pd.add_PrintPage({
         param(\$sender, \$e)
         if (\$script:pageIndex -lt \$doc.PageCount) {
             \$p = \$doc.GetPage(\$script:pageIndex)
             \$stream = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
-            Await-Action (\$p.RenderToStreamAsync(\$stream))
+
+            \$opt = New-Object Windows.Data.Pdf.PdfPageRenderOptions
+            \$dpiScale = 300.0 / 72.0
+            \$opt.DestinationWidth = [uint32][Math]::Round(\$p.Size.Width * \$dpiScale)
+            \$opt.DestinationHeight = [uint32][Math]::Round(\$p.Size.Height * \$dpiScale)
+
+            Await-Action (\$p.RenderToStreamAsync(\$stream, \$opt))
             \$netStream = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead(\$stream)
             \$bmp = [System.Drawing.Bitmap]::FromStream(\$netStream)
 
-            \$e.Graphics.DrawImage(\$bmp, \$e.PageBounds)
+            \$pageW = \$e.PageBounds.Width
+            \$pageH = \$e.PageBounds.Height
+
+            \$scaleX = \$pageW / \$bmp.Width
+            \$scaleY = \$pageH / \$bmp.Height
+            \$fitScale = [Math]::Min(\$scaleX, \$scaleY)
+
+            \$destW = [int][Math]::Round(\$bmp.Width * \$fitScale)
+            \$destH = [int][Math]::Round(\$bmp.Height * \$fitScale)
+            \$destX = [int][Math]::Round((\$pageW - \$destW) / 2.0)
+            \$destY = [int][Math]::Round((\$pageH - \$destH) / 2.0)
+
+            \$destRect = New-Object System.Drawing.Rectangle(\$destX, \$destY, \$destW, \$destH)
+
+            \$e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            \$e.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            \$e.Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+            \$e.Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+
+            \$e.Graphics.DrawImage(\$bmp, \$destRect)
 
             \$bmp.Dispose()
             \$netStream.Dispose()
@@ -292,9 +366,11 @@ try {
         }
     })
 
+    \$pd.PrintController = New-Object System.Drawing.Printing.StandardPrintController
     \$pd.Print()
     exit 0
 } catch {
+    [Console]::Error.WriteLine(\$_)
     exit 1
 }
 ''';
@@ -320,8 +396,8 @@ try {
             widthMm.toString(),
             '-HeightMm',
             heightMm.toString(),
-            '-IsPortrait',
-            isPortrait ? '\$true' : '\$false',
+            '-Orientation',
+            orientation,
             '-Copies',
             copies.toString(),
             '-DocTitle',

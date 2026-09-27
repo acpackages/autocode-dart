@@ -47,9 +47,12 @@ class AcWebPrinting implements AcPrintingPlatformAdapter {
       final completer = Completer<bool>();
 
       final effectiveFormat = pageFormat ?? settings?.pageFormat;
-      final widthMm = (effectiveFormat != null && effectiveFormat.width > 0) ? effectiveFormat.width : 210.0;
-      final heightMm = (effectiveFormat != null && effectiveFormat.height > 0) ? effectiveFormat.height : 297.0;
-      final isPortrait = effectiveFormat?.isPortrait ?? true;
+      final hasExplicitFormat = (effectiveFormat != null && effectiveFormat.width > 0);
+      final widthMm = hasExplicitFormat ? effectiveFormat.width : 210.0;
+      final heightMm = hasExplicitFormat ? effectiveFormat.height : 297.0;
+      final isPortrait = settings?.orientation.toLowerCase() == 'landscape'
+          ? false
+          : (effectiveFormat?.isPortrait ?? true);
 
       iframe.addEventListener(
         'load',
@@ -57,8 +60,12 @@ class AcWebPrinting implements AcPrintingPlatformAdapter {
           try {
             try {
               final styleEl = web.document.createElement('style') as web.HTMLStyleElement;
-              styleEl.textContent =
-                  '@page { size: ${widthMm}mm ${heightMm}mm ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; }';
+              if (hasExplicitFormat || (settings != null && settings.orientation.toLowerCase() != 'auto')) {
+                styleEl.textContent =
+                    '@page { size: ${widthMm}mm ${heightMm}mm ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; }';
+              } else {
+                styleEl.textContent = '@page { size: auto; margin: 0; }';
+              }
               iframe.contentDocument?.head?.appendChild(styleEl);
             } catch (_) {}
 

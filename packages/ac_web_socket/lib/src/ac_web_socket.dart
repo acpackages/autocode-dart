@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+import './transport/ws_transport_loader.dart';
 import './ac_ws_client.dart';
-import './ac_ws_server.dart';
 
 typedef EventHandler = void Function({dynamic data, void Function({dynamic response})? callback});
 typedef AnyEventHandler = void Function({required String event, dynamic data, void Function({dynamic response})? callback});
@@ -26,11 +25,11 @@ void Function()? abort,
 });
 
 class AcWebSocket {
-  final WebSocket _webSocket;
+  final AcWebSocketTransport _webSocket;
   final String id;
   final String nsp;
   final Map<String, dynamic> handshake;
-  final AcWsServer? server;
+  final dynamic server;
   
   final Map<String, List<EventHandler>> _eventHandlers = {};
   final List<AnyEventHandler> _anyEventHandlers = [];
@@ -49,13 +48,13 @@ class AcWebSocket {
   /// Event-specific interceptors for outgoing messages.
   final Map<String, List<EventInterceptor>> _eventOutgoingInterceptors = {};
 
-  AcWebSocket(this._webSocket, {
+  AcWebSocket(dynamic webSocket, {
     required this.id,
     this.nsp = '/',
     this.handshake = const {},
     this.server,
     Duration? pingInterval,
-  }) {
+  }) : _webSocket = wrapWebSocket(webSocket) {
     if (pingInterval != null) {
       _webSocket.pingInterval = pingInterval;
     }
@@ -376,63 +375,6 @@ class AcWebSocket {
     });
   }
 
-  /// Sends a file in chunks with a progress callback.
-  ///
-  /// [file] The file to be sent.
-  /// [event] The event name to use for the transfer (default: 'file').
-  /// [metadata] Optional metadata to send with the file.
-  /// [onProgress] A callback that receives the progress as a double (0.0 to 1.0).
-  /// [chunkSize] The size of each chunk in bytes (default: 64KB).
-  Future<void> sendFile({
-    required File file,
-    String event = 'file',
-    Map<String, dynamic>? metadata,
-    void Function(double progress)? onProgress,
-    int chunkSize = 64 * 1024,
-  }) async {
-    final int totalSize = await file.length();
-    final String name = file.path.split(Platform.pathSeparator).last;
-    final String transferId = "${DateTime.now().millisecondsSinceEpoch}_$id";
-
-    // 1. Send start
-    await emit(event: event, data: {
-      'action': 'start',
-      'transferId': transferId,
-      'name': name,
-      'size': totalSize,
-      'metadata': metadata,
-    });
-
-    // 2. Send chunks
-    final RandomAccessFile raf = await file.open(mode: FileMode.read);
-    try {
-      int sent = 0;
-      while (sent < totalSize) {
-        final int length = (totalSize - sent) < chunkSize ? (totalSize - sent) : chunkSize;
-        final List<int> buffer = await raf.read(length);
-
-        await emit(event: event, data: {
-          'action': 'chunk',
-          'transferId': transferId,
-          'data': base64Encode(buffer),
-        });
-
-        sent += length;
-        if (onProgress != null) {
-          onProgress(sent / totalSize);
-        }
-      }
-    } finally {
-      await raf.close();
-    }
-
-    // 3. Send end
-    await emit(event: event, data: {
-      'action': 'end',
-      'transferId': transferId,
-    });
-  }
-
   /// Registers a handler for incoming file transfers.
   ///
   /// [event] The event name to listen for (default: 'file').
@@ -490,7 +432,7 @@ class AcWebSocket {
     await _webSocket.close();
   }
 
-  bool get isConnected => _webSocket.readyState == WebSocket.open;
+  bool get isConnected => _webSocket.readyState == wsReadyStateOpen;
   
   @Deprecated('Use addIncomingInterceptor instead')
   List<MessageInterceptor> get incomingInterceptors => _incomingInterceptors;

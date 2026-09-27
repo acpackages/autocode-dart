@@ -174,6 +174,45 @@ class AcPageFormat {
     return instance;
   }
 
+  /// Extracts the exact page format (dimensions and orientation) from raw PDF bytes.
+  static AcPageFormat? fromPdfBytes(List<int> bytes) {
+    try {
+      String text;
+      if (bytes.length > 65536) {
+        text = String.fromCharCodes(bytes.sublist(0, 65536));
+      } else {
+        text = String.fromCharCodes(bytes);
+      }
+
+      final mediaBoxRegex = RegExp(r'/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]');
+      var match = mediaBoxRegex.firstMatch(text);
+      if (match == null && bytes.length > 65536) {
+        text = String.fromCharCodes(bytes);
+        match = mediaBoxRegex.firstMatch(text);
+      }
+
+      if (match != null) {
+        final x1 = double.parse(match.group(1)!);
+        final y1 = double.parse(match.group(2)!);
+        final x2 = double.parse(match.group(3)!);
+        final y2 = double.parse(match.group(4)!);
+
+        final widthPt = (x2 - x1).abs();
+        final heightPt = (y2 - y1).abs();
+
+        final widthMm = widthPt * 25.4 / 72.0;
+        final heightMm = heightPt * 25.4 / 72.0;
+
+        final format = AcPageFormat();
+        format.isPortrait = heightMm >= widthMm;
+        format.width = widthMm;
+        format.height = heightMm;
+        return format;
+      }
+    } catch (_) {}
+    return null;
+  }
+
 
   AcPageFormat fromJson({required Map<String, dynamic> jsonData}) {
     AcJsonUtils.setInstancePropertiesFromJsonData(
@@ -202,8 +241,8 @@ class AcPageFormat {
 
   PaperFormat toPaperFormat() {
     return PaperFormat.mm(
-      width:(isPortrait?(width > 0?width:double.infinity):(height > 0?height.ceilToDouble():double.infinity)),
-      height:(isPortrait?(height > 0?height:double.infinity):(width > 0?width.ceilToDouble():double.infinity)),
+      width:(isPortrait?(width > 0?width:double.infinity):(height > 0?height:double.infinity)),
+      height:(isPortrait?(height > 0?height:double.infinity):(width > 0?width:double.infinity)),
     );
   }
 
