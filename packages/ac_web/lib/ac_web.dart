@@ -25,7 +25,11 @@ export './src/annotations/ac_web_view.dart';
 
 export './src/api-docs/enums/ac_enum_api_data_format.dart';
 export './src/api-docs/enums/ac_enum_api_data_type.dart';
+export './src/api-docs/enums/ac_enum_api_doc_renderer.dart';
+export './src/api-docs/enums/ac_enum_api_doc_asset_source.dart';
 export './src/api-docs/models/ac_api_doc.dart';
+export './src/api-docs/models/ac_api_doc_ui_options.dart';
+export './src/api-docs/ui/ac_api_doc_ui_handler.dart';
 export './src/api-docs/models/ac_api_doc_components.dart';
 export './src/api-docs/models/ac_api_doc_contact.dart';
 export './src/api-docs/models/ac_api_doc_content.dart';

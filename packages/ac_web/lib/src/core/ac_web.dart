@@ -21,7 +21,9 @@ import '../api-docs/models/ac_api_doc_request_body.dart';
 import '../api-docs/models/ac_api_doc_content.dart';
 import '../api-docs/models/ac_api_doc_server.dart';
 import '../api-docs/swagger/ac_api_swagger.dart';
-import '../api-docs/swagger/ac_swagger_resources.dart';
+import '../api-docs/enums/ac_enum_api_doc_asset_source.dart';
+import '../api-docs/models/ac_api_doc_ui_options.dart';
+import '../api-docs/ui/ac_api_doc_ui_handler.dart';
 import '../api-docs/utils/ac_api_doc_utils.dart';
 import '../controllers/ac_files_controller.dart';
 import '../enums/ac_enum_web_hook.dart';
@@ -40,6 +42,7 @@ import '../interceptors/ac_web_interceptor.dart';
 class AcWeb {
   /* AcDoc({"summary": "The master API documentation object that accumulates all route docs."}) */
   AcApiDoc acApiDoc;
+  AcApiDocUiOptions apiDocUiOptions;
   AcWebConfig _webConfig = AcWebConfig();
   AcWebConfig get webConfig {
     return _webConfig;
@@ -123,65 +126,102 @@ class AcWeb {
       {"name": "paths", "description": "A list of paths, currently unused."}
     ]
   }) */
-  AcWeb({List<String> paths = const []}) : acApiDoc = AcApiDoc() {
+  AcWeb({
+    List<String> paths = const [],
+    AcApiDocUiOptions? apiDocUiOptions,
+  })  : acApiDoc = AcApiDoc(),
+        apiDocUiOptions = apiDocUiOptions ?? AcApiDocUiOptions() {
     AcHooks.execute(hookName: AcEnumWebHook.acWebCreated.value, args: [this]);
+    _setupApiDocumentation();
+  }
 
-    // Register the route that generates the main swagger.json file.
-    get(
-      url: '/swagger/swagger.json',
-      handler: (AcWebRequestHandlerArgs args) {
-        var acApiSwagger = AcApiSwagger();
-        acApiDoc.paths.clear();
-        final paths = <String, AcApiDocPath>{};
-        for (var routeDefinition in routeDefinitions.values) {
-          var url = routeDefinition.url;
-          if (!url.startsWith("/swagger/")) {
-            paths.putIfAbsent(url, () {
-              var pathObj = AcApiDocPath();
-              pathObj.url = url;
-              return pathObj;
-            });
+  void _setupApiDocumentation() {
+    if (!apiDocUiOptions.enabled) return;
 
-            var acApiDocPath = paths[url]!;
-            var acApiDocRoute = routeDefinition.documentation;
-            switch (routeDefinition.method.toUpperCase()) {
-              case 'CONNECT': acApiDocPath.connect = acApiDocRoute; break;
-              case 'DELETE': acApiDocPath.delete = acApiDocRoute; break;
-              case 'GET': acApiDocPath.get = acApiDocRoute; break;
-              case 'HEAD': acApiDocPath.head = acApiDocRoute; break;
-              case 'OPTIONS': acApiDocPath.options = acApiDocRoute; break;
-              case 'PATCH': acApiDocPath.patch = acApiDocRoute; break;
-              case 'POST': acApiDocPath.post = acApiDocRoute; break;
-              case 'PUT': acApiDocPath.put = acApiDocRoute; break;
-              case 'TRACE': acApiDocPath.trace = acApiDocRoute; break;
-            }
+    Future<AcWebResponse> openApiHandler(AcWebRequestHandlerArgs args) async {
+      var acApiSwagger = AcApiSwagger();
+      acApiDoc.paths.clear();
+      final paths = <String, AcApiDocPath>{};
+      for (var routeDefinition in routeDefinitions.values) {
+        var url = routeDefinition.url;
+        if (!url.startsWith("/swagger/") && !url.startsWith("/docs/")) {
+          paths.putIfAbsent(url, () {
+            var pathObj = AcApiDocPath();
+            pathObj.url = url;
+            return pathObj;
+          });
+
+          var acApiDocPath = paths[url]!;
+          var acApiDocRoute = routeDefinition.documentation;
+          switch (routeDefinition.method.toUpperCase()) {
+            case 'CONNECT': acApiDocPath.connect = acApiDocRoute; break;
+            case 'DELETE': acApiDocPath.delete = acApiDocRoute; break;
+            case 'GET': acApiDocPath.get = acApiDocRoute; break;
+            case 'HEAD': acApiDocPath.head = acApiDocRoute; break;
+            case 'OPTIONS': acApiDocPath.options = acApiDocRoute; break;
+            case 'PATCH': acApiDocPath.patch = acApiDocRoute; break;
+            case 'POST': acApiDocPath.post = acApiDocRoute; break;
+            case 'PUT': acApiDocPath.put = acApiDocRoute; break;
+            case 'TRACE': acApiDocPath.trace = acApiDocRoute; break;
           }
         }
+      }
 
-        acApiDoc.paths = paths.values.toList();
-        acApiSwagger.acApiDoc = acApiDoc;
-        return AcWebResponse.json(data: acApiSwagger.generateJson());
+      acApiDoc.paths = paths.values.toList();
+      acApiSwagger.acApiDoc = acApiDoc;
+      return AcWebResponse.json(data: acApiSwagger.generateJson());
+    }
+
+    // 1. Primary OpenAPI specification route
+    get(
+      url: apiDocUiOptions.jsonPath,
+      handler: openApiHandler,
+    );
+
+    // 2. Backward compatibility OpenAPI route (/swagger/swagger.json)
+    if (apiDocUiOptions.swaggerJsonPath != apiDocUiOptions.jsonPath) {
+      get(
+        url: apiDocUiOptions.swaggerJsonPath,
+        handler: openApiHandler,
+      );
+    }
+
+    // 3. UI Handler (Scalar, Swagger UI, Redoc, RapiDoc, Elements)
+    final uiHandler = AcApiDocUiHandler(options: apiDocUiOptions);
+    get(
+      url: apiDocUiOptions.urlPath,
+      handler: (AcWebRequestHandlerArgs args) async {
+        return AcWebResponse.html(html: uiHandler.getHtml());
       },
     );
 
-    // Register routes to serve the static Swagger UI files.
-    for (var swaggerFileName in AcSwaggerResources.files.keys) {
+    // 4. Backward compatibility UI route (/swagger)
+    if (apiDocUiOptions.urlPath != '/swagger') {
       get(
-        url: '/swagger$swaggerFileName',
-        handler: (AcWebRequestHandlerArgs args) {
-          logger.log("[AcWeb] Handling Swagger File : $swaggerFileName");
-          var fileContent = AcSwaggerResources.files[swaggerFileName];
-          String mimeType = AcFileUtils.getMimeTypeFromPath(swaggerFileName);
-          logger.log("[AcWeb] Handling Swagger File Mime : $mimeType");
-          return AcWebResponse.raw(
-            content: fileContent,
-            headers: {'Content-Type': mimeType},
-          );
+        url: '/swagger',
+        handler: (AcWebRequestHandlerArgs args) async {
+          return AcWebResponse.html(html: uiHandler.getHtml());
         },
       );
     }
 
-
+    // 5. Injected or Directory assets if specified
+    if (apiDocUiOptions.source == AcEnumApiDocAssetSource.injectedMap && apiDocUiOptions.files != null) {
+      for (var fileName in apiDocUiOptions.files!.keys) {
+        final routeUrl = fileName.startsWith('/') ? fileName : '/$fileName';
+        get(
+          url: '${apiDocUiOptions.urlPath}$routeUrl',
+          handler: (AcWebRequestHandlerArgs args) async {
+            final content = apiDocUiOptions.files![fileName];
+            final mimeType = AcFileUtils.getMimeTypeFromPath(fileName);
+            return AcWebResponse.raw(
+              content: content,
+              headers: {'Content-Type': mimeType},
+            );
+          },
+        );
+      }
+    }
   }
 
   /* AcDoc({"summary": "Extracts named parameters from a URL path based on a route template."}) */
