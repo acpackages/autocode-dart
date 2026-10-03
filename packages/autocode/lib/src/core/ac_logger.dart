@@ -55,6 +55,14 @@ class AcLogger {
   static void Function({required dynamic error, StackTrace? stackTrace, String? message})? onErrorCallback;
   static void Function({required dynamic exception, StackTrace? stackTrace, String? message})? onExceptionCallback;
 
+  static bool _isDesktopOS() {
+    try {
+      return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /* AcDoc({"description": "Initializes the logger with optional configurations."}) */
   AcLogger({
     this.logMessages = true,
@@ -67,7 +75,7 @@ class AcLogger {
     this.callback
   }) {
     logFilePath = "$logDirectory/$logFileName";
-    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+    if (_isDesktopOS()) {
       logFile = AcBackgroundFile(logFilePath);
     }
     _setEnvConfig();
@@ -104,7 +112,7 @@ class AcLogger {
 
   /* AcDoc({"description": "Creates a new log file and writes opening headers if HTML type."}) */
   AcLogger createLogFile() {
-    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+    if (_isDesktopOS()) {
       String logFileDirectory = File("$logDirectory/$logFileName").parent.path;
       String fileExtension = File(logFileName).extension;
       String fileName = File(logFileName).fileName.replaceAll(".$fileExtension", "");
@@ -195,7 +203,7 @@ class AcLogger {
   }
 
   AcLogger _writeToFile({required String message, required String type}) {
-    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+    if (_isDesktopOS()) {
       if (!logFileCreated) {
         createLogFile();
       }

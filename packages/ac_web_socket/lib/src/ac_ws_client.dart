@@ -36,7 +36,9 @@ class AcWsClient {
       wsUrl = 'ws://${wsUrl.substring(7)}';
     }
 
-    final uri = Uri.parse(wsUrl).replace(queryParameters: {
+    final parsedUri = Uri.parse(wsUrl);
+    final uri = parsedUri.replace(queryParameters: {
+      ...parsedUri.queryParameters,
       ...query,
       'nsp': nsp,
     });

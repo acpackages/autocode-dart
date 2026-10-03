@@ -15,6 +15,27 @@ import 'ac_chat_data_dictionary.dart';
 // sqlite3 never runs on web — define locally instead of importing flutter/foundation.
 const bool _kIsWeb = false;
 
+/// Groups unread message rows by their original sender.
+///
+/// Returns `senderId -> [messageId, ...]` preserving row order. Rows missing a
+/// sender id or message id are skipped.
+///
+/// Extracted from [AcChatSqlite.notifyConversationRead] so the read-receipt
+/// routing can be unit-tested without a database.
+Map<String, List<String>> groupUnreadMessageIdsBySender({
+  required List<Map<String, dynamic>> rows,
+}) {
+  final Map<String, List<String>> result = <String, List<String>>{};
+  for (final row in rows) {
+    final String? senderId = row[TblMessages.senderId]?.toString();
+    final String? messageId = row[TblMessages.messageId]?.toString();
+    if (senderId == null || senderId.isEmpty) continue;
+    if (messageId == null || messageId.isEmpty) continue;
+    result.putIfAbsent(senderId, () => <String>[]).add(messageId);
+  }
+  return result;
+}
+
 /// Offline-first SQLite cache layer for `ac_chat`.
 ///
 /// Strictly uses [AcSqlDbTable] for all schema persistence and CRUD operations.
@@ -971,6 +992,12 @@ class AcChatSqlite {
       parameters: {':cid': conversationId, ':uid': api.userId, ':read': 'read'},
     );
     if (unreadRes.isSuccess() && unreadRes.rows.isNotEmpty) {
+      // Group the unread incoming messages by their ORIGINAL sender so that each
+      // sender receives a read receipt for exactly the messages they sent.
+      final unreadIdsBySender = groupUnreadMessageIdsBySender(
+        rows: unreadRes.rows.map((r) => Map<String, dynamic>.from(r)).toList(),
+      );
+
       final rows = <Map<String, dynamic>>[];
       for (final r in unreadRes.rows) {
         final rowMap = Map<String, dynamic>.from(r);
@@ -983,17 +1010,25 @@ class AcChatSqlite {
         executeBeforeEvent: false,
         executeAfterEvent: false,
       );
+
+      // Dispatch read acknowledgements to each original sender. The channel's
+      // notifyConversationRead() short-circuits when no messageIds are supplied
+      // and can only target a single sender, so we route per-sender here.
+      for (final entry in unreadIdsBySender.entries) {
+        try {
+          await api.channel?.notifyMessagesRead(
+            conversationId: conversationId,
+            senderId: entry.key,
+            messageIds: entry.value,
+          );
+        } catch (e, st) {
+          log('channel.notifyMessagesRead error', e, st);
+        }
+      }
     }
 
     notifyMessagesChanged(conversationId: conversationId);
     notifyConversationsChanged();
-
-    api.channel?.notifyConversationRead(
-      conversationId: conversationId,
-    ).catchError((Object e) {
-      log('channel.notifyConversationRead error', e, StackTrace.current);
-      return null;
-    });
   }
 
   Future<List<AcChatMessage>> searchMessages({
@@ -1851,7 +1886,17 @@ class AcChatSqlite {
     api.addConversationUsers = ({required String conversationId, required List<String> userIds}) async => addConversationUsers(conversationId: conversationId, userIds: userIds);
     api.removeConversationUsers = ({required String conversationId, required String userId}) async => removeConversationUsers(conversationId: conversationId, userId: userId);
 
-    api.getMessages = ({required String conversationId}) async => getMessages(conversationId: conversationId);
+    api.getMessages = ({
+      required String conversationId,
+      int? limit,
+      int? offset,
+      String? orderBy,
+    }) async => getMessages(
+      conversationId: conversationId,
+      limit: limit,
+      offset: offset,
+      orderBy: orderBy,
+    );
     api.watchMessages = ({required String conversationId}) async => watchMessages(conversationId: conversationId);
     api.sendMessage = ({required AcChatMessage message}) async => sendMessage(message: message);
 

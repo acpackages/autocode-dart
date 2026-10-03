@@ -410,7 +410,12 @@ class AcChatApi {
   late Future<void> Function({required String conversationId, required bool isHidden}) hideConversation;
   late Future<void> Function({required String conversationId, required List<String> userIds}) addConversationUsers;
   late Future<void> Function({required String conversationId, required String userId}) removeConversationUsers;
-  late Future<List<AcChatMessage>> Function({required String conversationId}) getMessages;
+  late Future<List<AcChatMessage>> Function({
+    required String conversationId,
+    int? limit,
+    int? offset,
+    String? orderBy,
+  }) getMessages;
   late Future<Stream<List<AcChatMessage>>?> Function({required String conversationId}) watchMessages;
   late Future<void> Function({required AcChatMessage message}) sendMessage;
   late Future<void> Function({required String messageId, required Map<String, dynamic> data}) updateMessage;
@@ -507,7 +512,12 @@ class AcChatApi {
   static Future<void> _hideConversation({required String conversationId, required bool isHidden}) async {}
   static Future<void> _addConversationUsers({required String conversationId, required List<String> userIds}) async {}
   static Future<void> _removeConversationUsers({required String conversationId, required String userId}) async {}
-  static Future<List<AcChatMessage>> _getMessages({required String conversationId}) async {return [];}
+  static Future<List<AcChatMessage>> _getMessages({
+    required String conversationId,
+    int? limit,
+    int? offset,
+    String? orderBy,
+  }) async {return [];}
   static Future<Stream<List<AcChatMessage>>?> _watchMessages({required String conversationId}) async {return null;}
   static Future<void> _sendMessage({required AcChatMessage message}) async {}
   static Future<void> _updateMessage({required String messageId, required Map<String, dynamic> data}) async {}

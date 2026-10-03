@@ -10,6 +10,7 @@ environment:
 dependencies:
   autocode:
     path: ../autocode
+  crypto: ^3.0.7
 
 dev_dependencies:
   lints: ^2.0.0

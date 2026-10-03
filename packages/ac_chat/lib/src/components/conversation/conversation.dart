@@ -77,6 +77,12 @@ class _ConversationState extends State<Conversation>
 
   final List<AcChatMessage> _pendingUploadMessages = [];
   List<AcChatMessage> _cachedMessages = [];
+
+  /// Number of message pages currently rendered (grows as the user scrolls
+  /// towards older history). Only used when `api.enableLazyLoadingPagination`.
+  int _loadedPages = 1;
+  bool _loadingOlder = false;
+  static const int _fallbackPageSize = 40;
   List<dynamic> _flatItems = [];
   final Map<int, BuildContext> _itemContexts = {};
   final GlobalKey _listStackKey = GlobalKey();
@@ -87,6 +93,18 @@ class _ConversationState extends State<Conversation>
   Timer? _typingTimer;
 
   bool get _isGroup => widget.conversation.type == "group";
+
+  @override
+  void didUpdateWidget(covariant Conversation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The State can be reused across conversations (no key is supplied by
+    // AcChat), so the pagination window must reset when the chat changes.
+    if (oldWidget.conversation.conversationId !=
+        widget.conversation.conversationId) {
+      _loadedPages = 1;
+      _loadingOlder = false;
+    }
+  }
 
   Future<void> _loadInitialData() async {
     print("[Conversation] current user : ");
@@ -109,8 +127,30 @@ class _ConversationState extends State<Conversation>
     }
   }
 
-  void _loadMessages() async {
-    final all = await widget.api.getMessages(conversationId: widget.conversation.conversationId);
+  /// Page size used for the incremental message window.
+  int get _pageSize {
+    final int configured = widget.api.messagesPageSize;
+    return configured > 0 ? configured : _fallbackPageSize;
+  }
+
+  /// Loads (or reloads) the currently visible window of messages.
+  ///
+  /// When `enableLazyLoadingPagination` is enabled only the newest
+  /// `_pageSize * _loadedPages` messages are fetched; [_loadOlderMessages]
+  /// grows that window as the user scrolls towards older history.
+  Future<void> _loadMessages() async {
+    final bool paged = widget.api.enableLazyLoadingPagination;
+    final all = paged
+        ? await widget.api.getMessages(
+            conversationId: widget.conversation.conversationId,
+            limit: _pageSize * _loadedPages,
+            // Newest-first so the window is the most recent slice. Re-sorted
+            // ascending below for rendering.
+            orderBy: 'time DESC',
+          )
+        : await widget.api.getMessages(
+            conversationId: widget.conversation.conversationId,
+          );
     for (final pending in _pendingUploadMessages) {
       if (!all.any((m) => m.messageId == pending.messageId)) {
         all.add(pending);
@@ -141,6 +181,21 @@ class _ConversationState extends State<Conversation>
     }).toList();
 
     _computeFlatItems();
+  }
+
+  /// Expands the window by one page and reloads, keeping the user's position.
+  ///
+  /// No-op when the user has already loaded everything (the reload simply
+  /// returns the same set because SQLite has no more rows to give).
+  Future<void> _loadOlderMessages() async {
+    if (_loadingOlder) return;
+    _loadingOlder = true;
+    _loadedPages += 1;
+    try {
+      await _loadMessages();
+    } finally {
+      _loadingOlder = false;
+    }
   }
 
   void _computeFlatItems() async {
@@ -202,6 +257,13 @@ class _ConversationState extends State<Conversation>
         final atBottom = _scrollController.position.pixels <= 100;
         if (atBottom != !_showScrollFab) {
           setState(() => _showScrollFab = !atBottom);
+        }
+      }
+      // The list is reversed, so older history lives towards maxScrollExtent.
+      if (widget.api.enableLazyLoadingPagination && !_loadingOlder) {
+        final pos = _scrollController.position;
+        if (pos.maxScrollExtent - pos.pixels <= 300) {
+          _loadOlderMessages();
         }
       }
     });

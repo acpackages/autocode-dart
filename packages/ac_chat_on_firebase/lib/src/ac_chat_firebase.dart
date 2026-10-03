@@ -1057,7 +1057,7 @@ class AcChatFirebase implements AcChatSyncChannel {
       getConversations: _getConversations,
       getConversationUsers: ({required String conversationId}) =>
           _getConversationUsers(conversationId),
-      getMessages: ({required String conversationId}) =>
+      getMessages: ({required String conversationId, int? limit, int? offset, String? orderBy}) =>
           _getMessages(conversationId),
       sendMessage: ({required AcChatMessage message}) =>
           _sendMessageStandalone(message),

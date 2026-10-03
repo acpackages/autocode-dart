@@ -166,10 +166,10 @@ class AcWebOnJaguar extends AcWeb {
           File localFile = File(localPath);
           logger.log("Loading Resolver File for path $routePath : LocalPath = $localPath");
           if(localFile.existsSync()){
-            String extension=AcFileUtils.getExtensionFromPath(routePath);
+            String extension=AcFileUtils.getExtensionFromPath(localPath);
             logger.log("Found LocalFile $routePath : Extension : $extension : Mime : $mimeType");
             body = localFile.readAsBytesSync();
-            mimeType = AcFileUtils.getMimeTypeFromPath(routePath);
+            mimeType = AcFileUtils.getMimeTypeFromPath(localPath);
             context.response = ByteResponse(body: body, mimeType: mimeType);
           }
           else{
