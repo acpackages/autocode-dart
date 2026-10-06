@@ -360,16 +360,31 @@ class AcWebOnJaguar extends AcWeb {
         } else if (acWebResponse.responseType == AcEnumWebResponseType.json) {
           response = Response.json(acWebResponse.content);
         } else if (acWebResponse.responseType == AcEnumWebResponseType.raw) {
-          response = Response(
-            body: acWebResponse.content,
-            headers: acWebResponse.headers,
-            mimeType: AcFileUtils.getMimeTypeFromPath(context.path),
-          );
+          if (acWebResponse.content is List<int>) {
+            response = ByteResponse(
+              body: acWebResponse.content as List<int>,
+              headers: acWebResponse.headers,
+              mimeType: AcFileUtils.getMimeTypeFromPath(context.path),
+            );
+          } else {
+            response = Response(
+              body: acWebResponse.content,
+              headers: acWebResponse.headers,
+              mimeType: AcFileUtils.getMimeTypeFromPath(context.path),
+            );
+          }
         } else if (acWebResponse.responseType == AcEnumWebResponseType.download) {
-          response = Response(
-            body: acWebResponse.content,
-            headers: acWebResponse.headers,
-          );
+          if (acWebResponse.content is List<int>) {
+            response = ByteResponse(
+              body: acWebResponse.content as List<int>,
+              headers: acWebResponse.headers,
+            );
+          } else {
+            response = Response(
+              body: acWebResponse.content,
+              headers: acWebResponse.headers,
+            );
+          }
         }
       } else {
         if (acWebResponse.responseType == AcEnumWebResponseType.redirect) {

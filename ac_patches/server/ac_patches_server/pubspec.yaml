@@ -1,0 +1,38 @@
+name: ac_patches_server
+description: Self-hosted backend server for ac_patches powered by AcWeb, AcDataDictionary, AcSql, and AcDataDictionaryAutoApi.
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  autocode:
+    path: '../../../packages/autocode'
+  ac_extensions:
+    path: '../../../packages/ac_extensions'
+  ac_data_dictionary:
+    path: '../../../packages/ac_data_dictionary'
+  ac_sql:
+    path: '../../../packages/ac_sql'
+  ac_web:
+    path: '../../../packages/ac_web'
+  ac_web_on_jaguar:
+    path: '../../../packages/ac_web_on_jaguar'
+  ac_patches_core:
+    path: '../../packages/ac_patches_core'
+  ac_patches_format:
+    path: '../../packages/ac_patches_format'
+  crypto: ^3.0.7
+  cryptography: ^2.7.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0
+  http: ^1.2.0
+  ac_patches_updater:
+    path: '../../packages/ac_patches_updater'
+
+dependency_overrides:
+  mime: ^2.0.0
+

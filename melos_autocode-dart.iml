@@ -538,6 +538,24 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_exceptor_flutter/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_core/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_core/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_chat_core/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_webview/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_webview/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_web_on_webview/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/packages/ac_patches/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/packages/ac_patches/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/packages/ac_patches/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/server/ac_patches_server/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/server/ac_patches_server/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ac_patches/server/ac_patches_server/build" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/patch_demo/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/patch_demo/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/patch_demo/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

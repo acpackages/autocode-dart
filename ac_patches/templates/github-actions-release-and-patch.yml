@@ -1,0 +1,64 @@
+name: ac_patches CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  # ============================================================================
+  # 1. BASE RELEASE BUILD (Triggered on git tags: e.g. v1.0.0)
+  # ============================================================================
+  build_base_release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Base Release and Register on Server
+        env:
+          AC_PATCHES_SERVER_URL: ${{ secrets.AC_PATCHES_SERVER_URL }}
+        run: |
+          dart run ac_patches/cli/ac_patches_cli/bin/ac_patches.dart release windows
+
+  # ============================================================================
+  # 2. FAST OTA PATCH DEPLOYMENT (Triggered on code push to main branch)
+  # ============================================================================
+  deploy_ota_patch:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Assemble, Sign, Pack & Publish OTA Patch
+        env:
+          AC_PATCHES_SERVER_URL: ${{ secrets.AC_PATCHES_SERVER_URL }}
+          AC_PATCHES_PRIVATE_KEY: ${{ secrets.AC_PATCHES_PRIVATE_KEY }}
+        run: |
+          dart run ac_patches/cli/ac_patches_cli/bin/ac_patches.dart patch windows \
+            --private-key "${{ secrets.AC_PATCHES_PRIVATE_KEY }}" \
+            --publish \
+            --rollout 100 \
+            --track stable

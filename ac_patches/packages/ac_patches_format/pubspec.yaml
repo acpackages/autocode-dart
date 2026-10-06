@@ -1,0 +1,21 @@
+name: ac_patches_format
+description: Binary pack/unpack format (ACP1) for ac_patches envelopes.
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  autocode:
+    path: '../../../packages/autocode'
+  ac_extensions:
+    path: '../../../packages/ac_extensions'
+  ac_patches_core:
+    path: '../ac_patches_core'
+  crypto: ^3.0.7
+  cryptography: ^2.7.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0

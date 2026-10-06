@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  ac_patches_server:
+    build:
+      context: ../..
+      dockerfile: ac_patches/docker/Dockerfile
+    container_name: ac_patches_server
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_TYPE=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=ac_patches
+      - DB_USER=ac_patches
+      - DB_PASSWORD=ac_patches_secret
+      - STORAGE_TYPE=s3
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=ac-patches
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+    depends_on:
+      - postgres
+      - minio
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ac_patches_postgres
+    environment:
+      POSTGRES_DB: ac_patches
+      POSTGRES_USER: ac_patches
+      POSTGRES_PASSWORD: ac_patches_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: ac_patches_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:

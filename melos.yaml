@@ -2,6 +2,7 @@ name: autocode-dart
 packages:
   - flutter-packages/**
   - packages/**
+  - ac_patches/**
 scripts:
   analyze: dart analyze .
   format: dart format .
