@@ -30,6 +30,9 @@ class AcContext {
     } else if (value is List) {
       value = AcReactiveList(value);
     }
+    if (_data.containsKey(key) && _data[key] == value) {
+      return;
+    }
     _data[key] = value;
     _notify(key, value);
   }

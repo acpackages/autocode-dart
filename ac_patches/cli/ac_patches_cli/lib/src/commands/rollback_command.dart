@@ -32,7 +32,7 @@ class RollbackCommand extends Command {
     print('⏪ Initiating rollback for track "$track" of ${config.appId}...');
 
     try {
-      final rollbackUri = Uri.parse('${config.serverUrl}/api/v1/patch/rollback');
+      final rollbackUri = Uri.parse(config.endpoint('/patch/rollback'));
       final resp = await http.post(
         rollbackUri,
         headers: {'Content-Type': 'application/json'},

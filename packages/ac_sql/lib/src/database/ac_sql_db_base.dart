@@ -44,8 +44,8 @@ class AcSqlDbBase {
     AcLogger? logger,
     AcBaseSqlDao? dao,
   }) {
-    databaseType = AcSqlDatabase.databaseType;
-    sqlConnection = AcSqlDatabase.sqlConnection;
+    databaseType = dao?.databaseType ?? AcSqlDatabase.databaseType;
+    sqlConnection = dao?.sqlConnection ?? AcSqlDatabase.sqlConnection;
     useDataDictionary(dataDictionaryName: dataDictionaryName);
     logger ??= AcLogger(
       logType: AcEnumLogType.html,

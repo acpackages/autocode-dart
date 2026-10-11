@@ -39,39 +39,40 @@ class AcPatchDomainController {
     _registerRoutes();
   }
 
-  void _registerRoutes() {
-    web.post(
-      url: '/api/v1/patch/check',
-      handler: (AcWebRequestHandlerArgs args) => _handleCheck(args.webRequest),
-    );
-    web.post(
-      url: '/api/v1/patch/report',
-      handler: (AcWebRequestHandlerArgs args) => _handleReport(args.webRequest),
-    );
-    web.post(
-      url: '/api/v1/patch/publish',
-      handler: (AcWebRequestHandlerArgs args) => _handlePublish(args.webRequest),
-    );
-    web.post(
-      url: '/api/v1/patch/rollback',
-      handler: (AcWebRequestHandlerArgs args) => _handleRollback(args.webRequest),
-    );
-    web.post(
-      url: '/api/v1/patch/upload',
-      handler: (AcWebRequestHandlerArgs args) => _handleUpload(args.webRequest),
-    );
-    web.get(
-      url: '/api/v1/patch/download/{patchId}',
-      handler: (AcWebRequestHandlerArgs args) => _handleDownload(args.webRequest),
-    );
-    web.post(
-      url: '/api/v1/release/register',
-      handler: (AcWebRequestHandlerArgs args) => _handleRegisterRelease(args.webRequest),
-    );
-    web.get(
-      url: '/api/v1/patch/status',
-      handler: (AcWebRequestHandlerArgs args) => _handleStatus(args.webRequest),
-    );
+    for (final prefix in ['/api/v1', '/api/v0']) {
+      web.post(
+        url: '$prefix/patch/check',
+        handler: (AcWebRequestHandlerArgs args) => _handleCheck(args.webRequest),
+      );
+      web.post(
+        url: '$prefix/patch/report',
+        handler: (AcWebRequestHandlerArgs args) => _handleReport(args.webRequest),
+      );
+      web.post(
+        url: '$prefix/patch/publish',
+        handler: (AcWebRequestHandlerArgs args) => _handlePublish(args.webRequest),
+      );
+      web.post(
+        url: '$prefix/patch/rollback',
+        handler: (AcWebRequestHandlerArgs args) => _handleRollback(args.webRequest),
+      );
+      web.post(
+        url: '$prefix/patch/upload',
+        handler: (AcWebRequestHandlerArgs args) => _handleUpload(args.webRequest),
+      );
+      web.get(
+        url: '$prefix/patch/download/{patchId}',
+        handler: (AcWebRequestHandlerArgs args) => _handleDownload(args.webRequest),
+      );
+      web.post(
+        url: '$prefix/release/register',
+        handler: (AcWebRequestHandlerArgs args) => _handleRegisterRelease(args.webRequest),
+      );
+      web.get(
+        url: '$prefix/patch/status',
+        handler: (AcWebRequestHandlerArgs args) => _handleStatus(args.webRequest),
+      );
+    }
     web.get(
       url: '/admin',
       handler: (AcWebRequestHandlerArgs args) async => AcWebResponse.html(

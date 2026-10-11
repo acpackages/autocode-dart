@@ -31,7 +31,9 @@ class StatusCommand extends Command {
     print('📊 Fetching ac_patches status for "$appId" from $serverUrl...\n');
 
     try {
-      final uri = Uri.parse('$serverUrl/api/v1/patch/status?appId=$appId');
+      final uri = config != null
+          ? Uri.parse('${config.endpoint('/patch/status')}?appId=$appId')
+          : Uri.parse('$serverUrl/api/v1/patch/status?appId=$appId');
       final resp = await http.get(uri).timeout(const Duration(seconds: 5));
 
       if (resp.statusCode != 200) {

@@ -16,6 +16,20 @@ class AcPatchesProjectConfig {
     this.privateKey,
   });
 
+  String endpoint(String path) {
+    var u = serverUrl.trim();
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'https://$u';
+    }
+    if (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    if (u.endsWith('/api/v0') || u.endsWith('/api/v1')) {
+      return '$u$path';
+    }
+    return '$u/api/v1$path';
+  }
+
   static const String configFileName = 'ac_patches.yaml';
 
   static AcPatchesProjectConfig? load(Directory projectDir) {

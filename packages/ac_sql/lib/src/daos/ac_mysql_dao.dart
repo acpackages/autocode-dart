@@ -33,6 +33,7 @@ class AcMysqlDao extends AcBaseSqlDao {
       secure: false,
     );
     await conn.connect();
+    await conn.execute("SET SESSION sql_mode = CONCAT_WS(',', @@sql_mode, 'PIPES_AS_CONCAT');");
     return conn;
   }
 
@@ -46,7 +47,62 @@ class AcMysqlDao extends AcBaseSqlDao {
       secure: false,
     );
     await conn.connect();
+    await conn.execute("SET SESSION sql_mode = CONCAT_WS(',', @@sql_mode, 'PIPES_AS_CONCAT');");
     return conn;
+  }
+
+  static String escapeSqlValue(dynamic value) {
+    if (value == null) return "NULL";
+    if (value is num) return value.toString();
+    if (value is bool) return value ? "1" : "0";
+    if (value is DateTime) return "'${value.toUtc().toIso8601String()}'";
+    if (value is List<int>) {
+      final hex = value.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      return "X'$hex'";
+    }
+    String str = value.toString();
+    str = str.replaceAll(r"\", r"\\").replaceAll(r"'", r"''");
+    return "'$str'";
+  }
+
+  static String substituteParameters(String query, Map<String, dynamic> params) {
+    if (params.isEmpty) return query;
+    String result = query;
+    final sortedKeys = params.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+    for (final key in sortedKeys) {
+      final val = escapeSqlValue(params[key]);
+      final pattern = key.startsWith(':') || key.startsWith('@')
+          ? RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])')
+          : RegExp(r'[:@]' + RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
+      result = result.replaceAll(pattern, val);
+    }
+    return result;
+  }
+
+  Future<IResultSet> _execute(
+    dynamic connOrTxn,
+    String query, [
+    Map<String, dynamic>? params,
+    int maxRetries = 5,
+  ]) async {
+    String finalQuery = query;
+    if (params != null && params.isNotEmpty) {
+      finalQuery = substituteParameters(query, params);
+    }
+    int attempts = 0;
+    while (true) {
+      try {
+        attempts++;
+        return await connOrTxn.execute(finalQuery);
+      } catch (e) {
+        if (attempts < maxRetries && e.toString().contains('1615')) {
+          await Future.delayed(Duration(milliseconds: 100 * attempts));
+          continue;
+        }
+        rethrow;
+      }
+    }
   }
 
   /* AcDoc({
@@ -183,7 +239,8 @@ class AcMysqlDao extends AcBaseSqlDao {
       final updatedStatement = setParametersResult['statement'];
       final updatedParameterValues =
           setParametersResult['statementParametersMap'];
-      final results = await db.execute(
+      final results = await _execute(
+        db,
         updatedStatement,
         updatedParameterValues,
       );
@@ -287,20 +344,23 @@ class AcMysqlDao extends AcBaseSqlDao {
     MySQLConnection? db;
     try {
       db = await _getConnection();
+      await _execute(db, 'SET FOREIGN_KEY_CHECKS = 0;');
       await db.transactional((txn) async {
         for (final statement in statements) {
           final setParametersResult = setSqlStatementParameters(
             statement: statement,
             passedParameters: parameters,
           );
-          final updatedStatement = setParametersResult['statement'];
+          final updatedStatement = setParametersResult['statement'] as String;
           final updatedParameterValues =
-              setParametersResult['statementParametersMap'];
-          await txn.execute(updatedStatement, updatedParameterValues);
+              setParametersResult['statementParametersMap'] as Map<String, dynamic>;
+          if (updatedStatement.trim().isEmpty) continue;
+          await _execute(txn, updatedStatement, updatedParameterValues);
         }
       });
       result.setSuccess();
     } catch (ex, stack) {
+      print('[AcMysqlDao.executeMultipleSqlStatements ERROR]: $ex');
       result.setException(exception: ex, stackTrace: stack);
     } finally {
       await db?.close();
@@ -318,6 +378,7 @@ class AcMysqlDao extends AcBaseSqlDao {
 
     try {
       db = await _getConnection();
+      await _execute(db, 'SET FOREIGN_KEY_CHECKS = 0;');
       await db.transactional((txn) async {
         for (int i = 0; i < operations.length; i++) {
           final sqlOperation = operations[i];
@@ -326,9 +387,14 @@ class AcMysqlDao extends AcBaseSqlDao {
               statement: sqlOperation.rawSql!,
               passedParameters: sqlOperation.parameters ?? {},
             );
-            await txn.execute(
-              setParametersResult['statement'],
-              setParametersResult['statementParametersMap'],
+            final updatedStatement = setParametersResult['statement'] as String;
+            final updatedParameterValues =
+                setParametersResult['statementParametersMap'] as Map<String, dynamic>;
+            if (updatedStatement.trim().isEmpty) continue;
+            await _execute(
+              txn,
+              updatedStatement,
+              updatedParameterValues,
             );
           } else if (sqlOperation.operation == AcEnumDDRowOperation.insert && sqlOperation.row != null) {
             final row = sqlOperation.row!;
@@ -343,7 +409,8 @@ class AcMysqlDao extends AcBaseSqlDao {
               statement: statement,
               passedParameters: params,
             );
-            await txn.execute(
+            await _execute(
+              txn,
               setParametersResult['statement'],
               setParametersResult['statementParametersMap'],
             );
@@ -358,7 +425,8 @@ class AcMysqlDao extends AcBaseSqlDao {
               statement: statement,
               passedParameters: {...row, ...(sqlOperation.parameters ?? {})},
             );
-            await txn.execute(
+            await _execute(
+              txn,
               setParametersResult['statement'],
               setParametersResult['statementParametersMap'],
             );
@@ -371,7 +439,8 @@ class AcMysqlDao extends AcBaseSqlDao {
               statement: statement,
               passedParameters: sqlOperation.parameters ?? {},
             );
-            await txn.execute(
+            await _execute(
+              txn,
               setParametersResult['statement'],
               setParametersResult['statementParametersMap'],
             );
@@ -441,10 +510,14 @@ class AcMysqlDao extends AcBaseSqlDao {
         statement: statement,
         passedParameters: parameters,
       );
-      final updatedStatement = setParametersResult['statement'];
+      final updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValues =
-          setParametersResult['statementParametersMap'];
-      await db.execute(updatedStatement, updatedParameterValues);
+          setParametersResult['statementParametersMap'] as Map<String, dynamic>;
+      if (updatedStatement.trim().isEmpty) {
+        result.setSuccess(message: 'Empty statement skipped');
+        return result;
+      }
+      await _execute(db, updatedStatement, updatedParameterValues);
       result.setSuccess();
     } catch (ex, stack) {
       result.setException(exception: ex, stackTrace: stack);
@@ -736,9 +809,16 @@ class AcMysqlDao extends AcBaseSqlDao {
         statement =
             "SELECT COUNT(*) AS records_count FROM ($statement) AS records_list";
       }
-      String updatedStatement = statement;
+      String updatedStatement = statement.trim();
+      if (updatedStatement.endsWith(';')) {
+        updatedStatement = updatedStatement.substring(0, updatedStatement.length - 1).trim();
+      }
       if (condition.isNotEmpty) {
         updatedStatement += " WHERE $condition";
+      }
+      if (updatedStatement.isEmpty) {
+        result.setSuccess();
+        return result;
       }
       final setParametersResult = setSqlStatementParameters(
         statement: updatedStatement,
@@ -746,14 +826,15 @@ class AcMysqlDao extends AcBaseSqlDao {
       );
       updatedStatement = setParametersResult['statement'] as String;
       final updatedParameterValues =
-          setParametersResult['statementParametersMap'];
-      final results = await db.execute(
+          setParametersResult['statementParametersMap'] as Map<String, dynamic>;
+      final results = await _execute(
+        db,
         updatedStatement,
         updatedParameterValues,
       );
       if (mode == AcEnumDDSelectMode.count) {
         Map<String, dynamic> row = results.rows.first.assoc();
-        result.totalRows = row['records_count'];
+        result.totalRows = int.tryParse(row['records_count']?.toString() ?? '0') ?? 0;
       } else {
         result.rows =
             results.rows
@@ -787,18 +868,8 @@ class AcMysqlDao extends AcBaseSqlDao {
     MySQLConnection? db;
     try {
       db = await _getConnection();
-      const statement = "DESCRIBE `@tableName`";
-      final setParametersResult = setSqlStatementParameters(
-        statement: statement,
-        passedParameters: {'@tableName': tableName},
-      );
-      final updatedStatement = setParametersResult['statement'];
-      final updatedParameterValues =
-          setParametersResult['statementParametersMap'];
-      final results = await db.execute(
-        updatedStatement,
-        updatedParameterValues,
-      );
+      final statement = "DESCRIBE `$tableName`";
+      final results = await db.execute(statement);
       for (final row in results.rows) {
         final properties = <String, dynamic>{};
         if (row.colByName('Null') != "YES") {
@@ -840,18 +911,8 @@ class AcMysqlDao extends AcBaseSqlDao {
     MySQLConnection? db;
     try {
       db = await _getConnection();
-      const statement = "DESCRIBE `@viewName`";
-      final setParametersResult = setSqlStatementParameters(
-        statement: statement,
-        passedParameters: {'@viewName': viewName},
-      );
-      final updatedStatement = setParametersResult['statement'];
-      final updatedParameterValues =
-          setParametersResult['statementParametersMap'];
-      final results = await db.execute(
-        updatedStatement,
-        updatedParameterValues,
-      );
+      final statement = "DESCRIBE `$viewName`";
+      final results = await db.execute(statement);
       for (final row in results.rows) {
         final properties = <String, dynamic>{};
         if (row.colByName('Null') != "YES") {
@@ -917,7 +978,8 @@ class AcMysqlDao extends AcBaseSqlDao {
       final updatedStatement = setParametersResult['statement'];
       final updatedParameterValues =
           setParametersResult['statementParametersMap'];
-      final insertResult = await db.execute(
+      final insertResult = await _execute(
+        db,
         updatedStatement,
         updatedParameterValues,
       );
@@ -970,7 +1032,7 @@ class AcMysqlDao extends AcBaseSqlDao {
             final updatedStatement = setParametersResult['statement'];
             final updatedParameterValues =
                 setParametersResult['statementParametersMap'];
-            await txn.execute(updatedStatement, updatedParameterValues);
+            await _execute(txn, updatedStatement, updatedParameterValues);
           }
         });
         result.setSuccess();
@@ -1007,17 +1069,26 @@ class AcMysqlDao extends AcBaseSqlDao {
     MySQLConnection? db;
     try {
       db = await _getConnection();
-      final setValues = row.keys.map((key) => "$key = @$key").join(", ");
+      final columns = row.keys.toList();
+      final setValues = List.generate(
+        columns.length,
+        (i) => '${columns[i]} = @up_p$i',
+      ).join(', ');
       final statement =
           "UPDATE $tableName SET $setValues ${condition.isNotEmpty ? "WHERE $condition" : ""}";
+      final params = <String, dynamic>{};
+      for (var i = 0; i < columns.length; i++) {
+        params['@up_p$i'] = row[columns[i]];
+      }
       final setParametersResult = setSqlStatementParameters(
         statement: statement,
-        passedParameters: {...row, ...parameters},
+        passedParameters: {...params, ...parameters},
       );
       final updatedStatement = setParametersResult['statement'];
       final updatedParameterValues =
           setParametersResult['statementParametersMap'];
-      final updateResult = await db.execute(
+      final updateResult = await _execute(
+        db,
         updatedStatement,
         updatedParameterValues,
       );
@@ -1060,15 +1131,17 @@ class AcMysqlDao extends AcBaseSqlDao {
                     ? rowWithCondition['parameters'] as Map<String, dynamic>
                     : <String, dynamic>{};
 
-            final setValues = row.keys
-                .map((key) => "$key = @row_$key")
-                .join(", ");
+            final columns = row.keys.toList();
+            final setValues = List.generate(
+              columns.length,
+              (i) => '${columns[i]} = @up_p$i',
+            ).join(', ');
             final statement =
                 "UPDATE $tableName SET $setValues WHERE $condition";
             final params = <String, dynamic>{};
-            row.forEach((key, value) {
-              params['@row_$key'] = value;
-            });
+            for (var i = 0; i < columns.length; i++) {
+              params['@up_p$i'] = row[columns[i]];
+            }
             final setParametersResult = setSqlStatementParameters(
               statement: statement,
               passedParameters: {...params, ...conditionParameters},
@@ -1076,7 +1149,8 @@ class AcMysqlDao extends AcBaseSqlDao {
             final updatedStatement = setParametersResult['statement'];
             final updatedParameterValues =
                 setParametersResult['statementParametersMap'];
-            final updateResult = await txn.execute(
+            final updateResult = await _execute(
+              txn,
               updatedStatement,
               updatedParameterValues,
             );

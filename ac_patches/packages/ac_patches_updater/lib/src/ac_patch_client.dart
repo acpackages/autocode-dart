@@ -10,14 +10,27 @@ class AcPatchClient {
   AcPatchClient({
     required String serverUrl,
     http.Client? httpClient,
-  })  : serverUrl = serverUrl.endsWith('/')
-            ? serverUrl.substring(0, serverUrl.length - 1)
-            : serverUrl,
+  })  : serverUrl = _normalizeUrl(serverUrl),
         _httpClient = httpClient ?? http.Client();
+
+  static String _normalizeUrl(String url) {
+    var u = url.trim();
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'https://$u';
+    }
+    return u.endsWith('/') ? u.substring(0, u.length - 1) : u;
+  }
+
+  String _buildEndpoint(String path) {
+    if (serverUrl.endsWith('/api/v0') || serverUrl.endsWith('/api/v1')) {
+      return '$serverUrl$path';
+    }
+    return '$serverUrl/api/v1$path';
+  }
 
   /// Queries the server to check for an available patch.
   Future<AcPatchCheckResponse> checkForUpdate(AcPatchCheckRequest request) async {
-    final uri = Uri.parse('$serverUrl/api/v1/patch/check');
+    final uri = Uri.parse(_buildEndpoint('/patch/check'));
     final response = await _httpClient.post(
       uri,
       headers: {'Content-Type': 'application/json'},
@@ -50,7 +63,7 @@ class AcPatchClient {
   /// Reports a telemetry event to the server.
   Future<void> reportEvent(AcPatchReportRequest request) async {
     try {
-      final uri = Uri.parse('$serverUrl/api/v1/patch/report');
+      final uri = Uri.parse(_buildEndpoint('/patch/report'));
       await _httpClient.post(
         uri,
         headers: {'Content-Type': 'application/json'},

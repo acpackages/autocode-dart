@@ -68,7 +68,7 @@ class DoctorCommand extends Command {
     if (config != null && config.serverUrl.isNotEmpty) {
       try {
         final client = http.Client();
-        final checkUri = Uri.parse('${config.serverUrl}/api/v1/patch/check');
+        final checkUri = Uri.parse(config.endpoint('/patch/check'));
         final resp = await client.post(
           checkUri,
           headers: {'Content-Type': 'application/json'},

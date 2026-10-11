@@ -36,6 +36,7 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   }) */
   AcSqlDbSchemaManager({super.dataDictionaryName, super.dao}) {
     if (dao != null) {
+      databaseType = dao!.databaseType;
       acSqlDDTableSchemaDetails.dao = dao;
       acSqlDDTableSchemaLogs.dao = dao;
     }
@@ -499,48 +500,88 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         }
       }
       if (continueOperation) {
-        for (final acDDTable
-            in AcDataDictionary.getTables(
-              dataDictionaryName: dataDictionaryName,
-              foreignKeysSorted:
-                  dataDictionaryName != AcSMDataDictionary.dataDictionaryName,
-            ).values) {
-          if (continueOperation) {
-            logger.log(
-              '[AcSqlDbSchemaManager] Creating table ${acDDTable.tableName}',
-            );
+        final tables = AcDataDictionary.getTables(
+          dataDictionaryName: dataDictionaryName,
+          foreignKeysSorted:
+              dataDictionaryName != AcSMDataDictionary.dataDictionaryName,
+        ).values.toList();
+
+        if (databaseType == AcEnumSqlDatabaseType.mysql) {
+          List<String> statements = ['SET FOREIGN_KEY_CHECKS = 0;'];
+          for (final acDDTable in tables) {
             final createStatement = acDDTable.getCreateTableStatement(
               databaseType: databaseType,
             );
-            logger.log(
-              '[AcSqlDbSchemaManager] Executing create table statement: $createStatement',
+            statements.add(createStatement);
+          }
+          statements.add('SET FOREIGN_KEY_CHECKS = 1;');
+
+          logger.log('[AcSqlDbSchemaManager] Creating ${tables.length} MySQL tables with FOREIGN_KEY_CHECKS=0...');
+          final multiResult = await dao!.executeMultipleSqlStatements(statements: statements);
+          if (multiResult.isFailure()) {
+            continueOperation = false;
+            result.setFromResult(
+              result: multiResult,
+              message: 'Error creating MySQL tables',
+              logger: logger,
             );
-            final createResult = await dao!.executeStatement(
-              statement: createStatement,
-            );
-            if (createResult.isSuccess()) {
-              logger.log(
-                '[AcSqlDbSchemaManager] Create statement executed successfully.',
-              );
-            } else {
-              continueOperation = false;
-              result.setFromResult(
-                result: createResult,
-                message: 'Error creating table ${acDDTable.tableName}',
-                logger: logger,
-              );
-              break;
-            }
+          } else {
+            logger.log('[AcSqlDbSchemaManager] All ${tables.length} MySQL tables created successfully.');
             if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
-              await saveSchemaLogEntry({
-                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
-                TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
-                TblSchemaLogs.acSchemaOperation: 'create',
-                TblSchemaLogs.acSchemaOperationResult: createResult.status,
-                TblSchemaLogs.acSchemaOperationStatement: createStatement,
-                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
-                    .toUtcIso8601String(),
-              });
+              for (final acDDTable in tables) {
+                final createStatement = acDDTable.getCreateTableStatement(
+                  databaseType: databaseType,
+                );
+                await saveSchemaLogEntry({
+                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+                  TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
+                  TblSchemaLogs.acSchemaOperation: 'create',
+                  TblSchemaLogs.acSchemaOperationResult: 'success',
+                  TblSchemaLogs.acSchemaOperationStatement: createStatement,
+                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now().toUtcIso8601String(),
+                });
+              }
+            }
+          }
+        } else {
+          for (final acDDTable in tables) {
+            if (continueOperation) {
+              logger.log(
+                '[AcSqlDbSchemaManager] Creating table ${acDDTable.tableName}',
+              );
+              final createStatement = acDDTable.getCreateTableStatement(
+                databaseType: databaseType,
+              );
+              logger.log(
+                '[AcSqlDbSchemaManager] Executing create table statement: $createStatement',
+              );
+              final createResult = await dao!.executeStatement(
+                statement: createStatement,
+              );
+              if (createResult.isSuccess()) {
+                logger.log(
+                  '[AcSqlDbSchemaManager] Create statement executed successfully.',
+                );
+              } else {
+                continueOperation = false;
+                result.setFromResult(
+                  result: createResult,
+                  message: 'Error creating table ${acDDTable.tableName}',
+                  logger: logger,
+                );
+                break;
+              }
+              if (dataDictionaryName != AcSMDataDictionary.dataDictionaryName) {
+                await saveSchemaLogEntry({
+                  TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+                  TblSchemaLogs.acSchemaEntityName: acDDTable.tableName,
+                  TblSchemaLogs.acSchemaOperation: 'create',
+                  TblSchemaLogs.acSchemaOperationResult: createResult.status,
+                  TblSchemaLogs.acSchemaOperationStatement: createStatement,
+                  TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                      .toUtcIso8601String(),
+                });
+              }
             }
           }
         }
@@ -1018,7 +1059,16 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       logger.log('[AcSqlDbSchemaManager] Dropping functions...');
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
-        // MySql Implementation Pending
+        final functionsResult = await dao!.getDatabaseFunctions();
+        if (functionsResult.isSuccess()) {
+          for (final row in functionsResult.rows) {
+            final funcName = row[AcDDFunction.keyFunctionName];
+            if (funcName != null && funcName.toString().isNotEmpty) {
+              await dao!.executeStatement(statement: "DROP FUNCTION IF EXISTS `$funcName`");
+            }
+          }
+        }
+        result.setSuccess();
       } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         result.setSuccess();
       }
@@ -1033,7 +1083,16 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       logger.log('[AcSqlDbSchemaManager] Dropping stored procedures...');
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
-        // MySql Implementation Pending
+        final spResult = await dao!.getDatabaseStoredProcedures();
+        if (spResult.isSuccess()) {
+          for (final row in spResult.rows) {
+            final spName = row[AcDDStoredProcedure.keyStoredProcedureName];
+            if (spName != null && spName.toString().isNotEmpty) {
+              await dao!.executeStatement(statement: "DROP PROCEDURE IF EXISTS `$spName`");
+            }
+          }
+        }
+        result.setSuccess();
       } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         result.setSuccess();
       }
@@ -1048,7 +1107,18 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       logger.log('[AcSqlDbSchemaManager] Dropping tables...');
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
-        // MySql Implementation Pending
+        final tablesResult = await dao!.getDatabaseTables();
+        if (tablesResult.isSuccess()) {
+          await dao!.executeStatement(statement: "SET FOREIGN_KEY_CHECKS = 0;");
+          for (final row in tablesResult.rows) {
+            final tableName = row[AcDDTable.keyTableName];
+            if (tableName != null && tableName.toString().isNotEmpty) {
+              await dao!.executeStatement(statement: "DROP TABLE IF EXISTS `$tableName`");
+            }
+          }
+          await dao!.executeStatement(statement: "SET FOREIGN_KEY_CHECKS = 1;");
+        }
+        result.setSuccess();
       } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         AcSqlDaoResult selectResult = await dao!.getRows(
           statement:
@@ -1085,7 +1155,16 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
     try {
       logger.log('[AcSqlDbSchemaManager] Dropping triggers...');
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
-        // MySql Implementation Pending
+        final triggersResult = await dao!.getDatabaseTriggers();
+        if (triggersResult.isSuccess()) {
+          for (final row in triggersResult.rows) {
+            final triggerName = row[AcDDTrigger.keyTriggerName];
+            if (triggerName != null && triggerName.toString().isNotEmpty) {
+              await dao!.executeStatement(statement: "DROP TRIGGER IF EXISTS `$triggerName`");
+            }
+          }
+        }
+        result.setSuccess();
       } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         AcSqlDaoResult selectResult = await dao!.getRows(
           statement:
@@ -1120,9 +1199,18 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
   Future<AcResult> dropDatabaseViews() async {
     final result = AcResult();
     try {
-      logger.log('[AcSqlDbSchemaManager] Dropping triggers...');
+      logger.log('[AcSqlDbSchemaManager] Dropping views...');
       if (databaseType == AcEnumSqlDatabaseType.mysql) {
-        // MySql Implementation Pending
+        final viewsResult = await dao!.getDatabaseViews();
+        if (viewsResult.isSuccess()) {
+          for (final row in viewsResult.rows) {
+            final viewName = row[AcDDView.keyViewName];
+            if (viewName != null && viewName.toString().isNotEmpty) {
+              await dao!.executeStatement(statement: "DROP VIEW IF EXISTS `$viewName`");
+            }
+          }
+        }
+        result.setSuccess();
       } else if (databaseType == AcEnumSqlDatabaseType.sqlite) {
         AcSqlDaoResult selectResult = await dao!.getRows(
           statement:
@@ -2051,38 +2139,73 @@ class AcSqlDbSchemaManager extends AcSqlDbBase {
         List<String> dropColumnStatements = [];
         List<String> dropTableStatements = [];
         if (differences.missingTablesInDatabase.isNotEmpty) {
-          for (final tableName in differences.missingTablesInDatabase) {
-            logger.log("[AcSqlDbSchemaManager] Creating table $tableName");
-            final acDDTable = AcDDTable.getInstance(
-              tableName: tableName,
-              dataDictionaryName: dataDictionaryName,
-            );
-            final createStatement = acDDTable.getCreateTableStatement(
-              databaseType: databaseType,
-            );
-            logger.log([
-              "[AcSqlDbSchemaManager] Executing create table statement...",
-              createStatement,
-            ]);
-            final createResult = await dao!.executeStatement(
-              statement: createStatement,
-            );
-            if (createResult.isSuccess()) {
-              logger.log(
-                "[AcSqlDbSchemaManager] Create statement executed successfully",
+          if (databaseType == AcEnumSqlDatabaseType.mysql) {
+            List<String> statements = ['SET FOREIGN_KEY_CHECKS = 0;'];
+            List<Map<String, String>> tableLogList = [];
+            for (final tableName in differences.missingTablesInDatabase) {
+              final acDDTable = AcDDTable.getInstance(
+                tableName: tableName,
+                dataDictionaryName: dataDictionaryName,
               );
-            } else {
-              return result.setFromResult(result: createResult, logger: logger);
+              final createStatement = acDDTable.getCreateTableStatement(
+                databaseType: databaseType,
+              );
+              statements.add(createStatement);
+              tableLogList.add({
+                'tableName': tableName,
+                'createStatement': createStatement,
+              });
             }
-            await saveSchemaLogEntry({
-              TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
-              TblSchemaLogs.acSchemaEntityName: tableName,
-              TblSchemaLogs.acSchemaOperation: 'create',
-              TblSchemaLogs.acSchemaOperationResult: createResult.status,
-              TblSchemaLogs.acSchemaOperationStatement: createStatement,
-              TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
-                  .toUtcIso8601String(),
-            });
+            statements.add('SET FOREIGN_KEY_CHECKS = 1;');
+            logger.log("[AcSqlDbSchemaManager] Creating ${statements.length - 2} missing MySQL tables with FOREIGN_KEY_CHECKS=0...");
+            final multiResult = await dao!.executeMultipleSqlStatements(statements: statements);
+            if (multiResult.isFailure()) {
+              return result.setFromResult(result: multiResult, logger: logger);
+            }
+            for (final item in tableLogList) {
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+                TblSchemaLogs.acSchemaEntityName: item['tableName']!,
+                TblSchemaLogs.acSchemaOperation: 'create',
+                TblSchemaLogs.acSchemaOperationResult: 'success',
+                TblSchemaLogs.acSchemaOperationStatement: item['createStatement']!,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now().toUtcIso8601String(),
+              });
+            }
+          } else {
+            for (final tableName in differences.missingTablesInDatabase) {
+              logger.log("[AcSqlDbSchemaManager] Creating table $tableName");
+              final acDDTable = AcDDTable.getInstance(
+                tableName: tableName,
+                dataDictionaryName: dataDictionaryName,
+              );
+              final createStatement = acDDTable.getCreateTableStatement(
+                databaseType: databaseType,
+              );
+              logger.log([
+                "[AcSqlDbSchemaManager] Executing create table statement...",
+                createStatement,
+              ]);
+              final createResult = await dao!.executeStatement(
+                statement: createStatement,
+              );
+              if (createResult.isSuccess()) {
+                logger.log(
+                  "[AcSqlDbSchemaManager] Create statement executed successfully",
+                );
+              } else {
+                return result.setFromResult(result: createResult, logger: logger);
+              }
+              await saveSchemaLogEntry({
+                TblSchemaLogs.acSchemaEntityType: AcEnumSqlEntity.table.value,
+                TblSchemaLogs.acSchemaEntityName: tableName,
+                TblSchemaLogs.acSchemaOperation: 'create',
+                TblSchemaLogs.acSchemaOperationResult: createResult.status,
+                TblSchemaLogs.acSchemaOperationStatement: createStatement,
+                TblSchemaLogs.acSchemaOperationTimestamp: DateTime.now()
+                    .toUtcIso8601String(),
+              });
+            }
           }
         }
 

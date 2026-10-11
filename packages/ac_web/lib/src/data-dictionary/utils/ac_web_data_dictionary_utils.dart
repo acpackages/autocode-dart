@@ -145,7 +145,10 @@ class AcWebDataDictionaryUtils {
     String dataDictionaryName = "default",
     String selectFrom = "",
     AcEnumHttpMethod httpMethod = AcEnumHttpMethod.post,
-    required AcBaseSqlDao dao}) async {
+    required AcBaseSqlDao dao,
+    String condition = "",
+    Map<String,dynamic> parameters = const {}
+  }) async {
     final result = AcDataDictionaryWebAutoExecuteResult();
     final response = AcWebApiResponse();
     try {
@@ -216,13 +219,13 @@ class AcWebDataDictionaryUtils {
         selectFrom = viewName;
       }
       if(selectFrom.isNotEmpty){
-        String condition = "";
         Map<String,dynamic> parameters = {};
         if(query.isNotEmpty){
+          if(condition.isNotEmpty){
+            condition = "$condition AND ";
+          }
           condition = "$columnName LIKE @query";
-          parameters = {
-            "@query":"%$query%"
-          };
+          parameters["@query"]="%$query%";
         }
         String selectStatement = AcDDSelectStatement.generateSqlStatement(
           selectStatement:"SELECT $columnName FROM $selectFrom AS records",
@@ -255,7 +258,10 @@ class AcWebDataDictionaryUtils {
     String dataDictionaryName = "default",
     String selectFrom = "",
     AcEnumHttpMethod httpMethod = AcEnumHttpMethod.post,
-    required AcBaseSqlDao dao}) async {
+    required AcBaseSqlDao dao,
+    String condition = "",
+    Map<String,dynamic> parameters = const {}
+  }) async {
     final result = AcDataDictionaryWebAutoExecuteResult();
     final response = AcWebApiResponse();
     try{
@@ -267,6 +273,9 @@ class AcWebDataDictionaryUtils {
             logger: logger,
           dataDictionaryName: dataDictionaryName
         );
+
+      acDDSelectStatement.condition = condition;
+      acDDSelectStatement.parameters = parameters;
 
         List<String> queryColumns = List.empty(growable: true);
         List<String> columnNames = List.empty(growable: true);

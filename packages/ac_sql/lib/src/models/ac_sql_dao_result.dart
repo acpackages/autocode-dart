@@ -101,6 +101,25 @@ class AcSqlDaoResult extends AcResult {
     "returns_type": "int"
   }) */
   int get rowsCount => rows.length;
+
+  @override
+  AcSqlDaoResult fromJson({required Map<String, dynamic> jsonData}) {
+    super.fromJson(jsonData: jsonData);
+    if (jsonData.containsKey(keyRows) && jsonData[keyRows] is List) {
+      rows = (jsonData[keyRows] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return this;
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final map = super.toJson();
+    map[keyRows] = rows;
+    return map;
+  }
 }
 
 // import 'package:ac_mirrors/ac_mirrors.dart';

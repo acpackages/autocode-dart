@@ -1,0 +1,20 @@
+name: ac_chat_api_ws_bridge
+description: WebSocket RPC and event bridge between client AcChatApi and server AcChatApi in AutoCode
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  autocode:
+    path: '../autocode'
+  ac_chat_core:
+    path: '../ac_chat_core'
+  ac_web_socket:
+    path: '../ac_web_socket'
+  ac_extensions:
+    path: '../ac_extensions'
+
+dev_dependencies:
+  test: ^1.24.0

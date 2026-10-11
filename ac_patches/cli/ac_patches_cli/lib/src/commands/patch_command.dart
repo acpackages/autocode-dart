@@ -184,7 +184,7 @@ class PatchCommand extends Command {
     } else {
       // Query server or local count
       try {
-        final checkUri = Uri.parse('${config.serverUrl}/api/v1/patch/check');
+        final checkUri = Uri.parse(config.endpoint('/patch/check'));
         final resp = await http.post(
           checkUri,
           headers: {'Content-Type': 'application/json'},
@@ -257,7 +257,7 @@ class PatchCommand extends Command {
     // 8. Upload to ac_patches server
     print('🌐 Uploading patch to ${config.serverUrl}...');
     try {
-      final uploadUri = Uri.parse('${config.serverUrl}/api/v1/patch/upload');
+      final uploadUri = Uri.parse(config.endpoint('/patch/upload'));
       final resp = await http.post(
         uploadUri,
         headers: {'Content-Type': 'application/json'},
@@ -285,7 +285,7 @@ class PatchCommand extends Command {
     if (shouldPublish) {
       print('🚀 Publishing $patchId to track "$targetTrack" ($rollout% rollout)...');
       try {
-        final publishUri = Uri.parse('${config.serverUrl}/api/v1/patch/publish');
+        final publishUri = Uri.parse(config.endpoint('/patch/publish'));
         final resp = await http.post(
           publishUri,
           headers: {'Content-Type': 'application/json'},

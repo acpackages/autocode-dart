@@ -489,9 +489,9 @@ class AcBaseSqlDao {
           );
           List<String> listParamKeys = List.empty(growable: true);
           for (int i = 0; i < value.length; i++) {
-            final listParameterKey = ":${parameterKey}_$i";
-            listParamKeys.add(listParameterKey);
-            statementParametersMap[listParameterKey] = value[i];
+            final paramName = "${parameterKey}_$i";
+            listParamKeys.add(":$paramName");
+            statementParametersMap[paramName] = value[i];
           }
           statement = statement.replaceAll(key, listParamKeys.join(","));
         } else {

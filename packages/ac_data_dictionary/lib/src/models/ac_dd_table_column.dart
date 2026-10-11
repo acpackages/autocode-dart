@@ -445,9 +445,11 @@ class AcDDTableColumn {
   }
 
   String _intType(int size) {
-    if (size <= 255) return "TINYINT";
-    if (size <= 65535) return "SMALLINT";
-    if (size <= 16777215) return "MEDIUMINT";
+    if (size == 0) return "INT";
+    if (size <= 1) return "TINYINT";
+    if (size <= 2) return "SMALLINT";
+    if (size <= 3) return "MEDIUMINT";
+    if (size <= 4) return "INT";
     return "BIGINT";
   }
 

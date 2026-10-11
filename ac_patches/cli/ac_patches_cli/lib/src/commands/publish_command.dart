@@ -40,7 +40,7 @@ class PublishCommand extends Command {
     print('🚀 Promoting patch $patchId to "$track" track ($rollout% rollout)...');
 
     try {
-      final publishUri = Uri.parse('${config.serverUrl}/api/v1/patch/publish');
+      final publishUri = Uri.parse(config.endpoint('/patch/publish'));
       final resp = await http.post(
         publishUri,
         headers: {'Content-Type': 'application/json'},

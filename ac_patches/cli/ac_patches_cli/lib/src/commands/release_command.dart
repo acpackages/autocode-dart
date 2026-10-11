@@ -95,7 +95,7 @@ class ReleaseCommand extends Command {
     print('🌐 Registering release on server $serverUrl...');
     try {
       final client = http.Client();
-      final insertUri = Uri.parse('$serverUrl/api/v1/release/register');
+      final insertUri = Uri.parse(config.endpoint('/release/register'));
       final resp = await client.post(
         insertUri,
         headers: {'Content-Type': 'application/json'},

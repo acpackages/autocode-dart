@@ -1,0 +1,20 @@
+name: ac_calculator_example
+description: Example application for ac_calculator package.
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_calculator:
+    path: ..
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^5.0.0
+
+flutter:
