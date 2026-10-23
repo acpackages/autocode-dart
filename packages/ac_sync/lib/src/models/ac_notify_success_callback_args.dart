@@ -22,15 +22,26 @@ class AcNotifySuccessCallbackArgs {
   }
 
   AcNotifySuccessCallbackArgs fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    lastSyncChangeLogId = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyLastSyncChangeLogId] ?? jsonData['last_sync_change_log_id'],
+      defaultValue: lastSyncChangeLogId,
+    );
+    deviceId = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyDeviceId] ?? jsonData['device_id'],
+      defaultValue: deviceId,
     );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = <String, dynamic>{};
+    if (lastSyncChangeLogId != null) {
+      data[keyLastSyncChangeLogId] = lastSyncChangeLogId;
+    }
+    if (deviceId != null) {
+      data[keyDeviceId] = deviceId;
+    }
+    return data;
   }
 
   @override

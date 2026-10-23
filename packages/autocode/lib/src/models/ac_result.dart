@@ -71,12 +71,27 @@ class AcResult {
 
   /* AcDoc({ "description": "Populates this instance from JSON." }) */
   AcResult fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    code = AcJsonUtils.deserializeValue<int>(jsonData[keyCode], defaultValue: code)!;
+    message = AcJsonUtils.deserializeValue<String>(jsonData[keyMessage], defaultValue: message)!;
+    status = AcJsonUtils.deserializeValue<String>(jsonData[keyStatus], defaultValue: status)!;
+    if (jsonData.containsKey(keyValue)) {
+      value = jsonData[keyValue];
+    }
+    if (jsonData.containsKey(keyException)) {
+      exception = jsonData[keyException];
+    }
+    if (jsonData.containsKey(keyStackTrace)) {
+      stackTrace = jsonData[keyStackTrace];
+    }
+    if (jsonData.containsKey(keyLog)) {
+      log = AcJsonUtils.deserializeList<dynamic>(jsonData[keyLog]);
+    }
+    if (jsonData.containsKey(keyOtherDetails)) {
+      otherDetails = AcJsonUtils.deserializeList<dynamic>(jsonData[keyOtherDetails]);
+    }
     return this;
   }
+
 
   /* AcDoc({ "description": "Returns true if result represents an exception." }) */
   bool isException() => status == 'failure' && code == codeException;
@@ -194,7 +209,16 @@ class AcResult {
 
   /* AcDoc({ "description": "Converts this result into a JSON-compatible map." }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyCode: code,
+      keyStatus: status,
+      keyMessage: message,
+      keyValue: AcJsonUtils.serializeValue(value),
+      keyException: exception?.toString(),
+      keyStackTrace: stackTrace?.toString(),
+      keyLog: log,
+      keyOtherDetails: otherDetails,
+    };
   }
 
   /* AcDoc({ "description": "Returns a formatted JSON string of this result." }) */

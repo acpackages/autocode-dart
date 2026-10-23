@@ -112,10 +112,88 @@ class AcWebRequest {
     "returns_type": "AcWebRequest"
   }) */
   AcWebRequest fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyBody)) {
+      final val = jsonData[keyBody];
+      if (val is Map<String, dynamic>) {
+        body = val;
+      } else if (val is Map) {
+        body = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyCookies)) {
+      final val = jsonData[keyCookies];
+      if (val is Map<String, dynamic>) {
+        cookies = val;
+      } else if (val is Map) {
+        cookies = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyFiles)) {
+      files = AcJsonUtils.deserializeMap<AcWebFile>(
+        jsonData[keyFiles],
+        fromJson: (val) => AcWebFile.instanceFromJson(val),
+      );
+    }
+    if (jsonData.containsKey(keyQueryParameters)) {
+      final val = jsonData[keyQueryParameters];
+      if (val is Map<String, dynamic>) {
+        get = val;
+      } else if (val is Map) {
+        get = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyHeaders)) {
+      final val = jsonData[keyHeaders];
+      if (val is Map<String, dynamic>) {
+        headers = val;
+      } else if (val is Map) {
+        headers = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyInternalParams)) {
+      final val = jsonData[keyInternalParams];
+      if (val is Map<String, dynamic>) {
+        internalParams = val;
+      } else if (val is Map) {
+        internalParams = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyMethod)) {
+      method = AcJsonUtils.deserializeValue<String>(
+        jsonData[keyMethod],
+        defaultValue: method,
+      )!;
+    }
+    if (jsonData.containsKey(keyPathParameters)) {
+      final val = jsonData[keyPathParameters];
+      if (val is Map<String, dynamic>) {
+        pathParameters = val;
+      } else if (val is Map) {
+        pathParameters = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyFormFields)) {
+      final val = jsonData[keyFormFields];
+      if (val is Map<String, dynamic>) {
+        post = val;
+      } else if (val is Map) {
+        post = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keySession)) {
+      final val = jsonData[keySession];
+      if (val is Map<String, dynamic>) {
+        session = val;
+      } else if (val is Map) {
+        session = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyUrl)) {
+      url = AcJsonUtils.deserializeValue<String>(
+        jsonData[keyUrl],
+        defaultValue: url,
+      )!;
+    }
     return this;
   }
 
@@ -125,7 +203,19 @@ class AcWebRequest {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyBody: AcJsonUtils.serializeValue(body),
+      keyCookies: AcJsonUtils.serializeValue(cookies),
+      keyFiles: AcJsonUtils.serializeValue(files),
+      keyQueryParameters: AcJsonUtils.serializeValue(get),
+      keyHeaders: AcJsonUtils.serializeValue(headers),
+      keyInternalParams: AcJsonUtils.serializeValue(internalParams),
+      keyMethod: method,
+      keyPathParameters: AcJsonUtils.serializeValue(pathParameters),
+      keyFormFields: AcJsonUtils.serializeValue(post),
+      keySession: AcJsonUtils.serializeValue(session),
+      keyUrl: url,
+    };
   }
 
   /* AcDoc({

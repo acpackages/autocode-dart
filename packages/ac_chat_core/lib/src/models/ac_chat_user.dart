@@ -27,29 +27,57 @@ class AcChatUser {
   }
 
   AcChatUser fromJson({required Map<String, dynamic> jsonData}) {
-    final json = Map<String, dynamic>.from(jsonData);
-    if (json.containsKey('is_online')) {
-      isOnline = json['is_online'] == true || json['is_online'] == 1;
-      json.remove('is_online');
-    }
+    userId = AcJsonUtils.deserializeValue<String>(
+      jsonData['user_id'] ?? jsonData['userId'],
+      defaultValue: userId,
+    )!;
+    name = AcJsonUtils.deserializeValue<String>(
+      jsonData['name'],
+      defaultValue: name,
+    )!;
+    username = AcJsonUtils.deserializeValue<String>(
+      jsonData['username'],
+      defaultValue: username,
+    )!;
+    email = AcJsonUtils.deserializeValue<String>(
+      jsonData['email'],
+      defaultValue: email,
+    )!;
+    phone = AcJsonUtils.deserializeValue<String>(
+      jsonData['phone'],
+      defaultValue: phone,
+    );
+    avatar = AcJsonUtils.deserializeValue<String>(
+      jsonData['avatar'],
+      defaultValue: avatar,
+    );
+    bio = AcJsonUtils.deserializeValue<String>(
+      jsonData['bio'],
+      defaultValue: bio,
+    );
+    lastSeen = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['last_seen'] ?? jsonData['lastSeen'],
+      defaultValue: lastSeen,
+    );
+    isOnline = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_online'] ?? jsonData['isOnline'],
+      defaultValue: isOnline,
+    )!;
 
-    try {
-      AcJsonUtils.setInstancePropertiesFromJsonData(
-        instance: this,
-        jsonData: json,
-      );
-    } catch (_) {}
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = {};
-    try {
-      result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    } catch (_) {}
-    if(userId.isEmpty){
-      result['user_id'] = null;
-    }
-    return result;
+    return {
+      'user_id': userId.isNotEmpty ? userId : null,
+      'name': name,
+      'username': username,
+      'email': email,
+      'phone': phone,
+      'avatar': avatar,
+      'bio': bio,
+      'last_seen': AcJsonUtils.serializeValue(lastSeen),
+      'is_online': isOnline,
+    };
   }
 }

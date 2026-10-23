@@ -45,21 +45,12 @@ class AcSortOrder {
   }
 
   AcSortOrder fromJson({required Map<String, dynamic> jsonData}) {
-    final Map<String, dynamic> json = Map.from(jsonData);
-
-    if (json.containsKey(keySortOrders)) {
-      final rawList = json[keySortOrders] as List;
-      sortOrders = rawList
-          .whereType<Map<String, dynamic>>()
-          .map((e) => AcSort.instanceFromJson(jsonData: e))
-          .toList();
-      json.remove(keySortOrders);
+    if (jsonData.containsKey(keySortOrders) || jsonData.containsKey('sortOrders') || jsonData.containsKey('sort_orders')) {
+      sortOrders = AcJsonUtils.deserializeList<AcSort>(
+        jsonData[keySortOrders] ?? jsonData['sortOrders'] ?? jsonData['sort_orders'],
+        fromJson: (json) => AcSort.instanceFromJson(jsonData: json),
+      );
     }
-
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: json,
-    );
     return this;
   }
 
@@ -72,7 +63,9 @@ class AcSortOrder {
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keySortOrders: AcJsonUtils.serializeValue(sortOrders),
+    };
   }
 
   @override

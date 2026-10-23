@@ -93,109 +93,160 @@ class AcChatMessage {
   }
 
   AcChatMessage fromJson({required Map<String, dynamic> jsonData}) {
-    final json = Map<String, dynamic>.from(jsonData);
-    if (json.containsKey('is_edited')) {
-      isEdited = json['is_edited'] == true || json['is_edited'] == 1;
-      json.remove('is_edited');
-    }
+    messageId = AcJsonUtils.deserializeValue<String>(
+      jsonData['message_id'] ?? jsonData['messageId'],
+      defaultValue: messageId,
+    )!;
+    conversationId = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_id'] ?? jsonData['conversationId'],
+      defaultValue: conversationId,
+    )!;
+    senderId = AcJsonUtils.deserializeValue<String>(
+      jsonData['sender_id'] ?? jsonData['senderId'],
+      defaultValue: senderId,
+    )!;
+    type = AcJsonUtils.deserializeValue<String>(
+      jsonData['type'],
+      defaultValue: type,
+    )!;
+    text = AcJsonUtils.deserializeValue<String>(
+      jsonData['text'],
+      defaultValue: text,
+    )!;
+    status = AcJsonUtils.deserializeValue<String>(
+      jsonData['status'],
+      defaultValue: status,
+    )!;
+    time = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['time'],
+      defaultValue: time,
+    )!;
+    deliveredTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['delivered_time'] ?? jsonData['deliveredTime'],
+      defaultValue: deliveredTime,
+    );
+    readTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['read_time'] ?? jsonData['readTime'],
+      defaultValue: readTime,
+    );
+    editedTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['edited_time'] ?? jsonData['editedTime'],
+      defaultValue: editedTime,
+    );
+    isEdited = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_edited'] ?? jsonData['isEdited'],
+      defaultValue: isEdited,
+    )!;
+    isDeleted = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_deleted'] ?? jsonData['isDeleted'],
+      defaultValue: isDeleted,
+    )!;
+    isStarred = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_starred'] ?? jsonData['isStarred'],
+      defaultValue: isStarred,
+    )!;
+    isDownloaded = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_downloaded'] ?? jsonData['isDownloaded'],
+      defaultValue: isDownloaded,
+    )!;
+    localPath = AcJsonUtils.deserializeValue<String>(
+      jsonData['local_path'] ?? jsonData['localPath'],
+      defaultValue: localPath,
+    );
+    fileUrl = AcJsonUtils.deserializeValue<String>(
+      jsonData['file_url'] ?? jsonData['fileUrl'],
+      defaultValue: fileUrl,
+    );
+    mediaCaption = AcJsonUtils.deserializeValue<String>(
+      jsonData['media_caption'] ?? jsonData['mediaCaption'],
+      defaultValue: mediaCaption,
+    );
+    duration = AcJsonUtils.deserializeValue<String>(
+      jsonData['media_duration'] ?? jsonData['duration'],
+      defaultValue: duration,
+    );
+    fileName = AcJsonUtils.deserializeValue<String>(
+      jsonData['file_name'] ?? jsonData['fileName'],
+      defaultValue: fileName,
+    );
+    fileSize = AcJsonUtils.deserializeValue<String>(
+      jsonData['file_size'] ?? jsonData['fileSize'],
+      defaultValue: fileSize,
+    );
 
-    if (json.containsKey('is_deleted')) {
-      isDeleted = json['is_deleted'] == true || json['is_deleted'] == 1;
-      json.remove('is_deleted');
-    }
+    expiresAt = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['expires_at'] ?? jsonData['expiresAt'],
+      defaultValue: expiresAt,
+    );
+    scheduledTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['scheduled_time'] ?? jsonData['scheduledTime'],
+      defaultValue: scheduledTime,
+    );
+    pinnedUntil = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['pinned_until'] ?? jsonData['pinnedUntil'],
+      defaultValue: pinnedUntil,
+    );
 
-    if (json.containsKey('is_starred')) {
-      isStarred = json['is_starred'] == true || json['is_starred'] == 1;
-      json.remove('is_starred');
-    }
-
-    if (json.containsKey('is_downloaded')) {
-      isDownloaded = json['is_downloaded'] == true || json['is_downloaded'] == 1;
-      json.remove('is_downloaded');
-    } else if (json.containsKey('isDownloaded')) {
-      isDownloaded = json['isDownloaded'] == true || json['isDownloaded'] == 1;
-      json.remove('isDownloaded');
-    }
-
-    if (json.containsKey('local_path')) {
-      localPath = json['local_path'] as String?;
-      json.remove('local_path');
-    } else if (json.containsKey('localPath')) {
-      localPath = json['localPath'] as String?;
-      json.remove('localPath');
-    }
-
-    if (json.containsKey('file_url')) {
-      fileUrl = json['file_url'] as String?;
-      json.remove('file_url');
-    } else if (json.containsKey('fileUrl')) {
-      fileUrl = json['fileUrl'] as String?;
-      json.remove('fileUrl');
-    }
-
-    if (json.containsKey('reactions') && json['reactions'] != null) {
-      if (json['reactions'] is Map) {
-        final rawMap = json['reactions'] as Map;
-        reactions = rawMap.map(
-          (k, v) => MapEntry(
-            k.toString(),
-            (v as List).map((e) => e.toString()).toList(),
-          ),
+    if (jsonData.containsKey('reactions') && jsonData['reactions'] != null) {
+      if (jsonData['reactions'] is Map) {
+        reactions = AcJsonUtils.deserializeMap<List<String>>(
+          jsonData['reactions'],
+          valueParser: (val) => AcJsonUtils.deserializeList<String>(val),
         );
-      } else if (json['reactions'] is String && (json['reactions'] as String).isNotEmpty) {
+      } else if (jsonData['reactions'] is String && (jsonData['reactions'] as String).isNotEmpty) {
         try {
-          final decoded = jsonDecode(json['reactions'] as String) as Map;
-          reactions = decoded.map(
-            (k, v) => MapEntry(
-              k.toString(),
-              (v as List).map((e) => e.toString()).toList(),
-            ),
+          final decoded = jsonDecode(jsonData['reactions'] as String);
+          reactions = AcJsonUtils.deserializeMap<List<String>>(
+            decoded,
+            valueParser: (val) => AcJsonUtils.deserializeList<String>(val),
           );
         } catch (_) {}
       }
-      json.remove('reactions');
     }
 
-    if (json.containsKey('mentions') && json['mentions'] != null) {
-      if (json['mentions'] is List) {
-        mentions = (json['mentions'] as List).map((e) => e.toString()).toList();
-      }
-      json.remove('mentions');
+    if (jsonData.containsKey('mentions') && jsonData['mentions'] != null) {
+      mentions = AcJsonUtils.deserializeList<String>(jsonData['mentions']);
     }
 
+    replyTo = AcJsonUtils.deserializeValue<AcChatMessage>(
+      jsonData['reply_to'] ?? jsonData['replyTo'],
+      fromJson: (data) => AcChatMessage.instanceFromJson(jsonData: data),
+      defaultValue: replyTo,
+    );
 
-    if (json.containsKey('reply_to') && json['reply_to'] != null) {
-      if (json['reply_to'] is Map<String, dynamic>) {
-        replyTo = AcChatMessage.instanceFromJson(jsonData: json['reply_to']);
-      } else if (json['reply_to'] is AcChatMessage) {
-        replyTo = json['reply_to'];
-      }
-      json.remove('reply_to');
-    }
-
-    try {
-      AcJsonUtils.setInstancePropertiesFromJsonData(
-        instance: this,
-        jsonData: json,
-      );
-    } catch (_) {}
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    final result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    if(messageId.isEmpty){
-      result['message_id'] = null;
-    }
-    if (localPath != null) {
-      result['local_path'] = localPath;
-      result['localPath'] = localPath;
-    }
-    if (fileUrl != null) {
-      result['file_url'] = fileUrl;
-      result['fileUrl'] = fileUrl;
-    }
-    return result;
+    return {
+      'message_id': messageId.isNotEmpty ? messageId : null,
+      'conversation_id': conversationId,
+      'sender_id': senderId,
+      'type': type,
+      'text': text,
+      'time': AcJsonUtils.serializeValue(time),
+      'status': status,
+      'delivered_time': AcJsonUtils.serializeValue(deliveredTime),
+      'read_time': AcJsonUtils.serializeValue(readTime),
+      'is_edited': isEdited,
+      'edited_time': AcJsonUtils.serializeValue(editedTime),
+      'is_deleted': isDeleted,
+      'is_starred': isStarred,
+      'reactions': AcJsonUtils.serializeValue(reactions),
+      'mentions': AcJsonUtils.serializeValue(mentions),
+      'media_caption': mediaCaption,
+      'media_duration': duration,
+      'file_name': fileName,
+      'file_size': fileSize,
+      'is_downloaded': isDownloaded,
+      'local_path': localPath,
+      'localPath': localPath,
+      'file_url': fileUrl,
+      'fileUrl': fileUrl,
+      'expires_at': AcJsonUtils.serializeValue(expiresAt),
+      'scheduled_time': AcJsonUtils.serializeValue(scheduledTime),
+      'pinned_until': AcJsonUtils.serializeValue(pinnedUntil),
+    };
   }
 
   AcChatMessage clone() {

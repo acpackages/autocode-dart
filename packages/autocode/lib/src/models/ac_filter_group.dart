@@ -70,36 +70,25 @@ class AcFilterGroup {
   }
 
   AcFilterGroup fromJson({required Map<String, dynamic> jsonData}) {
-    final Map<String, dynamic> json = Map.from(jsonData);
-
-    // Handle polymorphic lists
-    if (json.containsKey(keyFilters) && json[keyFilters] is List) {
-      final rawFilters = json[keyFilters] as List;
-      filters = rawFilters
-          .whereType<Map<String, dynamic>>()
-          .map((e) => AcFilter.instanceFromJson(jsonData: e))
-          .toList();
-      json.remove(keyFilters);
+    if (jsonData.containsKey(keyFilters) || jsonData.containsKey('filters')) {
+      filters = AcJsonUtils.deserializeList<AcFilter>(
+        jsonData[keyFilters] ?? jsonData['filters'],
+        fromJson: (json) => AcFilter.instanceFromJson(jsonData: json),
+      );
     }
 
-    if (json.containsKey(keyFilterGroups) && json[keyFilterGroups] is List) {
-      final rawGroups = json[keyFilterGroups] as List;
-      filterGroups = rawGroups
-          .whereType<Map<String, dynamic>>()
-          .map((e) => AcFilterGroup.instanceFromJson(jsonData: e))
-          .toList();
-      json.remove(keyFilterGroups);
+    if (jsonData.containsKey(keyFilterGroups) || jsonData.containsKey('filterGroups') || jsonData.containsKey('filter_groups')) {
+      filterGroups = AcJsonUtils.deserializeList<AcFilterGroup>(
+        jsonData[keyFilterGroups] ?? jsonData['filterGroups'] ?? jsonData['filter_groups'],
+        fromJson: (json) => AcFilterGroup.instanceFromJson(jsonData: json),
+      );
     }
 
-    if(json.containsKey(keyOperator)){
-      operator = AcEnumLogicalOperator.fromValue(json.getString(keyOperator));
-      json.remove(keyOperator);
-    }
-
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: json,
-    );
+    operator = AcJsonUtils.deserializeValue<AcEnumLogicalOperator>(
+      jsonData[keyOperator] ?? jsonData['operator'],
+      enumValues: AcEnumLogicalOperator.values,
+      defaultValue: operator,
+    )!;
     return this;
   }
 
@@ -135,9 +124,11 @@ class AcFilterGroup {
   }
 
   Map<String, dynamic> toJson() {
-    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    result[keyOperator] = operator.value;
-    return result;
+    return {
+      keyFilters: AcJsonUtils.serializeValue(filters),
+      keyFilterGroups: AcJsonUtils.serializeValue(filterGroups),
+      keyOperator: AcJsonUtils.serializeValue(operator),
+    };
   }
 
   @override

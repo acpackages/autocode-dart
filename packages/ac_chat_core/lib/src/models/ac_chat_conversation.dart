@@ -77,34 +77,92 @@ class AcChatConversation {
   }
 
   AcChatConversation fromJson({required Map<String, dynamic> jsonData}) {
-    final json = Map<String, dynamic>.from(jsonData);
-    if (json.containsKey('is_pinned')) {
-      isPinned = json['is_pinned'] == true || json['is_pinned'] == 1;
-      json.remove('is_pinned');
-    }
-    if (json.containsKey('is_muted')) {
-      isMuted = json['is_muted'] == true || json['is_muted'] == 1;
-      json.remove('is_muted');
-    }
-    if (json.containsKey('is_archived')) {
-      isArchived = json['is_archived'] == true || json['is_archived'] == 1;
-      json.remove('is_archived');
-    }
+    conversationId = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_id'] ?? jsonData['conversationId'],
+      defaultValue: conversationId,
+    )!;
+    type = AcJsonUtils.deserializeValue<String>(
+      jsonData['type'],
+      defaultValue: type,
+    )!;
+    conversationName = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_name'] ?? jsonData['conversationName'],
+      defaultValue: conversationName,
+    );
+    conversationAvatar = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_avatar'] ?? jsonData['conversationAvatar'],
+      defaultValue: conversationAvatar,
+    );
+    conversationDescription = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_description'] ?? jsonData['conversationDescription'],
+      defaultValue: conversationDescription,
+    );
+    createdBy = AcJsonUtils.deserializeValue<String>(
+      jsonData['created_by'] ?? jsonData['createdBy'],
+      defaultValue: createdBy,
+    );
+    createdAt = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['created_at'] ?? jsonData['createdAt'],
+      defaultValue: createdAt,
+    )!;
+    lastMessage = AcJsonUtils.deserializeValue<String>(
+      jsonData['last_message'] ?? jsonData['lastMessage'],
+      defaultValue: lastMessage,
+    )!;
+    lastMessageType = AcJsonUtils.deserializeValue<String>(
+      jsonData['last_message_type'] ?? jsonData['lastMessageType'],
+      defaultValue: lastMessageType,
+    )!;
+    lastTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['last_time'] ?? jsonData['lastTime'],
+      defaultValue: lastTime,
+    )!;
+    userIds = AcJsonUtils.deserializeList<String>(
+      jsonData['user_ids'] ?? jsonData['userIds'],
+    );
+    disappearingDurationSeconds = AcJsonUtils.deserializeValue<int>(
+      jsonData['disappearing_duration_seconds'] ?? jsonData['disappearingDurationSeconds'],
+      defaultValue: disappearingDurationSeconds,
+    );
+    unread = AcJsonUtils.deserializeValue<int>(
+      jsonData['unread'],
+      defaultValue: unread,
+    )!;
+    isPinned = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_pinned'] ?? jsonData['isPinned'],
+      defaultValue: isPinned,
+    )!;
+    isMuted = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_muted'] ?? jsonData['isMuted'],
+      defaultValue: isMuted,
+    )!;
+    isArchived = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_archived'] ?? jsonData['isArchived'],
+      defaultValue: isArchived,
+    )!;
+    isHidden = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_hidden'] ?? jsonData['isHidden'],
+      defaultValue: isHidden,
+    )!;
 
-    try {
-      AcJsonUtils.setInstancePropertiesFromJsonData(
-        instance: this,
-        jsonData: json,
-      );
-    } catch (_) {}
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    final result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    if(conversationId.isEmpty){
-      result['conversation_id'] = null;
-    }
-    return result;
+    return {
+      'conversation_id': conversationId.isNotEmpty ? conversationId : null,
+      'type': type,
+      'conversation_name': conversationName,
+      'conversation_avatar': conversationAvatar,
+      'conversation_description': conversationDescription,
+      'created_by': createdBy,
+      'created_at': AcJsonUtils.serializeValue(createdAt),
+      'last_message': lastMessage,
+      'last_message_type': lastMessageType,
+      'lastMessageType': lastMessageType,
+      'last_time': AcJsonUtils.serializeValue(lastTime),
+      'user_ids': AcJsonUtils.serializeValue(userIds),
+      'disappearing_duration_seconds': disappearingDurationSeconds,
+    };
   }
 }

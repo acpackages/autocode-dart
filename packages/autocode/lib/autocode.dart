@@ -24,6 +24,7 @@ export './src/enums/ac_enum_http_response_code.dart';
 export './src/enums/ac_enum_log_type.dart';
 export './src/enums/ac_enum_logical_operator.dart';
 export './src/enums/ac_enum_string_case.dart';
+export './src/enums/ac_enum_sort_order.dart';
 export './src/enums/ac_enum_sql_database_type.dart';
 export './src/enums/ac_enum_sql_entity.dart';
 

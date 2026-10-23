@@ -23,19 +23,24 @@ class AcSyncDefinition {
   }
 
   AcSyncDefinition fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
-    if (jsonData.containsKey(keyTableDefinitions)) {
-      var list = jsonData[keyTableDefinitions] as List<dynamic>;
-      tableDefinitions = list.map((item) => AcSyncTableDefinition.instanceFromJson(jsonData: item)).toList();
+    definitionName = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyDefinitionName] ?? jsonData['definition_name'],
+      defaultValue: definitionName,
+    )!;
+    if (jsonData.containsKey(keyTableDefinitions) || jsonData.containsKey('table_definitions')) {
+      tableDefinitions = AcJsonUtils.deserializeList<AcSyncTableDefinition>(
+        jsonData[keyTableDefinitions] ?? jsonData['table_definitions'],
+        fromJson: (json) => AcSyncTableDefinition.instanceFromJson(jsonData: json),
+      );
     }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyDefinitionName: definitionName,
+      keyTableDefinitions: AcJsonUtils.serializeValue(tableDefinitions),
+    };
   }
 
   @override

@@ -38,4 +38,36 @@ class AcSqlCallbackArgs extends AcResult {
       this.description = description;
     }
   }
+
+  factory AcSqlCallbackArgs.instanceFromJson({required Map<String, dynamic> jsonData}) {
+    final instance = AcSqlCallbackArgs();
+    instance.fromJson(jsonData: jsonData);
+    return instance;
+  }
+
+  @override
+  AcSqlCallbackArgs fromJson({required Map<String, dynamic> jsonData}) {
+    super.fromJson(jsonData: jsonData);
+    final cc = jsonData[keyCompletedCount] ?? jsonData['completed_count'];
+    if (cc != null) {
+      completedCount = cc is int ? cc : (int.tryParse(cc.toString()) ?? completedCount);
+    }
+    final tc = jsonData[keyTotalCount] ?? jsonData['total_count'];
+    if (tc != null) {
+      totalCount = tc is int ? tc : (int.tryParse(tc.toString()) ?? totalCount);
+    }
+    if (jsonData.containsKey(keyDescription)) {
+      description = jsonData[keyDescription]?.toString() ?? description;
+    }
+    return this;
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final map = super.toJson();
+    map[keyCompletedCount] = completedCount;
+    map[keyTotalCount] = totalCount;
+    map[keyDescription] = description;
+    return map;
+  }
 }

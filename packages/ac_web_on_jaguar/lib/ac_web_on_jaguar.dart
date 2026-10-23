@@ -6,6 +6,7 @@ import 'package:ac_extensions/ac_extensions.dart';
 import 'package:autocode/autocode.dart';
 import 'package:ac_web/ac_web.dart';
 import 'package:jaguar/jaguar.dart';
+export 'package:jaguar/jaguar.dart';
 
 class RoutePathInfo {
   final String path;
@@ -33,6 +34,9 @@ class AcWebOnJaguar extends AcWeb {
 
   /* AcDoc({"summary": "The underlying Jaguar server instance for HTTPS/SSL."}) */
   Jaguar? jaguarSecureInstance;
+
+  /* AcDoc({"summary": "Callback invoked with each Jaguar instance before calling serve()."}) */
+  void Function(Jaguar jaguarInstance)? onBeforeServe;
   
   Future<Response> _getNotFoundResponse({required Context context}) async {
     if(notFoundResolver != null){
@@ -460,6 +464,9 @@ class AcWebOnJaguar extends AcWeb {
           "After Path in Exception ${ctx.path} Response = ${ctx.response.statusCode}",
         ),
       );
+      if (onBeforeServe != null && jaguarInstance != null) {
+        onBeforeServe!(jaguarInstance!);
+      }
       await jaguarInstance?.serve();
       logger.log("Jaguar server running on port $port");
 
@@ -482,6 +489,9 @@ class AcWebOnJaguar extends AcWeb {
             "After Path in Exception ${ctx.path} Response = ${ctx.response.statusCode}",
           ),
         );
+        if (onBeforeServe != null && jaguarSecureInstance != null) {
+          onBeforeServe!(jaguarSecureInstance!);
+        }
         // jaguarInstance?.addRoute(_handleRequest());
         await jaguarSecureInstance?.serve();
       }

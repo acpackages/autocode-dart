@@ -30,18 +30,33 @@ class AcWebviewOnWebInterceptorResult extends AcResult {
     return instance.fromJson(jsonData: jsonData);
   }
 
+  @override
   AcWebviewOnWebInterceptorResult fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    super.fromJson(jsonData: jsonData);
+    continueOperation = AcJsonUtils.deserializeValue<bool>(
+      jsonData[keyContinueOperation] ?? jsonData['continue_operation'],
+      defaultValue: continueOperation,
     );
+    if (jsonData.containsKey(keyWebResponse) || jsonData.containsKey('web_response')) {
+      final wr = jsonData[keyWebResponse] ?? jsonData['web_response'];
+      if (wr is Map<String, dynamic>) {
+        webResponse = wr;
+      } else if (wr is Map) {
+        webResponse = wr.cast<String, dynamic>();
+      }
+    }
     return this;
   }
 
+  @override
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
-      instance: this,
-    );
+    Map<String, dynamic> result = super.toJson();
+    if (continueOperation != null) {
+      result[keyContinueOperation] = continueOperation;
+    }
+    if (webResponse != null) {
+      result[keyWebResponse] = AcJsonUtils.serializeValue(webResponse);
+    }
     return result;
   }
 

@@ -46,6 +46,8 @@ class AcWsServer {
     }
   }
 
+  void handleHttpRequest(HttpRequest request) => _handleHttpRequest(request);
+
   void _handleHttpRequest(HttpRequest request) async {
     try {
       if (WebSocketTransformer.isUpgradeRequest(request)) {

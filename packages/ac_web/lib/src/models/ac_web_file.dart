@@ -40,9 +40,17 @@ class AcWebFile {
   }
 
   AcWebFile fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    charset = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyCharset],
+      defaultValue: charset,
+    );
+    fileName = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyFileName] ?? jsonData['fileName'] ?? jsonData['file_name'],
+      defaultValue: fileName,
+    );
+    mimeType = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyMimeType] ?? jsonData['mime_type'],
+      defaultValue: mimeType,
     );
     return this;
   }
@@ -82,7 +90,11 @@ class AcWebFile {
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = <String, dynamic>{};
+    if (charset != null) data[keyCharset] = charset;
+    if (fileName != null) data[keyFileName] = fileName;
+    if (mimeType != null) data[keyMimeType] = mimeType;
+    return data;
   }
 
   @override

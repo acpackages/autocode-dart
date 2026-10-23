@@ -31,18 +31,24 @@ class AcSort {
     return AcSort.instanceFromJson(jsonData: toJson());
   }
 
-  AcSort fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+  AcSort fromJson({Map<String, dynamic> jsonData = const {}}) {
+    key = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyKey] ?? jsonData['key'],
+      defaultValue: key,
+    )!;
+    order = AcJsonUtils.deserializeValue<AcEnumSortOrder>(
+      jsonData[keyOrder] ?? jsonData['order'],
+      enumValues: AcEnumSortOrder.values,
+      defaultValue: order,
+    )!;
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    result[keyOrder] = order.value;
-    return result;
+    return {
+      keyKey: key,
+      keyOrder: AcJsonUtils.serializeValue(order),
+    };
   }
 
   @override

@@ -40,31 +40,32 @@ class AcSyncTableChanges {
   }
 
   AcSyncTableChanges fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    tableName = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyTableName] ?? jsonData['table_name'],
+      defaultValue: tableName,
+    )!;
+    rowsToDelete = AcJsonUtils.deserializeList<AcSyncTableRowChange>(
+      jsonData[keyRowsToDelete] ?? jsonData['rows_to_delete'],
+      fromJson: (data) => AcSyncTableRowChange.instanceFromJson(jsonData: data),
     );
-    if (jsonData.containsKey(keyRowsToDelete) && jsonData[keyRowsToDelete] != null) {
-      var list = jsonData[keyRowsToDelete] as List;
-      rowsToDelete = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
-    }
-    if (jsonData.containsKey(keyRowsToInsert) && jsonData[keyRowsToInsert] != null) {
-      var list = jsonData[keyRowsToInsert] as List;
-      rowsToInsert = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
-    }
-    if (jsonData.containsKey(keyRowsToUpdate) && jsonData[keyRowsToUpdate] != null) {
-      var list = jsonData[keyRowsToUpdate] as List;
-      rowsToUpdate = list.map((v) => AcSyncTableRowChange.instanceFromJson(jsonData: Map<String, dynamic>.from(v))).toList();
-    }
+    rowsToInsert = AcJsonUtils.deserializeList<AcSyncTableRowChange>(
+      jsonData[keyRowsToInsert] ?? jsonData['rows_to_insert'],
+      fromJson: (data) => AcSyncTableRowChange.instanceFromJson(jsonData: data),
+    );
+    rowsToUpdate = AcJsonUtils.deserializeList<AcSyncTableRowChange>(
+      jsonData[keyRowsToUpdate] ?? jsonData['rows_to_update'],
+      fromJson: (data) => AcSyncTableRowChange.instanceFromJson(jsonData: data),
+    );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    data[keyRowsToDelete] = rowsToDelete.map((v) => v.toJson()).toList();
-    data[keyRowsToInsert] = rowsToInsert.map((v) => v.toJson()).toList();
-    data[keyRowsToUpdate] = rowsToUpdate.map((v) => v.toJson()).toList();
-    return data;
+    return {
+      keyTableName: tableName,
+      keyRowsToDelete: AcJsonUtils.serializeValue(rowsToDelete),
+      keyRowsToInsert: AcJsonUtils.serializeValue(rowsToInsert),
+      keyRowsToUpdate: AcJsonUtils.serializeValue(rowsToUpdate),
+    };
   }
 
   @override

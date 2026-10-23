@@ -86,10 +86,24 @@ class AcWebRouteDefinition {
     "returns_type": "AcWebRouteDefinition"
   }) */
   AcWebRouteDefinition fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyController)) {
+      controller = jsonData[keyController];
+    }
+    if (jsonData.containsKey(keyHandler)) {
+      handler = jsonData[keyHandler];
+    }
+    if (jsonData.containsKey(keyMethod)) {
+      method = jsonData[keyMethod]?.toString() ?? method;
+    }
+    if (jsonData.containsKey(keyUrl)) {
+      url = jsonData[keyUrl]?.toString() ?? url;
+    }
+    if (jsonData.containsKey(keyInterceptors)) {
+      final list = jsonData[keyInterceptors];
+      if (list is List) {
+        interceptors = list.map((e) => e.toString()).toList();
+      }
+    }
     return this;
   }
 
@@ -99,7 +113,11 @@ class AcWebRouteDefinition {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyMethod: method,
+      keyUrl: url,
+      keyInterceptors: AcJsonUtils.serializeValue(interceptors),
+    };
   }
 
   /* AcDoc({

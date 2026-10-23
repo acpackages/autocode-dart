@@ -35,15 +35,43 @@ class AcSyncTableDefinition {
   }
 
   AcSyncTableDefinition fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    tableName = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyTableName] ?? jsonData['table_name'],
+      defaultValue: tableName,
+    )!;
+    primaryKeyField = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyPrimaryKeyField] ?? jsonData['primary_key_field'],
+      defaultValue: primaryKeyField,
+    )!;
+    syncToDestination = AcJsonUtils.deserializeValue<bool>(
+      jsonData[keySyncToDestination] ?? jsonData['sync_to_destination'],
+      defaultValue: syncToDestination,
+    )!;
+    syncToSource = AcJsonUtils.deserializeValue<bool>(
+      jsonData[keySyncToSource] ?? jsonData['sync_to_source'],
+      defaultValue: syncToSource,
+    )!;
+    if (jsonData.containsKey(keyColumnsToSync) || jsonData.containsKey('columns_to_sync')) {
+      columnsToSync = AcJsonUtils.deserializeList<String>(
+        jsonData[keyColumnsToSync] ?? jsonData['columns_to_sync'],
+      );
+    }
+    deleteAfterSyncFromDestination = AcJsonUtils.deserializeValue<bool>(
+      jsonData[keyDeleteAfterSyncFromDestination] ?? jsonData['delete_after_sync_from_destination'],
+      defaultValue: deleteAfterSyncFromDestination,
+    )!;
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyTableName: tableName,
+      keyPrimaryKeyField: primaryKeyField,
+      keySyncToDestination: syncToDestination,
+      keySyncToSource: syncToSource,
+      keyColumnsToSync: AcJsonUtils.serializeValue(columnsToSync),
+      keyDeleteAfterSyncFromDestination: deleteAfterSyncFromDestination,
+    };
   }
 
   @override

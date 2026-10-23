@@ -25,4 +25,31 @@ class AcHookResult extends AcResult {
     this.continueOperation = true,
     this.changes = const [],
   });
+
+  factory AcHookResult.instanceFromJson({required Map<String, dynamic> jsonData}) {
+    final instance = AcHookResult();
+    instance.fromJson(jsonData: jsonData);
+    return instance;
+  }
+
+  @override
+  AcHookResult fromJson({required Map<String, dynamic> jsonData}) {
+    super.fromJson(jsonData: jsonData);
+    if (jsonData.containsKey(keyContinueOperation) || jsonData.containsKey('continue_operation')) {
+      final v = jsonData[keyContinueOperation] ?? jsonData['continue_operation'];
+      continueOperation = v == true || v == 1;
+    }
+    if (jsonData.containsKey(keyChanges) && jsonData[keyChanges] is List) {
+      changes = List<dynamic>.from(jsonData[keyChanges]);
+    }
+    return this;
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final map = super.toJson();
+    map[keyContinueOperation] = continueOperation;
+    map[keyChanges] = changes;
+    return map;
+  }
 }

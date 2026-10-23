@@ -34,15 +34,39 @@ class AcSyncMessage {
   }
 
   AcSyncMessage fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    protocolVersion = AcJsonUtils.deserializeValue<String>(
+      jsonData['protocolVersion'] ?? jsonData['protocol_version'],
+      defaultValue: protocolVersion,
+    )!;
+    messageType = AcJsonUtils.deserializeValue<String>(
+      jsonData['messageType'] ?? jsonData['message_type'],
+      defaultValue: messageType,
+    )!;
+    sessionIdentifier = AcJsonUtils.deserializeValue<String>(
+      jsonData['sessionIdentifier'] ?? jsonData['session_identifier'],
+      defaultValue: sessionIdentifier,
+    )!;
+    stream = AcJsonUtils.deserializeValue<String>(jsonData['stream'], defaultValue: stream)!;
+    if (jsonData['payload'] is Map) {
+      payload = Map<String, dynamic>.from(jsonData['payload'] as Map);
+    }
+    if (jsonData['metadata'] is Map) {
+      metadata = Map<String, dynamic>.from(jsonData['metadata'] as Map);
+    }
+    timestamp = AcJsonUtils.deserializeValue<String>(jsonData['timestamp'], defaultValue: timestamp)!;
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      'protocolVersion': protocolVersion,
+      'messageType': messageType,
+      'sessionIdentifier': sessionIdentifier,
+      'stream': stream,
+      'payload': AcJsonUtils.serializeValue(payload),
+      'metadata': AcJsonUtils.serializeValue(metadata),
+      'timestamp': timestamp,
+    };
   }
 
   @override

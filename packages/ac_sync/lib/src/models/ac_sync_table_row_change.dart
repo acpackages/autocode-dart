@@ -29,20 +29,39 @@ class AcSyncTableRowChange {
   }
 
   AcSyncTableRowChange fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
-    if (jsonData.containsKey(keyTimestamp) && jsonData[keyTimestamp] is String) {
-      timestamp = DateTime.tryParse(jsonData[keyTimestamp] as String);
+    operation = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyOperation] ?? jsonData['operation'],
+      defaultValue: operation,
+    )!;
+    if (jsonData.containsKey(keyRowDetail) || jsonData.containsKey('row_detail') || jsonData.containsKey('row')) {
+      final r = jsonData[keyRowDetail] ?? jsonData['row_detail'] ?? jsonData['row'];
+      if (r is Map) {
+        row = Map<String, dynamic>.from(r);
+      }
     }
+    rowId = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyRowId] ?? jsonData['row_id'],
+      defaultValue: rowId,
+    );
+    timestamp = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData[keyTimestamp] ?? jsonData['timestamp'],
+      defaultValue: timestamp,
+    );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = <String, dynamic>{
+      keyOperation: operation,
+    };
     if (timestamp != null) {
-      data[keyTimestamp] = timestamp!.toUtcIso8601String();
+      data[keyTimestamp] = AcJsonUtils.serializeValue(timestamp);
+    }
+    if (row != null) {
+      data[keyRowDetail] = AcJsonUtils.serializeValue(row);
+    }
+    if (rowId != null) {
+      data[keyRowId] = rowId;
     }
     return data;
   }

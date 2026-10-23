@@ -100,14 +100,38 @@ class AcSqlEventResult extends AcResult {
     "returns": "The current instance, allowing for a fluent interface.",
     "returns_type": "AcSqlOperation"
   }) */
+  @override
   AcSqlEventResult fromJson({Map<String, dynamic> jsonData = const {}}) {
-    if (jsonData.containsKey(keyOperation)) {
-      operation = AcEnumDDRowOperation.fromValue(jsonData[keyOperation]);
+    super.fromJson(jsonData: jsonData);
+    if (jsonData.containsKey(keyCondition)) {
+      condition = jsonData[keyCondition]?.toString();
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyOperation)) {
+      final op = jsonData[keyOperation];
+      if (op is String) {
+        operation = AcEnumDDRowOperation.fromValue(op);
+      } else if (op is AcEnumDDRowOperation) {
+        operation = op;
+      }
+    }
+    if (jsonData.containsKey(keyRow) && jsonData[keyRow] is Map) {
+      row = Map<String, dynamic>.from(jsonData[keyRow] as Map);
+    }
+    if (jsonData.containsKey('rows') && jsonData['rows'] is List) {
+      rows = (jsonData['rows'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    if (jsonData.containsKey('rowsWithConditions') && jsonData['rowsWithConditions'] is List) {
+      rowsWithConditions = (jsonData['rowsWithConditions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    if (jsonData.containsKey(keyParameters) && jsonData[keyParameters] is Map) {
+      parameters = Map<String, dynamic>.from(jsonData[keyParameters] as Map);
+    }
+    if (jsonData.containsKey('result') && jsonData['result'] is Map) {
+      result = AcResult.instanceFromJson(jsonData: Map<String, dynamic>.from(jsonData['result']));
+    }
+    if (jsonData.containsKey(keyTable)) {
+      table = jsonData[keyTable]?.toString() ?? table;
+    }
     return this;
   }
 
@@ -116,12 +140,18 @@ class AcSqlEventResult extends AcResult {
     "returns": "A JSON map representation of the connection configuration.",
     "returns_type": "Map<String, dynamic>"
   }) */
+  @override
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
-      instance: this,
-    );
-    result[keyOperation] = operation.value;
-    return result;
+    final map = super.toJson();
+    map[keyCondition] = condition;
+    map[keyOperation] = AcJsonUtils.serializeValue(operation);
+    map[keyRow] = AcJsonUtils.serializeValue(row);
+    map['rows'] = AcJsonUtils.serializeValue(rows);
+    map['rowsWithConditions'] = AcJsonUtils.serializeValue(rowsWithConditions);
+    map[keyParameters] = AcJsonUtils.serializeValue(parameters);
+    map['result'] = AcJsonUtils.serializeValue(result);
+    map[keyTable] = table;
+    return map;
   }
 
   /* AcDoc({

@@ -23,25 +23,22 @@ class AcSyncChanges {
   }
 
   AcSyncChanges fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    lastChangeLogId = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyLastChangeLogId] ?? jsonData['last_change_log_id'],
+      defaultValue: lastChangeLogId,
+    )!;
+    tableChanges = AcJsonUtils.deserializeMap<AcSyncTableChanges>(
+      jsonData[keyTableChanges] ?? jsonData['table_changes'],
+      fromJson: (data) => AcSyncTableChanges.instanceFromJson(jsonData: data),
     );
-    // Handle manual mapping of tableChanges if reflection doesn't handle Map<String, CustomModel> automatically
-    if (jsonData.containsKey(keyTableChanges)) {
-      var map = jsonData[keyTableChanges] as Map<String, dynamic>;
-      tableChanges = {};
-      map.forEach((key, value) {
-        tableChanges[key] = AcSyncTableChanges.instanceFromJson(jsonData: value);
-      });
-    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var data = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    data[keyTableChanges] = tableChanges.map((k, v) => MapEntry(k, v.toJson()));
-    return data;
+    return {
+      keyLastChangeLogId: lastChangeLogId,
+      keyTableChanges: AcJsonUtils.serializeValue(tableChanges),
+    };
   }
 
   @override

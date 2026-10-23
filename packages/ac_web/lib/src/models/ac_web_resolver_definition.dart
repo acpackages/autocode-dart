@@ -35,15 +35,39 @@ class AcWebResolverDefinition {
   }
 
   AcWebResolverDefinition fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyPrefix)) {
+      prefix = jsonData[keyPrefix]?.toString() ?? "";
+    } else if (jsonData.containsKey('prefix')) {
+      prefix = jsonData['prefix']?.toString() ?? "";
+    }
+    if (jsonData.containsKey(keyResolver)) {
+      resolver = jsonData[keyResolver];
+    }
+    if (jsonData.containsKey(keyMethod)) {
+      final m = jsonData[keyMethod];
+      if (m is AcEnumHttpMethod) {
+        method = m;
+      } else if (m is String) {
+        try {
+          method = AcEnumHttpMethod.values.firstWhere((e) => e.name.toLowerCase() == m.toLowerCase() || e.toString().toLowerCase() == m.toLowerCase());
+        } catch (_) {}
+      }
+    }
+    if (jsonData.containsKey(keyInterceptors)) {
+      final list = jsonData[keyInterceptors];
+      if (list is List) {
+        interceptors = list.map((e) => e.toString()).toList();
+      }
+    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyPrefix: prefix,
+      keyMethod: AcJsonUtils.serializeValue(method),
+      keyInterceptors: AcJsonUtils.serializeValue(interceptors),
+    };
   }
 
   @override

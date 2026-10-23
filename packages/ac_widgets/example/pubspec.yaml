@@ -1,0 +1,25 @@
+name: ac_widgets_example
+description: Comprehensive interactive example application showcasing all ac_widgets components.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ac_widgets:
+    path: ..
+  autocode:
+    path: ../../autocode
+  ac_data_dictionary:
+    path: ../../ac_data_dictionary
+  ac_message:
+    path: ../../ac_message
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

@@ -48,39 +48,66 @@ class AcChatConversationUser {
   }
 
   AcChatConversationUser fromJson({required Map<String, dynamic> jsonData}) {
-    final json = Map<String, dynamic>.from(jsonData);
-
-    if (json.containsKey('is_pinned')) {
-      isPinned = json['is_pinned'] == true || json['is_pinned'] == 1;
-      json.remove('is_pinned');
-    }
-    if (json.containsKey('is_muted')) {
-      isMuted = json['is_muted'] == true || json['is_muted'] == 1;
-      json.remove('is_muted');
-    }
-    if (json.containsKey('is_archived')) {
-      isArchived = json['is_archived'] == true || json['is_archived'] == 1;
-      json.remove('is_archived');
-    }
-    if (json.containsKey('is_hidden')) {
-      isHidden = json['is_hidden'] == true || json['is_hidden'] == 1;
-      json.remove('is_hidden');
-    }
-    if (json.containsKey('role')) {
-      role = (json['role'] ?? 'member').toString();
-      json.remove('role');
-    }
-
-    try {
-      AcJsonUtils.setInstancePropertiesFromJsonData(
-        instance: this,
-        jsonData: json,
-      );
-    } catch (_) {}
+    conversationId = AcJsonUtils.deserializeValue<String>(
+      jsonData['conversation_id'] ?? jsonData['conversationId'],
+      defaultValue: conversationId,
+    )!;
+    userId = AcJsonUtils.deserializeValue<String>(
+      jsonData['user_id'] ?? jsonData['userId'],
+      defaultValue: userId,
+    )!;
+    unreadCount = AcJsonUtils.deserializeValue<int>(
+      jsonData['unread_count'] ?? jsonData['unreadCount'],
+      defaultValue: unreadCount,
+    )!;
+    isPinned = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_pinned'] ?? jsonData['isPinned'],
+      defaultValue: isPinned,
+    )!;
+    isMuted = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_muted'] ?? jsonData['isMuted'],
+      defaultValue: isMuted,
+    )!;
+    muteUntil = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['mute_until'] ?? jsonData['muteUntil'],
+      defaultValue: muteUntil,
+    );
+    isArchived = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_archived'] ?? jsonData['isArchived'],
+      defaultValue: isArchived,
+    )!;
+    isHidden = AcJsonUtils.deserializeValue<bool>(
+      jsonData['is_hidden'] ?? jsonData['isHidden'],
+      defaultValue: isHidden,
+    )!;
+    role = AcJsonUtils.deserializeValue<String>(
+      jsonData['role'],
+      defaultValue: role,
+    )!;
+    lastReadMessageId = AcJsonUtils.deserializeValue<String>(
+      jsonData['last_read_message_id'] ?? jsonData['lastReadMessageId'],
+      defaultValue: lastReadMessageId,
+    );
+    lastReadTime = AcJsonUtils.deserializeValue<DateTime>(
+      jsonData['last_read_time'] ?? jsonData['lastReadTime'],
+      defaultValue: lastReadTime,
+    );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      'conversation_id': conversationId,
+      'user_id': userId,
+      'unread_count': unreadCount,
+      'is_pinned': isPinned,
+      'is_muted': isMuted,
+      'mute_until': AcJsonUtils.serializeValue(muteUntil),
+      'is_archived': isArchived,
+      'is_hidden': isHidden,
+      'role': role,
+      'last_read_message_id': lastReadMessageId,
+      'last_read_time': AcJsonUtils.serializeValue(lastReadTime),
+    };
   }
 }

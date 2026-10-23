@@ -102,22 +102,62 @@ class AcSqlDaoResult extends AcResult {
   }) */
   int get rowsCount => rows.length;
 
+  /* AcDoc({ "description": "Factory to create an AcSqlDaoResult from JSON." }) */
+  factory AcSqlDaoResult.instanceFromJson({required Map<String, dynamic> jsonData}) {
+    var instance = AcSqlDaoResult();
+    return instance.fromJson(jsonData: jsonData);
+  }
+
   @override
   AcSqlDaoResult fromJson({required Map<String, dynamic> jsonData}) {
     super.fromJson(jsonData: jsonData);
-    if (jsonData.containsKey(keyRows) && jsonData[keyRows] is List) {
-      rows = (jsonData[keyRows] as List)
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+    if (jsonData.containsKey(keyRows) || jsonData.containsKey('rows')) {
+      final r = jsonData[keyRows] ?? jsonData['rows'];
+      if (r is List) {
+        rows = r.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      }
     }
+    affectedRowsCount = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyAffectedRowsCount] ?? jsonData['affected_rows_count'],
+    );
+    if (jsonData.containsKey(keyLastInsertedId) || jsonData.containsKey('last_inserted_id')) {
+      lastInsertedId = jsonData[keyLastInsertedId] ?? jsonData['last_inserted_id'];
+    }
+    if (jsonData.containsKey(keyLastInsertedIds) || jsonData.containsKey('last_inserted_ids')) {
+      lastInsertedIds = AcJsonUtils.deserializeList<dynamic>(
+        jsonData[keyLastInsertedIds] ?? jsonData['last_inserted_ids'],
+      );
+    }
+    operation = AcJsonUtils.deserializeValue<AcEnumDDRowOperation>(
+      jsonData[keyOperation] ?? jsonData['operation'],
+      enumValues: AcEnumDDRowOperation.values,
+      defaultValue: operation,
+    )!;
+    primaryKeyColumn = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyPrimaryKeyColumn] ?? jsonData['primary_key_column'],
+      defaultValue: primaryKeyColumn,
+    );
+    if (jsonData.containsKey(keyPrimaryKeyValue) || jsonData.containsKey('primary_key_value')) {
+      primaryKeyValue = jsonData[keyPrimaryKeyValue] ?? jsonData['primary_key_value'];
+    }
+    totalRows = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyTotalRows] ?? jsonData['total_rows'],
+      defaultValue: totalRows,
+    )!;
     return this;
   }
 
   @override
   Map<String, dynamic> toJson() {
     final map = super.toJson();
-    map[keyRows] = rows;
+    map[keyRows] = AcJsonUtils.serializeValue(rows);
+    map[keyAffectedRowsCount] = affectedRowsCount;
+    map[keyLastInsertedId] = lastInsertedId;
+    map[keyLastInsertedIds] = AcJsonUtils.serializeValue(lastInsertedIds);
+    map[keyOperation] = AcJsonUtils.serializeValue(operation);
+    map[keyPrimaryKeyColumn] = primaryKeyColumn;
+    map[keyPrimaryKeyValue] = AcJsonUtils.serializeValue(primaryKeyValue);
+    map[keyTotalRows] = totalRows;
     return map;
   }
 }

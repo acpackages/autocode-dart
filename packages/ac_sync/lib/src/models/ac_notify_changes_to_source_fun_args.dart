@@ -32,15 +32,41 @@ class AcNotifyChangesToSourceFunArgs {
   }
 
   AcNotifyChangesToSourceFunArgs fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+    changes = AcJsonUtils.deserializeValue<AcSyncChanges>(
+      jsonData[keyChanges] ?? jsonData['changes'],
+      fromJson: (data) => AcSyncChanges.instanceFromJson(jsonData: data),
+      defaultValue: changes,
+    );
+    lastSyncChangeLogId = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyLastSyncChangeLogId] ?? jsonData['last_sync_change_log_id'],
+      defaultValue: lastSyncChangeLogId,
+    );
+    deviceId = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyDeviceId] ?? jsonData['device_id'],
+      defaultValue: deviceId,
+    );
+    startTimestamp = AcJsonUtils.deserializeValue<String>(
+      jsonData['startTimestamp'] ?? jsonData['start_timestamp'],
+      defaultValue: startTimestamp,
     );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    var data = <String, dynamic>{};
+    if (changes != null) {
+      data[keyChanges] = AcJsonUtils.serializeValue(changes);
+    }
+    if (lastSyncChangeLogId != null) {
+      data[keyLastSyncChangeLogId] = lastSyncChangeLogId;
+    }
+    if (deviceId != null) {
+      data[keyDeviceId] = deviceId;
+    }
+    if (startTimestamp != null) {
+      data['startTimestamp'] = startTimestamp;
+    }
+    return data;
   }
 
   @override

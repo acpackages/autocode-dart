@@ -124,9 +124,7 @@ class AcWebResponse {
       var file = File(filePath);
       if(file.existsSync()){
         content = file.readAsBytesSync();
-        if(fileName == null){
-          fileName = file.fileName;
-        }
+        fileName ??= file.fileName;
       }
     }
     if(content != null && fileName != null){
@@ -242,10 +240,47 @@ class AcWebResponse {
     "returns_type": "AcWebResponse"
   }) */
   AcWebResponse fromJson(Map<String, dynamic> jsonData) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyCookies)) {
+      final val = jsonData[keyCookies];
+      if (val is Map<String, dynamic>) {
+        cookies = val;
+      } else if (val is Map) {
+        cookies = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyContent)) {
+      content = jsonData[keyContent];
+    }
+    if (jsonData.containsKey(keyHeaders)) {
+      final val = jsonData[keyHeaders];
+      if (val is Map<String, dynamic>) {
+        headers = val;
+      } else if (val is Map) {
+        headers = val.cast<String, dynamic>();
+      }
+    }
+    if (jsonData.containsKey(keyResponseCode)) {
+      responseCode = AcJsonUtils.deserializeValue<AcEnumHttpResponseCode>(
+        jsonData[keyResponseCode],
+        enumValues: AcEnumHttpResponseCode.values,
+        defaultValue: responseCode,
+      )!;
+    }
+    if (jsonData.containsKey(keyResponseType)) {
+      responseType = AcJsonUtils.deserializeValue<AcEnumWebResponseType>(
+        jsonData[keyResponseType],
+        enumValues: AcEnumWebResponseType.values,
+        defaultValue: responseType,
+      )!;
+    }
+    if (jsonData.containsKey(keySession)) {
+      final val = jsonData[keySession];
+      if (val is Map<String, dynamic>) {
+        session = val;
+      } else if (val is Map) {
+        session = val.cast<String, dynamic>();
+      }
+    }
     return this;
   }
 
@@ -255,7 +290,14 @@ class AcWebResponse {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      keyCookies: AcJsonUtils.serializeValue(cookies),
+      keyContent: AcJsonUtils.serializeValue(content),
+      keyHeaders: AcJsonUtils.serializeValue(headers),
+      keyResponseCode: AcJsonUtils.serializeValue(responseCode),
+      keyResponseType: AcJsonUtils.serializeValue(responseType),
+      keySession: AcJsonUtils.serializeValue(session),
+    };
   }
 
   /* AcDoc({

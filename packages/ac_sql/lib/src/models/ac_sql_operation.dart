@@ -93,13 +93,29 @@ class AcSqlOperation {
     "returns_type": "AcSqlOperation"
   }) */
   AcSqlOperation fromJson({Map<String, dynamic> jsonData = const {}}) {
-    if (jsonData.containsKey(keyOperation)) {
-      operation = AcEnumDDRowOperation.fromValue(jsonData[keyOperation]);
+    if (jsonData.containsKey(keyCondition)) {
+      condition = jsonData[keyCondition]?.toString();
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyOperation)) {
+      final op = jsonData[keyOperation];
+      if (op is String) {
+        operation = AcEnumDDRowOperation.fromValue(op);
+      } else if (op is AcEnumDDRowOperation) {
+        operation = op;
+      }
+    }
+    if (jsonData.containsKey(keyRow) && jsonData[keyRow] is Map) {
+      row = Map<String, dynamic>.from(jsonData[keyRow] as Map);
+    }
+    if (jsonData.containsKey(keyParameters) && jsonData[keyParameters] is Map) {
+      parameters = Map<String, dynamic>.from(jsonData[keyParameters] as Map);
+    }
+    if (jsonData.containsKey(keyTable)) {
+      table = jsonData[keyTable]?.toString() ?? table;
+    }
+    if (jsonData.containsKey(keyRawSql)) {
+      rawSql = jsonData[keyRawSql]?.toString();
+    }
     return this;
   }
 
@@ -109,11 +125,14 @@ class AcSqlOperation {
     "returns_type": "Map<String, dynamic>"
   }) */
   Map<String, dynamic> toJson() {
-    Map<String, dynamic> result = AcJsonUtils.getJsonDataFromInstance(
-      instance: this,
-    );
-    result[keyOperation] = operation.value;
-    return result;
+    return {
+      keyCondition: condition,
+      keyOperation: AcJsonUtils.serializeValue(operation),
+      keyRow: AcJsonUtils.serializeValue(row),
+      keyParameters: AcJsonUtils.serializeValue(parameters),
+      keyTable: table,
+      keyRawSql: rawSql,
+    };
   }
 
   /* AcDoc({

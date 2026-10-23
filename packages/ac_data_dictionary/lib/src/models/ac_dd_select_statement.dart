@@ -433,28 +433,24 @@ class AcDDSelectStatement {
           logger.log('Parsed string value to list for IN');
         } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
+        } else {
+          parameters[parameterName] = [acDDCondition.value];
         }
         condition += "${acDDCondition.key} IN ($parameterName)";
         logger.log('Added IN param: $parameterName = ${parameters[parameterName]}');
         break;
       case AcEnumConditionOperator.isEmpty:
         logger.log('Handling IS_EMPTY operator');
-        parameterName = "@parameter${parameters.length}";
-        parameters[parameterName] = acDDCondition.value;
         condition += "${acDDCondition.key} = ''";
         logger.log('Added IS_EMPTY condition');
         break;
       case AcEnumConditionOperator.isNotNull:
         logger.log('Handling IS_NOT_NULL operator');
-        parameterName = "@parameter${parameters.length}";
-        parameters[parameterName] = acDDCondition.value;
         condition += "${acDDCondition.key} IS NOT NULL";
         logger.log('Added IS_NOT_NULL condition');
         break;
       case AcEnumConditionOperator.isNull:
         logger.log('Handling IS_NULL operator');
-        parameterName = "@parameter${parameters.length}";
-        parameters[parameterName] = acDDCondition.value;
         condition += "${acDDCondition.key} IS NULL";
         logger.log('Added IS_NULL condition');
         break;
@@ -487,6 +483,8 @@ class AcDDSelectStatement {
           logger.log('Parsed string value to list for NOT_IN');
         } else if (acDDCondition.value is List) {
           parameters[parameterName] = acDDCondition.value;
+        } else {
+          parameters[parameterName] = [acDDCondition.value];
         }
         condition += "${acDDCondition.key} NOT IN ($parameterName)";
         logger.log('Added NOT_IN param: $parameterName = ${parameters[parameterName]}');

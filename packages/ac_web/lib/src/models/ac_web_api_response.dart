@@ -59,15 +59,30 @@ class AcWebApiResponse extends AcResult {
     return this;
   }
 
+  factory AcWebApiResponse.instanceFromJson({
+    required Map<String, dynamic> jsonData,
+  }) {
+    var instance = AcWebApiResponse();
+    return instance.fromJson(jsonData: jsonData);
+  }
+
+  @override
+  AcWebApiResponse fromJson({Map<String, dynamic> jsonData = const {}}) {
+    super.fromJson(jsonData: jsonData);
+    if (jsonData.containsKey(keyData)) {
+      data = jsonData[keyData];
+    }
+    return this;
+  }
+
   @override
   Map<String, dynamic> toJson() {
-    Map<String,dynamic> result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    if(result.containsKey(AcResult.keyLog) && log.isEmpty){
-      result.remove(AcResult.keyLog);
-    }
-    if(result.containsKey(AcResult.keyOtherDetails) && otherDetails.isEmpty){
-      result.remove(AcResult.keyOtherDetails);
+    Map<String, dynamic> result = super.toJson();
+    if (data != null) {
+      result[keyData] = AcJsonUtils.serializeValue(data);
     }
     return result;
   }
+
+
 }

@@ -38,21 +38,27 @@ class AcFilter {
   }
 
   AcFilter fromJson({required Map<String, dynamic> jsonData}) {
-    if(jsonData.containsKey(keyOperator)){
-      operator = AcEnumConditionOperator.fromValue(jsonData.getString(keyOperator));
-      jsonData.remove(keyOperator);
+    key = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyKey] ?? jsonData['key'],
+      defaultValue: key,
+    )!;
+    operator = AcJsonUtils.deserializeValue<AcEnumConditionOperator>(
+      jsonData[keyOperator] ?? jsonData['operator'],
+      enumValues: AcEnumConditionOperator.values,
+      defaultValue: operator,
+    )!;
+    if (jsonData.containsKey(keyValue) || jsonData.containsKey('value')) {
+      value = jsonData[keyValue] ?? jsonData['value'];
     }
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    result[keyOperator] = operator.value;
-    return result;
+    return {
+      keyKey: key,
+      keyOperator: AcJsonUtils.serializeValue(operator),
+      keyValue: AcJsonUtils.serializeValue(value),
+    };
   }
 
   @override

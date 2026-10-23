@@ -29,12 +29,23 @@ class AcWebConfig {
   }
 
   AcWebConfig fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    if (jsonData.containsKey('filesControllerConfig')) {
+      final val = jsonData['filesControllerConfig'];
+      if (val is Map<String, dynamic>) {
+        filesControllerConfig = AcFilesControllerConfig.instanceFromJson(jsonData: val);
+      }
+    }
+    if (jsonData.containsKey('exposeFilesController')) {
+      exposeFilesController = jsonData['exposeFilesController'] == true;
+    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      'filesControllerConfig': AcJsonUtils.serializeValue(filesControllerConfig),
+      'exposeFilesController': exposeFilesController,
+    };
   }
 
   @override
@@ -101,12 +112,56 @@ class AcFilesControllerConfig {
   }
 
   AcFilesControllerConfig fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(instance: this, jsonData: jsonData);
+    if (jsonData.containsKey('generateDifferentSizeImages')) {
+      generateDifferentSizeImages = jsonData['generateDifferentSizeImages'] == true;
+    }
+    if (jsonData.containsKey('imageXsPx')) {
+      imageXsPx = (jsonData['imageXsPx'] as num?)?.toInt() ?? imageXsPx;
+    }
+    if (jsonData.containsKey('imageSquareThumbPx')) {
+      imageSquareThumbPx = (jsonData['imageSquareThumbPx'] as num?)?.toInt() ?? imageSquareThumbPx;
+    }
+    if (jsonData.containsKey('imageThumbPx')) {
+      imageThumbPx = (jsonData['imageThumbPx'] as num?)?.toInt() ?? imageThumbPx;
+    }
+    if (jsonData.containsKey('imageSmPx')) {
+      imageSmPx = (jsonData['imageSmPx'] as num?)?.toInt() ?? imageSmPx;
+    }
+    if (jsonData.containsKey('imageMdPx')) {
+      imageMdPx = (jsonData['imageMdPx'] as num?)?.toInt() ?? imageMdPx;
+    }
+    if (jsonData.containsKey('imageLgPx')) {
+      imageLgPx = (jsonData['imageLgPx'] as num?)?.toInt() ?? imageLgPx;
+    }
+    if (jsonData.containsKey('uploadDirectory')) {
+      uploadDirectory = jsonData['uploadDirectory']?.toString() ?? uploadDirectory;
+    }
+    if (jsonData.containsKey('uploadDirectoryPlaceholder')) {
+      uploadDirectoryPlaceholder = jsonData['uploadDirectoryPlaceholder']?.toString() ?? uploadDirectoryPlaceholder;
+    }
+    if (jsonData.containsKey('uploadFormKey')) {
+      uploadFormKey = jsonData['uploadFormKey']?.toString() ?? uploadFormKey;
+    }
+    if (jsonData.containsKey('routePrefix')) {
+      routePrefix = jsonData['routePrefix']?.toString() ?? routePrefix;
+    }
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      'generateDifferentSizeImages': generateDifferentSizeImages,
+      'imageXsPx': imageXsPx,
+      'imageSquareThumbPx': imageSquareThumbPx,
+      'imageThumbPx': imageThumbPx,
+      'imageSmPx': imageSmPx,
+      'imageMdPx': imageMdPx,
+      'imageLgPx': imageLgPx,
+      'uploadDirectory': uploadDirectory,
+      'uploadDirectoryPlaceholder': uploadDirectoryPlaceholder,
+      'uploadFormKey': uploadFormKey,
+      'routePrefix': routePrefix,
+    };
   }
 
   @override

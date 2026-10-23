@@ -58,15 +58,82 @@ class AcSyncSessionState {
   }
 
   AcSyncSessionState fromJson({Map<String, dynamic> jsonData = const {}}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    syncIdentifier = AcJsonUtils.deserializeValue<String>(
+      jsonData['syncIdentifier'] ?? jsonData['sync_identifier'],
+      defaultValue: syncIdentifier,
+    )!;
+    clientIdentifier = AcJsonUtils.deserializeValue<String>(
+      jsonData['clientIdentifier'] ?? jsonData['client_identifier'],
+      defaultValue: clientIdentifier,
+    )!;
+    protocolVersion = AcJsonUtils.deserializeValue<String>(
+      jsonData['protocolVersion'] ?? jsonData['protocol_version'],
+      defaultValue: protocolVersion,
+    )!;
+    status = AcJsonUtils.deserializeValue<String>(
+      jsonData['status'],
+      defaultValue: status,
+    )!;
+    if (jsonData.containsKey('incomingCheckpoint') || jsonData.containsKey('incoming_checkpoint')) {
+      incomingCheckpoint = jsonData['incomingCheckpoint'] ?? jsonData['incoming_checkpoint'];
+    }
+    if (jsonData.containsKey('incomingTargetCheckpoint') || jsonData.containsKey('incoming_target_checkpoint')) {
+      incomingTargetCheckpoint = jsonData['incomingTargetCheckpoint'] ?? jsonData['incoming_target_checkpoint'];
+    }
+    incomingCompleted = AcJsonUtils.deserializeValue<bool>(
+      jsonData['incomingCompleted'] ?? jsonData['incoming_completed'],
+      defaultValue: incomingCompleted,
+    )!;
+    if (jsonData.containsKey('outgoingCheckpoint') || jsonData.containsKey('outgoing_checkpoint')) {
+      outgoingCheckpoint = jsonData['outgoingCheckpoint'] ?? jsonData['outgoing_checkpoint'];
+    }
+    if (jsonData.containsKey('outgoingTargetCheckpoint') || jsonData.containsKey('outgoing_target_checkpoint')) {
+      outgoingTargetCheckpoint = jsonData['outgoingTargetCheckpoint'] ?? jsonData['outgoing_target_checkpoint'];
+    }
+    outgoingCompleted = AcJsonUtils.deserializeValue<bool>(
+      jsonData['outgoingCompleted'] ?? jsonData['outgoing_completed'],
+      defaultValue: outgoingCompleted,
+    )!;
+    if (jsonData.containsKey('metadata') && jsonData['metadata'] is Map) {
+      metadata = Map<String, dynamic>.from(jsonData['metadata'] as Map);
+    }
+    createdAt = AcJsonUtils.deserializeValue<String>(
+      jsonData['createdAt'] ?? jsonData['created_at'],
+      defaultValue: createdAt,
+    )!;
+    updatedAt = AcJsonUtils.deserializeValue<String>(
+      jsonData['updatedAt'] ?? jsonData['updated_at'],
+      defaultValue: updatedAt,
+    )!;
+    lastActivityAt = AcJsonUtils.deserializeValue<String>(
+      jsonData['lastActivityAt'] ?? jsonData['last_activity_at'],
+      defaultValue: lastActivityAt,
+    )!;
+    expiresAt = AcJsonUtils.deserializeValue<String>(
+      jsonData['expiresAt'] ?? jsonData['expires_at'],
+      defaultValue: expiresAt,
+    )!;
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    return {
+      'syncIdentifier': syncIdentifier,
+      'clientIdentifier': clientIdentifier,
+      'protocolVersion': protocolVersion,
+      'status': status,
+      'incomingCheckpoint': AcJsonUtils.serializeValue(incomingCheckpoint),
+      'incomingTargetCheckpoint': AcJsonUtils.serializeValue(incomingTargetCheckpoint),
+      'incomingCompleted': incomingCompleted,
+      'outgoingCheckpoint': AcJsonUtils.serializeValue(outgoingCheckpoint),
+      'outgoingTargetCheckpoint': AcJsonUtils.serializeValue(outgoingTargetCheckpoint),
+      'outgoingCompleted': outgoingCompleted,
+      'metadata': AcJsonUtils.serializeValue(metadata),
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'lastActivityAt': lastActivityAt,
+      'expiresAt': expiresAt,
+    };
   }
 
   @override

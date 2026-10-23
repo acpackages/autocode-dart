@@ -68,11 +68,36 @@ class AcAIResponse extends AcResult {
     "returns": "The same instance after mapping properties."
   }) */
   @override
-  AcAIResponse fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
+  AcAIResponse fromJson({Map<String, dynamic> jsonData = const {}}) {
+    super.fromJson(jsonData: jsonData);
+    text = AcJsonUtils.deserializeValue<String>(
+      jsonData[keyText],
+      defaultValue: text,
     );
+    imageUrls = AcJsonUtils.deserializeList<String>(
+      jsonData[keyImageUrls] ?? jsonData['image_urls'],
+    );
+    audioUrls = AcJsonUtils.deserializeList<String>(
+      jsonData[keyAudioUrls] ?? jsonData['audio_urls'],
+    );
+    videoUrls = AcJsonUtils.deserializeList<String>(
+      jsonData[keyVideoUrls] ?? jsonData['video_urls'],
+    );
+    fileUrls = AcJsonUtils.deserializeList<String>(
+      jsonData[keyFileUrls] ?? jsonData['file_urls'],
+    );
+    tokensUsed = AcJsonUtils.deserializeValue<int>(
+      jsonData[keyTokensUsed] ?? jsonData['tokens_used'],
+      defaultValue: tokensUsed,
+    );
+    if (jsonData.containsKey(keyRaw)) {
+      final val = jsonData[keyRaw];
+      if (val is Map<String, dynamic>) {
+        raw = val;
+      } else if (val is Map) {
+        raw = val.cast<String, dynamic>();
+      }
+    }
     return this;
   }
 
@@ -82,7 +107,29 @@ class AcAIResponse extends AcResult {
   }) */
   @override
   Map<String, dynamic> toJson() {
-    return AcJsonUtils.getJsonDataFromInstance(instance: this);
+    final result = super.toJson();
+    if (text != null) {
+      result[keyText] = text;
+    }
+    if (imageUrls.isNotEmpty) {
+      result[keyImageUrls] = AcJsonUtils.serializeValue(imageUrls);
+    }
+    if (audioUrls.isNotEmpty) {
+      result[keyAudioUrls] = AcJsonUtils.serializeValue(audioUrls);
+    }
+    if (videoUrls.isNotEmpty) {
+      result[keyVideoUrls] = AcJsonUtils.serializeValue(videoUrls);
+    }
+    if (fileUrls.isNotEmpty) {
+      result[keyFileUrls] = AcJsonUtils.serializeValue(fileUrls);
+    }
+    if (tokensUsed != null) {
+      result[keyTokensUsed] = tokensUsed;
+    }
+    if (raw != null) {
+      result[keyRaw] = AcJsonUtils.serializeValue(raw);
+    }
+    return result;
   }
 
   /* AcDoc({ "summary": "Pretty-prints the response as a JSON string." }) */
