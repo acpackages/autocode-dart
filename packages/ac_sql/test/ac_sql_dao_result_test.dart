@@ -70,5 +70,48 @@ void main() {
       expect(restored.primaryKeyValue, equals(10));
       expect(restored.totalRows, equals(50));
     });
+
+    test('setSqlStatementParameters handles 11+ parameters without prefix collision', () {
+      final dao = AcSqliteDao();
+      final passedParams = <String, dynamic>{};
+      final whereParts = <String>[];
+      for (int i = 0; i <= 10; i++) {
+        passedParams['@parameter$i'] = 'val_$i';
+        whereParts.add('col_$i = @parameter$i');
+      }
+      final sql = 'SELECT * FROM test_table WHERE ${whereParts.join(" AND ")}';
+
+      // Test returnMap: true (used by SQLite)
+      final resultMap = dao.setSqlStatementParameters(
+        statement: sql,
+        passedParameters: passedParams,
+        returnMap: true,
+      );
+
+      final statement = resultMap['statement'] as String;
+      final paramsMap = resultMap['statementParametersMap'] as Map<String, dynamic>;
+
+      expect(paramsMap.length, equals(11), reason: 'All 11 parameters must be retained in statementParametersMap');
+      for (int i = 0; i <= 10; i++) {
+        expect(statement, contains(':parameter$i'));
+        expect(paramsMap.containsKey('parameter$i'), isTrue);
+        expect(paramsMap['parameter$i'], equals('val_$i'));
+      }
+      expect(statement, isNot(contains('@parameter')));
+
+      // Test returnMap: false (positional ?)
+      final resultList = dao.setSqlStatementParameters(
+        statement: sql,
+        passedParameters: passedParams,
+        returnMap: false,
+      );
+
+      final statementList = resultList['statement'] as String;
+      final paramsList = resultList['statementParametersList'] as List<dynamic>;
+
+      expect(paramsList.length, equals(11));
+      expect(statementList, isNot(contains('@parameter')));
+      expect(RegExp(r'\?').allMatches(statementList).length, equals(11));
+    });
   });
 }

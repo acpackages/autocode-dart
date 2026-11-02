@@ -598,6 +598,12 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/example/flutter/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/example/flutter/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/packages/ac_quickjs/example/flutter/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/build" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/ac_widgets/example/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

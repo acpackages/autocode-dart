@@ -366,14 +366,17 @@ class _AcWebviewWebState extends State<AcWebview> {
         controller = ctrl;
         // InAppWebView JS handler — same-origin communication fast path.
         // For cross-origin the postMessage bridge handles it instead.
-        ctrl.addJavaScriptHandler(
-          handlerName: "acWebviewJavascriptChannel",
-          callback: (List<dynamic> arguments) {
-            if (arguments.isNotEmpty) {
-              _handleIncomingMessage(arguments.first);
-            }
-          },
-        );
+        // Note: addJavaScriptHandler is not implemented on web by flutter_inappwebview.
+        try {
+          ctrl.addJavaScriptHandler(
+            handlerName: "acWebviewJavascriptChannel",
+            callback: (List<dynamic> arguments) {
+              if (arguments.isNotEmpty) {
+                _handleIncomingMessage(arguments.first);
+              }
+            },
+          );
+        } catch (_) {}
       },
     );
   }
@@ -541,14 +544,16 @@ class _AcWebviewWinFloatingWebState extends State<AcWebviewWinFloating> {
       },
       onWebViewCreated: (InAppWebViewController ctrl) {
         controller = ctrl;
-        ctrl.addJavaScriptHandler(
-          handlerName: "acWebviewJavascriptChannel",
-          callback: (List<dynamic> arguments) {
-            if (arguments.isNotEmpty) {
-              _handleIncomingMessage(arguments.first);
-            }
-          },
-        );
+        try {
+          ctrl.addJavaScriptHandler(
+            handlerName: "acWebviewJavascriptChannel",
+            callback: (List<dynamic> arguments) {
+              if (arguments.isNotEmpty) {
+                _handleIncomingMessage(arguments.first);
+              }
+            },
+          );
+        } catch (_) {}
       },
     );
   }
@@ -716,14 +721,16 @@ class _AcWebviewCefWebState extends State<AcWebviewCef> {
       },
       onWebViewCreated: (InAppWebViewController ctrl) {
         controller = ctrl;
-        ctrl.addJavaScriptHandler(
-          handlerName: "acWebviewJavascriptChannel",
-          callback: (List<dynamic> arguments) {
-            if (arguments.isNotEmpty) {
-              _handleIncomingMessage(arguments.first);
-            }
-          },
-        );
+        try {
+          ctrl.addJavaScriptHandler(
+            handlerName: "acWebviewJavascriptChannel",
+            callback: (List<dynamic> arguments) {
+              if (arguments.isNotEmpty) {
+                _handleIncomingMessage(arguments.first);
+              }
+            },
+          );
+        } catch (_) {}
       },
     );
   }

@@ -34,12 +34,13 @@ class AcSqlUtils{
         String sql = sqlOperation.rawSql!.trim();
         if(sqlOperation.parameters!= null && sqlOperation.parameters!.isNotEmpty){
           for(var key in sqlOperation.parameters!.keys){
+            final pattern = RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
             if(hardcodeParams){
-              sql = sql.replaceAll(key, convertValueForSql(value:sqlOperation.parameters![key]));
+              sql = sql.replaceAll(pattern, convertValueForSql(value:sqlOperation.parameters![key]));
             }
             else{
               String parameterKey = "$paramPrefix.${parameters.length}";
-              sql = sql.replaceAll(key, parameterKey);
+              sql = sql.replaceAll(pattern, parameterKey);
               parameters[parameterKey] = sqlOperation.parameters![key];
             }
           }
@@ -71,12 +72,13 @@ class AcSqlUtils{
         String conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty ? "WHERE ${sqlOperation.condition}" : "";
         if(sqlOperation.parameters!= null && sqlOperation.parameters!.isNotEmpty){
           for(var key in sqlOperation.parameters!.keys){
+            final pattern = RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
             if(hardcodeParams){
-              conditionClause = conditionClause.replaceAll(key, convertValueForSql(value:sqlOperation.parameters![key]));
+              conditionClause = conditionClause.replaceAll(pattern, convertValueForSql(value:sqlOperation.parameters![key]));
             }
             else{
               String parameterKey = "$paramPrefix.${parameters.length}";
-              conditionClause = conditionClause.replaceAll(key, parameterKey);
+              conditionClause = conditionClause.replaceAll(pattern, parameterKey);
               parameters[parameterKey] = sqlOperation.parameters![key];
             }
           }
@@ -98,12 +100,13 @@ class AcSqlUtils{
         String conditionClause = sqlOperation.condition != null && sqlOperation.condition!.isNotEmpty ? "WHERE ${sqlOperation.condition}" : "";
         if(sqlOperation.parameters!= null && sqlOperation.parameters!.isNotEmpty){
           for(var key in sqlOperation.parameters!.keys){
+            final pattern = RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
             if(hardcodeParams){
-              conditionClause = conditionClause.replaceAll(key, convertValueForSql(value:sqlOperation.parameters![key]));
+              conditionClause = conditionClause.replaceAll(pattern, convertValueForSql(value:sqlOperation.parameters![key]));
             }
             else{
               String parameterKey = "$paramPrefix.${parameters.length}";
-              conditionClause = conditionClause.replaceAll(key, parameterKey);
+              conditionClause = conditionClause.replaceAll(pattern, parameterKey);
               parameters[parameterKey] = sqlOperation.parameters![key];
             }
           }

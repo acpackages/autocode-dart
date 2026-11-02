@@ -148,32 +148,36 @@ class AcPostgresDao extends AcBaseSqlDao {
     List<String> keys = passedParameters.keys.toList();
     for (String key in keys) {
       var value = passedParameters[key];
-        int index = statementParametersMap!.keys.length;
-        String parameterKey = "parameter$index";
-        while (statementParametersMap.keys.contains(parameterKey)) {
-          index++;
-          parameterKey = "parameter$index";
+      final pattern = RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
+      if (!pattern.hasMatch(statement)) {
+        continue;
+      }
+      int index = statementParametersMap!.keys.length;
+      String parameterKey = "parameter$index";
+      while (statementParametersMap.keys.contains(parameterKey)) {
+        index++;
+        parameterKey = "parameter$index";
+      }
+      logger.log("Searching For Key : $key");
+      logger.log("Key Value: `${value.toString()}`");
+      logger.log("SQL Statement Before: $statement");
+      logger.log(["SQL Parameters Before:", statementParametersMap]);
+      if (value is List) {
+        logger.log(
+          "Value is List so converting to individual values: ${value.toString()}",
+        );
+        List<String> listParamKeys = List.empty(growable: true);
+        for (int i = 0; i < value.length; i++) {
+          final listParameterKey = "@${parameterKey}_$i";
+          listParamKeys.add(listParameterKey);
+          statementParametersMap[listParameterKey.replaceAll("@","")] = value[i];
         }
-        logger.log("Searching For Key : $key");
-        logger.log("Key Value: `${value.toString()}`");
-        logger.log("SQL Statement Before: $statement");
-        logger.log(["SQL Parameters Before:", statementParametersMap]);
-        if (value is List) {
-          logger.log(
-            "Value is List so converting to individual values: ${value.toString()}",
-          );
-          List<String> listParamKeys = List.empty(growable: true);
-          for (int i = 0; i < value.length; i++) {
-            final listParameterKey = "@${parameterKey}_$i";
-            listParamKeys.add(listParameterKey);
-            statementParametersMap[listParameterKey.replaceAll("@","")] = value[i];
-          }
-          statement = statement.replaceAll(key, listParamKeys.join(","));
-        } else {
-          logger.log("Value is not list");
-          statement = statement.replaceAll(key, "@$parameterKey");
-          statementParametersMap[parameterKey] = value;
-        }
+        statement = statement.replaceAll(pattern, listParamKeys.join(","));
+      } else {
+        logger.log("Value is not list");
+        statement = statement.replaceAll(pattern, "@$parameterKey");
+        statementParametersMap[parameterKey] = value;
+      }
         logger.log("SQL Statement After: $statement");
         logger.log([
           "SQL Parameters After:",

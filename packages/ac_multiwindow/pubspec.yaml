@@ -1,0 +1,33 @@
+name: ac_multiwindow
+description: AutoCode multi-window desktop plugin powered by Flutter Multi-View (single engine, shared isolate, direct in-memory state).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  autocode:
+    path: ../autocode
+  ac_extensions:
+    path: ../ac_extensions
+  meta: ^1.18.0
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        pluginClass: MultiViewDesktopPlugin
+      linux:
+        pluginClass: MultiviewDesktopPlugin
+      macos:
+        pluginClass: MultiviewDesktopPlugin

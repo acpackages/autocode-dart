@@ -441,14 +441,16 @@ class AcBaseSqlDao {
     List<String> keys = passedParameters.keys.toList();
     for (String key in keys) {
       var value = passedParameters[key];
+      final pattern = RegExp(RegExp.escape(key) + r'(?![a-zA-Z0-9_])');
       if (!returnMap) {
-        while (statement.contains(key)) {
+        while (pattern.hasMatch(statement)) {
+          final match = pattern.firstMatch(statement)!;
           logger.log("Searching For Key : $key");
           logger.log("SQL Statement : $statement");
           logger.log("Key Value: `${value.toString()}`");
           String beforeQueryString = statement.substring(
             0,
-            statement.indexOf(key),
+            match.start,
           );
           logger.log(
             "Before String in Statement Where Key is found: $beforeQueryString",
@@ -459,20 +461,24 @@ class AcBaseSqlDao {
           if (value is List) {
             logger.log("Value is list");
             String replacement = List.filled(value.length, '?').join(',');
-            statement = statement.replaceFirst(
-              RegExp(RegExp.escape(key)),
+            statement = statement.replaceRange(
+              match.start,
+              match.end,
               replacement,
             );
             statementParametersList!.insertAll(parameterIndex, value);
           } else {
             logger.log("Value is not list");
-            statement = statement.replaceFirst(RegExp(RegExp.escape(key)), '?');
+            statement = statement.replaceRange(match.start, match.end, '?');
             statementParametersList!.insert(parameterIndex, value);
           }
           logger.log("Statement : $statement");
           logger.log("Values After: ${statementParametersList.toString()}");
         }
       } else {
+        if (!pattern.hasMatch(statement)) {
+          continue;
+        }
         int index = statementParametersMap!.keys.length;
         String parameterKey = "parameter$index";
         while (statementParametersMap.keys.contains(parameterKey)) {
@@ -493,10 +499,10 @@ class AcBaseSqlDao {
             listParamKeys.add(":$paramName");
             statementParametersMap[paramName] = value[i];
           }
-          statement = statement.replaceAll(key, listParamKeys.join(","));
+          statement = statement.replaceAll(pattern, listParamKeys.join(","));
         } else {
           logger.log("Value is not list");
-          statement = statement.replaceAll(key, ":$parameterKey");
+          statement = statement.replaceAll(pattern, ":$parameterKey");
           statementParametersMap[parameterKey] = value;
         }
         logger.log("SQL Statement After: $statement");
