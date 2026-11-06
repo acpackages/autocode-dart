@@ -13,6 +13,7 @@ class AcWsClient {
   bool _shouldReconnect = true;
   final bool instantDetection;
   Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
   
   final List<void Function({required AcWebSocket socket})> _connectionHandlers = [];
   final List<void Function({dynamic data})> _disconnectHandlers = [];
@@ -64,6 +65,7 @@ class AcWsClient {
         _handleDisconnect();
       });
 
+      _reconnectAttempts = 0;
       for (var h in _connectionHandlers) {
         h(socket: _socket!);
       }
@@ -79,7 +81,17 @@ class AcWsClient {
   void _handleDisconnect() {
     _socket = null;
     if (_shouldReconnect && _reconnectTimer == null) {
-      _reconnectTimer = Timer(Duration(seconds: 2), () {
+      _reconnectAttempts++;
+      final delaySeconds = (_reconnectAttempts <= 1)
+          ? 2
+          : (_reconnectAttempts == 2)
+              ? 4
+              : (_reconnectAttempts == 3)
+                  ? 8
+                  : (_reconnectAttempts == 4)
+                      ? 16
+                      : 30;
+      _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
         _reconnectTimer = null;
         connect();
       });
@@ -87,14 +99,18 @@ class AcWsClient {
   }
 
   void onConnection({required void Function({required AcWebSocket socket}) handler}) {
-    _connectionHandlers.add(handler);
+    if (!_connectionHandlers.contains(handler)) {
+      _connectionHandlers.add(handler);
+    }
     if (_socket != null) {
       handler(socket: _socket!);
     }
   }
 
   void onDisconnect({required void Function({dynamic data}) handler}) {
-    _disconnectHandlers.add(handler);
+    if (!_disconnectHandlers.contains(handler)) {
+      _disconnectHandlers.add(handler);
+    }
   }
 
   AcWsVolatileClient get volatile => AcWsVolatileClient(this);
@@ -102,6 +118,8 @@ class AcWsClient {
   Future<void> disconnect() async {
     _shouldReconnect = false;
     _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
     await _socket?.disconnect();
     _socket = null;
   }

@@ -77,6 +77,8 @@ class AcChatOnAcWs implements AcChatSyncChannel {
   /// Called after a cached message envelope is successfully flushed to the
   /// socket. Used by ac_chat_sqlite to update the message status to 'sent'.
 
+  bool _isListening = false;
+
   AcChatOnAcWs({
     this.wsUrl,
     this.getJwtToken,
@@ -106,7 +108,7 @@ class AcChatOnAcWs implements AcChatSyncChannel {
     String? conversationId,
     bool writeToCache = true,
   }) async {
-    logger.log(["Emitting event $event",data,recipientIds]);
+    logger.log("Emitting event $event (data: $data, recipients: $recipientIds)");
     final Map<String, dynamic> envelope = {
       'event': event,
       'data': data,
@@ -121,11 +123,11 @@ class AcChatOnAcWs implements AcChatSyncChannel {
     else if (conversationId != null) envelope['conversationId'] = conversationId;
 
     if (socket != null) {
-      logger.log("Sending to server");
+      logger.log("Sending to server: $event");
       await socket!.emit(event: eventKey, data: envelope);
       return true;  // actually sent via socket
     } else if (writeToCache) {
-      logger.log("Writing to channel cache");
+      logger.log("Writing to channel cache: $event");
       await api.storeUpdateInCache(envelope: envelope);
       return false; // cached — will be sent on reconnect
     }
@@ -350,7 +352,7 @@ class AcChatOnAcWs implements AcChatSyncChannel {
           }
         });
 
-    _emitEvent(event: readyKey, data: {});
+    _emitEvent(event: readyKey, data: {}, writeToCache: false);
   }
 
   @override
@@ -540,6 +542,9 @@ class AcChatOnAcWs implements AcChatSyncChannel {
     _onConversationChanged = onConversationChanged;
     _onMessageStatusUpdated = onMessageStatusUpdated;
 
+    if (_isListening) return;
+    _isListening = true;
+
     if (client == null && socket == null && wsUrl != null) {
       client = AcWsClient(
         url: wsUrl!,
@@ -574,6 +579,7 @@ class AcChatOnAcWs implements AcChatSyncChannel {
 
   @override
   Future<void> stopListening() async {
+    _isListening = false;
     socket?.disconnect();
     socket = null;
     client = null;

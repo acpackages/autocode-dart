@@ -122,8 +122,14 @@ class AcWebSocket {
           // Ignore malformed messages or interceptor errors
         }
       },
-      onDone: () => _handleEvent(event: 'disconnect'),
-      onError: (e) => _handleEvent(event: 'disconnect', data: e),
+      onDone: () {
+        _handleEvent(event: 'disconnect');
+        dispose();
+      },
+      onError: (e) {
+        _handleEvent(event: 'disconnect', data: e);
+        dispose();
+      },
     );
   }
 
@@ -210,6 +216,11 @@ class AcWebSocket {
     bool volatile = false,
     void Function({dynamic response})? callback,
   }) {
+    if (volatile && callback == null) {
+      _send(map: {'e': event, 'd': data, 'n': nsp, 'v': true});
+      return Future.value(null);
+    }
+
     final completer = Completer<dynamic>();
     final ackId = ++_ackCounter;
     _pendingAcks[ackId] = completer;
@@ -428,8 +439,26 @@ class AcWebSocket {
     server?.of(name: nsp).leaveRoom(room: room, socket: this);
   }
 
+  void dispose() {
+    for (final completer in _pendingAcks.values) {
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+    }
+    _pendingAcks.clear();
+    _eventHandlers.clear();
+    _anyEventHandlers.clear();
+    _incomingInterceptors.clear();
+    _outgoingInterceptors.clear();
+    _eventIncomingInterceptors.clear();
+    _eventOutgoingInterceptors.clear();
+  }
+
   Future<void> disconnect() async {
-    await _webSocket.close();
+    try {
+      await _webSocket.close();
+    } catch (_) {}
+    dispose();
   }
 
   bool get isConnected => _webSocket.readyState == wsReadyStateOpen;
