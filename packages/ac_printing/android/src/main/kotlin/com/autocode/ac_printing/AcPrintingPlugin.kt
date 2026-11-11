@@ -3,9 +3,11 @@ package com.autocode.ac_printing
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
+import android.os.StrictMode
 import android.print.PageRange
 import android.print.PrintAttributes
 import android.print.PrintDocumentAdapter
@@ -165,7 +167,20 @@ class AcPrintingPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                     fos.flush()
                     fos.close()
 
-                    val uri = Uri.fromFile(cacheFile)
+                    val uri: Uri = try {
+                        androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            cacheFile
+                        )
+                    } catch (e: Exception) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            val builder = StrictMode.VmPolicy.Builder()
+                            StrictMode.setVmPolicy(builder.build())
+                        }
+                        Uri.fromFile(cacheFile)
+                    }
+
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "application/pdf"
                         putExtra(Intent.EXTRA_STREAM, uri)

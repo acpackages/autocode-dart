@@ -47,16 +47,40 @@ class AcPrinter {
   }
 
   AcPrinter fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyName)) name = jsonData[keyName]?.toString() ?? '';
+    if (jsonData.containsKey(keyUrl)) url = jsonData[keyUrl]?.toString() ?? '';
+    if (jsonData.containsKey(keyLocation)) location = jsonData[keyLocation]?.toString() ?? '';
+    if (jsonData.containsKey(keyComment)) comment = jsonData[keyComment]?.toString() ?? '';
+    if (jsonData.containsKey(keyIsDefault)) isDefault = jsonData[keyIsDefault] == true;
+    if (jsonData.containsKey(keyIsAvailable)) isAvailable = jsonData[keyIsAvailable] != false;
+    if (jsonData.containsKey(keyDriverName)) driverName = jsonData[keyDriverName]?.toString() ?? '';
+    if (jsonData.containsKey(keyPpdName)) ppdName = jsonData[keyPpdName]?.toString() ?? '';
+
+    try {
+      AcJsonUtils.setInstancePropertiesFromJsonData(
+        instance: this,
+        jsonData: jsonData,
+      );
+    } catch (_) {}
     return this;
   }
 
   Map<String, dynamic> toJson() {
-    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    return result;
+    try {
+      final res = AcJsonUtils.getJsonDataFromInstance(instance: this);
+      if (res.isNotEmpty && res[keyName] != null) return res;
+    } catch (_) {}
+
+    return {
+      keyName: name,
+      keyUrl: url,
+      keyLocation: location,
+      keyComment: comment,
+      keyIsDefault: isDefault,
+      keyIsAvailable: isAvailable,
+      keyDriverName: driverName,
+      keyPpdName: ppdName,
+    };
   }
 
   @override

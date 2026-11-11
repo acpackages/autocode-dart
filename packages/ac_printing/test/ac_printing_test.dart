@@ -30,6 +30,8 @@ class MockPrintingAdapter implements AcPrintingPlatformAdapter {
   AcPageFormat? lastPageFormat;
   AcPrintSettings? lastSettings;
 
+  bool lastAsynchronous = false;
+
   @override
   Future<bool> printPdf({
     required Uint8List pdfBytes,
@@ -38,12 +40,28 @@ class MockPrintingAdapter implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
     printPdfCalled = true;
     lastPdfBytes = pdfBytes;
     lastPrinterName = printerName ?? printer?.name;
     lastPageFormat = pageFormat;
     lastSettings = settings;
+    lastAsynchronous = asynchronous;
+    return true;
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    printPdfCalled = true;
+    lastPdfBytes = bytes;
+    lastPrinterName = printerName ?? printer?.name;
     return true;
   }
 
@@ -116,13 +134,19 @@ void main() {
         ..copies = 3
         ..color = true
         ..duplex = true
-        ..orientation = 'landscape';
+        ..orientation = 'landscape'
+        ..dpi = 200;
 
       final json = settings.toJson();
       expect(json['copies'], equals(3));
       expect(json['color'], isTrue);
       expect(json['duplex'], isTrue);
       expect(json['orientation'], equals('landscape'));
+      expect(json['dpi'], equals(200));
+
+      final restored = AcPrintSettings.instanceFromJson(jsonData: json);
+      expect(restored.copies, equals(3));
+      expect(restored.dpi, equals(200));
     });
   });
 
@@ -160,6 +184,34 @@ void main() {
       expect(mockAdapter.printPdfCalled, isTrue);
       expect(mockAdapter.lastPrinterName, equals('Mock Label Printer'));
       expect(mockAdapter.lastPdfBytes, equals(testBytes));
+      expect(mockAdapter.lastAsynchronous, isFalse);
+    });
+
+    test('printPdf passes asynchronous flag to platform adapter', () async {
+      final testBytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final result = await acPrinting.printPdf(
+        pdfBytes: testBytes,
+        printerName: 'Mock Label Printer',
+        asynchronous: true,
+      );
+
+      expect(result.isSuccess(), isTrue);
+      expect(mockAdapter.printPdfCalled, isTrue);
+      expect(mockAdapter.lastAsynchronous, isTrue);
+    });
+
+    test('printRaw routes to specified thermal/label printer through platform', () async {
+      final rawEscPosBytes = Uint8List.fromList([0x1B, 0x40, 0x1D, 0x56, 0x00]); // ESC @ followed by GS V 0 (cut)
+      final result = await acPrinting.printRaw(
+        bytes: rawEscPosBytes,
+        printerName: 'Mock Label Printer',
+        jobName: 'Receipt #501',
+      );
+
+      expect(result.isSuccess(), isTrue);
+      expect(mockAdapter.printPdfCalled, isTrue);
+      expect(mockAdapter.lastPrinterName, equals('Mock Label Printer'));
+      expect(mockAdapter.lastPdfBytes, equals(rawEscPosBytes));
     });
 
     test('sharePdf routes through platform', () async {

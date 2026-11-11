@@ -139,9 +139,6 @@ class AcPageFormat {
   @AcBindJsonProperty(key: keyIsPortrait)
   bool isPortrait = true;
 
-  // @AcBindJsonProperty(key: keyMarginBottom)
-  // AcEnum marginBottom = 0.0;
-
   AcPageFormat();
 
   factory AcPageFormat.instanceFromJson({
@@ -174,58 +171,109 @@ class AcPageFormat {
     return instance;
   }
 
-  /// Extracts the exact page format (dimensions and orientation) from raw PDF bytes.
+  static final RegExp _mediaBoxRegex = RegExp(r'/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]');
+  static const List<int> _mediaBoxPattern = [47, 77, 101, 100, 105, 97, 66, 111, 120]; // /MediaBox
+
+  /// Extracts the exact page format (dimensions and orientation) from raw PDF bytes
+  /// using zero-copy byte scanning without allocating full-document strings in memory.
   static AcPageFormat? fromPdfBytes(List<int> bytes) {
     try {
-      String text;
-      if (bytes.length > 65536) {
-        text = String.fromCharCodes(bytes.sublist(0, 65536));
-      } else {
-        text = String.fromCharCodes(bytes);
-      }
+      if (bytes.length < 16) return null;
 
-      final mediaBoxRegex = RegExp(r'/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]');
-      var match = mediaBoxRegex.firstMatch(text);
-      if (match == null && bytes.length > 65536) {
-        text = String.fromCharCodes(bytes);
-        match = mediaBoxRegex.firstMatch(text);
-      }
+      final patternLen = _mediaBoxPattern.length;
+      final maxI = bytes.length - patternLen;
+      final firstByte = _mediaBoxPattern[0];
 
-      if (match != null) {
-        final x1 = double.parse(match.group(1)!);
-        final y1 = double.parse(match.group(2)!);
-        final x2 = double.parse(match.group(3)!);
-        final y2 = double.parse(match.group(4)!);
+      int searchIdx = 0;
+      while (searchIdx <= maxI) {
+        if (bytes[searchIdx] == firstByte) {
+          bool match = true;
+          for (int j = 1; j < patternLen; j++) {
+            if (bytes[searchIdx + j] != _mediaBoxPattern[j]) {
+              match = false;
+              break;
+            }
+          }
 
-        final widthPt = (x2 - x1).abs();
-        final heightPt = (y2 - y1).abs();
+          if (match) {
+            final sliceEnd = (searchIdx + 160 < bytes.length) ? searchIdx + 160 : bytes.length;
+            final slice = String.fromCharCodes(bytes, searchIdx, sliceEnd);
+            final m = _mediaBoxRegex.firstMatch(slice);
+            if (m != null) {
+              final x1 = double.parse(m.group(1)!);
+              final y1 = double.parse(m.group(2)!);
+              final x2 = double.parse(m.group(3)!);
+              final y2 = double.parse(m.group(4)!);
 
-        final widthMm = widthPt * 25.4 / 72.0;
-        final heightMm = heightPt * 25.4 / 72.0;
+              final widthPt = (x2 - x1).abs();
+              final heightPt = (y2 - y1).abs();
 
-        final format = AcPageFormat();
-        format.isPortrait = heightMm >= widthMm;
-        format.width = widthMm;
-        format.height = heightMm;
-        return format;
+              final widthMm = widthPt * 25.4 / 72.0;
+              final heightMm = heightPt * 25.4 / 72.0;
+
+              final format = AcPageFormat();
+              format.isPortrait = heightMm >= widthMm;
+              format.width = widthMm;
+              format.height = heightMm;
+              return format;
+            }
+            searchIdx += patternLen;
+            continue;
+          }
+        }
+        searchIdx++;
       }
     } catch (_) {}
     return null;
   }
 
-
   AcPageFormat fromJson({required Map<String, dynamic> jsonData}) {
-    AcJsonUtils.setInstancePropertiesFromJsonData(
-      instance: this,
-      jsonData: jsonData,
-    );
+    if (jsonData.containsKey(keyWidth)) {
+      width = double.tryParse(jsonData[keyWidth].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyHeight)) {
+      height = double.tryParse(jsonData[keyHeight].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyMarginLeft)) {
+      marginLeft = double.tryParse(jsonData[keyMarginLeft].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyMarginRight)) {
+      marginRight = double.tryParse(jsonData[keyMarginRight].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyMarginTop)) {
+      marginTop = double.tryParse(jsonData[keyMarginTop].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyMarginBottom)) {
+      marginBottom = double.tryParse(jsonData[keyMarginBottom].toString()) ?? 0.0;
+    }
+    if (jsonData.containsKey(keyIsPortrait)) {
+      isPortrait = jsonData[keyIsPortrait] != false;
+    }
+
+    try {
+      AcJsonUtils.setInstancePropertiesFromJsonData(
+        instance: this,
+        jsonData: jsonData,
+      );
+    } catch (_) {}
     return this;
   }
 
-
   Map<String, dynamic> toJson() {
-    var result = AcJsonUtils.getJsonDataFromInstance(instance: this);
-    return result;
+    try {
+      final res = AcJsonUtils.getJsonDataFromInstance(instance: this);
+      if (res.isNotEmpty && res[keyWidth] != null) return res;
+    } catch (_) {}
+
+    return {
+      keyWidth: width,
+      keyHeight: height,
+      keyMarginLeft: marginLeft,
+      keyMarginRight: marginRight,
+      keyMarginTop: marginTop,
+      keyMarginBottom: marginBottom,
+      keyIsPortrait: isPortrait,
+    };
   }
 
   PdfPageFormat toPdfPageFormat() {

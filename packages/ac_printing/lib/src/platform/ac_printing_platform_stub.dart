@@ -20,8 +20,20 @@ class AcPrintingStubAdapter implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
     throw UnsupportedError('Printing is not supported on this platform.');
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    throw UnsupportedError('Raw printing is not supported on this platform.');
   }
 
   @override

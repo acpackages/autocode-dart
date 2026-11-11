@@ -1,3 +1,4 @@
+import '../core/ac_printing.dart';
 import 'ac_printing_platform_interface.dart';
 import 'ac_printing_platform_stub.dart'
     if (dart.library.io) 'ac_printing_platform_io.dart'
@@ -13,9 +14,11 @@ class AcPrintingPlatform {
 
   static void setInstance(AcPrintingPlatformAdapter adapter) {
     _instance = adapter;
+    AcPrinting.clearCache();
   }
 
   static void resetToDefault() {
     _instance = getPlatformAdapter();
+    AcPrinting.clearCache();
   }
 }

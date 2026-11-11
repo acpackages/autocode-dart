@@ -13,6 +13,15 @@ abstract class AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
+  });
+
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
   });
 
   Future<bool> sharePdf({

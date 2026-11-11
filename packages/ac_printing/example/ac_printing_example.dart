@@ -10,7 +10,10 @@ Future<void> main() async {
 
   // 1. Retrieve all available printers on this system
   print('Discovering system printers...');
+  final sw = Stopwatch()..start();
   final result = await acPrinting.getPrinters();
+  sw.stop();
+  print('Discovery completed in ${sw.elapsedMilliseconds} ms (${sw.elapsedMicroseconds} µs).\n');
 
   if (result.isSuccess() && result.value is List<AcPrinter>) {
     final printers = result.value as List<AcPrinter>;

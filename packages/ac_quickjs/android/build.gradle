@@ -47,6 +47,12 @@ android {
     defaultConfig {
         minSdkVersion 21
     }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['../native/android']
+        }
+    }
 }
 
 apply from: "../cargokit/gradle/plugin.gradle"

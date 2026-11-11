@@ -39,6 +39,7 @@ class AcFlutterMobilePrinting implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
     try {
       final targetPrinter = printerName ?? printer?.name;
@@ -64,6 +65,28 @@ class AcFlutterMobilePrinting implements AcPrintingPlatformAdapter {
         'marginRightMm': effectiveFormat?.marginRight ?? 0.0,
         'marginTopMm': effectiveFormat?.marginTop ?? 0.0,
         'marginBottomMm': effectiveFormat?.marginBottom ?? 0.0,
+      });
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('printRaw', {
+        'bytes': bytes,
+        'jobName': jobName,
+        'printerName': printerName ?? printer?.name,
+        'printerUrl': printer?.url,
+        'dataType': dataType,
       });
       return result ?? false;
     } catch (_) {

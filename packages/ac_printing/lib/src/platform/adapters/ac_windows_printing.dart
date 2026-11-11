@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -10,6 +11,14 @@ import 'ac_winspool_ffi.dart';
 class AcWindowsPrinting implements AcPrintingPlatformAdapter {
   @override
   Future<List<AcPrinter>> getPrinters() async {
+    // Strategy 0: Direct native Win32 FFI EnumPrinters (~1.5 ms vs 1800 ms PowerShell)
+    try {
+      final ffiPrinters = AcWinSpool.getPrinters();
+      if (ffiPrinters.isNotEmpty) {
+        return ffiPrinters;
+      }
+    } catch (_) {}
+
     final printers = <AcPrinter>[];
 
     try {
@@ -88,6 +97,7 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
     final targetPrinter = printerName ?? printer?.name ?? '';
     final hasExplicitFormat = (pageFormat != null && pageFormat.width > 0) ||
@@ -101,6 +111,7 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     final orientation = settings?.orientation.toLowerCase() ??
         (pageFormat != null ? (pageFormat.isPortrait ? 'portrait' : 'landscape') : 'auto');
     final copies = settings?.copies ?? 1;
+    final dpi = settings?.dpi ?? 200;
 
     final tempDir = Directory.systemTemp;
     final timestamp = DateTime.now().microsecondsSinceEpoch;
@@ -109,7 +120,7 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     try {
       await tempFile.writeAsBytes(pdfBytes, flush: true);
 
-      // Strategy 1: Native Windows WinRT + PrintDocument with high DPI & auto-orientation
+      // Strategy 1: Native Windows WinRT + PrintDocument with configurable DPI & auto-orientation
       final success = await _printViaWinRtPrintDocument(
         pdfFile: tempFile,
         printerName: targetPrinter,
@@ -118,9 +129,18 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
         orientation: orientation,
         copies: copies,
         jobName: jobName,
+        dpi: dpi,
+        asynchronous: asynchronous,
       );
 
-      if (success) return true;
+      if (success) {
+        if (!asynchronous) {
+          try {
+            if (await tempFile.exists()) await tempFile.delete();
+          } catch (_) {}
+        }
+        return true;
+      }
 
       // Strategy 2: System PrintTo verb via PowerShell
       final escapedPath = tempFile.path.replaceAll("'", "''");
@@ -141,52 +161,63 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
       );
 
       if (procResult.exitCode == 0) {
+        try {
+          if (await tempFile.exists()) await tempFile.delete();
+        } catch (_) {}
         return true;
       }
 
-      // Strategy 3: Edge silent print if available
-      final edgePaths = [
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-      ];
-      for (final edgePath in edgePaths) {
-        if (File(edgePath).existsSync()) {
-          final edgeArgs = ['--headless', '--disable-gpu'];
-          if (targetPrinter.isNotEmpty) {
-            edgeArgs.add('--print-to-printer=$targetPrinter');
-          }
-          edgeArgs.add(tempFile.path);
-
-          final edgeResult = await Process.run(edgePath, edgeArgs);
-          if (edgeResult.exitCode == 0) {
-            return true;
-          }
-          break;
-        }
-      }
-
-      // Strategy 4: Direct WinSpool FFI (useful for POS/receipt/raw printers)
+      // Strategy 3: Direct WinSpool FFI (fallback)
       if (targetPrinter.isNotEmpty) {
         final ffiSuccess = AcWinSpool.printRawBytes(
           printerName: targetPrinter,
           bytes: pdfBytes,
           docName: jobName,
         );
-        if (ffiSuccess) return true;
+        if (ffiSuccess) {
+          try {
+            if (await tempFile.exists()) await tempFile.delete();
+          } catch (_) {}
+          return true;
+        }
       }
 
       return false;
     } catch (_) {
       return false;
     } finally {
-      Future.delayed(const Duration(seconds: 15), () async {
+      if (!asynchronous) {
         try {
           if (await tempFile.exists()) {
             await tempFile.delete();
           }
-        } catch (_) {}
-      });
+        } catch (_) {
+          Future.delayed(const Duration(seconds: 2), () async {
+            try {
+              if (await tempFile.exists()) await tempFile.delete();
+            } catch (_) {}
+          });
+        }
+      }
     }
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    final targetPrinter = printerName ?? printer?.name ?? AcWinSpool.getDefaultPrinterName() ?? '';
+    if (targetPrinter.isEmpty) return false;
+    return AcWinSpool.printRawBytes(
+      printerName: targetPrinter,
+      bytes: bytes,
+      docName: jobName,
+      dataType: dataType,
+    );
   }
 
   Future<bool> _printViaWinRtPrintDocument({
@@ -197,6 +228,8 @@ class AcWindowsPrinting implements AcPrintingPlatformAdapter {
     required String orientation,
     required int copies,
     required String jobName,
+    int dpi = 200,
+    bool asynchronous = false,
   }) async {
     try {
       final script = '''
@@ -207,7 +240,8 @@ param(
     [double]\$HeightMm,
     [string]\$Orientation,
     [int]\$Copies,
-    [string]\$DocTitle
+    [string]\$DocTitle,
+    [int]\$Dpi = 200
 )
 
 try {
@@ -319,6 +353,9 @@ try {
         }
     })
 
+    \$effectiveDpi = [Math]::Max(72, [Math]::Min(600, \$Dpi))
+    \$dpiScale = [double]\$effectiveDpi / 72.0
+
     \$pd.add_PrintPage({
         param(\$sender, \$e)
         if (\$script:pageIndex -lt \$doc.PageCount) {
@@ -326,7 +363,6 @@ try {
             \$stream = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
 
             \$opt = New-Object Windows.Data.Pdf.PdfPageRenderOptions
-            \$dpiScale = 300.0 / 72.0
             \$opt.DestinationWidth = [uint32][Math]::Round(\$p.Size.Width * \$dpiScale)
             \$opt.DestinationHeight = [uint32][Math]::Round(\$p.Size.Height * \$dpiScale)
 
@@ -348,7 +384,7 @@ try {
 
             \$destRect = New-Object System.Drawing.Rectangle(\$destX, \$destY, \$destW, \$destH)
 
-            \$e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            \$e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBilinear
             \$e.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
             \$e.Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
             \$e.Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
@@ -375,41 +411,51 @@ try {
 }
 ''';
 
-      final tempScript = File(
-          '${pdfFile.parent.path}\\ac_win_print_${DateTime.now().microsecondsSinceEpoch}.ps1');
-      await tempScript.writeAsString(script, flush: true);
-
-      try {
-        final result = await Process.run(
-          'powershell',
-          [
-            '-NoProfile',
-            '-ExecutionPolicy',
-            'Bypass',
-            '-File',
-            tempScript.path,
-            '-PdfPath',
-            pdfFile.path,
-            '-PrinterName',
-            printerName,
-            '-WidthMm',
-            widthMm.toString(),
-            '-HeightMm',
-            heightMm.toString(),
-            '-Orientation',
-            orientation,
-            '-Copies',
-            copies.toString(),
-            '-DocTitle',
-            jobName,
-          ],
-        );
-        return result.exitCode == 0;
-      } finally {
-        if (await tempScript.exists()) {
-          await tempScript.delete();
-        }
+      // Persistent script caching: Write once in system temp and reuse across all print jobs
+      final cachedScript = File('${Directory.systemTemp.path}\\ac_win_print_v2.ps1');
+      if (!cachedScript.existsSync() || cachedScript.lengthSync() < 500) {
+        await cachedScript.writeAsString(script, flush: true);
       }
+
+      final processArgs = [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        cachedScript.path,
+        '-PdfPath',
+        pdfFile.path,
+        '-PrinterName',
+        printerName,
+        '-WidthMm',
+        widthMm.toString(),
+        '-HeightMm',
+        heightMm.toString(),
+        '-Orientation',
+        orientation,
+        '-Copies',
+        copies.toString(),
+        '-DocTitle',
+        jobName,
+        '-Dpi',
+        dpi.toString(),
+      ];
+
+      if (asynchronous) {
+        final process = await Process.start('powershell', processArgs);
+        // Hook background cleanup of the temporary PDF when the process finishes
+        unawaited(process.exitCode.then((_) async {
+          try {
+            if (await pdfFile.exists()) {
+              await pdfFile.delete();
+            }
+          } catch (_) {}
+        }));
+        return true;
+      }
+
+      final result = await Process.run('powershell', processArgs);
+      return result.exitCode == 0;
     } catch (_) {
       return false;
     }

@@ -27,6 +27,7 @@ class AcWebPrinting implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
     try {
       final jsArray = pdfBytes.toJS;
@@ -95,6 +96,17 @@ class AcWebPrinting implements AcPrintingPlatformAdapter {
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    return false;
   }
 
   @override

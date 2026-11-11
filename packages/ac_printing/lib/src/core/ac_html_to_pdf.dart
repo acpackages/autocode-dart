@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ac_extensions/ac_extensions.dart';
@@ -7,47 +7,131 @@ import 'package:puppeteer/puppeteer.dart';
 import '../../ac_printing.dart';
 
 class AcHtmlToPdf {
-  late Browser browser;
-  bool available=false;
-  bool launching=false;
+  Browser? _browser;
+  Browser get browser => _browser!;
+  set browser(Browser value) {
+    _browser = value;
+    available = value.isConnected;
+  }
+
+  bool available = false;
+  Future<AcResult>? _launchingFuture;
+  bool get launching => _launchingFuture != null;
   String? executablePath;
-  AcLogger logger = AcLogger(logMessages: true,logType: AcEnumLogType.text,logDirectory: "logs/html-to-pdf",envConfigTags: const["logs",'html-to-pdf']);
-  _debug(dynamic message){
+  Timer? _idleTimer;
+  Duration idleTimeout = const Duration(minutes: 30);
+
+  AcLogger logger = AcLogger(
+    logMessages: true,
+    logType: AcEnumLogType.text,
+    logDirectory: "logs/html-to-pdf",
+    envConfigTags: const ["logs", 'html-to-pdf'],
+  );
+
+  _debug(dynamic message) {
     logger.log(message);
   }
-  destroy() async {
-    available=false;
-    await browser.close();
+
+  bool get isBrowserHealthy {
+    try {
+      return _browser != null && available && _browser!.isConnected;
+    } catch (_) {
+      return false;
+    }
   }
-  Future<AcResult> init() async{
-    AcResult result = AcResult();
+
+  void _resetIdleTimer() {
+    _idleTimer?.cancel();
+    if (idleTimeout.inSeconds > 0) {
+      _idleTimer = Timer(idleTimeout, () {
+        if (available) {
+          _debug("Auto-closing idle Puppeteer browser after inactivity...");
+          destroy();
+        }
+      });
+    }
+  }
+
+  Future<void> destroy() async {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    available = false;
+    try {
+      if (_browser != null) {
+        await _browser!.close();
+      }
+    } catch (_) {}
+    _browser = null;
+  }
+
+  Future<AcResult> init() async {
+    if (isBrowserHealthy) {
+      final res = AcResult();
+      res.setSuccess();
+      return res;
+    }
+
+    if (_launchingFuture != null) {
+      return await _launchingFuture!;
+    }
+
+    final completer = Completer<AcResult>();
+    _launchingFuture = completer.future;
+
+    final result = AcResult();
     try {
       _debug("Initializing puppeteer...");
-      if (!available && !launching) {
-        launching = true;
-        _debug("Launching puppeteer browser...");
-        browser = await puppeteer.launch(
-          executablePath: executablePath,
-            args: [
+      try {
+        if (_browser != null) {
+          try {
+            await _browser!.close();
+          } catch (_) {}
+          _browser = null;
+        }
+      } catch (_) {}
+
+      _debug("Launching puppeteer browser...");
+      final launchedBrowser = await puppeteer.launch(
+        executablePath: executablePath,
+        args: [
           "--disable-font-subpixel-positioning",
-          "--disable-lcd-text","--enable-gpu"
-        ]);
-        result.setSuccess();
-        String version = await browser.version;
+          "--disable-lcd-text",
+          "--enable-gpu",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+        ],
+      );
+      _browser = launchedBrowser;
+      available = true;
+      result.setSuccess();
+      try {
+        String version = await launchedBrowser.version;
         result.value = {'version:': version};
-        _debug("Puppeteer browser launched.");
-        available = true;
-        launching = false;
-      }
+        _debug("Puppeteer browser launched ($version).");
+      } catch (_) {}
+      _resetIdleTimer();
       _debug("Puppeteer initialized.");
-    }
-    catch(ex,stack){
-      result.setException(exception: ex,stackTrace: stack,logger: logger);
+      completer.complete(result);
+    } catch (ex, stack) {
+      available = false;
+      _browser = null;
+      result.setException(exception: ex, stackTrace: stack, logger: logger);
+      completer.complete(result);
+    } finally {
+      _launchingFuture = null;
     }
     return result;
   }
 
-  Future<AcResult> convertHtmlToPdf(String html,{
+  Future<void> _ensureBrowser() async {
+    if (!isBrowserHealthy) {
+      available = false;
+      await init();
+    }
+  }
+
+  Future<AcResult> convertHtmlToPdf(
+    String html, {
     Function? callback,
     AcPageFormat? pageFormat,
     String consoleCompletedMessage = "",
@@ -56,51 +140,54 @@ class AcHtmlToPdf {
     int heightPX = 0,
     int widthPX = 0,
     double deviceScaleFactor = 1.0,
-    String? pageSizeQuerySelector
-  })async{
-    _debug("Generating pdf from html with completed message : $consoleCompletedMessage");
+    String? pageSizeQuerySelector,
+    bool saveHtmlDebugLog = false,
+  }) async {
+    _debug("Generating pdf from html");
+    _resetIdleTimer();
     AcResult result = AcResult();
     try {
-      DateTime startTime = DateTime.now();
-      bool completed = false;
-      if (consoleCompletedMessage.isEmpty) {
-        consoleCompletedMessage = "report_generated";
-        html = html.replaceAll("</body>",
-            '<script>console.log("report_generated");</script></body>');
+      if (saveHtmlDebugLog) {
+        try {
+          Directory fileDirectory = Directory("logs/puppeteer-html");
+          if (!fileDirectory.existsSync()) {
+            fileDirectory.createSync(recursive: true);
+          }
+          String timestamp = DateTime.now().format("YYYY-MM-DD-HH-mm-ss-SSSSSS");
+          String filePath = "${fileDirectory.path}/$timestamp.html";
+          AcBackgroundFile htmlFile = AcBackgroundFile(filePath);
+          htmlFile.write(html);
+          _debug("HTML written to debug file $filePath");
+        } catch (_) {}
       }
-      Directory fileDirectory = Directory("logs/puppeteer-html");
-      if (!fileDirectory.existsSync()) {
-        fileDirectory.createSync(recursive: true);
-      }
-      String timestamp = DateTime.now().format("YYYY-MM-DD-HH-mm-ss-SSSSSS");
-      String filePath = "${fileDirectory.path}/$timestamp.html";
-      while (File(filePath).existsSync()) {
-        timestamp = DateTime.now().format("YYYY-MM-DD-HH-mm-ss-SSSSSS");
-        filePath = "${fileDirectory.path}/$timestamp.html";
-      }
-      _debug("HTML is written in file $filePath");
-      AcBackgroundFile htmlFile = AcBackgroundFile(filePath);
-      htmlFile.write(html);
+
+      await _ensureBrowser();
+
       _debug("Creating browser page...");
-      Page page = await browser.newPage();
+      Page page;
+      try {
+        page = await browser.newPage();
+      } catch (ex) {
+        _debug("Failed to create page on current browser instance ($ex). Re-initializing Puppeteer...");
+        await destroy();
+        await init();
+        page = await browser.newPage();
+      }
       try {
         await page.emulateMediaType(MediaType.print);
         _debug("Browser page created.");
+
         await page.setContent(
           html,
-          wait: Until.all([
-            Until.domContentLoaded,
-            Until.load,
-          ]),
+          wait: Until.domContentLoaded,
         ).timeout(
-          const Duration(seconds: 15),
+          const Duration(seconds: 10),
           onTimeout: () {
-            _debug("page.setContent timed out after 15s, continuing with current DOM state");
+            _debug("page.setContent timed out, continuing with current DOM state");
           },
         );
 
         if (pageSizeQuerySelector != null) {
-          print("PageSizeSelector$pageSizeQuerySelector");
           final size = Map.from(await page.evaluate('''
           function() {
             const el = document.querySelector('$pageSizeQuerySelector');
@@ -123,21 +210,14 @@ class AcHtmlToPdf {
             };
           }
           '''));
-          print("Page Size : ${jsonEncode(size)}");
-          result = await pagePdf(page, callback: callback, heightIN: size.getDouble('heightIn'), widthIN: size.getDouble('widthIn'));
-          completed = true;
+          result = await pagePdf(
+            page,
+            callback: callback,
+            heightIN: size.getDouble('heightIn'),
+            widthIN: size.getDouble('widthIn'),
+          );
         } else {
           result = await pagePdf(page, callback: callback, pageFormat: pageFormat);
-          completed = true;
-        }
-
-        final deadline = startTime.add(const Duration(seconds: 10));
-        while (!completed) {
-          await Future.delayed(const Duration(milliseconds: 50));
-          if (DateTime.now().isAfter(deadline)) {
-            _debug("Completing because 10 seconds has elapsed");
-            completed = true;
-          }
         }
       } finally {
         _debug("Closing browser page...");
@@ -153,39 +233,43 @@ class AcHtmlToPdf {
     return result;
   }
 
-  Future<AcResult> pagePdf(Page page,{Function? callback,AcPageFormat? pageFormat,int heightPX = 0,int widthPX = 0, double heightMM = 0,double widthMM = 0, double heightIN = 0,double widthIN = 0})async{
+  Future<AcResult> pagePdf(
+    Page page, {
+    Function? callback,
+    AcPageFormat? pageFormat,
+    int heightPX = 0,
+    int widthPX = 0,
+    double heightMM = 0,
+    double widthMM = 0,
+    double heightIN = 0,
+    double widthIN = 0,
+  }) async {
     AcResult result = AcResult();
-    PaperFormat paperFormat=PaperFormat.a4;
-    if(heightPX > 0 && widthPX > 0){
+    PaperFormat paperFormat = PaperFormat.a4;
+    if (heightPX > 0 && widthPX > 0) {
       paperFormat = PaperFormat.px(width: widthPX, height: heightPX);
-    }
-    else if(heightIN > 0 && widthIN > 0){
+    } else if (heightIN > 0 && widthIN > 0) {
       paperFormat = PaperFormat.inches(width: widthIN, height: heightIN);
-    }
-    else if(heightMM > 0 && widthMM > 0){
+    } else if (heightMM > 0 && widthMM > 0) {
       paperFormat = PaperFormat.mm(width: widthMM, height: heightMM);
-    }
-    else if(pageFormat != null){
+    } else if (pageFormat != null) {
       paperFormat = pageFormat.toPaperFormat();
-      // print(pageFormat.toJson());
-      // if(pageFormat.isPortrait){
-      //   paperFormat = PaperFormat.mm(width: pageFormat.width, height: pageFormat.height);
-      // }
-      // else{
-      //   paperFormat = PaperFormat.mm(width: pageFormat.height, height: pageFormat.width);
-      // }
     }
-    // else
-    Uint8List? pdfData=await page.pdf(
-        format: paperFormat,
-        printBackground: true,
-        preferCssPageSize: true,
-      margins: PdfMargins.px(top: 0,left: 0,bottom: 0,right: 0)
+
+    Uint8List? pdfData = await page.pdf(
+      format: paperFormat,
+      printBackground: true,
+      preferCssPageSize: true,
+      margins: PdfMargins.px(top: 0, left: 0, bottom: 0, right: 0),
     );
-    if(callback!=null){
+
+    if (callback != null) {
       callback(pdfData);
     }
-    result.setSuccess(value: {'pdfData':pdfData,'pageFormat':AcPageFormat.instanceFromPaperFormat(format: paperFormat)});
+    result.setSuccess(value: {
+      'pdfData': pdfData,
+      'pageFormat': AcPageFormat.instanceFromPaperFormat(format: paperFormat)
+    });
     return result;
   }
 }

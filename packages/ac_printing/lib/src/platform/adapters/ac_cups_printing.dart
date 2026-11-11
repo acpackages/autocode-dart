@@ -81,60 +81,100 @@ class AcCupsPrinting implements AcPrintingPlatformAdapter {
     AcPageFormat? pageFormat,
     AcPrintSettings? settings,
     String jobName = 'Document',
+    bool asynchronous = false,
   }) async {
+    final args = <String>[];
+    final targetPrinter = printerName ?? printer?.name;
+    if (targetPrinter != null && targetPrinter.isNotEmpty) {
+      args.addAll(['-d', targetPrinter]);
+    }
+
+    args.addAll(['-t', jobName]);
+
+    if (settings != null) {
+      if (settings.copies > 1) {
+        args.addAll(['-n', settings.copies.toString()]);
+      }
+      if (settings.orientation.toLowerCase() == 'landscape') {
+        args.addAll(['-o', 'orientation-requested=4']);
+      }
+      if (settings.duplex) {
+        args.addAll(['-o', 'sides=two-sided-long-edge']);
+      }
+    }
+
+    final effectiveFormat = pageFormat ?? settings?.pageFormat;
+    if (effectiveFormat != null && effectiveFormat.width > 0 && effectiveFormat.height > 0) {
+      final mediaOption = _resolveCupsMedia(effectiveFormat);
+      args.addAll(['-o', 'media=$mediaOption']);
+      if (!effectiveFormat.isPortrait) {
+        args.addAll(['-o', 'landscape']);
+      }
+      args.addAll(['-o', 'fit-to-page']);
+    } else {
+      args.addAll(['-o', 'fit-to-page']);
+    }
+
+    // Fast-path: Pipe pdfBytes directly via stdin to 'lp' without disk I/O
+    try {
+      final process = await Process.start('lp', args);
+      process.stdin.add(pdfBytes);
+      await process.stdin.flush();
+      await process.stdin.close();
+
+      if (asynchronous) {
+        return true;
+      }
+
+      final exitCode = await process.exitCode;
+      if (exitCode == 0) return true;
+    } catch (_) {}
+
+    // Fallback: Write to temporary file
     final tempDir = Directory.systemTemp;
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final tempFile = File('${tempDir.path}/ac_print_$timestamp.pdf');
 
     try {
       await tempFile.writeAsBytes(pdfBytes, flush: true);
-
-      final args = <String>[];
-      final targetPrinter = printerName ?? printer?.name;
-      if (targetPrinter != null && targetPrinter.isNotEmpty) {
-        args.addAll(['-d', targetPrinter]);
-      }
-
-      args.addAll(['-t', jobName]);
-
-      if (settings != null) {
-        if (settings.copies > 1) {
-          args.addAll(['-n', settings.copies.toString()]);
-        }
-        if (settings.orientation.toLowerCase() == 'landscape') {
-          args.addAll(['-o', 'orientation-requested=4']);
-        }
-        if (settings.duplex) {
-          args.addAll(['-o', 'sides=two-sided-long-edge']);
-        }
-      }
-
-      final effectiveFormat = pageFormat ?? settings?.pageFormat;
-      if (effectiveFormat != null && effectiveFormat.width > 0 && effectiveFormat.height > 0) {
-        final mediaOption = _resolveCupsMedia(effectiveFormat);
-        args.addAll(['-o', 'media=$mediaOption']);
-        if (!effectiveFormat.isPortrait) {
-          args.addAll(['-o', 'landscape']);
-        }
-        args.addAll(['-o', 'fit-to-page']);
-      } else {
-        args.addAll(['-o', 'fit-to-page']);
-      }
-
-      args.add(tempFile.path);
-
-      final result = await Process.run('lp', args);
+      final fileArgs = List<String>.from(args)..add(tempFile.path);
+      final result = await Process.run('lp', fileArgs);
       return result.exitCode == 0;
     } catch (e) {
       return false;
     } finally {
-      Future.delayed(const Duration(seconds: 15), () async {
+      Future.delayed(const Duration(seconds: 5), () async {
         try {
           if (await tempFile.exists()) {
             await tempFile.delete();
           }
         } catch (_) {}
       });
+    }
+  }
+
+  @override
+  Future<bool> printRaw({
+    required Uint8List bytes,
+    AcPrinter? printer,
+    String? printerName,
+    String jobName = 'Receipt',
+    String dataType = 'RAW',
+  }) async {
+    final targetPrinter = printerName ?? printer?.name;
+    final args = <String>['-o', 'raw', '-t', jobName];
+    if (targetPrinter != null && targetPrinter.isNotEmpty) {
+      args.addAll(['-d', targetPrinter]);
+    }
+
+    try {
+      final process = await Process.start('lp', args);
+      process.stdin.add(bytes);
+      await process.stdin.flush();
+      await process.stdin.close();
+      return (await process.exitCode) == 0;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -181,4 +221,3 @@ class AcCupsPrinting implements AcPrintingPlatformAdapter {
   @override
   bool get isDirectPrintSupported => true;
 }
-

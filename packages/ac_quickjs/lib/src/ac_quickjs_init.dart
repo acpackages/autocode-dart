@@ -106,8 +106,21 @@ class AcQuickJs {
       return null;
     }
 
-    // 2. Search root paths (package root via Isolate, script dir, current working dir, package dirs)
+    // 2. Search root paths (executable dir, package root via Isolate, script dir, current working dir)
     final searchRoots = <String>[];
+
+    // Priority 1: Parent directory of resolved executable (essential for Flutter release builds & compiled exe)
+    try {
+      final exeFile = File(Platform.resolvedExecutable);
+      final exeDir = exeFile.parent;
+      searchRoots.add(exeDir.path);
+      searchRoots.add('${exeDir.path}/lib'); // Standard on Linux Flutter bundles
+      var exeParent = exeDir;
+      for (var i = 0; i < 4; i++) {
+        exeParent = exeParent.parent;
+        searchRoots.add(exeParent.path);
+      }
+    } catch (_) {}
 
     try {
       final pkgUri = await Isolate.resolvePackageUri(Uri.parse('package:ac_quickjs/'));
