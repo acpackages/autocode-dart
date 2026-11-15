@@ -38,7 +38,7 @@ class AcWebview extends StatefulWidget {
   }
 
   void emitEvent({required String name, dynamic data}) {
-    sendDataToWebview({'event': 'appContextChange', 'data': data});
+    sendDataToWebview({'event': name, 'data': data});
   }
 
   _AcWebviewState? get _state => _AcWebviewState._instances[this] ?? _AcWebviewState.instance;
@@ -179,16 +179,16 @@ class _AcWebviewState extends State<AcWebview> {
         // Inject the compatibility wrapper
         await ctrl.evaluateJavascript(source: '''
     (function() {
-      if (window.acWebviewJavascriptChannel) return; // avoid duplicate
+      if (!window.acWebviewJavascriptChannel) {
+        window.acWebviewJavascriptChannel = {};
+      }
 
-      window.acWebviewJavascriptChannel = {
-        postMessage: function(message) {
-          let msg = message;
-          if (typeof message !== 'string') {
-            try { msg = JSON.stringify(message); } catch(e) {}
-          }
-          window.flutter_inappwebview.callHandler('acWebviewJavascriptChannel', msg);
+      window.acWebviewJavascriptChannel.postMessage = function(message) {
+        let msg = message;
+        if (typeof message !== 'string') {
+          try { msg = JSON.stringify(message); } catch(e) {}
         }
+        window.flutter_inappwebview.callHandler('acWebviewJavascriptChannel', msg);
       };
 
       // Optional: trigger a ready event if your web code waits for it
@@ -227,12 +227,18 @@ class _AcWebviewWinFloatingState extends _AcWebviewState {
   void initState() {
     super.initState();
     _instances[widget] = this;
+    _AcWebviewState._instances[widget] = this;
+    _AcWebviewState.instance = this;
     _initialize();
   }
 
   @override
   void dispose() {
     _instances.remove(widget);
+    _AcWebviewState._instances.remove(widget);
+    if (_AcWebviewState.instance == this) {
+      _AcWebviewState.instance = null;
+    }
     super.dispose();
   }
 
@@ -252,6 +258,9 @@ class _AcWebviewWinFloatingState extends _AcWebviewState {
 
     _controller.setNavigationDelegate(
       NavigationDelegate(
+        onPageStarted: (url) async {
+          await _injectBridge();
+        },
         onPageFinished: (url) async {
           await _injectBridge();
         },
@@ -264,7 +273,7 @@ class _AcWebviewWinFloatingState extends _AcWebviewState {
       _controller.clearCache();
     }
     // Add JavaScript channel for communication from web → Flutter
-    _controller.addJavaScriptChannel(
+    await _controller.addJavaScriptChannel(
       'acWinFloatingWebviewChannel',
       onMessageReceived: (JavaScriptMessage message) {
         _handleMessageFromWeb(message.message);
@@ -289,18 +298,29 @@ class _AcWebviewWinFloatingState extends _AcWebviewState {
   Future<void> _injectBridge() async {
     const bridgeJs = '''
     (function() {
-      if (window.acWebviewJavascriptChannel) return;
-
-      window.acWebviewJavascriptChannel = {
-        postMessage: function(data) {
-          let msg = data;
-          if (typeof data !== 'string') {
-            try {
-              msg = JSON.stringify(data);
-            } catch (e) {}
-          }
+      function sendToFlutter(msg) {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ 'JkChannelName': 'acWinFloatingWebviewChannel', 'msg': msg });
+          return true;
+        } else if (typeof acWinFloatingWebviewChannel !== 'undefined') {
           acWinFloatingWebviewChannel.postMessage(msg);
+          return true;
         }
+        return false;
+      }
+
+      if (!window.acWebviewJavascriptChannel) {
+        window.acWebviewJavascriptChannel = {};
+      }
+
+      window.acWebviewJavascriptChannel.postMessage = function(data) {
+        let msg = data;
+        if (typeof data !== 'string') {
+          try {
+            msg = JSON.stringify(data);
+          } catch (e) {}
+        }
+        sendToFlutter(msg);
       };
 
       // Optional: signal ready
@@ -437,23 +457,23 @@ class _AcWebviewCefState extends _AcWebviewState {
   Future<void> _injectBridge() async {
     const bridgeJs = '''
     (function() {
-      if (window.acWebviewJavascriptChannel) return;
+      if (!window.acWebviewJavascriptChannel) {
+        window.acWebviewJavascriptChannel = {};
+      }
 
-      window.acWebviewJavascriptChannel = {
-        postMessage: function(data) {
-          let msg = data;
-          if (typeof data !== 'string') {
-            try {
-              msg = JSON.stringify(data);
-            } catch (e) {}
-          }
-          if (window.cefQuery) {
-            window.cefQuery({
-              request: msg,
-              onSuccess: function(response) {},
-              onFailure: function(errCode, errMsg) {}
-            });
-          }
+      window.acWebviewJavascriptChannel.postMessage = function(data) {
+        let msg = data;
+        if (typeof data !== 'string') {
+          try {
+            msg = JSON.stringify(data);
+          } catch (e) {}
+        }
+        if (window.cefQuery) {
+          window.cefQuery({
+            request: msg,
+            onSuccess: function(response) {},
+            onFailure: function(errCode, errMsg) {}
+          });
         }
       };
 

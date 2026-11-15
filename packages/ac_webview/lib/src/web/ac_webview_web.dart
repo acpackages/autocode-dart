@@ -25,9 +25,22 @@ class CefNativeClient {}
 const String acWebviewBridgeScript = r'''
 (function() {
   if (window._acWebviewBridgeReady) return;
-  window._acWebviewBridgeReady = true;
 
   var isInIframe = (window !== window.parent);
+  var isNativeWebview = !!(
+    (window.chrome && window.chrome.webview) ||
+    window.flutter_inappwebview ||
+    window.cefQuery ||
+    typeof acWinFloatingWebviewChannel !== 'undefined'
+  );
+
+  // Activate ONLY on ac_webview for web (running inside an iframe in Flutter Web).
+  // On native platforms (Windows WebView2, Android, iOS, CEF), native postMessage must work.
+  if (!isInIframe || isNativeWebview) {
+    return;
+  }
+
+  window._acWebviewBridgeReady = true;
 
   function dispatchToFlutter(message) {
     var msg = message;
@@ -43,7 +56,7 @@ const String acWebviewBridgeScript = r'''
       }
     } catch(e) {}
 
-    // Fallback: postMessage to parent (cross-origin safe)
+    // Fallback: postMessage to parent (cross-origin safe / web iframe)
     if (isInIframe) {
       try {
         window.parent.postMessage(JSON.stringify({
@@ -223,7 +236,7 @@ class AcWebview extends StatefulWidget {
   }
 
   void emitEvent({required String name, dynamic data}) {
-    sendDataToWebview({'event': 'appContextChange', 'data': data});
+    sendDataToWebview({'event': name, 'data': data});
   }
 
   _AcWebviewWebState? get _state => _AcWebviewWebState._instances[this];
@@ -408,7 +421,7 @@ class AcWebviewWinFloating extends StatefulWidget {
   }
 
   void emitEvent({required String name, dynamic data}) {
-    sendDataToWebview({'event': 'appContextChange', 'data': data});
+    sendDataToWebview({'event': name, 'data': data});
   }
 
   _AcWebviewWinFloatingWebState? get _state =>
@@ -587,7 +600,7 @@ class AcWebviewCef extends StatefulWidget {
   }
 
   void emitEvent({required String name, dynamic data}) {
-    sendDataToWebview({'event': 'appContextChange', 'data': data});
+    sendDataToWebview({'event': name, 'data': data});
   }
 
   _AcWebviewCefWebState? get _state => _AcWebviewCefWebState._instances[this];

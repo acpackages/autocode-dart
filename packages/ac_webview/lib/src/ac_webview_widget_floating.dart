@@ -94,6 +94,9 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
 
     _controller.setNavigationDelegate(
         NavigationDelegate(
+          onPageStarted: (url) async {
+            await _injectBridge();
+          },
           onPageFinished: (url) async {
             await _injectBridge();
           },
@@ -106,7 +109,7 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
       _controller.clearCache();
     }
     // Add JavaScript channel for communication from web → Flutter
-    _controller.addJavaScriptChannel(
+    await _controller.addJavaScriptChannel(
       'acWinFloatingWebviewChannel',
       onMessageReceived: (JavaScriptMessage message) {
         _handleMessageFromWeb(message.message);
@@ -131,18 +134,29 @@ class _AcWebviewState extends State<AcWebviewWinFloating  > {
   Future<void> _injectBridge() async {
     const bridgeJs = '''
     (function() {
-      if (window.acWebviewJavascriptChannel) return;
-
-      window.acWebviewJavascriptChannel = {
-        postMessage: function(data) {
-          let msg = data;
-          if (typeof data !== 'string') {
-            try {
-              msg = JSON.stringify(data);
-            } catch (e) {}
-          }
+      function sendToFlutter(msg) {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ 'JkChannelName': 'acWinFloatingWebviewChannel', 'msg': msg });
+          return true;
+        } else if (typeof acWinFloatingWebviewChannel !== 'undefined') {
           acWinFloatingWebviewChannel.postMessage(msg);
+          return true;
         }
+        return false;
+      }
+
+      if (!window.acWebviewJavascriptChannel) {
+        window.acWebviewJavascriptChannel = {};
+      }
+
+      window.acWebviewJavascriptChannel.postMessage = function(data) {
+        let msg = data;
+        if (typeof data !== 'string') {
+          try {
+            msg = JSON.stringify(data);
+          } catch (e) {}
+        }
+        sendToFlutter(msg);
       };
 
       // Optional: signal ready
