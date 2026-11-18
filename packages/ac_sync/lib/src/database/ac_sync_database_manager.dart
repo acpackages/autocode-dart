@@ -131,6 +131,7 @@ SELECT
     final insertTrigger = """
 CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_ins
 AFTER INSERT ON `$table`
+WHEN (SELECT ${TblAcSyncDetails.syncDetailNumericValue} FROM `${AcSyncTables.acSyncDetails}` WHERE `${TblAcSyncDetails.syncDetailKey}` = 'is_applying_sync') IS NOT 1
 BEGIN
   INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
     `${TblAcSyncChangeLogs.tableName}`,
@@ -151,6 +152,7 @@ END;
     final updateTrigger = """
     CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_upd
     AFTER UPDATE ON `$table`
+    WHEN (SELECT ${TblAcSyncDetails.syncDetailNumericValue} FROM `${AcSyncTables.acSyncDetails}` WHERE `${TblAcSyncDetails.syncDetailKey}` = 'is_applying_sync') IS NOT 1
     BEGIN
       INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
         `${TblAcSyncChangeLogs.tableName}`,
@@ -171,6 +173,7 @@ END;
     final deleteTrigger = """
 CREATE TRIGGER IF NOT EXISTS ${prefix}${table}_del
 AFTER DELETE ON `$table`
+WHEN (SELECT ${TblAcSyncDetails.syncDetailNumericValue} FROM `${AcSyncTables.acSyncDetails}` WHERE `${TblAcSyncDetails.syncDetailKey}` = 'is_applying_sync') IS NOT 1
 BEGIN
   INSERT INTO `${AcSyncTables.acSyncChangeLogs}` (
     `${TblAcSyncChangeLogs.tableName}`,

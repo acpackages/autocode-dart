@@ -60,6 +60,9 @@ default = []
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 llrt_os = { git = "https://github.com/awslabs/llrt", rev = "952fd20" }
 
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { git = "https://github.com/DelSkayn/rquickjs.git", rev = "04e2734", version = "0.12.1", features = ["bindgen"] }
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 

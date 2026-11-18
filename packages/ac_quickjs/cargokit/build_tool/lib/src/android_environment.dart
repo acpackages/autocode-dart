@@ -177,6 +177,7 @@ class AndroidEnvironment {
       rustFlagsKey: rustFlagsValue,
       linkerKey: selfPath,
       bindgenKey: bindgenValue,
+      'LIBCLANG_PATH': toolchainPath,
       // Recognized by main() so we know when we're acting as a wrapper
       '_CARGOKIT_NDK_LINK_TARGET': targetArg,
       '_CARGOKIT_NDK_LINK_CLANG': ccValue,

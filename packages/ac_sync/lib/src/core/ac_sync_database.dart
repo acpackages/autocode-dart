@@ -84,6 +84,9 @@ class AcSyncDatabase {
     }
 
     try {
+      try {
+        await dao!.executeStatement(statement: "INSERT OR REPLACE INTO ${AcSyncTables.acSyncDetails} (${TblAcSyncDetails.syncDetailKey}, ${TblAcSyncDetails.syncDetailNumericValue}) VALUES ('is_applying_sync', 1);");
+      } catch (_) {}
       logger.log(
           "[AcSyncDatabase|$isDestination]  Disabling foreign keys for sync application...");
       await dao!.disableForeignKeyChecks();
@@ -99,13 +102,29 @@ class AcSyncDatabase {
         bool pkFound = false;
         for (var def in syncDefinitions.values) {
           for (var tDef in def.tableDefinitions) {
-            if (tDef.tableName == tableName) {
+            if (tDef.tableName == tableName && tDef.primaryKeyField.isNotEmpty) {
               pkField = tDef.primaryKeyField;
               pkFound = true;
               break;
             }
           }
           if (pkFound) break;
+        }
+
+        if (!pkFound) {
+          // Check rows for column ending with _id or matching singular table name
+          Map<String, dynamic>? sampleRow = tableChanges.rowsToUpdate.isNotEmpty
+              ? tableChanges.rowsToUpdate.first.row
+              : (tableChanges.rowsToInsert.isNotEmpty ? tableChanges.rowsToInsert.first.row : null);
+          if (sampleRow != null && !sampleRow.containsKey(pkField)) {
+            for (var key in sampleRow.keys) {
+              if (key.endsWith("_id") && !key.startsWith("accountee_")) {
+                pkField = key;
+                pkFound = true;
+                break;
+              }
+            }
+          }
         }
         logger.log(
             "[AcSyncDatabase|$isDestination]  Table '$tableName' - Primary key field used: $pkField ${pkFound
@@ -143,10 +162,18 @@ class AcSyncDatabase {
               logger.log(
                   "[AcSyncDatabase|$isDestination]  Table '$tableName' - Inserting row ID: ${rowChange
                       .rowId ?? 'unknown'}");
-              await dao!.insertRow(
+              var insertRes = await dao!.insertRow(
                 tableName: tableName,
                 row: rowChange.row!,
               );
+              if (!insertRes.isSuccess() && rowChange.row![pkField] != null) {
+                logger.log("[AcSyncDatabase|$isDestination]  Insert failed for ${rowChange.row![pkField]}, falling back to update...");
+                await dao!.updateRow(
+                  tableName: tableName,
+                  row: rowChange.row!,
+                  condition: "$pkField = '${rowChange.row![pkField]}'",
+                );
+              }
             } else {
               logger.warn(
                   "[AcSyncDatabase|$isDestination]  Table '$tableName' - Row data is null during insert operation, skipping.");
@@ -180,6 +207,11 @@ class AcSyncDatabase {
     } catch (e, stack) {
       logger.log("[AcSyncDatabase|$isDestination]   Error applying sync changes: $e");
       result.setException(exception: e, stackTrace: stack);
+    } finally {
+      try {
+        await dao!.executeStatement(statement: "DELETE FROM ${AcSyncTables.acSyncDetails} WHERE ${TblAcSyncDetails.syncDetailKey} = 'is_applying_sync';");
+        await dao!.enableForeignKeyChecks();
+      } catch (_) {}
     }
     return result;
   }

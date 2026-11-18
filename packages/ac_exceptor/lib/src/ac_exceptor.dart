@@ -48,9 +48,21 @@ dynamic acExceptorIgnore<T>(dynamic Function() action, {T? fallbackValue}) {
 /// exception summaries and separate occurrence logs into a local SQLite database.
 class AcExceptor {
   static AcExceptor? globalInstance;
-  static init() async {
+  static String defaultDatabasePath = '_ac_exceptor_/cache.db';
+
+  static Future<void> init({
+    String? databasePath,
+    String dataDictionaryName = 'ac_exceptor',
+    bool registerFlutterError = true,
+    bool registerPlatformDispatcher = true,
+  }) async {
     AcExceptor.globalInstance = AcExceptor();
-    await AcExceptor.globalInstance!.initialize();
+    await AcExceptor.globalInstance!.initialize(
+      databasePath: databasePath ?? defaultDatabasePath,
+      dataDictionaryName: dataDictionaryName,
+      registerFlutterError: registerFlutterError,
+      registerPlatformDispatcher: registerPlatformDispatcher,
+    );
   }
 
   static Future<Isolate> startIsolate<T>(
@@ -175,9 +187,25 @@ class AcExceptor {
     _databasePath = databasePath;
 
     // Ensure target directory exists for SQLite database file
-    final dbFile = File(_databasePath);
-    if (!dbFile.parent.existsSync()) {
-      dbFile.parent.createSync(recursive: true);
+    var dbFile = File(_databasePath);
+    try {
+      if (!dbFile.parent.existsSync()) {
+        dbFile.parent.createSync(recursive: true);
+      }
+    } catch (_) {
+      // Fallback: If creating parent directory fails (e.g. read-only filesystem on Android/iOS when using a relative path),
+      // fall back to system temp directory so initialization never crashes the application.
+      try {
+        final fileName = dbFile.uri.pathSegments.isNotEmpty ? dbFile.uri.pathSegments.last : 'cache.db';
+        final tempDir = Directory('${Directory.systemTemp.path}/_ac_exceptor_');
+        if (!tempDir.existsSync()) {
+          tempDir.createSync(recursive: true);
+        }
+        _databasePath = '${tempDir.path}/$fileName'.replaceAll('\\', '/');
+        dbFile = File(_databasePath);
+      } catch (_) {
+        _databasePath = ':memory:';
+      }
     }
 
     // 1. Register the schema with AcDataDictionary

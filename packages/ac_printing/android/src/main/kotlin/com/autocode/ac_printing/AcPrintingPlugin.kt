@@ -120,7 +120,6 @@ class AcPrintingPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                         "A6" -> if (isPortrait) PrintAttributes.MediaSize.ISO_A6 else PrintAttributes.MediaSize.ISO_A6.asLandscape()
                         "LETTER" -> if (isPortrait) PrintAttributes.MediaSize.NA_LETTER else PrintAttributes.MediaSize.NA_LETTER.asLandscape()
                         "LEGAL" -> if (isPortrait) PrintAttributes.MediaSize.NA_LEGAL else PrintAttributes.MediaSize.NA_LEGAL.asLandscape()
-                        "EXECUTIVE" -> if (isPortrait) PrintAttributes.MediaSize.NA_EXECUTIVE else PrintAttributes.MediaSize.NA_EXECUTIVE.asLandscape()
                         else -> {
                             val safeId = "custom_${widthMils}_${heightMils}"
                             PrintAttributes.MediaSize(safeId, "$paperName ($widthMm x $heightMm mm)", widthMils, heightMils)

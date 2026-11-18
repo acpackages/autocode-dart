@@ -43,6 +43,5 @@ android {
 }
 
 dependencies {
-    compileOnly 'io.flutter:flutter_embedding_release:1.0.0-a10d8ac38de835021c8d2f920dbf50a920ccc030'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }

@@ -1040,14 +1040,15 @@ class AcSqliteDao extends AcBaseSqlDao {
     try {
       db = await _getConnection();
       if (db != null) {
-        final columns = row.keys.toList();
+        final cleanEntries = row.entries.where((e) => e.key.trim().isNotEmpty).toList();
+        final columns = cleanEntries.map((e) => e.key).toList();
         final placeholders = List.generate(
           columns.length,
           (i) => '?',
         ).join(', ');
         final statement =
             "INSERT INTO $tableName (${columns.join(', ')}) VALUES ($placeholders)";
-        final params = row.values.toList();
+        final params = cleanEntries.map((e) => e.value).toList();
         db.execute(
           statement,
           ensureValidParamsType(params: params),
@@ -1197,10 +1198,11 @@ class AcSqliteDao extends AcBaseSqlDao {
     try {
       db = await _getConnection();
       if (db != null) {
-        final setValues = row.keys.map((key) => "$key = ?").join(", ");
+        final cleanEntries = row.entries.where((e) => e.key.trim().isNotEmpty).toList();
+        final setValues = cleanEntries.map((e) => "${e.key} = ?").join(", ");
         final statement =
             "UPDATE $tableName SET $setValues ${condition.isNotEmpty ? "WHERE $condition" : ""}";
-        final params = [...row.values, ...parameters.values];
+        final params = [...cleanEntries.map((e) => e.value), ...parameters.values];
         db.execute(
           statement,
           ensureValidParamsType(params: params),
